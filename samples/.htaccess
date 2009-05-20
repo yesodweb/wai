@@ -1,0 +1,5 @@
+Options +ExecCGI
+AddHandler cgi-script .cgi
+AddHandler fastcgi-script .fcgi
+
+Options +FollowSymlinks
