@@ -9,6 +9,9 @@ import Network.CGI.Protocol
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as BS
 
+import Control.Arrow (first)
+import Data.Char (toUpper)
+
 safeRead :: Read a => a -> String -> a
 safeRead d s = case reads s of
                 ((x, _):_) -> x
@@ -20,7 +23,8 @@ cgiToApp cgi env = do
         input = hackInput env
         (inputs, body') = decodeInput vars input
         req = CGIRequest
-                { cgiVars = Map.fromList vars
+                { cgiVars = Map.fromList $ map (first fixVarName) vars
+                                        ++ getCgiVars env
                 , cgiInputs = inputs
                 , cgiRequestBody = body'
                 }
@@ -33,3 +37,20 @@ cgiToApp cgi env = do
                     Nothing -> 200
                     Just s -> safeRead 200 s
     return $ Response status' headers' output
+
+fixVarName :: String -> String
+fixVarName = (flip (++) $ "HTTP_") . map fixVarNameChar
+
+fixVarNameChar :: Char -> Char
+fixVarNameChar '-' = '_'
+fixVarNameChar c = toUpper c
+
+getCgiVars :: Env -> [(String, String)]
+getCgiVars e =
+    [ ("PATH_INFO", pathInfo e)
+    , ("REQUEST_METHOD", show $ requestMethod e)
+    , ("SCRIPT_NAME", scriptName e)
+    , ("QUERY_STRING", queryString e)
+    , ("SERVER_NAME", serverName e)
+    , ("SERVER_PORT", show $ serverPort e)
+    ]
