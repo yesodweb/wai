@@ -39,7 +39,7 @@ cgiToApp cgi env = do
     return $ Response status' headers' output
 
 fixVarName :: String -> String
-fixVarName = (flip (++) $ "HTTP_") . map fixVarNameChar
+fixVarName = ((++) $ "HTTP_") . map fixVarNameChar
 
 fixVarNameChar :: Char -> Char
 fixVarNameChar '-' = '_'
