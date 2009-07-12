@@ -19,13 +19,12 @@ safeRead d s = case reads s of
 
 cgiToApp :: CGI CGIResult -> Application
 cgiToApp cgi env = do
-    let vars = http env
+    let vars = map (first fixVarName) (http env)++ getCgiVars env
         input = hackInput env
         (inputs, body') = decodeInput vars input
         req = CGIRequest
-                { cgiVars = Map.fromList $ map (first fixVarName) vars
-                                        ++ getCgiVars env
-                , cgiInputs = inputs
+                { cgiVars = Map.fromList $ vars
+               	, cgiInputs = inputs
                 , cgiRequestBody = body'
                 }
     (headers'', output') <- runCGIT cgi req
