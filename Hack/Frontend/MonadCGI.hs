@@ -1,5 +1,6 @@
 module Hack.Frontend.MonadCGI
     ( cgiToApp
+    , cgiToAppGeneric
     ) where
 
 import Hack
@@ -18,16 +19,22 @@ safeRead d s = case reads s of
                 _ -> d
 
 cgiToApp :: CGI CGIResult -> Application
-cgiToApp cgi env = do
+cgiToApp = cgiToAppGeneric id
+
+cgiToAppGeneric :: Monad m
+                => (m (Headers, CGIResult) -> IO (Headers, CGIResult))
+                -> CGIT m CGIResult
+                -> Application
+cgiToAppGeneric toIO cgi env = do
     let vars = map (first fixVarName) (http env)++ getCgiVars env
         input = hackInput env
         (inputs, body') = decodeInput vars input
         req = CGIRequest
                 { cgiVars = Map.fromList $ vars
-               	, cgiInputs = inputs
+                , cgiInputs = inputs
                 , cgiRequestBody = body'
                 }
-    (headers'', output') <- runCGIT cgi req
+    (headers'', output') <- toIO $ runCGIT cgi req
     let output = case output' of
                     CGIOutput bs -> bs
                     CGINothing -> BS.empty
