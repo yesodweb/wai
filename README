@@ -1,1 +1,1 @@
-Allows programs written against MonadCGI to run with any hack handler.
+Allows programs written against MonadCGI to run with any WAI handler.

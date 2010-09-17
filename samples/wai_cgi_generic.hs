@@ -1,11 +1,12 @@
+{-# LANGUAGE PackageImports #-}
 import qualified Network.CGI
-import qualified Hack.Handler.CGI
-import qualified Hack.Frontend.MonadCGI
-import Control.Monad.Reader
+import qualified Network.Wai.Handler.SimpleServer
+import qualified Network.Wai.Frontend.MonadCGI
+import "mtl" Control.Monad.Reader
 
 main :: IO ()
-main = Hack.Handler.CGI.run
-     $ Hack.Frontend.MonadCGI.cgiToAppGeneric
+main = Network.Wai.Handler.SimpleServer.run 3000
+     $ Network.Wai.Frontend.MonadCGI.cgiToAppGeneric
        monadToIO
        mainCGI
 
