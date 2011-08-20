@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-import Test.Framework (defaultMain, testGroup, Test)
-import Test.Framework.Providers.HUnit
+import Test.Hspec
+import Test.Hspec.QuickCheck
+import Test.Hspec.HUnit ()
 import Test.HUnit hiding (Test)
 
 import Network.Wai
@@ -29,30 +30,28 @@ import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (parseSimpleQuery, status200)
 
 main :: IO ()
-main = defaultMain [testSuite]
-
-testSuite :: Test
-testSuite = testGroup "Network.Wai.Parse"
-    [ testCase "parseQueryString" caseParseQueryString
-    , testCase "parseQueryString with question mark" caseParseQueryStringQM
-    , testCase "parseHttpAccept" caseParseHttpAccept
-    , testCase "parseRequestBody" caseParseRequestBody
+main = hspecX $ do
+  describe "Network.Wai.Parse"
+    [ it "parseQueryString" caseParseQueryString
+    , it "parseQueryString with question mark" caseParseQueryStringQM
+    , it "parseHttpAccept" caseParseHttpAccept
+    , it "parseRequestBody" caseParseRequestBody
     {-
-    , testCase "findBound" caseFindBound
-    , testCase "sinkTillBound" caseSinkTillBound
-    , testCase "killCR" caseKillCR
-    , testCase "killCRLF" caseKillCRLF
-    , testCase "takeLine" caseTakeLine
+    , it "findBound" caseFindBound
+    , it "sinkTillBound" caseSinkTillBound
+    , it "killCR" caseKillCR
+    , it "killCRLF" caseKillCRLF
+    , it "takeLine" caseTakeLine
     -}
-    , testCase "jsonp" caseJsonp
-    , testCase "gzip" caseGzip
-    , testCase "gzip not for MSIE" caseGzipMSIE
-    , testCase "vhost" caseVhost
-    , testCase "autohead" caseAutohead
-    , testCase "method override" caseMethodOverride
-    , testCase "accept override" caseAcceptOverride
-    , testCase "dalvik multipart" caseDalvikMultipart
-    , testCase "debug request body" caseDebugRequestBody
+    , it "jsonp" caseJsonp
+    , it "gzip" caseGzip
+    , it "gzip not for MSIE" caseGzipMSIE
+    , it "vhost" caseVhost
+    , it "autohead" caseAutohead
+    , it "method override" caseMethodOverride
+    , it "accept override" caseAcceptOverride
+    , it "dalvik multipart" caseDalvikMultipart
+    , it "debug request body" caseDebugRequestBody
     ]
 
 caseParseQueryString :: Assertion
