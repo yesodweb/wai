@@ -336,7 +336,8 @@ isChunked :: H.HttpVersion -> Bool
 isChunked = (==) H.http11
 
 hasBody :: H.Status -> Request -> Bool
-hasBody s req = s /= (H.Status 204 "") && requestMethod req /= "HEAD"
+hasBody s req = s /= (H.Status 204 "") && s /= H.status304 &&
+                H.statusCode s >= 200 && requestMethod req /= "HEAD"
 
 sendResponse :: T.Handle
              -> Request -> Socket -> Response -> IO Bool
