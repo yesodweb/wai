@@ -47,6 +47,7 @@ module Network.Wai.Application.Static
     , toFilePath
     , fromFilePath
     , MaxAge (..)
+    , ETagLookup
     ) where
 
 import Prelude hiding (FilePath)
@@ -229,10 +230,12 @@ unsafe (FilePath s)
 nullFilePath :: FilePath -> Bool
 nullFilePath = T.null . unFilePath
 
+{-
 stripTrailingSlash :: FilePath -> FilePath
 stripTrailingSlash fp@(FilePath t)
     | T.null t || T.last t /= '/' = fp
     | otherwise = FilePath $ T.init t
+    -}
 
 type Pieces = [FilePath]
 
@@ -422,7 +425,8 @@ defaultFileServerSettings = StaticSettings
     , ssUseHash = False
     }
 
-fileHelper :: (FilePath -> Maybe (IO ByteString)) -- ^ hash function
+type ETagLookup = (FilePath -> Maybe (IO ByteString))
+fileHelper :: ETagLookup
            -> FilePath -> FilePath -> IO File
 fileHelper hashFunc fp name = do
     fs <- getFileStatus $ fromFilePath fp
