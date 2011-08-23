@@ -6,6 +6,7 @@ module Network.Wai.Application.Static
       staticApp
       -- ** Settings
     , defaultWebAppSettings
+    , webAppSettingsWithLookup 
     , defaultFileServerSettings
     , StaticSettings
     , ssFolder
@@ -307,30 +308,31 @@ checkPieces fileLookup indices pieces req maxAge useHash
     handleCache file =
       if not useHash then lastModifiedCache file
         else do
-          let mGetHash  = fileGetHash file
           let etagParam = lookup "etag" queryString
 
-          case (etagParam, mGetHash) of
-            (Just mEtag, Just getHash) -> do
-                hash <- getHash
-                if isJust mEtag && hash == fromJust mEtag
-                  then return $ FileResponse file $ ("ETag", hash):cacheControl
-                  else return $ Redirect pieces (Just hash)
-            -- a file used to have an etag parameter, but no longer does
-            (Just _, Nothing) -> return $ Redirect pieces Nothing
+          case etagParam of
+            Nothing -> do -- no query parameter. Set appropriate ETag headers
+                mHash <- fileGetHash file
+                case mHash of
+                    Nothing -> lastModifiedCache file
+                    Just hash ->
+                        case lookup "if-none-match" headers of
+                            Just lastHash ->
+                              if hash == lastHash
+                                  then return NotModified
+                                  else return $ FileResponse file $ [("ETag", hash)]
+                            Nothing -> return $ FileResponse file $ [("ETag", hash)]
 
-            _ -> 
-                case (lookup "if-none-match" headers, mGetHash) of
-                    -- etag
-                    (mLastHash, Just getHash) -> do
-                        hash <- getHash
-                        case mLastHash of
-                          Just lastHash ->
-                            if hash == lastHash
-                                then return NotModified
-                                else return $ FileResponse file $ [("ETag", hash)]
-                          Nothing -> return $ FileResponse file $ [("ETag", hash)]
-                    (_, Nothing) -> lastModifiedCache file
+            Just mEtag -> do
+                mHash <- fileGetHash file
+                case mHash of
+                  -- a file used to have an etag parameter, but no longer does
+                  Nothing -> return $ Redirect pieces Nothing
+                  Just hash ->
+                    if isJust mEtag && hash == fromJust mEtag
+                      then return $ FileResponse file $ ("ETag", hash):cacheControl
+                      else return $ Redirect pieces (Just hash)
+
 
     lastModifiedCache file =
       case (lookup "if-modified-since" headers >>= parseHTTPDate, fileGetModified file) of
@@ -378,12 +380,12 @@ data File = File
     { fileGetSize :: Int
     , fileToResponse :: H.Status -> H.ResponseHeaders -> W.Response
     , fileName :: FilePath
-    , fileGetHash :: Maybe (IO ByteString)
+    , fileGetHash :: IO (Maybe ByteString)
     , fileGetModified :: Maybe EpochTime
     }
 
 data StaticSettings = StaticSettings
-    { ssFolder :: Pieces -> IO FileLookup
+    { ssFolder :: Pieces -> IO FileLookup -- TODO: not a folder, so rename
     , ssMkRedirect :: Pieces -> ByteString -> ByteString
     , ssGetMimeType :: File -> IO MimeType
     , ssListing :: Maybe Listing
@@ -403,9 +405,14 @@ defaultMkRedirect pieces newPath
   where
     relDir = TE.encodeUtf8 (relativeDirFromPieces pieces)
 
+webAppSettingsWithLookup :: ETagLookup -> StaticSettings
+webAppSettingsWithLookup etagLookup =
+  defaultWebAppSettings { ssFolder = webAppLookup etagLookup "static"}
+
+
 defaultWebAppSettings :: StaticSettings
 defaultWebAppSettings = StaticSettings
-    { ssFolder = fileSystemLookup "static"
+    { ssFolder = webAppLookup hashFileIfExists "static"
     , ssMkRedirect  = defaultMkRedirect
     , ssGetMimeType = return . defaultMimeTypeByExt . fileName
     , ssMaxAge  = MaxAgeForever
@@ -425,7 +432,6 @@ defaultFileServerSettings = StaticSettings
     , ssUseHash = False
     }
 
-type ETagLookup = (FilePath -> Maybe (IO ByteString))
 fileHelper :: ETagLookup
            -> FilePath -> FilePath -> IO File
 fileHelper hashFunc fp name = do
@@ -438,17 +444,36 @@ fileHelper hashFunc fp name = do
         , fileGetModified = Just $ modificationTime fs
         }
 
-defaultFileSystemHash :: FilePath -> Maybe (IO ByteString)
-defaultFileSystemHash fp = Just $ do
-    -- FIXME replace lazy IO with enumerators
-    -- FIXME let's use a dictionary to cache these values?
+type ETagLookup = (FilePath -> IO (Maybe ByteString))
+
+webAppLookup :: ETagLookup -> FilePath -> Pieces -> IO FileLookup
+webAppLookup cachedLookupHash prefix pieces = do
+    file <- fileHelper cachedLookupHash fp (last pieces)
+    return $ Just $ Right $ file
+  where
+    fp = pathFromPieces prefix pieces
+
+defaultFileSystemHash :: ETagLookup
+defaultFileSystemHash fp = fmap Just $ hashFile fp
+
+-- FIXME replace lazy IO with enumerators
+-- FIXME let's use a dictionary to cache these values?
+hashFile :: FilePath -> IO ByteString
+hashFile fp = do
     l <- L.readFile $ fromFilePath fp
     return $ runHashL l
+
+hashFileIfExists :: ETagLookup
+hashFileIfExists fp = do
+    fe <- doesFileExist $ fromFilePath fp
+    if fe
+      then return Nothing
+      else defaultFileSystemHash fp
 
 fileSystemLookup :: FilePath -> Pieces -> IO FileLookup
 fileSystemLookup = fileSystemLookupHash defaultFileSystemHash
 
-fileSystemLookupHash :: (FilePath -> Maybe (IO ByteString)) -- ^ hash function
+fileSystemLookupHash :: ETagLookup
                      -> FilePath -> Pieces -> IO FileLookup
 fileSystemLookupHash hashFunc prefix pieces = do
     let fp = pathFromPieces prefix pieces
@@ -498,7 +523,7 @@ toEntry (name, EEFile bs) = Right $ File
     { fileGetSize = S8.length bs
     , fileToResponse = \s h -> W.ResponseBuilder s h $ fromByteString bs
     , fileName = name
-    , fileGetHash = Just $ return $ runHash bs
+    , fileGetHash = return $ Just $ runHash bs
     , fileGetModified = Nothing
     }
 
@@ -529,7 +554,7 @@ bsToFile name bs = File
     { fileGetSize = S8.length bs
     , fileToResponse = \s h -> W.ResponseBuilder s h $ fromByteString bs
     , fileName = name
-    , fileGetHash = Just $ return $ runHash bs
+    , fileGetHash = return $ Just $ runHash bs
     , fileGetModified = Nothing
     }
 
