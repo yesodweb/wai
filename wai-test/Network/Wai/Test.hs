@@ -8,6 +8,7 @@ module Network.Wai.Test
     , srequest
     , SRequest (..)
     , SResponse (..)
+    , defaultRequest
       -- * Assertions
     , assertStatus
     , assertContentType
@@ -35,7 +36,7 @@ import Data.CaseInsensitive (CI)
 type Session = ReaderT Application (StateT ClientState IO)
 
 data ClientState = ClientState
-    { clientCookies :: Map ByteString ByteString
+    { _clientCookies :: Map ByteString ByteString
     }
 
 initState :: ClientState
@@ -56,6 +57,21 @@ data SResponse = SResponse
     deriving (Show, Eq)
 request :: Request -> Session SResponse
 request = srequest . flip SRequest L.empty
+
+defaultRequest :: Request
+defaultRequest = Request
+    { requestMethod = "GET"
+    , httpVersion = H.http11
+    , rawPathInfo = "/"
+    , rawQueryString = ""
+    , serverName = "localhost"
+    , serverPort = 80
+    , requestHeaders = []
+    , isSecure = False
+    , remoteHost = error "Network.Wai.Test.defaultRequest{remoteHost}"
+    , pathInfo = []
+    , queryString = []
+    }
 
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do

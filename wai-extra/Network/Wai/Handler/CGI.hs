@@ -147,16 +147,17 @@ runGeneric vars inputH outputH xsendfile app = do
             Just _ -> h
 
 cleanupVarName :: String -> CI.CI B.ByteString
-cleanupVarName ('H':'T':'T':'P':'_':a:as) =
-    String.fromString $ a : helper' as
+cleanupVarName "CONTENT_TYPE" = "Content-Type"
+cleanupVarName "CONTENT_LENGTH" = "Content-Length"
+cleanupVarName "SCRIPT_NAME" = "CGI-Script-Name"
+cleanupVarName s =
+    case s of
+        'H':'T':'T':'P':'_':a:as -> String.fromString $ a : helper' as
+        _ -> String.fromString s -- FIXME remove?
   where
     helper' ('_':x:rest) = '-' : x : helper' rest
     helper' (x:rest) = toLower x : helper' rest
     helper' [] = []
-cleanupVarName "CONTENT_TYPE" = "Content-Type"
-cleanupVarName "CONTENT_LENGTH" = "Content-Length"
-cleanupVarName "SCRIPT_NAME" = "CGI-Script-Name"
-cleanupVarName x = String.fromString x -- FIXME remove?
 
 requestBodyHandle :: Handle -> Int -> Enumerator B.ByteString IO a
 requestBodyHandle h =

@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Test.Hspec
-import Test.Hspec.QuickCheck
 import Test.Hspec.HUnit ()
 import Test.HUnit hiding (Test)
 
@@ -20,7 +19,7 @@ import Network.Wai.Middleware.Vhost
 import Network.Wai.Middleware.Autohead
 import Network.Wai.Middleware.MethodOverride
 import Network.Wai.Middleware.AcceptOverride
-import Network.Wai.Middleware.Debug (debug, debugHandle)
+import Network.Wai.Middleware.Debug (debugHandle)
 import Codec.Compression.GZip (decompress)
 
 import Data.Enumerator (run_, enumList, ($$), Iteratee)
@@ -162,18 +161,18 @@ caseParseRequestBody = run_ t where
                     result3'
 
 toRequest :: S8.ByteString -> S8.ByteString -> SRequest
-toRequest ctype content = SRequest (Request
+toRequest ctype content = SRequest defaultRequest
     { requestHeaders = [("Content-Type", ctype)]
     , requestMethod = "POST"
     , rawPathInfo = ""
     , rawQueryString = ""
     , queryString = []
-    }) (L.fromChunks [content])
+    } (L.fromChunks [content])
 
 toRequest' :: S8.ByteString -> S8.ByteString -> SRequest
-toRequest' ctype content = SRequest (Request
+toRequest' ctype content = SRequest defaultRequest
     { requestHeaders = [("Content-Type", ctype)]
-    }) (L.fromChunks $ map S.singleton $ S.unpack content)
+    } (L.fromChunks $ map S.singleton $ S.unpack content)
 
 {-
 caseFindBound :: Assertion
@@ -226,6 +225,7 @@ caseTakeLine = do
         Just needle @=? x
 -}
 
+jsonpApp :: Application
 jsonpApp = jsonp $ const $ return $ responseLBS
     status200
     [("Content-Type", "application/json")]
@@ -233,38 +233,39 @@ jsonpApp = jsonp $ const $ return $ responseLBS
 
 caseJsonp :: Assertion
 caseJsonp = flip runSession jsonpApp $ do
-    sres1 <- request Request
+    sres1 <- request defaultRequest
                 { queryString = [("callback", Just "test")]
                 , requestHeaders = [("Accept", "text/javascript")]
                 }
     assertContentType "text/javascript" sres1
     assertBody "test({\"foo\":\"bar\"})" sres1
 
-    sres2 <- request Request
+    sres2 <- request defaultRequest
                 { queryString = [("call_back", Just "test")]
                 , requestHeaders = [("Accept", "text/javascript")]
                 }
     assertContentType "application/json" sres2
     assertBody "{\"foo\":\"bar\"}" sres2
 
-    sres3 <- request Request
+    sres3 <- request defaultRequest
                 { queryString = [("callback", Just "test")]
                 , requestHeaders = [("Accept", "text/html")]
                 }
     assertContentType "application/json" sres3
     assertBody "{\"foo\":\"bar\"}" sres3
 
+gzipApp :: Application
 gzipApp = gzip True $ const $ return $ responseLBS status200 [] "test"
 
 caseGzip :: Assertion
 caseGzip = flip runSession gzipApp $ do
-    sres1 <- request Request
+    sres1 <- request defaultRequest
                 { requestHeaders = [("Accept-Encoding", "gzip")]
                 }
     assertHeader "Content-Encoding" "gzip" sres1
     liftIO $ decompress (simpleBody sres1) @?= "test"
 
-    sres2 <- request Request
+    sres2 <- request defaultRequest
                 { requestHeaders = []
                 }
     assertNoHeader "Content-Encoding" sres2
@@ -272,7 +273,7 @@ caseGzip = flip runSession gzipApp $ do
 
 caseGzipMSIE :: Assertion
 caseGzipMSIE = flip runSession gzipApp $ do
-    sres1 <- request Request
+    sres1 <- request defaultRequest
                 { requestHeaders =
                     [ ("Accept-Encoding", "gzip")
                     , ("User-Agent", "Mozilla/4.0 (Windows; MSIE 6.0; Windows NT 6.0)")
@@ -281,6 +282,7 @@ caseGzipMSIE = flip runSession gzipApp $ do
     assertNoHeader "Content-Encoding" sres1
     liftIO $ simpleBody sres1 @?= "test"
 
+vhostApp1, vhostApp2, vhostApp :: Application
 vhostApp1 = const $ return $ responseLBS status200 [] "app1"
 vhostApp2 = const $ return $ responseLBS status200 [] "app2"
 vhostApp = vhost
@@ -288,77 +290,85 @@ vhostApp = vhost
     ]
     vhostApp2
 
+caseVhost :: Assertion
 caseVhost = flip runSession vhostApp $ do
-    sres1 <- request Request
+    sres1 <- request defaultRequest
                 { serverName = "foo.com"
                 }
     assertBody "app1" sres1
 
-    sres2 <- request Request
+    sres2 <- request defaultRequest
                 { serverName = "bar.com"
                 }
     assertBody "app2" sres2
 
+autoheadApp :: Application
 autoheadApp = autohead $ const $ return $ responseLBS status200
     [("Foo", "Bar")] "body"
 
+caseAutohead :: Assertion
 caseAutohead = flip runSession autoheadApp $ do
-    sres1 <- request Request
+    sres1 <- request defaultRequest
                 { requestMethod = "GET"
                 }
     assertHeader "Foo" "Bar" sres1
     assertBody "body" sres1
 
-    sres1 <- request Request
+    sres2 <- request defaultRequest
                 { requestMethod = "HEAD"
                 }
-    assertHeader "Foo" "Bar" sres1
-    assertBody "" sres1
+    assertHeader "Foo" "Bar" sres2
+    assertBody "" sres2
 
+moApp :: Application
 moApp = methodOverride $ \req -> return $ responseLBS status200
     [("Method", requestMethod req)] ""
 
+caseMethodOverride :: Assertion
 caseMethodOverride = flip runSession moApp $ do
-    sres1 <- request Request
+    sres1 <- request defaultRequest
                 { requestMethod = "GET"
                 , queryString = []
                 }
     assertHeader "Method" "GET" sres1
 
-    sres2 <- request Request
+    sres2 <- request defaultRequest
                 { requestMethod = "POST"
                 , queryString = []
                 }
     assertHeader "Method" "POST" sres2
 
-    sres3 <- request Request
+    sres3 <- request defaultRequest
                 { requestMethod = "POST"
                 , queryString = [("_method", Just "PUT")]
                 }
     assertHeader "Method" "PUT" sres3
 
+aoApp :: Application
 aoApp = acceptOverride $ \req -> return $ responseLBS status200
     [("Accept", fromMaybe "" $ lookup "Accept" $ requestHeaders req)] ""
 
+caseAcceptOverride :: Assertion
 caseAcceptOverride = flip runSession aoApp $ do
-    sres1 <- request Request
+    sres1 <- request defaultRequest
                 { queryString = []
                 , requestHeaders = [("Accept", "foo")]
                 }
     assertHeader "Accept" "foo" sres1
 
-    sres2 <- request Request
+    sres2 <- request defaultRequest
                 { queryString = []
                 , requestHeaders = [("Accept", "bar")]
                 }
     assertHeader "Accept" "bar" sres2
 
-    sres3 <- request Request
+    sres3 <- request defaultRequest
                 { queryString = [("_accept", Just "baz")]
                 , requestHeaders = [("Accept", "bar")]
                 }
     assertHeader "Accept" "baz" sres3
 
+caseDalvikMultipart :: Assertion
 caseDalvikMultipart = do
     let headers =
             [ ("content-length", "12098")
@@ -378,10 +388,10 @@ caseDalvikMultipart = do
             , ("HTTP_VERSION", "HTTP/1.1")
             , ("REQUEST_PATH", "/")
             ]
-    let request = Request
+    let request' = defaultRequest
             { requestHeaders = headers
             }
-    (params, files) <- run_ $ enumFile "test/dalvik-request" $$ parseRequestBody lbsSink request
+    (params, files) <- run_ $ enumFile "test/dalvik-request" $$ parseRequestBody lbsSink request'
     lookup "scannedTime" params @?= Just "1.298590056748E9"
     lookup "geoLong" params @?= Just "0"
     lookup "geoLat" params @?= Just "0"
@@ -396,7 +406,7 @@ caseDebugRequestBody = do
 
     let qs = "?foo=bar&baz=bin"
     flip runSession (debugApp $ getOutput qs) $ do
-        assertStatus 200 =<< request Request
+        assertStatus 200 =<< request defaultRequest
                 { requestMethod = "GET"
                 , queryString = map (\(k,v) -> (k, Just v)) params
                 , rawQueryString = qs
@@ -406,9 +416,9 @@ caseDebugRequestBody = do
   where
     params = [("foo", "bar"), ("baz", "bin")]
     postOutput = T.pack $ "POST \nAccept: \nPOST " ++ (show params)
-    getOutput qs = T.pack $ "GET /location" ++ "\nAccept: \nGET " ++ (show params) -- \nAccept: \n" ++ (show params)
+    getOutput _qs = T.pack $ "GET /location" ++ "\nAccept: \nGET " ++ (show params) -- \nAccept: \n" ++ (show params)
 
-    debugApp output = debugHandle (\t -> liftIO $ assertEqual "debug" output t) $ \req -> do
+    debugApp output = debugHandle (\t -> liftIO $ assertEqual "debug" output t) $ \_req -> do
         return $ responseLBS status200 [ ] ""
     {-debugApp = debug $ \req -> do-}
         {-return $ responseLBS status200 [ ] ""-}

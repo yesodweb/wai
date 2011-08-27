@@ -11,13 +11,14 @@ import Network.HTTP.Types
 import qualified Network.Wai.Handler.Warp as Warp
 import Data.IORef
 import Control.Concurrent
-import Foreign
-import Foreign.C.String
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as S
-import Data.Enumerator (($$), enumList, joinI, Enumeratee, Stream (..), Iteratee (..), Step (..))
+import Data.Enumerator (($$), joinI, Enumeratee, Stream (..), Iteratee (..), Step (..))
 import Blaze.ByteString.Builder (fromByteString)
-#if !WINDOWS
+#if WINDOWS
+import Foreign
+import Foreign.C.String
+#else
 import System.Cmd (rawSystem)
 #endif
 import Codec.Zlib.Enum (ungzip)
@@ -92,11 +93,11 @@ insideHead toInsert =
                 Error e -> return $ Error e
 
         --feedCont :: Monad m => S.ByteString -> S.ByteString -> Stream S.ByteString -> Iteratee S.ByteString m (Step S.ByteString m a)
-        feedCont held atFront stream = do
+        feedCont held' atFront' stream = do
             case step of
                 Continue k -> do
                     step' <- lift $ runIteratee $ k stream
-                    go held atFront step'
+                    go held' atFront' step'
                 Yield b s -> return $ Yield b s
                 Error e -> return $ Error e
 
@@ -112,6 +113,9 @@ getOverlap whole x =
              in (piece, atFront, x')
         | otherwise = go $ S.init piece
 
+fixHeaders :: ([Header] -> [Header])
+           -> [Header]
+           -> (Bool, [Header])
 fixHeaders front [] = (False, front [])
 fixHeaders front (("content-encoding", "gzip"):rest) = (True, front rest)
 fixHeaders front (x:xs) = fixHeaders (front . (:) x) xs
@@ -141,7 +145,7 @@ run = runUrl ""
 runUrl :: String -> Application -> IO ()
 runUrl url app = do
     x <- newIORef True
-    forkIO $ Warp.runSettings Warp.defaultSettings
+    _ <- forkIO $ Warp.runSettings Warp.defaultSettings
         { Warp.settingsPort = 4587
         , Warp.settingsOnException = const $ return ()
         , Warp.settingsHost = "127.0.0.1"

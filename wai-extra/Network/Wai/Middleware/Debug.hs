@@ -45,7 +45,7 @@ debugHandle cb app req = do
   where
     paramsToStr prefix params = if null params then "" else "\n" ++ prefix ++ (show params)
 
-    allPostParams req body = run_ $ enumList 1 body $$ parseRequestBody lbsSink req
+    allPostParams req' body = run_ $ enumList 1 body $$ parseRequestBody lbsSink req'
 
     emptyGetParam :: (S.ByteString, Maybe S.ByteString) -> (S.ByteString, S.ByteString)
     emptyGetParam (k, Just v) = (k,v)
