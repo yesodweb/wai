@@ -405,9 +405,9 @@ defaultMkRedirect pieces newPath
   where
     relDir = TE.encodeUtf8 (relativeDirFromPieces pieces)
 
-webAppSettingsWithLookup :: ETagLookup -> StaticSettings
-webAppSettingsWithLookup etagLookup =
-  defaultWebAppSettings { ssFolder = webAppLookup etagLookup "static"}
+webAppSettingsWithLookup :: FilePath -> ETagLookup -> StaticSettings
+webAppSettingsWithLookup dir etagLookup =
+  defaultWebAppSettings { ssFolder = webAppLookup etagLookup dir}
 
 
 defaultWebAppSettings :: StaticSettings
