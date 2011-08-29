@@ -108,6 +108,8 @@ import System.IO (hPutStrLn, stderr)
 import qualified Paths_warp
 import Data.Version (showVersion)
 
+import Data.List (delete)
+
 #if WINDOWS
 import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent.MVar as MV
@@ -305,7 +307,7 @@ headers !httpversion !status !responseHeaders !isChunked' = {-# SCC "headers" #-
                 `mappend` spaceBuilder
                 `mappend` copyByteString (H.statusMessage status)
                 `mappend` newlineBuilder
-        !start' = foldl' responseHeaderToBuilder start (serverHeader : responseHeaders)
+        !start' = foldl' responseHeaderToBuilder start (serverHeader responseHeaders)
         !end = if isChunked'
                  then transferEncodingBuilder
                  else newlineBuilder
@@ -578,5 +580,12 @@ withManager timeout f = do
     man <- T.initialize timeout
     f man
 
-serverHeader :: (CI.CI H.Ascii, ByteString)
-serverHeader = ("Server", B.pack $ "Warp/" ++ showVersion Paths_warp.version)
+serverHeader :: H.RequestHeaders -> H.RequestHeaders
+serverHeader hdrs = case lookup key hdrs of
+    Nothing  -> server : hdrs
+    Just svr -> servers svr : delete (key,svr) hdrs
+ where
+    key = "Server"
+    ver = B.pack $ "Warp/" ++ showVersion Paths_warp.version
+    server = (key, ver)
+    servers svr = (key, S.concat [svr, " ", ver])
