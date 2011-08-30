@@ -221,6 +221,7 @@ data InvalidRequest =
     | BadFirstLine String
     | NonHttp
     | IncompleteHeaders
+    | ConnectionClosedByPeer
     | OverLargeHeader
     deriving (Show, Typeable, Eq)
 instance Exception InvalidRequest
@@ -499,7 +500,7 @@ defaultSettings = Settings
 
 takeHeaders :: E.Iteratee ByteString IO [ByteString]
 takeHeaders = do
-  !x <- forceHead
+  !x <- forceHead ConnectionClosedByPeer
   takeHeaders' 0 id id x
 
 {-# INLINE takeHeaders #-}
@@ -517,7 +518,7 @@ takeHeaders' !len !lines !prepend !bs = do
        -- no newline.  prepend entire bs to next line
        !Nothing -> {-# SCC "takeHeaders'.noNewline" #-} do
          let !len' = len + bsLen
-         !more <- forceHead 
+         !more <- forceHead IncompleteHeaders
          takeHeaders' len' lines (prepend . (:) bs) more
        Just !nl -> {-# SCC "takeHeaders'.newline" #-} do
          let !end = nl 
@@ -546,15 +547,15 @@ takeHeaders' !len !lines !prepend !bs = do
               !more <- {-# SCC "takeHeaders'.more" #-} 
                        if start < bsLen
                           then return $! SU.unsafeDrop start bs
-                          else forceHead
+                          else forceHead IncompleteHeaders
               {-# SCC "takeHeaders'.takeMore" #-} takeHeaders' len' lines' id more
 {-# INLINE takeHeaders' #-}
 
-forceHead :: E.Iteratee ByteString IO ByteString
-forceHead = do
+forceHead :: InvalidRequest -> E.Iteratee ByteString IO ByteString
+forceHead err = do
   !mx <- EL.head
   case mx of
-       !Nothing -> E.throwError IncompleteHeaders
+       !Nothing -> E.throwError err
        Just !x -> return x
 {-# INLINE forceHead #-}
 
