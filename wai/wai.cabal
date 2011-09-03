@@ -6,7 +6,7 @@ License:             BSD3
 License-file:        LICENSE
 Author:              Michael Snoyman
 Maintainer:          michael@snoyman.com
-Homepage:            http://github.com/snoyberg/wai
+Homepage:            https://github.com/yesodweb/wai
 Category:            Web
 Build-Type:          Simple
 Cabal-Version:       >=1.6
@@ -14,7 +14,7 @@ Stability:           Stable
 
 Source-repository head
     type:            git
-    location:        git://github.com/snoyberg/wai.git
+    location:        git://github.com/yesodweb/wai.git
 
 Library
   Build-Depends:     base                   >= 3        && < 5
