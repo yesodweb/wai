@@ -25,7 +25,7 @@ for pkg in "${pkgs[@]}"; do
   (
     cd "./$pkg"
 
-    if [ $1 == "--clean" ]; then
+    if [ "$1" = "--clean" ]; then
       $CABAL clean
     fi
 
@@ -40,7 +40,7 @@ for pkg in "${pkgs[@]}"; do
     $CABAL test
 
     $CABAL check
-    if [ $1 != "--fast" ]; then
+    if [ "$1" != "--fast" ]; then
       $CABAL haddock --executables
     fi
     ./Setup.lhs install
