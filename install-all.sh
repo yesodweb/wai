@@ -18,21 +18,31 @@ pkgs=( wai
        warp-static
      )
 
+# install each sub-respository
 for pkg in "${pkgs[@]}"; do
   echo "Installing $pkg..."
 
   (
     cd "./$pkg"
 
-    if ! $CABAL configure --enable-tests --ghc-options="-Wall -Werror" ; then
-      $CABAL install --only-dependencies
-      $CABAL configure --enable-tests --ghc-options="-Wall -Werror"
+    if [ $1 == "--clean" ]; then
+      $CABAL clean
     fi
 
+    if ! $CABAL configure --ghc-options="-Wall -Werror"; then
+      $CABAL install --only-dependencies
+      $CABAL configure --ghc-options="-Wall -Werror"
+    fi
+    $CABAL build
+
+    $CABAL configure --enable-tests 
     $CABAL build
     $CABAL test
+
     $CABAL check
-    $CABAL haddock --executables
+    if [ $1 != "--fast" ]; then
+      $CABAL haddock --executables
+    fi
     ./Setup.lhs install
   )
 done
