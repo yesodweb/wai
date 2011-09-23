@@ -11,7 +11,11 @@ stability:       Stable
 cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        http://www.yesodweb.com/book/wai
-Extra-source-files: folder.png, haskell.png
+Extra-source-files:
+  folder.png
+  haskell.png
+  tests/runtests.hs
+  tests/a/b
 
 Flag print
     Description:   print debug info
