@@ -1,0 +1,19 @@
+<!doctype html>
+<head>
+  <title>Hello</title>
+</head>
+<h1>Testing</h1>
+
+<div id="output"></div>
+
+<script>
+  var output = document.getElementById("output");
+
+  var src = new EventSource("/es");
+
+  src.onmessage = function(msg) {
+    var p = document.createElement("p");
+    p.appendChild(document.createTextNode(msg.data));
+    output.appendChild(p);
+  }
+</script>

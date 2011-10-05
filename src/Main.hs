@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-
 module Main where
 
 import Control.Monad
@@ -11,7 +10,9 @@ import Network.Wai
 import Network.HTTP.Types (statusOK)
 import Data.Enumerator (Iteratee, Step(Continue), Stream(Chunks,EOF), returnI, run_, (>>==), ($$), generateM)
 import Data.Time.Clock.POSIX
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
+import Blaze.ByteString.Builder (fromByteString)
 import Blaze.ByteString.Builder.Char.Utf8 (fromString)
 
 
@@ -19,10 +20,17 @@ import EventStream
 
 
 app :: Chan ServerEvent -> Application
-app chan = return $ res chan
+app chan req =
+    case pathInfo req of
+        []     -> return $ ResponseFile statusOK [("Content-Type", "text/html")] "static/index.html" Nothing
+        ["es"] -> do
+            chan' <- liftIO $ dupChan chan
+            return $ res chan'
+
 
 res :: Chan ServerEvent -> Response
 res chan = ResponseEnumerator (resE chan)
+
 
 source :: Chan ServerEvent -> IO ()
 source chan = forever $ do
@@ -30,11 +38,13 @@ source chan = forever $ do
     time <- getPOSIXTime
     writeChan chan (ServerEvent Nothing Nothing [fromString . show $ time])
 
+
 resE :: Chan ServerEvent -> ResponseEnumerator a
 resE chan genIter =
     run_ $ generateM (fmap eventToBuilder $ readChan chan) $$ iter
   where
     iter = genIter statusOK [("Content-Type", "text/event-stream")]
+
 
 main :: IO ()
 main = do
