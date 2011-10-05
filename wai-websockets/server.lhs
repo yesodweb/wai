@@ -2,6 +2,7 @@ This is the Haskell implementation of the example for the WebSockets library. We
 implement a simple multi-user chat program.
 
 > {-# LANGUAGE OverloadedStrings #-}
+> {-# LANGUAGE TemplateHaskell #-}
 > import Data.Char (isPunctuation, isSpace)
 > import Data.Monoid (mappend)
 > import Data.Text (Text)
@@ -15,6 +16,7 @@ implement a simple multi-user chat program.
 > import qualified Network.Wai.Handler.Warp as Warp
 > import qualified Network.Wai.Handler.WebSockets as WaiWS
 > import qualified Network.Wai.Application.Static as Static
+> import Data.FileEmbed (embedDir)
 
 We represent a client by his username and a 'WS.Sender'. We can use this sender
 to asynchronously send 'Text' to the client later.
@@ -66,6 +68,7 @@ actual server. For this purpose, we use the simple server provided by
 
 > main :: IO ()
 > main = do
+>     putStrLn "http://localhost:9160/client.html"
 >     state <- newMVar newServerState
 >     Warp.runSettings Warp.defaultSettings
 >       { Warp.settingsPort = 9160
@@ -73,7 +76,7 @@ actual server. For this purpose, we use the simple server provided by
 >       } staticApp
 
 > staticApp = Static.staticApp Static.defaultFileServerSettings
->   { Static.ssFolder = Static.fileSystemLookup $ Static.toFilePath "."
+>   { Static.ssFolder = Static.embeddedLookup $ Static.toEmbedded $(embedDir "static")
 >   }
 
 > webSocketsApp state = do

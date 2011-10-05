@@ -41,7 +41,8 @@ Executable           wai-websockets-example
                      enumerator,
                      transformers,
                      network,
-                     text
+                     text,
+                     file-embed
 
   ghc-options:       -Wall -O2 -threaded
   main-is:           server.lhs
