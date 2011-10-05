@@ -35,6 +35,7 @@ module Network.Wai.Handler.Warp
     , settingsOnException
     , settingsTimeout
     , settingsPauseForApp
+    , settingsIntercept
       -- * Datatypes
     , Port
     , InvalidRequest (..)
@@ -201,12 +202,17 @@ serveConnection settings th onException port app conn remoteHost' = do
     fromClient = enumSocket th bytesPerRead conn
     serveConnection' = do
         (len, env) <- parseRequest port remoteHost'
-        -- Let the application run for as long as it wants
-        liftIO $ T.pause th
-        res <- E.joinI $ EB.isolate len $$ app env
-        liftIO $ T.resume th
-        keepAlive <- liftIO $ sendResponse' settings th env conn res
-        if keepAlive then serveConnection' else return ()
+        case settingsIntercept settings env of
+            Nothing -> do
+                -- Let the application run for as long as it wants
+                liftIO $ T.pause th
+                res <- E.joinI $ EB.isolate len $$ app env
+                liftIO $ T.resume th
+                keepAlive <- liftIO $ sendResponse' settings th env conn res
+                if keepAlive then serveConnection' else return ()
+            Just intercept -> do
+                liftIO $ T.pause th
+                intercept conn
 
 parseRequest :: Port -> SockAddr -> E.Iteratee S.ByteString IO (Integer, Request)
 parseRequest port remoteHost' = do
@@ -488,6 +494,7 @@ data Settings = Settings
     , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
     , settingsPauseForApp :: Bool -- ^ If 'True', timeout will be paused while executing the application, 'False' otherwise. Default is 'True'. 'False' is useful for cases such as an untrusted CGI application. Note that this /only/ affects execution of 'ResponseEnumerator' responses.
+    , settingsIntercept :: Request -> Maybe (Socket -> E.Iteratee S.ByteString IO ())
     }
 
 -- | The default settings for the Warp server. See the individual settings for
@@ -505,6 +512,7 @@ defaultSettings = Settings
                     else return ()
     , settingsTimeout = 30
     , settingsPauseForApp = True
+    , settingsIntercept = const Nothing
     }
   where
     go :: InvalidRequest -> IO ()
