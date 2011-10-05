@@ -15,7 +15,6 @@ import qualified Data.ByteString as B
 import Blaze.ByteString.Builder (fromByteString)
 import Blaze.ByteString.Builder.Char.Utf8 (fromString)
 
-
 import EventStream
 
 
@@ -32,18 +31,18 @@ res :: Chan ServerEvent -> Response
 res chan = ResponseEnumerator (resE chan)
 
 
-source :: Chan ServerEvent -> IO ()
-source chan = forever $ do
-    threadDelay 1000000
-    time <- getPOSIXTime
-    writeChan chan (ServerEvent Nothing Nothing [fromString . show $ time])
-
-
 resE :: Chan ServerEvent -> ResponseEnumerator a
 resE chan genIter =
     run_ $ generateM (fmap eventToBuilder $ readChan chan) $$ iter
   where
     iter = genIter statusOK [("Content-Type", "text/event-stream")]
+
+
+source :: Chan ServerEvent -> IO ()
+source chan = forever $ do
+    threadDelay 1000000
+    time <- getPOSIXTime
+    writeChan chan (ServerEvent Nothing Nothing [fromString . show $ time])
 
 
 main :: IO ()
