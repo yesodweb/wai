@@ -9,7 +9,7 @@ Maintainer:          michael@snoyman.com
 Category:            Web
 Build-type:          Simple
 Cabal-version:       >=1.2
-Description:         Static file server based on Warp and wai-app-static
+Description:         Serve up static files by running the warp executable. Based on Warp and wai-app-static. 
 
 
 Executable warp
