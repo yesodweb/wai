@@ -1,0 +1,42 @@
+<html>
+    <head>
+        <title>Haskell WebSockets example</title>
+        <script type="text/JavaScript"
+            src="http://code.jquery.com/jquery-1.6.3.min.js"></script>
+        <script type="text/JavaScript" src="client.js"></script>
+        <link rel="stylesheet" type="text/css" href="screen.css"></script>
+    </head>
+    <body>
+        <h1>Haskell WebSockets example</h1>
+        <div id="main">
+            <div id="warnings">
+            </div>
+            <div id="join-section">
+                <h2>Join</h2>
+                <form id="join-form" action="">
+                    <label for="user">Username: </label>
+                    <input id="user" type="text" size="12" />
+                    <input id="send" type="submit" value="Join" />
+                </form>
+            </div>
+            <div id="users-section" style="display: none">
+                <h2>Users</h2>
+                <ul id="users">
+                </ul>
+            </div>
+            <div id="chat-section" style="display: none">
+                <h2>Chat</h2>
+                <div id="messages">
+                </div>
+                <br />
+                <form id="message-form" action="">
+                    <input id="text" type="text" size="40" />
+                    <input id="send" type="submit" value="Send" />
+                </form>
+            </div>
+        </div>
+        <div id="footer">
+            Source code available <a href="http://github.com/jaspervdj/websockets/tree/master/example">here</a>
+        </div>
+    </body>
+</html>

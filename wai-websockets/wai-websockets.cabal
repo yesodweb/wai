@@ -1,0 +1,30 @@
+Name:                wai-websockets
+Version:             0.4.0
+Synopsis:            Provide a bridge betweeen WAI and the websockets package.
+License:             BSD3
+License-file:        LICENSE
+Author:              Michael Snoyman
+Maintainer:          michael@snoyman.com
+Homepage:            http://github.com/yesodweb/wai
+Category:            Web, Yesod
+Build-Type:          Simple
+Cabal-Version:       >=1.6
+Stability:           Stable
+Description:         This is primarily intended for use with Warp and its settingsIntercept.
+
+Library
+  Build-Depends:     base                          >= 3        && < 5
+                   , bytestring                    >= 0.9      && < 0.10
+                   , wai                           >= 0.4      && < 0.5
+                   , enumerator                    >= 0.4.5    && < 0.5
+                   , network-enumerator            >= 0.1.2    && < 0.2
+                   , blaze-builder                 >= 0.2.1.4  && < 0.4
+                   , case-insensitive              >= 0.2      && < 0.4
+                   , network                       >= 2.2      && < 2.4
+                   , websockets                    >= 0.3      && < 0.4
+  Exposed-modules:   Network.Wai.Handler.WebSockets
+  ghc-options:       -Wall
+
+source-repository head
+  type:     git
+  location: git://github.com/yesodweb/wai.git
