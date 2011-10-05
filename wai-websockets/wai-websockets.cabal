@@ -12,7 +12,7 @@ Cabal-Version:       >=1.8
 Stability:           Stable
 Description:         This is primarily intended for use with Warp and its settingsIntercept.
 
-extra-source-files: client.js, client.html, screen.css
+extra-source-files: static/client.js, static/client.html, static/screen.css
 
 Library
   Build-Depends:     base                          >= 3        && < 5
