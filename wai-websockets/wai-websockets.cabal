@@ -8,9 +8,11 @@ Maintainer:          michael@snoyman.com
 Homepage:            http://github.com/yesodweb/wai
 Category:            Web, Yesod
 Build-Type:          Simple
-Cabal-Version:       >=1.6
+Cabal-Version:       >=1.8
 Stability:           Stable
 Description:         This is primarily intended for use with Warp and its settingsIntercept.
+
+extra-source-files: client.js, client.html, screen.css
 
 Library
   Build-Depends:     base                          >= 3        && < 5
@@ -24,6 +26,25 @@ Library
                    , websockets                    >= 0.3      && < 0.4
   Exposed-modules:   Network.Wai.Handler.WebSockets
   ghc-options:       -Wall
+
+Executable           wai-websockets-example
+  Build-Depends:     base >=3 && < 5,
+                     wai-websockets,
+                     websockets,
+                     network-enumerator,
+                     warp,
+                     wai,
+                     wai-app-static,
+                     bytestring,
+                     case-insensitive,
+                     blaze-builder,
+                     enumerator,
+                     transformers,
+                     network,
+                     text
+
+  ghc-options:       -Wall -O2 -threaded
+  main-is:           server.lhs
 
 source-repository head
   type:     git
