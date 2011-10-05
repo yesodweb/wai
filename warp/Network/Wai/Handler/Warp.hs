@@ -34,6 +34,7 @@ module Network.Wai.Handler.Warp
     , settingsHost
     , settingsOnException
     , settingsTimeout
+    , settingsPauseForApp
       -- * Datatypes
     , Port
     , InvalidRequest (..)
@@ -101,7 +102,7 @@ import qualified Timeout as T
 import Timeout (Manager, registerKillThread, pause, resume)
 import Data.Word (Word8)
 import Data.List (foldl')
-import Control.Monad (forever)
+import Control.Monad (forever, when)
 import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import System.IO (hPutStrLn, stderr)
@@ -182,14 +183,15 @@ runSettingsSocket set socket app = do
         (conn, sa) <- accept socket
         _ <- forkIO $ do
             th <- T.registerKillThread tm
-            serveConnection th onE port app conn sa
+            serveConnection set th onE port app conn sa
             T.cancel th
         return ()
 
-serveConnection :: T.Handle
+serveConnection :: Settings
+                -> T.Handle
                 -> (SomeException -> IO ())
                 -> Port -> Application -> Socket -> SockAddr -> IO ()
-serveConnection th onException port app conn remoteHost' = do
+serveConnection settings th onException port app conn remoteHost' = do
     catch
         (finally
           (E.run_ $ fromClient $$ serveConnection')
@@ -203,7 +205,7 @@ serveConnection th onException port app conn remoteHost' = do
         liftIO $ T.pause th
         res <- E.joinI $ EB.isolate len $$ app env
         liftIO $ T.resume th
-        keepAlive <- liftIO $ sendResponse th env conn res
+        keepAlive <- liftIO $ sendResponse' settings th env conn res
         if keepAlive then serveConnection' else return ()
 
 parseRequest :: Port -> SockAddr -> E.Iteratee S.ByteString IO (Integer, Request)
@@ -342,9 +344,14 @@ hasBody :: H.Status -> Request -> Bool
 hasBody s req = s /= (H.Status 204 "") && s /= H.status304 &&
                 H.statusCode s >= 200 && requestMethod req /= "HEAD"
 
+-- Only present for backwards-compatibility
 sendResponse :: T.Handle
              -> Request -> Socket -> Response -> IO Bool
-sendResponse th req socket (ResponseFile s hs fp mpart) = do
+sendResponse = sendResponse' defaultSettings
+
+sendResponse' :: Settings -> T.Handle
+             -> Request -> Socket -> Response -> IO Bool
+sendResponse' _ th req socket (ResponseFile s hs fp mpart) = do
     (hs', cl) <-
         case (readInt `fmap` lookup "content-length" hs, mpart) of
             (Just cl, _) -> return (hs, cl)
@@ -370,7 +377,7 @@ sendResponse th req socket (ResponseFile s hs fp mpart) = do
             T.tickle th
             return isPersist
         else return isPersist
-sendResponse th req socket (ResponseBuilder s hs b)
+sendResponse' _ th req socket (ResponseBuilder s hs b)
     | hasBody s req = do
           toByteStringIO (\bs -> do
             Sock.sendAll socket bs
@@ -394,7 +401,7 @@ sendResponse th req socket (ResponseBuilder s hs b)
     isChunked' = isChunked (httpVersion req) && not hasLength
     isPersist = checkPersist req
     isKeepAlive = isPersist && (isChunked' || hasLength)
-sendResponse th req socket (ResponseEnumerator res) =
+sendResponse' settings th req socket (ResponseEnumerator res) =
     res go
   where
     -- FIXME perhaps alloca a buffer per thread and reuse that in all functiosn below. Should lessen greatly the GC burden (I hope)
@@ -406,8 +413,9 @@ sendResponse th req socket (ResponseEnumerator res) =
     go s hs = chunk'
           $ E.enumList 1 [headers (httpVersion req) s hs isChunked']
          $$ E.joinI $ builderToByteString -- FIXME unsafeBuilderToByteString
-         $$ (iterSocket th socket >> return isKeepAlive)
+         $$ (iterSocket pauseForApp th socket >> return isKeepAlive)
       where
+        pauseForApp = settingsPauseForApp settings
         hasLength = lookup "content-length" hs /= Nothing
         isChunked' = isChunked (httpVersion req) && not hasLength
         isPersist = checkPersist req
@@ -446,22 +454,26 @@ enumSocket th len socket =
 ------ The functions below are not warp-specific and could be split out into a
 --separate package.
 
-iterSocket :: T.Handle
+iterSocket :: Bool -- ^ should this be paused? see 'settingsPauseForApp'
+           -> T.Handle
            -> Socket
            -> E.Iteratee B.ByteString IO ()
-iterSocket th sock =
+iterSocket pauseForApp th sock =
     E.continue step
   where
     -- We pause timeouts before passing control back to user code. This ensures
     -- that a timeout will only ever be executed when Warp is in control. We
     -- also make sure to resume the timeout after the completion of user code
     -- so that we can kill idle connections.
+    --
+    -- If settingsPauseForApp is 'True', then the timeout will
+    -- not be paused during 'ResponseEnumerator' responses.
     step E.EOF = liftIO (T.resume th) >> E.yield () E.EOF
     step (E.Chunks []) = E.continue step
     step (E.Chunks xs) = do
         liftIO $ T.resume th
         liftIO $ Sock.sendMany sock xs
-        liftIO $ T.pause th
+        when pauseForApp $ liftIO $ T.pause th
         E.continue step
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
@@ -475,6 +487,7 @@ data Settings = Settings
     , settingsHost :: String -- ^ Host to bind to, or * for all. Default value: *
     , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
+    , settingsPauseForApp :: Bool -- ^ If 'True', timeout will be paused while executing the application, 'False' otherwise. Default is 'True'. 'False' is useful for cases such as an untrusted CGI application. Note that this /only/ affects execution of 'ResponseEnumerator' responses.
     }
 
 -- | The default settings for the Warp server. See the individual settings for
@@ -491,6 +504,7 @@ defaultSettings = Settings
                     then hPutStrLn stderr $ show e
                     else return ()
     , settingsTimeout = 30
+    , settingsPauseForApp = True
     }
   where
     go :: InvalidRequest -> IO ()
