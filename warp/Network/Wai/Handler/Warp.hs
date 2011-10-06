@@ -50,8 +50,8 @@ module Network.Wai.Handler.Warp
     , pause
     , resume
     , T.cancel
-    , register
-    , initialize
+    , T.register
+    , T.initialize
 #if TEST
     , takeHeaders
     , readInt
