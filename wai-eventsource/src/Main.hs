@@ -8,11 +8,9 @@ import Control.Concurrent.Chan
 import Network.Wai.Handler.Warp (run)
 import Network.Wai
 import Network.HTTP.Types (statusOK)
-import Data.Enumerator (Iteratee, Step(Continue), Stream(Chunks,EOF), returnI, run_, (>>==), ($$), generateM)
+import Data.Enumerator (run_, ($$))
+import Data.Enumerator.List (generateM)
 import Data.Time.Clock.POSIX
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
-import Blaze.ByteString.Builder (fromByteString)
 import Blaze.ByteString.Builder.Char.Utf8 (fromString)
 
 import EventStream
@@ -25,6 +23,7 @@ app chan req =
         ["es"] -> do
             chan' <- liftIO $ dupChan chan
             return $ res chan'
+        _ -> error "unexpected pathInfo"
 
 
 res :: Chan ServerEvent -> Response

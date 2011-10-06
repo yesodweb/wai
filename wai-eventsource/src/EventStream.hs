@@ -11,11 +11,7 @@ module EventStream (
 
 import Blaze.ByteString.Builder
 import Blaze.ByteString.Builder.Char8
-import Control.Monad.Trans
-import Control.Concurrent
 import Data.Monoid
-import Data.Enumerator hiding (map)
-import Data.Enumerator.List (generateM)
 
 {-|
     Type representing a communication over an event stream.  This can be an
@@ -40,12 +36,14 @@ data ServerEvent
 {-|
     Newline as a Builder.
 -}
+nl :: Builder
 nl = fromChar '\n'
 
 
 {-|
     Field names as Builder
 -}
+nameField, idField, dataField, retryField, commentField :: Builder
 nameField = fromString "event:"
 idField = fromString "id:"
 dataField = fromString "data:"
@@ -56,12 +54,14 @@ commentField = fromChar ':'
 {-|
     Wraps the text as a labeled field of an event stream.
 -}
+field :: Builder -> Builder -> Builder
 field l b = l `mappend` b `mappend` nl
 
 
 {-|
     Appends a buffer flush to the end of a Builder.
 -}
+flushAfter :: Builder -> Builder
 flushAfter b = b `mappend` flush
 
 
@@ -77,6 +77,6 @@ eventToBuilder (ServerEvent n i d)= Just $ flushAfter $
     (name n $ evid i $ mconcat (map (field dataField) d)) `mappend` nl
   where
     name Nothing  = id
-    name (Just n) = mappend (field nameField n)
+    name (Just n') = mappend (field nameField n')
     evid Nothing  = id
-    evid (Just i) = mappend (field idField   i)
+    evid (Just i') = mappend (field idField   i')
