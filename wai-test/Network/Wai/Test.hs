@@ -13,6 +13,7 @@ module Network.Wai.Test
     , assertStatus
     , assertContentType
     , assertBody
+    , assertBodyContains
     , assertHeader
     , assertNoHeader
     ) where
@@ -32,6 +33,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Network.HTTP.Types as H
 import Data.CaseInsensitive (CI)
+import qualified Data.ByteString as S
 
 type Session = ReaderT Application (StateT ClientState IO)
 
@@ -129,6 +131,16 @@ assertBody lbs SResponse{simpleBody = lbs'} = assertBool (concat
     , ", but received "
     , show $ L8.unpack lbs'
     ]) $ lbs == lbs'
+
+assertBodyContains :: L.ByteString -> SResponse -> Session ()
+assertBodyContains lbs SResponse{simpleBody = lbs'} = assertBool (concat
+    [ "Expected response body to contain "
+    , show $ L8.unpack lbs
+    , ", but received "
+    , show $ L8.unpack lbs'
+    ]) $ strict lbs `S.isInfixOf` strict lbs'
+  where
+    strict = S.concat . L.toChunks
 
 assertHeader :: CI ByteString -> ByteString -> SResponse -> Session ()
 assertHeader header value SResponse{simpleHeaders = h} =
