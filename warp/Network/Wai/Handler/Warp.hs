@@ -35,6 +35,7 @@ module Network.Wai.Handler.Warp
     , settingsOnException
     , settingsTimeout
     , settingsIntercept
+    , settingsManager
       -- * Datatypes
     , Port
     , InvalidRequest (..)
@@ -48,6 +49,7 @@ module Network.Wai.Handler.Warp
     , enumSocket
     , pause
     , resume
+    , T.cancel
 #if TEST
     , takeHeaders
     , readInt
@@ -178,7 +180,8 @@ runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket set socket app = do
     let onE = settingsOnException set
         port = settingsPort set
-    tm <- T.initialize $ settingsTimeout set * 1000000
+    tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
+        $ settingsManager set
     forever $ do
         (conn, sa) <- accept socket
         _ <- forkIO $ do
@@ -483,6 +486,7 @@ data Settings = Settings
     , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
     , settingsIntercept :: Request -> Maybe (Socket -> E.Iteratee S.ByteString IO ())
+    , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     }
 
 -- | The default settings for the Warp server. See the individual settings for
@@ -500,6 +504,7 @@ defaultSettings = Settings
                     else return ()
     , settingsTimeout = 30
     , settingsIntercept = const Nothing
+    , settingsManager = Nothing
     }
   where
     go :: InvalidRequest -> IO ()
