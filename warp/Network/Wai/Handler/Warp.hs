@@ -414,7 +414,7 @@ sendResponse th req socket (ResponseEnumerator res) =
             liftIO $ Sock.sendMany socket
                    $ L.toChunks $ toLazyByteString
                    $ headers (httpVersion req) s hs False
-            return isPersist
+            return (checkPersist req)
     go s hs = chunk'
           $ E.enumList 1 [headers (httpVersion req) s hs isChunked']
          $$ E.joinI $ builderToByteString -- FIXME unsafeBuilderToByteString
