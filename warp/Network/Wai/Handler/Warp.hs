@@ -394,7 +394,7 @@ sendResponse th req socket (ResponseBuilder s hs b)
             $ toLazyByteString
             $ headers (httpVersion req) s hs False
         T.tickle th
-        return True
+        return isPersist
   where
     headers' = headers (httpVersion req) s hs isChunked'
     b' = if isChunked'
@@ -414,7 +414,7 @@ sendResponse th req socket (ResponseEnumerator res) =
             liftIO $ Sock.sendMany socket
                    $ L.toChunks $ toLazyByteString
                    $ headers (httpVersion req) s hs False
-            return True
+            return isPersist
     go s hs = chunk'
           $ E.enumList 1 [headers (httpVersion req) s hs isChunked']
          $$ E.joinI $ builderToByteString -- FIXME unsafeBuilderToByteString
