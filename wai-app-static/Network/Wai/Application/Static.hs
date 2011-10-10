@@ -641,16 +641,14 @@ staticAppPieces ss pieces req = liftIO $ do
                         [ ("Content-Type", "text/plain")
                         ] "File not found"
 
-{-
-The problem is that the System.Directory functions are a lie: they
-claim to be using String, but it's really just a raw byte sequence.
-We're assuming that non-Windows systems use UTF-8 encoding (there was
-a discussion regarding this, it wasn't an arbitrary decision). So we
-need to encode/decode the byte sequence to/from UTF8. That's the use
-case for fixPathName/unfixPathName. I'm starting to use John
-Millikin's system-filepath package for some stuff with work, and might
-consider migrating over to it for this in the future.
--}
+-- | System.Directory functions are a lie:
+-- they claim to be using String, but it's really just a raw byte sequence.
+-- We're assuming that non-Windows systems use UTF-8 encoding (there was
+-- a discussion regarding this, it wasn't an arbitrary decision). So we
+-- need to encode/decode the byte sequence to/from UTF8. That's the use
+-- case for fixPathName/unfixPathName. I'm starting to use John
+-- Millikin's system-filepath package for some stuff with work, and might
+-- consider migrating over to it for this in the future.
 toFilePath :: Prelude.FilePath -> FilePath
 #if defined(mingw32_HOST_OS)
 toFilePath = FilePath . T.pack
