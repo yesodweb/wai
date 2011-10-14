@@ -73,6 +73,8 @@ test-suite runtests
                    , zlib-bindings
                    , blaze-builder-enumerator
                    , blaze-builder
+                   , zlib-enum
+                   , data-default
 
 source-repository head
   type:     git
