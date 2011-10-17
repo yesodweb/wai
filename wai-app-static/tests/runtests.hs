@@ -133,8 +133,9 @@ main = hspecX $ do
     it "directory listing for index" $ fileServerApp $ do
       resp <- request (setRawPathInfo defRequest "a/")
       assertStatus 200 resp
-      assertBodyContains "<img src=\"../.hidden/haskell.png\" />" resp
-      assertBodyContains "<img src=\"../.hidden/folder.png\" alt=\"Folder\" />" resp
+      -- note the unclosed img tags so both /> and > will pass
+      assertBodyContains "<img src=\"../.hidden/haskell.png\"" resp
+      assertBodyContains "<img src=\"../.hidden/folder.png\" alt=\"Folder\"" resp
       assertBodyContains "<a href=\"b\">b</a>" resp
 
     it "200 when invalid if-modified-since header" $ fileServerApp $ do
