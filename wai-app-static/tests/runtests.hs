@@ -4,7 +4,7 @@ import Network.Wai.Application.Static
 import Test.Hspec.Monadic
 import Test.Hspec.QuickCheck
 import Test.Hspec.HUnit ()
-import Test.HUnit ((@?=), assert)
+import Test.HUnit ((@?=))
 import Distribution.Simple.Utils (isInfixOf)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -46,15 +46,12 @@ setRawPathInfo r rawPinfo =
 
 main :: IO a
 main = hspecX $ do
-  let must = liftIO . assert
-
   let webApp = flip runSession $ staticApp defaultWebAppSettings  {ssFolder = fileSystemLookup "tests"}
   let fileServerApp = flip runSession $ staticApp defaultFileServerSettings  {ssFolder = fileSystemLookup "tests"}
 
   let etag = "1B2M2Y8AsgTpgAmY7PhCfg=="
   let file = "a/b"
   let statFile = setRawPathInfo defRequest file
-
 
   describe "Pieces: pathFromPieces" $ do
     it "converts to a file path" $
@@ -136,11 +133,9 @@ main = hspecX $ do
     it "directory listing for index" $ fileServerApp $ do
       resp <- request (setRawPathInfo defRequest "a/")
       assertStatus 200 resp
-      let body = simpleBody resp
-      let contains a b = isInfixOf b (L8.unpack a)
-      must $ body `contains` "<img src=\"../.hidden/haskell.png\" />"
-      must $ body `contains` "<img src=\"../.hidden/folder.png\" alt=\"Folder\" />"
-      must $ body `contains` "<a href=\"b\">b</a>"
+      assertBodyContains "<img src=\"../.hidden/haskell.png\" />" resp
+      assertBodyContains "<img src=\"../.hidden/folder.png\" alt=\"Folder\" />" resp
+      assertBodyContains "<a href=\"b\">b</a>" resp
 
     it "200 when invalid if-modified-since header" $ fileServerApp $ do
       flip mapM_ ["123", ""] $ \badDate -> do
