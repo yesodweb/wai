@@ -1,5 +1,5 @@
 Name:                warp
-Version:             0.4.6
+Version:             0.5.0
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             BSD3
 License-file:        LICENSE

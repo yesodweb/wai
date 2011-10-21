@@ -36,6 +36,9 @@ module Network.Wai.Handler.Warp
     , settingsTimeout
     , settingsIntercept
     , settingsManager
+      -- * Connection
+    , Connection (..)
+    , runSettingsConnection
       -- * Datatypes
     , Port
     , InvalidRequest (..)
@@ -121,6 +124,25 @@ import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
 #endif
 
+data Connection = Connection
+    { connSendMany :: [B.ByteString] -> IO ()
+    , connSendAll :: B.ByteString -> IO ()
+    , connSendFile :: FilePath -> Integer -> Integer -> IO () -> IO () -- ^ offset, length
+    , connIter :: T.Handle -> E.Iteratee B.ByteString IO ()
+    , connClose :: IO ()
+    , connEnum :: T.Handle -> E.Enumerator B.ByteString IO ()
+    }
+
+socketConnection :: Socket -> Connection
+socketConnection s = Connection
+    { connSendMany = Sock.sendMany s
+    , connSendAll = Sock.sendAll s
+    , connSendFile = \fp off len act -> sendfile s fp (PartOfFile off len) act
+    , connIter = flip iterSocket s
+    , connClose = sClose s
+    , connEnum = \th -> enumSocket th bytesPerRead s
+    }
+
 bindPort :: Int -> String -> IO Socket
 bindPort p s = do
     let hints = defaultHints { addrFlags = [AI_PASSIVE
@@ -180,30 +202,38 @@ type Port = Int
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket set socket app = do
+    runSettingsConnection set getter app
+  where
+    getter = do
+        (conn, sa) <- accept socket
+        return (socketConnection conn, sa)
+
+runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
+runSettingsConnection set getConn app = do
     let onE = settingsOnException set
         port = settingsPort set
     tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
         $ settingsManager set
     forever $ do
-        (conn, sa) <- accept socket
+        (conn, addr) <- getConn
         _ <- forkIO $ do
             th <- T.registerKillThread tm
-            serveConnection set th onE port app conn sa
+            serveConnection set th onE port app conn addr
             T.cancel th
         return ()
 
 serveConnection :: Settings
                 -> T.Handle
                 -> (SomeException -> IO ())
-                -> Port -> Application -> Socket -> SockAddr -> IO ()
+                -> Port -> Application -> Connection -> SockAddr -> IO ()
 serveConnection settings th onException port app conn remoteHost' = do
     catch
         (finally
           (E.run_ $ fromClient $$ serveConnection')
-          (sClose conn))
+          (connClose conn))
         onException
   where
-    fromClient = enumSocket th bytesPerRead conn
+    fromClient = connEnum conn th
     serveConnection' = do
         (len, env) <- parseRequest port remoteHost'
         case settingsIntercept settings env of
@@ -212,7 +242,7 @@ serveConnection settings th onException port app conn remoteHost' = do
                 liftIO $ T.pause th
                 res <- E.joinI $ EB.isolate len $$ app env
                 liftIO $ T.resume th
-                keepAlive <- liftIO $ sendResponse th env conn res
+                keepAlive <- liftIO $ sendResponse' th env conn res
                 if keepAlive then serveConnection' else return ()
             Just intercept -> do
                 liftIO $ T.pause th
@@ -356,7 +386,11 @@ hasBody s req = s /= (H.Status 204 "") && s /= H.status304 &&
 
 sendResponse :: T.Handle
              -> Request -> Socket -> Response -> IO Bool
-sendResponse th req socket (ResponseFile s hs fp mpart) = do
+sendResponse th req socket res = sendResponse' th req (socketConnection socket) res
+
+sendResponse' :: T.Handle
+              -> Request -> Connection -> Response -> IO Bool
+sendResponse' th req conn (ResponseFile s hs fp mpart) = do
     (hs', cl) <-
         case (readInt `fmap` lookup "content-length" hs, mpart) of
             (Just cl, _) -> return (hs, cl)
@@ -366,30 +400,24 @@ sendResponse th req socket (ResponseFile s hs fp mpart) = do
             (Nothing, Just part) -> do
                 let cl = filePartByteCount part
                 return (("Content-Length", B.pack $ show cl):hs, fromIntegral cl)
-    Sock.sendMany socket $ L.toChunks $ toLazyByteString $ headers (httpVersion req) s hs' False
+    connSendMany conn $ L.toChunks $ toLazyByteString $ headers (httpVersion req) s hs' False
     let isPersist= checkPersist req
     if hasBody s req
         then do
             case mpart of
-                Nothing   -> sendfile socket fp PartOfFile {
-                    rangeOffset = 0
-                  , rangeLength = cl
-                  } (T.tickle th)
-                Just part -> sendfile socket fp PartOfFile {
-                    rangeOffset = filePartOffset part
-                  , rangeLength = filePartByteCount part
-                  } (T.tickle th)
+                Nothing   -> connSendFile conn fp 0 cl (T.tickle th)
+                Just part -> connSendFile conn fp (filePartOffset part) (filePartByteCount part) (T.tickle th)
             T.tickle th
             return isPersist
         else return isPersist
-sendResponse th req socket (ResponseBuilder s hs b)
+sendResponse' th req socket (ResponseBuilder s hs b)
     | hasBody s req = do
           toByteStringIO (\bs -> do
-            Sock.sendAll socket bs
+            connSendAll socket bs
             T.tickle th) b'
           return isKeepAlive
     | otherwise = do
-        Sock.sendMany socket
+        connSendMany socket
             $ L.toChunks
             $ toLazyByteString
             $ headers (httpVersion req) s hs False
@@ -406,19 +434,19 @@ sendResponse th req socket (ResponseBuilder s hs b)
     isChunked' = isChunked (httpVersion req) && not hasLength
     isPersist = checkPersist req
     isKeepAlive = isPersist && (isChunked' || hasLength)
-sendResponse th req socket (ResponseEnumerator res) =
+sendResponse' th req socket (ResponseEnumerator res) =
     res go
   where
     -- FIXME perhaps alloca a buffer per thread and reuse that in all functiosn below. Should lessen greatly the GC burden (I hope)
     go s hs | not (hasBody s req) = do
-            liftIO $ Sock.sendMany socket
+            liftIO $ connSendMany socket
                    $ L.toChunks $ toLazyByteString
                    $ headers (httpVersion req) s hs False
             return (checkPersist req)
     go s hs = chunk'
           $ E.enumList 1 [headers (httpVersion req) s hs isChunked']
          $$ E.joinI $ builderToByteString -- FIXME unsafeBuilderToByteString
-         $$ (iterSocket th socket >> return isKeepAlive)
+         $$ (connIter socket th >> return isKeepAlive)
       where
         hasLength = lookup "content-length" hs /= Nothing
         isChunked' = isChunked (httpVersion req) && not hasLength
@@ -487,7 +515,7 @@ data Settings = Settings
     , settingsHost :: String -- ^ Host to bind to, or * for all. Default value: *
     , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
-    , settingsIntercept :: Request -> Maybe (Socket -> E.Iteratee S.ByteString IO ())
+    , settingsIntercept :: Request -> Maybe (Connection -> E.Iteratee S.ByteString IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     }
 
