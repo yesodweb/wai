@@ -12,6 +12,8 @@ import System.IO
 import Crypto.Random
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Enumerator.List as EL
+import Data.Enumerator.Binary (enumFileRange)
+import Data.Enumerator (run_, ($$))
 import Control.Monad.IO.Class (liftIO)
 import Control.Exception (bracket)
 import qualified Data.ByteString as S
@@ -59,7 +61,7 @@ runTLS tset set app = do
         let conn = Connection
                 { connSendMany = sendData ctx . L.fromChunks
                 , connSendAll = sendData ctx . L.fromChunks . return
-                , connSendFile = undefined
+                , connSendFile = \fp offset length _th -> run_ $ enumFileRange fp (Just offset) (Just length) $$ EL.mapM_ (sendData ctx . L.fromChunks . return)
                 , connIter = \_th -> sink
                 , connClose = do
                     bye ctx
