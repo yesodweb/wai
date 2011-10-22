@@ -1,0 +1,33 @@
+Name:                warp-tls
+Version:             0.4.0
+Synopsis:            SSL support for Warp via the TLS package
+License:             BSD3
+License-file:        LICENSE
+Author:              Michael Snoyman
+Maintainer:          michael@snoyman.com
+Homepage:            http://github.com/yesodweb/wai
+Category:            Web, Yesod
+Build-Type:          Simple
+Cabal-Version:       >=1.6
+Stability:           Stable
+Description:         SSL support for Warp via the TLS package
+
+Library
+  Build-Depends:     base                          >= 3        && < 5
+                   , bytestring                    >= 0.9      && < 0.10
+                   , wai                           >= 0.4      && < 0.5
+                   , warp                          >= 0.4.6    && < 0.5
+                   , transformers                  >= 0.2      && < 0.3
+                   , enumerator                    >= 0.4.5    && < 0.5
+                   , certificate                   >= 0.9.5    && < 0.10
+                   , cryptocipher                  >= 0.2.8    && < 0.3
+                   , tls-extra                     >= 0.4      && < 0.5
+                   , tls                           >= 0.8.1    && < 0.9
+                   , crypto-api                    >= 0.6      && < 0.7
+                   , network                       >= 2.2.1    && < 2.4
+  Exposed-modules:   Network.Wai.Handler.WarpTLS
+  ghc-options:       -Wall
+
+source-repository head
+  type:     git
+  location: git://github.com/yesodweb/wai.git
