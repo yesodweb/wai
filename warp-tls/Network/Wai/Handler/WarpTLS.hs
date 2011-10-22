@@ -28,24 +28,26 @@ data TLSSettings = TLSSettings
     }
 
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
-runTLS tset set app = bracket
-    (bindPort (settingsPort set) (settingsHost set))
-    sClose
-    (\sock -> runSettingsConnection set (getter sock) app)
-  where
-    getter sock = do
-        (s, sa) <- accept sock
-        h <- socketToHandle s ReadWriteMode
-        hSetBuffering h NoBuffering
-        gen <- newGenIO
-        cert    <- readCertificate $ certFile tset
-        pk      <- readPrivateKey $ keyFile tset
-        ctx <- server defaultParams
+runTLS tset set app = do
+    cert    <- readCertificate $ certFile tset
+    pk      <- readPrivateKey $ keyFile tset
+    let params = defaultParams
             { pWantClientCert = False
             , pAllowedVersions = [SSL3,TLS10,TLS11,TLS12]
             , pCiphers         = ciphers
             , pCertificates    = [(cert, Just pk)]
-            } (gen :: SystemRandom) h
+            }
+    bracket
+        (bindPort (settingsPort set) (settingsHost set))
+        sClose
+        (\sock -> runSettingsConnection set (getter params sock) app)
+  where
+    getter params sock = do
+        (s, sa) <- accept sock
+        h <- socketToHandle s ReadWriteMode
+        hSetBuffering h NoBuffering
+        gen <- newGenIO
+        ctx <- server params (gen :: SystemRandom) h
         handshake ctx
         let sink = do
                 x <- EL.head
