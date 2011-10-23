@@ -15,7 +15,7 @@ import qualified Data.Enumerator.List as EL
 import Data.Enumerator.Binary (enumFileRange)
 import Data.Enumerator (run_, ($$))
 import Control.Monad.IO.Class (liftIO)
-import Control.Exception (bracket)
+import Control.Exception (bracket, handle, SomeException)
 import qualified Data.ByteString as S
 import Network.TLS.Extra
 import qualified Crypto.Cipher.RSA as RSA
@@ -23,6 +23,7 @@ import qualified Data.Certificate.KeyRSA as KeyRSA
 import Data.Certificate.X509
 import Data.Certificate.PEM
 import qualified Data.ByteString as B
+import Control.Monad (unless)
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -44,35 +45,40 @@ runTLS tset set app = do
         sClose
         (\sock -> runSettingsConnection set (getter params sock) app)
   where
+    retry :: TLSParams -> Socket -> SomeException -> IO (Connection, SockAddr)
+    retry a b _ = getter a b
+
     getter params sock = do
         (s, sa) <- accept sock
-        h <- socketToHandle s ReadWriteMode
-        hSetBuffering h NoBuffering
-        gen <- newGenIO
-        ctx <- server params (gen :: SystemRandom) h
-        handshake ctx
-        let sink = do
-                x <- EL.head
-                case x of
-                    Just y -> do
-                        liftIO $ sendData ctx $ L.fromChunks [y]
-                        sink
-                    Nothing -> return ()
-        let conn = Connection
-                { connSendMany = sendData ctx . L.fromChunks
-                , connSendAll = sendData ctx . L.fromChunks . return
-                , connSendFile = \fp offset length _th -> run_ $ enumFileRange fp (Just offset) (Just length) $$ EL.mapM_ (sendData ctx . L.fromChunks . return)
-                , connIter = \_th -> sink
-                , connClose = do
-                    bye ctx
-                    hClose h
-                , connEnum = \_th -> EL.generateM $ do
-                    lbs <- recvData ctx
-                    if L.null lbs
-                        then return Nothing
-                        else return $ Just $ S.concat $ L.toChunks lbs
-                }
-        return (conn, sa)
+        handle (retry params sock) $ do
+            h <- socketToHandle s ReadWriteMode
+            hSetBuffering h NoBuffering
+            gen <- newGenIO
+            ctx <- server params (gen :: SystemRandom) h
+            b <- handshake ctx
+            unless b $ error "Invalid handshake"
+            let sink = do
+                    x <- EL.head
+                    case x of
+                        Just y -> do
+                            liftIO $ sendData ctx $ L.fromChunks [y]
+                            sink
+                        Nothing -> return ()
+            let conn = Connection
+                    { connSendMany = sendData ctx . L.fromChunks
+                    , connSendAll = sendData ctx . L.fromChunks . return
+                    , connSendFile = \fp offset length _th -> run_ $ enumFileRange fp (Just offset) (Just length) $$ EL.mapM_ (sendData ctx . L.fromChunks . return)
+                    , connIter = \_th -> sink
+                    , connClose = do
+                        bye ctx
+                        hClose h
+                    , connEnum = \_th -> EL.generateM $ do
+                        lbs <- recvData ctx
+                        if L.null lbs
+                            then return Nothing
+                            else return $ Just $ S.concat $ L.toChunks lbs
+                    }
+            return (conn, sa)
 
 -- taken from stunnel example in tls-extra
 ciphers :: [Cipher]
