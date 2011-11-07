@@ -1,16 +1,16 @@
-Name:                eventsource-wai
+Name:                wai-eventsource
 Version:             0.1
 Synopsis:            Project Synopsis Here
 Description:         Project Description Here
-License:             AllRightsReserved
-Author:              Author
-Maintainer:          maintainer@example.com
+License:             BSD
+Author:              Chris Smigh, Mathias Biilmann Christensen
+Maintainer:          info@mathias-biilmann.net, greg@gregweber.info
 Stability:           Experimental
 Category:            Web
 Build-type:          Simple
 Cabal-version:       >=1.2
 
-Executable eventsource-wai
+Executable wai-eventsource
   hs-source-dirs: src
   main-is: Main.hs
 
@@ -21,7 +21,7 @@ Executable eventsource-wai
     MonadCatchIO-transformers >= 0.2.1 && < 0.3,
     mtl >= 2 && < 3,
     http-types >= 0.6,
-    enumerator >= 0.4,
+    enumerator >= 0.4 && < 0.5,
     time >= 1.2,
     wai >= 0.4,
     warp >= 0.4
