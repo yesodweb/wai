@@ -59,7 +59,7 @@ test-suite runtests
     build-depends:   base                      >= 4        && < 5
                    , wai-extra
                    , wai-test
-                   , hspec >= 0.8 && < 0.9
+                   , hspec >= 0.8 && < 0.10
                    , HUnit
 
                    , wai
