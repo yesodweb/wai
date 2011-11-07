@@ -13,6 +13,7 @@ implement a simple multi-user chat program.
 > import qualified Data.Text.IO as T
 
 > import qualified Network.WebSockets as WS
+> import qualified Network.Wai
 > import qualified Network.Wai.Handler.Warp as Warp
 > import qualified Network.Wai.Handler.WebSockets as WaiWS
 > import qualified Network.Wai.Application.Static as Static
@@ -75,10 +76,12 @@ actual server. For this purpose, we use the simple server provided by
 >       , Warp.settingsIntercept = WaiWS.intercept (webSocketsApp state)
 >       } staticApp
 
+> staticApp :: Network.Wai.Application
 > staticApp = Static.staticApp Static.defaultFileServerSettings
 >   { Static.ssFolder = Static.embeddedLookup $ Static.toEmbedded $(embedDir "static")
 >   }
 
+> webSocketsApp :: MVar ServerState -> WS.WebSockets ()
 > webSocketsApp state = do
 
 When a client connects, we first obtain the request. Once we have that, we use
