@@ -1,11 +1,17 @@
-This is the Haskell implementation of the example for the WebSockets library. We
-implement a simple multi-user chat program.
+websockets example
+==================
 
-> {-# LANGUAGE OverloadedStrings #-}
-> {-# LANGUAGE TemplateHaskell #-}
+This is the Haskell implementation of the example for the WebSockets library. We
+implement a simple multi-user chat program. A live demo of the example is
+available [here](http://jaspervdj.be/websockets-example). In order to understand
+this example, keep the [reference](http://jaspervdj.be/websockets/reference)
+nearby to check out the functions we use.
+
+> {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 > import Data.Char (isPunctuation, isSpace)
 > import Data.Monoid (mappend)
 > import Data.Text (Text)
+> import Control.Exception (fromException)
 > import Control.Monad (forM_)
 > import Control.Concurrent (MVar, newMVar, modifyMVar_, readMVar)
 > import Control.Monad.IO.Class (liftIO)
@@ -19,9 +25,13 @@ implement a simple multi-user chat program.
 > import Data.FileEmbed (embedDir)
 
 We represent a client by his username and a 'WS.Sender'. We can use this sender
-to asynchronously send 'Text' to the client later.
+to asynchronously send 'Text' to the client later. Note that using `WS.Hybi00`
+here does not imply that our server is only compatible with the `hybi-00`
+version of the protocol, for more details on this, see the
+[Network.WebSockets](http://jaspervdj.be/websockets/reference/Network-WebSockets.html) 
+reference.
 
-> type Client = (Text, WS.Sender Text)
+> type Client = (Text, WS.Sink WS.Hybi00)
 
 The state kept on the server is simply a list of connected clients. We've added
 an alias and some utility functions, so it will be easier to extend this state
@@ -60,7 +70,7 @@ Send a message to all clients, and log it on stdout.
 > broadcast :: Text -> ServerState -> IO ()
 > broadcast message clients = do
 >     T.putStrLn message
->     forM_ clients $ \(_, sender) -> sender WS.textData message
+>     forM_ clients $ \(_, sink) -> WS.sendSink sink $ WS.textData message
 
 The main function first creates a new state for the server, then spawns the
 actual server. For this purpose, we use the simple server provided by
@@ -72,90 +82,87 @@ actual server. For this purpose, we use the simple server provided by
 >     state <- newMVar newServerState
 >     Warp.runSettings Warp.defaultSettings
 >       { Warp.settingsPort = 9160
->       , Warp.settingsIntercept = WaiWS.intercept (webSocketsApp state)
+>       , Warp.settingsIntercept = WaiWS.intercept (application state)
 >       } staticApp
 
 > staticApp = Static.staticApp Static.defaultFileServerSettings
 >   { Static.ssFolder = Static.embeddedLookup $ Static.toEmbedded $(embedDir "static")
 >   }
 
-> webSocketsApp state = do
+When a client connects, we accept the connection, regardless of the path.
 
-When a client connects, we first obtain the request. Once we have that, we use
-the 'WS.handshake' function to generate a response, which we finally send to the
-client.
+> application :: MVar ServerState -> WS.Request -> WS.WebSockets WS.Hybi00 ()
+> application state rq = do
+>     WS.acceptRequest rq
 
-We use irrefutable pattern matches here because the server will spawn a thread
-for each connection -- and a crashing thread does not effect the rest of the
-program. For a real application, proper logging is appropriate.
+We log some information here: in particular, we are interested in the protocol
+version our client is using (for debugging purposes).
 
->         Just rq <- WS.receiveRequest
->         let Right rsp = WS.handshake rq
->         WS.sendResponse rsp
+>     WS.getVersion >>= liftIO . putStrLn . ("Client version: " ++)
 
 If we want to be able to send data to this client later, from another thread, we
-obtain a sender. We will add this to the server state later.
+obtain a sink. We will add this to the server state later.
 
->         sender <- WS.getSender
+>     sink <- WS.getSink
 
 When a client is succesfully connected, we read the first message. This should
 be in the format of "Hi, I am Jasper", where Jasper is the requested username.
 
->         msg <- WS.receiveData
->         clients <- liftIO $ readMVar state
->         case msg of
->             Nothing -> return ()
->             Just m
+>     msg <- WS.receiveData
+>     clients <- liftIO $ readMVar state
+>     case msg of
 
 Check that the first message has the right format
 
->                 | not (prefix `T.isPrefixOf` m) ->
->                     WS.sendTextData ("Wrong announcement" :: Text)
+>         _   | not (prefix `T.isPrefixOf` msg) ->
+>                 WS.sendTextData ("Wrong announcement" :: Text)
 
 Check the validity of the username
 
->                 | any ($ fst client)
->                     [T.null, T.any isPunctuation, T.any isSpace] ->
->                         WS.sendTextData ("Name cannot " `mappend`
->                             "contain punctuation or whitespace, and " `mappend`
->                             "cannot be empty" :: Text)
+>             | any ($ fst client)
+>                 [T.null, T.any isPunctuation, T.any isSpace] ->
+>                     WS.sendTextData ("Name cannot " `mappend`
+>                         "contain punctuation or whitespace, and " `mappend`
+>                         "cannot be empty" :: Text)
 
 Check that the given username is not already taken
 
->                 | clientExists client clients ->
->                     WS.sendTextData ("User already exists" :: Text)
+>             | clientExists client clients ->
+>                 WS.sendTextData ("User already exists" :: Text)
 
 All is right!
 
->                 | otherwise -> do
+>             | otherwise -> do
 
 We send a "Welcome!", according to our own little protocol. We add the client to
 the list and broadcast the fact that he has joined. Then, we give control to the
 'talk' function.
 
->                     liftIO $ modifyMVar_ state $ \s -> do
->                         let s' = addClient client s
->                         sender WS.textData $ "Welcome! Users: " `mappend`
->                             T.intercalate ", " (map fst s)
->                         broadcast (fst client `mappend` " joined") s'
->                         return s'
->                     talk state client
->               where
->                 prefix = "Hi! I am "
->                 client = (T.drop (T.length prefix) m, sender)
+>                liftIO $ modifyMVar_ state $ \s -> do
+>                    let s' = addClient client s
+>                    WS.sendSink sink $ WS.textData $
+>                        "Welcome! Users: " `mappend`
+>                        T.intercalate ", " (map fst s)
+>                    broadcast (fst client `mappend` " joined") s'
+>                    return s'
+>                talk state client
+>           where
+>             prefix = "Hi! I am "
+>             client = (T.drop (T.length prefix) msg, sink)
 
 The talk function continues to read messages from a single client until he
 disconnects. All messages are broadcasted to the other clients.
 
-> talk :: MVar ServerState -> Client -> WS.WebSockets ()
-> talk state client@(user, _) = do
+> talk :: WS.Protocol p => MVar ServerState -> Client -> WS.WebSockets p ()
+> talk state client@(user, _) = flip WS.catchWsError catchDisconnect $ do
 >     msg <- WS.receiveData
->     case msg of
->         Nothing -> liftIO $ modifyMVar_ state $ \s -> do
+>     liftIO $ readMVar state >>= broadcast
+>         (user `mappend` ": " `mappend` msg)
+>     talk state client
+>   where
+>     catchDisconnect e = case fromException e of
+>         Just WS.ConnectionClosed -> liftIO $ modifyMVar_ state $ \s -> do
 >             let s' = removeClient client s
 >             broadcast (user `mappend` " disconnected") s'
 >             return s'
->         Just m -> do
->             liftIO $ readMVar state >>= broadcast
->                 (user `mappend` ": " `mappend` m)
->             talk state client
+>         _ -> return ()
