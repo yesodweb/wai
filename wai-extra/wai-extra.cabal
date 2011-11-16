@@ -71,8 +71,8 @@ test-suite runtests
                    , bytestring
                    , directory 
                    , zlib-bindings
-                   , blaze-builder-enumerator
-                   , blaze-builder
+                   , blaze-builder-enumerator >= 0.2 && < 0.3
+                   , blaze-builder >= 0.2.1.3 && < 0.4
                    , zlib-enum
                    , data-default
 
