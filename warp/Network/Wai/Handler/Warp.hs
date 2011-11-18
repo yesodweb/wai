@@ -356,20 +356,30 @@ hasBody s req = s /= (H.Status 204 "") && s /= H.status304 &&
 
 sendResponse :: T.Handle
              -> Request -> Socket -> Response -> IO Bool
-sendResponse th req socket (ResponseFile s hs fp mpart) = do
-    (hs', cl) <-
-        case (readInt `fmap` lookup "content-length" hs, mpart) of
-            (Just cl, _) -> return (hs, cl)
-            (Nothing, Nothing) -> do
-                cl <- P.fileSize `fmap` P.getFileStatus fp
-                return (("Content-Length", B.pack $ show cl):hs, fromIntegral cl)
-            (Nothing, Just part) -> do
-                let cl = filePartByteCount part
-                return (("Content-Length", B.pack $ show cl):hs, fromIntegral cl)
-    Sock.sendMany socket $ L.toChunks $ toLazyByteString $ headers (httpVersion req) s hs' False
-    let isPersist= checkPersist req
-    if hasBody s req
-        then do
+sendResponse th req socket r = sendResponse' r
+  where
+    version = httpVersion req
+    isPersist = checkPersist req
+    isChunked' = isChunked version
+    needsChunked hs = isChunked' && not (hasLength hs)
+    isKeepAlive hs = isPersist && (isChunked' || hasLength hs)
+    hasLength hs = lookup "content-length" hs /= Nothing
+
+    sendResponse' :: Response -> IO Bool
+    sendResponse' (ResponseFile s hs fp mpart) = do
+        (lengthyHeaders, cl) <-
+            case (readInt `fmap` lookup "content-length" hs, mpart) of
+                (Just cl, _) -> return (hs, cl)
+                (Nothing, Nothing) -> do
+                    cl <- P.fileSize `fmap` P.getFileStatus fp
+                    return $ addClToHeaders cl
+                (Nothing, Just part) -> do
+                    let cl = filePartByteCount part
+                    return $ addClToHeaders cl
+        Sock.sendMany socket $ L.toChunks $ toLazyByteString $
+          headers version s lengthyHeaders False
+
+        if not (hasBody s req) then return isPersist else do
             case mpart of
                 Nothing   -> sendfile socket fp PartOfFile {
                     rangeOffset = 0
@@ -381,58 +391,57 @@ sendResponse th req socket (ResponseFile s hs fp mpart) = do
                   } (T.tickle th)
             T.tickle th
             return isPersist
-        else return isPersist
-sendResponse th req socket (ResponseBuilder s hs b)
-    | hasBody s req = do
-          toByteStringIO (\bs -> do
-            Sock.sendAll socket bs
-            T.tickle th) b'
-          return isKeepAlive
-    | otherwise = do
-        Sock.sendMany socket
-            $ L.toChunks
-            $ toLazyByteString
-            $ headers (httpVersion req) s hs False
-        T.tickle th
-        return isPersist
-  where
-    headers' = headers (httpVersion req) s hs isChunked'
-    b' = if isChunked'
-            then headers'
-                 `mappend` chunkedTransferEncoding b
-                 `mappend` chunkedTransferTerminator
-            else headers (httpVersion req) s hs False `mappend` b
-    hasLength = lookup "content-length" hs /= Nothing
-    isChunked' = isChunked (httpVersion req) && not hasLength
-    isPersist = checkPersist req
-    isKeepAlive = isPersist && (isChunked' || hasLength)
-sendResponse th req socket (ResponseEnumerator res) =
-    res go
-  where
-    -- FIXME perhaps alloca a buffer per thread and reuse that in all functiosn below. Should lessen greatly the GC burden (I hope)
-    go s hs | not (hasBody s req) = do
-            liftIO $ Sock.sendMany socket
-                   $ L.toChunks $ toLazyByteString
-                   $ headers (httpVersion req) s hs False
-            return (checkPersist req)
-    go s hs = chunk'
-          $ E.enumList 1 [headers (httpVersion req) s hs isChunked']
-         $$ E.joinI $ builderToByteString -- FIXME unsafeBuilderToByteString
-         $$ (iterSocket th socket >> return isKeepAlive)
       where
-        hasLength = lookup "content-length" hs /= Nothing
-        isChunked' = isChunked (httpVersion req) && not hasLength
-        isPersist = checkPersist req
-        isKeepAlive = isPersist && (isChunked' || hasLength)
-        chunk' i = if isChunked'
-                      then E.joinI $ chunk $$ i
-                      else i
-        chunk :: E.Enumeratee Builder Builder IO Bool
-        chunk = E.checkDone $ E.continue . step
-        step k E.EOF = k (E.Chunks [chunkedTransferTerminator]) >>== return
-        step k (E.Chunks []) = E.continue $ step k
-        step k (E.Chunks [x]) = k (E.Chunks [chunkedTransferEncoding x]) >>== chunk
-        step k (E.Chunks xs) = k (E.Chunks [chunkedTransferEncoding $ mconcat xs]) >>== chunk
+        addClToHeaders cl = (("Content-Length", B.pack $ show cl):hs, fromIntegral cl)
+
+    sendResponse' (ResponseBuilder s hs b)
+        | hasBody s req = do
+              toByteStringIO (\bs -> do
+                Sock.sendAll socket bs
+                T.tickle th) body
+              return (isKeepAlive hs)
+        | otherwise = do
+            Sock.sendMany socket
+                $ L.toChunks
+                $ toLazyByteString
+                $ headers' False
+            T.tickle th
+            return isPersist
+      where
+        headers' = headers version s hs
+        needsChunked' = needsChunked hs
+        body = if needsChunked'
+                  then (headers' needsChunked')
+                       `mappend` chunkedTransferEncoding b
+                       `mappend` chunkedTransferTerminator
+                  else (headers' False) `mappend` b
+
+    sendResponse' (ResponseEnumerator res) = res enumResponse
+      where
+        enumResponse s hs = response True
+          where
+            headers' = headers version s hs
+            -- FIXME perhaps alloca a buffer per thread and reuse that in all functiosn below. Should lessen greatly the GC burden (I hope)
+            response _ | not (hasBody s req) = do
+                    liftIO $ Sock.sendMany socket
+                           $ L.toChunks $ toLazyByteString
+                           $ headers' False
+                    return (checkPersist req)
+            response _ = chunk'
+                  $ E.enumList 1 [headers' needsChunked']
+                 $$ E.joinI $ builderToByteString -- FIXME unsafeBuilderToByteString
+                 $$ (iterSocket th socket >> return (isKeepAlive hs))
+              where
+                needsChunked' = needsChunked hs
+                chunk' i = if needsChunked'
+                              then E.joinI $ chunk $$ i
+                              else i
+                chunk :: E.Enumeratee Builder Builder IO Bool
+                chunk = E.checkDone $ E.continue . step
+                step k E.EOF = k (E.Chunks [chunkedTransferTerminator]) >>== return
+                step k (E.Chunks []) = E.continue $ step k
+                step k (E.Chunks [x]) = k (E.Chunks [chunkedTransferEncoding x]) >>== chunk
+                step k (E.Chunks xs) = k (E.Chunks [chunkedTransferEncoding $ mconcat xs]) >>== chunk
 
 parseHeaderNoAttr :: ByteString -> H.Header
 parseHeaderNoAttr s =
