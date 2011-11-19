@@ -36,7 +36,6 @@ module Network.Wai.Handler.Warp
     , settingsTimeout
     , settingsIntercept
     , settingsManager
-    , settingsRechunking
       -- * Datatypes
     , Port
     , InvalidRequest (..)
@@ -95,7 +94,7 @@ import Blaze.ByteString.Builder.Enumerator (builderToByteString)
 import Blaze.ByteString.Builder.HTTP
     (chunkedTransferEncoding, chunkedTransferTerminator)
 import Blaze.ByteString.Builder
-    (copyByteString, Builder, toLazyByteString, toByteStringIO, toByteString)
+    (copyByteString, Builder, toLazyByteString, toByteStringIO)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
 import Data.Monoid (mappend, mconcat)
 import Network.Sendfile
@@ -213,7 +212,7 @@ serveConnection settings th onException port app conn remoteHost' = do
                 liftIO $ T.pause th
                 res <- E.joinI $ EB.isolate len $$ app env
                 liftIO $ T.resume th
-                keepAlive <- liftIO $ sendResponse settings th env conn res
+                keepAlive <- liftIO $ sendResponse th env conn res
                 if keepAlive then serveConnection' else return ()
             Just intercept -> do
                 liftIO $ T.pause th
@@ -355,8 +354,9 @@ hasBody :: H.Status -> Request -> Bool
 hasBody s req = s /= (H.Status 204 "") && s /= H.status304 &&
                 H.statusCode s >= 200 && requestMethod req /= "HEAD"
 
-sendResponse :: Settings -> T.Handle -> Request -> Socket -> Response -> IO Bool
-sendResponse settings th req socket r = sendResponse' r
+sendResponse :: T.Handle
+             -> Request -> Socket -> Response -> IO Bool
+sendResponse th req socket r = sendResponse' r
   where
     version = httpVersion req
     isPersist = checkPersist req
@@ -429,9 +429,7 @@ sendResponse settings th req socket r = sendResponse' r
                     return (checkPersist req)
             response _ = chunk'
                   $ E.enumList 1 [headers' needsChunked']
-                 $$ E.joinI $ ( if settingsRechunking settings
-                                    then builderToByteString -- FIXME unsafeBuilderToByteString
-                                    else EL.map toByteString )
+                 $$ E.joinI $ builderToByteString -- FIXME unsafeBuilderToByteString
                  $$ (iterSocket th socket >> return (isKeepAlive hs))
               where
                 needsChunked' = needsChunked hs
@@ -500,7 +498,6 @@ data Settings = Settings
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
     , settingsIntercept :: Request -> Maybe (Socket -> E.Iteratee S.ByteString IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
-    , settingsRechunking :: Bool -- ^ Should warp re-chunk response builder or not.
     }
 
 -- | The default settings for the Warp server. See the individual settings for
@@ -519,7 +516,6 @@ defaultSettings = Settings
     , settingsTimeout = 30
     , settingsIntercept = const Nothing
     , settingsManager = Nothing
-    , settingsRechunking = True
     }
   where
     go :: InvalidRequest -> IO ()
