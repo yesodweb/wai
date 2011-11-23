@@ -1,0 +1,123 @@
+Name:                wai-mega
+Version:             0.4.2
+Synopsis:            WAI mega install
+Description:         Provides a common protocol for communication between web applications and web servers.
+License:             BSD3
+License-file:        LICENSE
+Author:              Michael Snoyman
+Maintainer:          michael@snoyman.com
+Homepage:            https://github.com/yesodweb/wai
+Category:            Web
+Build-Type:          Simple
+Cabal-Version:       >=1.6
+Stability:           Stable
+
+Source-repository head
+    type:            git
+    location:        git://github.com/yesodweb/wai.git
+
+Library
+  Build-Depends:     base                   >= 4        && < 5
+
+                   -- wai-handler-scgi
+                   -- wai-handler-launch
+                   -- warp-static
+
+                   -- warp
+                   , simple-sendfile               >= 0.1      && < 0.2
+
+                   -- wai-websockets
+                   , network-enumerator            >= 0.1.2    && < 0.2
+                   , websockets                    >= 0.4      && < 0.5
+
+                   -- wai-test
+                   , cookie                    >= 0.2      && < 0.4
+                   , HUnit                     >= 1.2      && < 1.3
+                   , case-insensitive          >= 0.2      && < 0.4
+
+                   -- wai-handler-devel
+                   , hint                     >= 0.3.2.3       && < 0.4
+                   , text                     >= 0.7           && < 0.12
+                   , old-time                 >= 1.0           && < 1.1
+                   , attoparsec-text          >= 0.8.2         && < 0.9
+
+                     -- wai-extra
+                   , wai                       >= 0.4     && < 0.5
+                   , old-locale                >= 1.0     && < 1.1
+                   , network                   >= 2.2.1.5 && < 2.4
+                   , directory                 >= 1.0.1   && < 1.2
+                   , zlib-bindings             >= 0.0     && < 0.1
+                   , blaze-builder-enumerator  >= 0.2     && < 0.3
+                   , case-insensitive          >= 0.2     && < 0.4
+                   , zlib-enum                 >= 0.2.1   && < 0.3
+                   , data-default              >= 0.3     && < 0.4
+
+                   -- wai-app-static
+                   , bytestring                >= 0.9.1.4  && < 0.10
+                   , http-types                >= 0.6      && < 0.7
+                   , transformers              >= 0.2.2    && < 0.3
+                   , unix-compat               >= 0.2      && < 0.3
+                   , containers                >= 0.2      && < 0.5
+                   , blaze-html                >= 0.4      && < 0.5
+                   , time                      >= 1.1.4    && < 1.4
+                   , old-locale                >= 1.0.0.2  && < 1.1
+                   , file-embed                >= 0.0.3.1  && < 0.1
+                   , blaze-builder             >= 0.2.1.4  && < 0.4
+                   , base64-bytestring         >= 0.1      && < 0.2
+                   , cryptohash                >= 0.7      && < 0.8
+                   , http-date
+
+                   -- wai
+                   , enumerator                >= 0.4.8    && < 0.5
+                   , http-types                >= 0.6      && < 0.7
+                   , text                      >= 0.5      && < 1.0
+
+  Exposed-modules: 
+                    -- warp-static
+
+                    -- warp
+                    Network.Wai.Handler.Warp
+
+                    -- wai-websockets
+                    Network.Wai.Handler.WebSockets
+
+                    -- wai-test
+                    Network.Wai.Test
+
+                    -- wai-handler-webkit
+                    Network.Wai.Handler.Webkit
+
+                    -- wai-handler-scgi
+                    Network.Wai.Handler.SCGI
+
+                    -- wai-handler-launch
+                    Network.Wai.Handler.Launch
+
+                    -- wai-handler-fastcghi
+                    Network.Wai.Handler.FastCGI
+
+                    -- wai-app-static
+                    Network.Wai.Application.Static
+
+                    --wai
+                    Network.Wai
+
+                    -- wai-handler-devel
+                    Network.Wai.Handler.DevelServer
+                    Network.Wai.Application.Devel
+
+                    -- wai-extra
+                    Network.Wai.Handler.CGI
+                    Network.Wai.Middleware.AcceptOverride
+                    Network.Wai.Middleware.Autohead
+                    Network.Wai.Middleware.CleanPath
+                    Network.Wai.Middleware.Debug
+                    Network.Wai.Middleware.Gzip
+                    Network.Wai.Middleware.Jsonp
+                    Network.Wai.Middleware.MethodOverride
+                    Network.Wai.Middleware.Rewrite
+                    Network.Wai.Middleware.Vhost
+                    Network.Wai.Zlib
+                    Network.Wai.Parse
+
+  ghc-options:       -Wall
