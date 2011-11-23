@@ -19,23 +19,24 @@ extra-source-files:
   test/sample.hs
 
 Library
-  Build-Depends:     base >= 3 && < 5,
-                     bytestring >= 0.9 && < 0.10,
-                     wai >= 0.4 && < 0.5,
-                     old-locale >= 1.0 && < 1.1,
-                     time >= 1.1.4 && < 1.4,
-                     network >= 2.2.1.5 && < 2.4,
-                     directory >= 1.0.1 && < 1.2,
-                     zlib-bindings >= 0.0 && < 0.1,
-                     blaze-builder-enumerator >= 0.2 && < 0.3,
-                     transformers >= 0.2 && < 0.3,
-                     enumerator >= 0.4.7 && < 0.5,
-                     blaze-builder >= 0.2.1.3 && < 0.4,
-                     http-types >= 0.6 && < 0.7,
-                     text >= 0.5 && < 1.0,
-                     case-insensitive >= 0.2 && < 0.4,
-                     zlib-enum >= 0.2.1 && < 0.3,
-                     data-default >= 0.3 && < 0.4
+  Build-Depends:     base                      >= 4 && < 5
+                   , bytestring                >= 0.9.1.4  && < 0.10
+                   , wai                       >= 0.4      && < 0.5
+                   , old-locale                >= 1.0.0.2  && < 1.1
+                   , time                      >= 1.1.4    && < 1.4
+                   , network                   >= 2.2.1.5  && < 2.4
+                   , directory                 >= 1.0.1    && < 1.2
+                   , zlib-bindings             >= 0.0      && < 0.1
+                   , blaze-builder-enumerator  >= 0.2      && < 0.3
+                   , transformers              >= 0.2.2    && < 0.3
+                   , enumerator                >= 0.4.8    && < 0.5
+                   , blaze-builder             >= 0.2.1.4  && < 0.4
+                   , http-types                >= 0.6      && < 0.7
+                   , text                      >= 0.7      && < 0.12
+                   , case-insensitive          >= 0.2      && < 0.4
+                   , zlib-enum                 >= 0.2.1    && < 0.3
+                   , data-default              >= 0.3      && < 0.4
+
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
                      Network.Wai.Middleware.Autohead
@@ -72,7 +73,7 @@ test-suite runtests
                    , directory 
                    , zlib-bindings
                    , blaze-builder-enumerator >= 0.2 && < 0.3
-                   , blaze-builder >= 0.2.1.3 && < 0.4
+                   , blaze-builder             >= 0.2.1.4  && < 0.4
                    , zlib-enum
                    , data-default
 

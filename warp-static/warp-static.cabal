@@ -19,7 +19,7 @@ Executable warp
                , wai-app-static  >= 0.3                && < 0.4
                , wai-extra       >= 0.4                && < 0.5
                , cmdargs         >= 0.6.7              && < 0.9
-               , directory       >= 1.0                && < 1.2
+               , directory                 >= 1.0.1   && < 1.2
                , containers      >= 0.2                && < 0.5
-               , bytestring      >= 0.9                && < 0.10
-               , text                                     < 1.0
+               , bytestring                >= 0.9.1.4  && < 0.10
+               , text                     >= 0.7           && < 0.12
