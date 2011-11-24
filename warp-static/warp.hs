@@ -5,7 +5,9 @@ import Network.Wai.Application.Static
     , defaultFileServerSettings, fileSystemLookup
     , fileName, toFilePath
     )
-import Network.Wai.Handler.Warp (run)
+import Network.Wai.Handler.Warp
+    ( runSettings, defaultSettings, settingsHost, settingsPort
+    )
 import System.Console.CmdArgs
 import Text.Printf (printf)
 import System.Directory (canonicalizePath)
@@ -26,11 +28,12 @@ data Args = Args
     , quiet :: Bool
     , verbose :: Bool
     , mime :: [(String, String)]
+    , host :: String
     }
     deriving (Show, Data, Typeable)
 
 defaultArgs :: Args
-defaultArgs = Args "." ["index.html", "index.htm"] 3000 False False False []
+defaultArgs = Args "." ["index.html", "index.htm"] 3000 False False False [] "*"
 
 main :: IO ()
 main = do
@@ -42,7 +45,10 @@ main = do
     let middle = gzip False
                . (if verbose then debug else id)
                . autohead
-    run port $ middle $ staticApp defaultFileServerSettings
+    runSettings defaultSettings
+        { settingsPort = port
+        , settingsHost = host
+        } $ middle $ staticApp defaultFileServerSettings
         { ssFolder = fileSystemLookup $ toFilePath docroot
         , ssIndices = if noindex then [] else map pack index
         , ssListing = Just defaultListing
