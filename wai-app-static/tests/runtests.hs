@@ -5,9 +5,9 @@ import Test.Hspec.Monadic
 import Test.Hspec.QuickCheck
 import Test.Hspec.HUnit ()
 import Test.HUnit ((@?=))
-import Distribution.Simple.Utils (isInfixOf)
+import Data.List (isInfixOf)
 import qualified Data.ByteString.Char8 as S8
-import qualified Data.ByteString.Lazy.Char8 as L8
+-- import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import System.PosixCompat.Files (getFileStatus, modificationTime)

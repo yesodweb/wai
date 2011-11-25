@@ -248,9 +248,9 @@ pathFromPieces = foldl' (</>)
 
 checkSpecialDirListing :: Pieces -> Maybe CheckPieces
 checkSpecialDirListing [".hidden", "folder.png"]  =
-    Just $ SendContent "image/png" $ L.fromChunks [$(embedFile "folder.png")]
+    Just $ SendContent "image/png" $ L.fromChunks [$(embedFile "images/folder.png")]
 checkSpecialDirListing [".hidden", "haskell.png"] =
-    Just $ SendContent "image/png" $ L.fromChunks [$(embedFile "haskell.png")]
+    Just $ SendContent "image/png" $ L.fromChunks [$(embedFile "images/haskell.png")]
 checkSpecialDirListing _ =  Nothing
 
 checkPieces :: (Pieces -> IO FileLookup) -- ^ file lookup function
