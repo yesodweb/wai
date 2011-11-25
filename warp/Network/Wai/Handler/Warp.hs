@@ -110,8 +110,6 @@ import Control.Monad (forever)
 import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import System.IO (hPutStrLn, stderr)
-import qualified Paths_warp
-import Data.Version (showVersion)
 
 import Data.List (delete)
 
@@ -120,6 +118,15 @@ import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
 #endif
+
+#ifndef MEGA
+import Data.Version (showVersion)
+import qualified Paths_warp
+warpVersion = showVersion Paths_warp.version
+#else
+warpVersion = "0.4.6"
+#endif
+warpVersion :: String
 
 bindPort :: Int -> String -> IO Socket
 bindPort p s = do
@@ -612,6 +619,6 @@ serverHeader hdrs = case lookup key hdrs of
     Just svr -> servers svr : delete (key,svr) hdrs
  where
     key = "Server"
-    ver = B.pack $ "Warp/" ++ showVersion Paths_warp.version
+    ver = B.pack $ "Warp/" ++ warpVersion
     server = (key, ver)
     servers svr = (key, S.concat [svr, " ", ver])

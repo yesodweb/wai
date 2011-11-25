@@ -17,10 +17,27 @@ Source-repository head
     location:        git://github.com/yesodweb/wai.git
 
 Library
+  cpp-options: -DMEGA
+  hs-source-dirs:
+                  wai
+                  wai-app-static
+                  wai-eventsource
+                  wai-extra
+                  wai-handler-devel
+                  wai-handler-fastcgi
+                  wai-handler-launch
+                  wai-handler-scgi
+                  wai-handler-webkit
+                  wai-test
+                  wai-websockets
+                  warp
+                  warp-static
+
   Build-Depends:     base                   >= 4        && < 5
 
                    -- wai-handler-scgi
                    -- wai-handler-launch
+                   , process >= 1.0 && < 1.2
                    -- warp-static
 
                    -- warp
