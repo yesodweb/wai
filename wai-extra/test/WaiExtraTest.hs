@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-import Test.Hspec
+module WaiExtraTest (specs) where
+
+import Test.Hspec.Monadic
 import Test.Hspec.HUnit ()
 import Test.HUnit hiding (Test)
 
@@ -28,13 +30,13 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (parseSimpleQuery, status200)
 
-main :: IO ()
-main = hspecX $ do
-  describe "Network.Wai.Parse"
-    [ it "parseQueryString" caseParseQueryString
-    , it "parseQueryString with question mark" caseParseQueryStringQM
-    , it "parseHttpAccept" caseParseHttpAccept
-    , it "parseRequestBody" caseParseRequestBody
+specs :: Specs
+specs = do
+  describe "Network.Wai.Parse" $ do
+    it "parseQueryString" caseParseQueryString
+    it "parseQueryString with question mark" caseParseQueryStringQM
+    it "parseHttpAccept" caseParseHttpAccept
+    it "parseRequestBody" caseParseRequestBody
     {-
     , it "findBound" caseFindBound
     , it "sinkTillBound" caseSinkTillBound
@@ -42,16 +44,15 @@ main = hspecX $ do
     , it "killCRLF" caseKillCRLF
     , it "takeLine" caseTakeLine
     -}
-    , it "jsonp" caseJsonp
-    , it "gzip" caseGzip
-    , it "gzip not for MSIE" caseGzipMSIE
-    , it "vhost" caseVhost
-    , it "autohead" caseAutohead
-    , it "method override" caseMethodOverride
-    , it "accept override" caseAcceptOverride
-    , it "dalvik multipart" caseDalvikMultipart
-    , it "debug request body" caseDebugRequestBody
-    ]
+    it "jsonp" caseJsonp
+    it "gzip" caseGzip
+    it "gzip not for MSIE" caseGzipMSIE
+    it "vhost" caseVhost
+    it "autohead" caseAutohead
+    it "method override" caseMethodOverride
+    it "accept override" caseAcceptOverride
+    it "dalvik multipart" caseDalvikMultipart
+    it "debug request body" caseDebugRequestBody
 
 caseParseQueryString :: Assertion
 caseParseQueryString = do
@@ -393,7 +394,7 @@ caseDalvikMultipart = do
     let request' = defaultRequest
             { requestHeaders = headers
             }
-    (params, files) <- run_ $ enumFile "test/dalvik-request" $$ parseRequestBody lbsSink request'
+    (params, files) <- run_ $ enumFile "test/requests/dalvik-request" $$ parseRequestBody lbsSink request'
     lookup "scannedTime" params @?= Just "1.298590056748E9"
     lookup "geoLong" params @?= Just "0"
     lookup "geoLat" params @?= Just "0"

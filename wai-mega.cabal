@@ -9,7 +9,7 @@ Maintainer:          michael@snoyman.com
 Homepage:            https://github.com/yesodweb/wai
 Category:            Web
 Build-Type:          Simple
-Cabal-Version:       >=1.6
+Cabal-Version:       >= 1.8
 Stability:           Stable
 
 Source-repository head
@@ -138,3 +138,34 @@ Library
                     Network.Wai.Parse
 
   ghc-options:       -Wall
+
+test-suite test
+    hs-source-dirs:
+                    test
+                    test/wai-app-static
+                    test/wai-extra
+
+    main-is: main.hs
+    type: exitcode-stdio-1.0
+
+    build-depends:   base                      >= 4        && < 5
+                   , wai-mega
+                   , hspec >= 0.8 && < 0.10
+                   , HUnit
+                   , unix-compat               >= 0.2      && < 0.3
+                   , time                      >= 1.1.4    && < 1.4
+                   , old-locale                >= 1.0.0.2  && < 1.1
+                   , http-date
+                   , http-types
+                   , network
+                   , bytestring
+                   , text
+                   , transformers
+                   , enumerator
+                   , zlib
+                   , directory 
+                   , zlib-bindings
+                   , blaze-builder-enumerator >= 0.2 && < 0.3
+                   , blaze-builder             >= 0.2.1.4  && < 0.4
+                   , zlib-enum
+                   , data-default

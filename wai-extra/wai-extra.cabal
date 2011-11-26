@@ -12,8 +12,8 @@ Build-Type:          Simple
 Cabal-Version:       >=1.8
 Stability:           Stable
 extra-source-files:
-  runtests.hs
-  test/dalvik-request
+  tests.hs
+  test/requests/dalvik-request
   test/json
   test/test.html
   test/sample.hs
@@ -52,9 +52,9 @@ Library
   ghc-options:       -Wall
 
 
-test-suite runtests
-    hs-source-dirs: .
-    main-is: runtests.hs
+test-suite tests
+    hs-source-dirs: test
+    main-is: ../tests.hs
     type: exitcode-stdio-1.0
 
     build-depends:   base                      >= 4        && < 5

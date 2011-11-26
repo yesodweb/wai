@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings, NoMonomorphismRestriction #-}
+module WaiAppStaticTest (specs) where 
+
 import Network.Wai.Application.Static
 
 import Test.Hspec.Monadic
@@ -43,11 +45,10 @@ setRawPathInfo r rawPinfo =
   let pInfo = T.split (== '/') $ TE.decodeUtf8 rawPinfo
   in  r { rawPathInfo = rawPinfo, pathInfo = pInfo }
 
-
-main :: IO a
-main = hspecX $ do
-  let webApp = flip runSession $ staticApp defaultWebAppSettings  {ssFolder = fileSystemLookup "tests"}
-  let fileServerApp = flip runSession $ staticApp defaultFileServerSettings  {ssFolder = fileSystemLookup "tests"}
+specs :: Specs
+specs = do
+  let webApp = flip runSession $ staticApp defaultWebAppSettings  {ssFolder = fileSystemLookup "test"}
+  let fileServerApp = flip runSession $ staticApp defaultFileServerSettings  {ssFolder = fileSystemLookup "test"}
 
   let etag = "1B2M2Y8AsgTpgAmY7PhCfg=="
   let file = "a/b"
@@ -82,7 +83,7 @@ main = hspecX $ do
       assertHeader "Location" "../../a/b/c" req
 
     let absoluteApp = flip runSession $ staticApp $ defaultWebAppSettings {
-          ssFolder = fileSystemLookup "tests", ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
+          ssFolder = fileSystemLookup "test", ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
         }
     it "301 redirect when multiple slashes" $ absoluteApp $
       flip mapM_ ["/a//b/c", "a//b/c"] $ \path -> do
@@ -127,7 +128,7 @@ main = hspecX $ do
 
   describe "fileServerApp" $ do
     let fileDate = do
-          stat <- liftIO $ getFileStatus $ "tests/" ++ file
+          stat <- liftIO $ getFileStatus $ "test/" ++ file
           return $ formatHTTPDate . epochTimeToHTTPDate $ modificationTime stat
 
     it "directory listing for index" $ fileServerApp $ do
