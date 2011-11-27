@@ -18,7 +18,7 @@ Executable warp
                , warp            >= 0.4                && < 0.5
                , wai-app-static  >= 0.3                && < 0.4
                , wai-extra       >= 0.4                && < 0.5
-               , cmdargs         >= 0.6.7              && < 0.9
+               , cmdargs         >= 0.6.7
                , directory       >= 1.0                && < 1.2
                , containers      >= 0.2                && < 0.5
                , bytestring      >= 0.9                && < 0.10
