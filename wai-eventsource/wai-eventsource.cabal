@@ -2,7 +2,7 @@ Name:                wai-eventsource
 Version:             0.1
 Synopsis:            Project Synopsis Here
 Description:         Project Description Here
-License:             BSD
+License:             BSD3
 Author:              Chris Smigh, Mathias Biilmann Christensen
 Maintainer:          info@mathias-biilmann.net, greg@gregweber.info
 Stability:           Experimental

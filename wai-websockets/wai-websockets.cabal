@@ -44,7 +44,7 @@ Executable           wai-websockets-example
                      text,
                      file-embed
 
-  ghc-options:       -Wall -O2 -threaded
+  ghc-options:       -Wall -threaded
   main-is:           server.lhs
 
 source-repository head
