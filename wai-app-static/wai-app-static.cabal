@@ -1,5 +1,5 @@
 name:            wai-app-static
-version:         0.3.5
+version:         0.3.5.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -32,7 +32,7 @@ library
                    , directory                 >= 1.0.1    && < 1.2
                    , containers                >= 0.2      && < 0.5
                    , blaze-html                >= 0.4      && < 0.5
-                   , time                      >= 1.1.4    && < 1.4
+                   , time                      >= 1.1.4
                    , old-locale                >= 1.0.0.2  && < 1.1
                    , file-embed                >= 0.0.3.1  && < 0.1
                    , text                  >= 0.7           && < 0.12
