@@ -4,7 +4,7 @@ import Network.Wai.Handler.DevelServer (runQuit)
 import System.Console.CmdArgs
 import qualified Data.Attoparsec.Text.Lazy as A
 import qualified Data.Text.Lazy.IO as TIO
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), many)
 import Data.Char (isSpace)
 import Data.Maybe (mapMaybe)
 
@@ -32,7 +32,7 @@ data TempType = Hamlet | Cassius | Lucius | Julius | Widget | Verbatim
 determineHamletDeps :: FilePath -> IO [FilePath]
 determineHamletDeps x = do
     y <- TIO.readFile x
-    let z = A.parse (A.many $ (parser <|> (A.anyChar >> return Nothing))) y
+    let z = A.parse (many $ (parser <|> (A.anyChar >> return Nothing))) y
     case z of
         A.Fail{} -> return []
         A.Done _ r -> return $ mapMaybe go r
