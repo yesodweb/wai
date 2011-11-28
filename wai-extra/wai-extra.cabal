@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             0.4.5
+Version:             0.4.5.1
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             BSD3
@@ -23,7 +23,7 @@ Library
                    , bytestring                >= 0.9.1.4  && < 0.10
                    , wai                       >= 0.4      && < 0.5
                    , old-locale                >= 1.0.0.2  && < 1.1
-                   , time                      >= 1.1.4    && < 1.4
+                   , time                      >= 1.1.4
                    , network                   >= 2.2.1.5  && < 2.4
                    , directory                 >= 1.0.1    && < 1.2
                    , zlib-bindings             >= 0.0      && < 0.1
@@ -33,7 +33,7 @@ Library
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , http-types                >= 0.6      && < 0.7
                    , text                      >= 0.7      && < 0.12
-                   , case-insensitive          >= 0.2      && < 0.4
+                   , case-insensitive          >= 0.2
                    , zlib-enum                 >= 0.2.1    && < 0.3
                    , data-default              >= 0.3      && < 0.4
 
