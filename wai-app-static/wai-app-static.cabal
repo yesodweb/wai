@@ -12,10 +12,11 @@ cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        http://www.yesodweb.com/book/wai
 Extra-source-files:
-  folder.png
-  haskell.png
-  tests/runtests.hs
-  tests/a/b
+  images/folder.png
+  images/haskell.png
+  test/WaiAppStaticTest.hs
+  test/a/b
+  tests.hs
 
 Flag print
     Description:   print debug info
