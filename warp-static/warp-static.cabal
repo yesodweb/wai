@@ -1,5 +1,5 @@
 Name:                warp-static
-Version:             0.2.1
+Version:             0.2.2
 Synopsis:            Static file server based on Warp and wai-app-static
 Homepage:            http://github.com/yesodweb/wai
 License:             BSD3
