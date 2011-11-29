@@ -111,8 +111,6 @@ import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import System.IO (hPutStrLn, stderr)
 
-import Data.List (delete)
-
 #if WINDOWS
 import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent.MVar as MV
@@ -616,9 +614,8 @@ withManager timeout f = do
 serverHeader :: H.RequestHeaders -> H.RequestHeaders
 serverHeader hdrs = case lookup key hdrs of
     Nothing  -> server : hdrs
-    Just svr -> servers svr : delete (key,svr) hdrs
+    Just _ -> hdrs
  where
     key = "Server"
     ver = B.pack $ "Warp/" ++ warpVersion
     server = (key, ver)
-    servers svr = (key, S.concat [svr, " ", ver])
