@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             0.4.5.1
+Version:             0.4.5.2
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             BSD3
@@ -17,6 +17,7 @@ extra-source-files:
   test/json
   test/test.html
   test/sample.hs
+  test/WaiExtraTest.hs
 
 Library
   Build-Depends:     base                      >= 4 && < 5
