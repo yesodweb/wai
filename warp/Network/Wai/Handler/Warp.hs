@@ -47,8 +47,10 @@ module Network.Wai.Handler.Warp
     , registerKillThread
     , bindPort
     , enumSocket
+    , iterSocket
     , pause
     , resume
+    , T.Handle
     , T.cancel
     , T.register
     , T.initialize
@@ -221,7 +223,7 @@ serveConnection settings th onException port app conn remoteHost' = do
                 if keepAlive then serveConnection' else return ()
             Just intercept -> do
                 liftIO $ T.pause th
-                intercept conn
+                intercept conn th
 
 parseRequest :: Port -> SockAddr -> E.Iteratee S.ByteString IO (Integer, Request)
 parseRequest port remoteHost' = do
@@ -501,7 +503,7 @@ data Settings = Settings
     , settingsHost :: String -- ^ Host to bind to, or * for all. Default value: *
     , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
-    , settingsIntercept :: Request -> Maybe (Socket -> E.Iteratee S.ByteString IO ())
+    , settingsIntercept :: Request -> Maybe (Socket -> T.Handle -> E.Iteratee S.ByteString IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     }
 
