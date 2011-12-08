@@ -46,7 +46,6 @@ module Network.Wai.Handler.Warp
     , sendResponse
     , registerKillThread
     , bindPort
-    , enumSocket
     , pause
     , resume
     , T.cancel
@@ -86,11 +85,10 @@ import Data.Maybe (fromMaybe)
 
 import Data.Typeable (Typeable)
 
-import Data.Enumerator (($$), (>>==))
-import qualified Data.Enumerator as E
-import qualified Data.Enumerator.List as EL
-import qualified Data.Enumerator.Binary as EB
-import Blaze.ByteString.Builder.Enumerator (builderToByteString)
+import Control.Monad.Trans.Resource (ResourceT, runResourceT)
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
+import Control.Exception.Lifted (throwIO)
 import Blaze.ByteString.Builder.HTTP
     (chunkedTransferEncoding, chunkedTransferTerminator)
 import Blaze.ByteString.Builder
@@ -204,26 +202,27 @@ serveConnection :: Settings
 serveConnection settings th onException port app conn remoteHost' = do
     catch
         (finally
-          (E.run_ $ fromClient $$ serveConnection')
+          (runResourceT serveConnection')
           (sClose conn))
         onException
   where
-    fromClient = enumSocket th bytesPerRead conn
+    fromClient = sourceSocket th bytesPerRead conn
+    serveConnection' :: ResourceT IO ()
     serveConnection' = do
-        (len, env) <- parseRequest port remoteHost'
+        (len, env) <- fromClient C.$$ parseRequest port remoteHost'
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
                 liftIO $ T.pause th
-                res <- E.joinI $ EB.isolate len $$ app env
+                res <- app env -- FIXME E.joinI $ EB.isolate len C.$$ app env
                 liftIO $ T.resume th
                 keepAlive <- liftIO $ sendResponse th env conn res
                 if keepAlive then serveConnection' else return ()
-            Just intercept -> do
+            Just intercept -> undefined {-do
                 liftIO $ T.pause th
-                intercept conn
+                intercept conn-}
 
-parseRequest :: Port -> SockAddr -> E.Iteratee S.ByteString IO (Integer, Request)
+parseRequest :: Port -> SockAddr -> C.Sink S.ByteString IO (Integer, Request)
 parseRequest port remoteHost' = do
     headers' <- takeHeaders
     parseRequest' port headers' remoteHost'
@@ -247,8 +246,8 @@ instance Exception InvalidRequest
 parseRequest' :: Port
               -> [ByteString]
               -> SockAddr
-              -> E.Iteratee S.ByteString IO (Integer, Request)
-parseRequest' _ [] _ = E.throwError $ NotEnoughLines []
+              -> C.Sink S.ByteString IO (Integer, Request)
+parseRequest' _ [] _ = throwIO $ NotEnoughLines []
 parseRequest' port (firstLine:otherLines) remoteHost' = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
     let (host',rpath) =
@@ -289,7 +288,7 @@ takeUntil c bs =
 {-# INLINE takeUntil #-}
 
 parseFirst :: ByteString
-           -> E.Iteratee S.ByteString IO (ByteString, ByteString, ByteString, H.HttpVersion)
+           -> C.Sink S.ByteString IO (ByteString, ByteString, ByteString, H.HttpVersion)
 parseFirst s = 
     case S.split 32 s of  -- ' '
         [method, query, http'] -> do
@@ -301,8 +300,8 @@ parseFirst s =
                                 "1.1" -> H.http11
                                 _ -> H.http10
                     in return (method, rpath, qstring, hv)
-               else E.throwError NonHttp
-        _ -> E.throwError $ BadFirstLine $ B.unpack s
+               else throwIO NonHttp
+        _ -> throwIO $ BadFirstLine $ B.unpack s
 {-# INLINE parseFirst #-} -- FIXME is this inline necessary? the function is only called from one place and not exported
 
 httpBuilder, spaceBuilder, newlineBuilder, transferEncodingBuilder
@@ -421,7 +420,7 @@ sendResponse th req socket r = sendResponse' r
                        `mappend` chunkedTransferTerminator
                   else (headers' False) `mappend` b
 
-    sendResponse' (ResponseEnumerator res) = res enumResponse
+    sendResponse' (ResponseEnumerator res) = undefined {-res enumResponse
       where
         enumResponse s hs = response True
           where
@@ -446,7 +445,7 @@ sendResponse th req socket r = sendResponse' r
                 step k E.EOF = k (E.Chunks [chunkedTransferTerminator]) >>== return
                 step k (E.Chunks []) = E.continue $ step k
                 step k (E.Chunks [x]) = k (E.Chunks [chunkedTransferEncoding x]) >>== chunk
-                step k (E.Chunks xs) = k (E.Chunks [chunkedTransferEncoding $ mconcat xs]) >>== chunk
+                step k (E.Chunks xs) = k (E.Chunks [chunkedTransferEncoding $ mconcat xs]) >>== chunk -}
 
 parseHeaderNoAttr :: ByteString -> H.Header
 parseHeaderNoAttr s =
@@ -458,37 +457,32 @@ parseHeaderNoAttr s =
                    else rest
      in (CI.mk k, rest')
 
-enumSocket :: T.Handle -> Int -> Socket -> E.Enumerator ByteString IO a
-enumSocket th len socket =
-    inner
-  where
-    inner (E.Continue k) = do
-        bs <- liftIO $ Sock.recv socket len
-        liftIO $ T.tickle th
-        if S.null bs
-            then E.continue k
-            else k (E.Chunks [bs]) >>== inner
-    inner step = E.returnI step
+sourceSocket :: T.Handle -> Int -> Socket -> C.Source IO ByteString
+sourceSocket th len socket = C.mkSource $ do
+    bs <- liftIO $ Sock.recv socket len
+    liftIO $ T.tickle th
+    return $ if S.null bs then C.EOF else C.Chunks [bs]
+
 ------ The functions below are not warp-specific and could be split out into a
 --separate package.
 
-iterSocket :: T.Handle
+sinkSocket :: T.Handle
            -> Socket
-           -> E.Iteratee B.ByteString IO ()
-iterSocket th sock =
-    E.continue step
+           -> C.Sink B.ByteString IO ()
+sinkSocket th sock =
+    C.Sink $ return go
   where
+    go C.EOF = liftIO (T.resume th) >> return (C.SinkResult [] (Just ()))
+    go (C.Chunks []) = return $ C.SinkResult [] Nothing
+    go (C.Chunks xs) = do
+        liftIO $ T.resume th
+        liftIO $ Sock.sendMany sock xs
+        liftIO $ T.pause th
+        return $ C.SinkResult [] Nothing
     -- We pause timeouts before passing control back to user code. This ensures
     -- that a timeout will only ever be executed when Warp is in control. We
     -- also make sure to resume the timeout after the completion of user code
     -- so that we can kill idle connections.
-    step E.EOF = liftIO (T.resume th) >> E.yield () E.EOF
-    step (E.Chunks []) = E.continue step
-    step (E.Chunks xs) = do
-        liftIO $ T.resume th
-        liftIO $ Sock.sendMany sock xs
-        liftIO $ T.pause th
-        E.continue step
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
 -- type so that new settings can be added without breaking backwards
@@ -501,7 +495,7 @@ data Settings = Settings
     , settingsHost :: String -- ^ Host to bind to, or * for all. Default value: *
     , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
-    , settingsIntercept :: Request -> Maybe (Socket -> E.Iteratee S.ByteString IO ())
+    , settingsIntercept :: Request -> Maybe (Socket -> C.Sink S.ByteString IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     }
 
@@ -528,7 +522,7 @@ defaultSettings = Settings
     go' (Just ThreadKilled) = False
     go' _ = True
 
-takeHeaders :: E.Iteratee ByteString IO [ByteString]
+takeHeaders :: C.Sink ByteString IO [ByteString]
 takeHeaders = do
   !x <- forceHead ConnectionClosedByPeer
   takeHeaders' 0 id id x
@@ -539,8 +533,8 @@ takeHeaders' :: Int
              -> ([ByteString] -> [ByteString])
              -> ([ByteString] -> [ByteString])
              -> ByteString
-             -> E.Iteratee S.ByteString IO [ByteString]
-takeHeaders' !len _ _ _ | len > maxTotalHeaderLength = E.throwError OverLargeHeader
+             -> C.Sink S.ByteString IO [ByteString]
+takeHeaders' !len _ _ _ | len > maxTotalHeaderLength = throwIO OverLargeHeader
 takeHeaders' !len !lines !prepend !bs = do
   let !bsLen = {-# SCC "takeHeaders'.bsLen" #-} S.length bs
       !mnl = {-# SCC "takeHeaders'.mnl" #-} S.elemIndex 10 bs
@@ -567,7 +561,7 @@ takeHeaders' !len !lines !prepend !bs = do
               if start < bsLen
                  then {-# SCC "takeHeaders'.noMoreHeaders.yield" #-} do
                    let !rest = {-# SCC "takeHeaders'.noMoreHeaders.yield.rest" #-} SU.unsafeDrop start bs
-                   E.yield lines' $! E.Chunks [rest]
+                   undefined -- E.yield lines' $! E.Chunks [rest]
                  else return lines'
 
             -- more headers
@@ -581,12 +575,15 @@ takeHeaders' !len !lines !prepend !bs = do
               {-# SCC "takeHeaders'.takeMore" #-} takeHeaders' len' lines' id more
 {-# INLINE takeHeaders' #-}
 
-forceHead :: InvalidRequest -> E.Iteratee ByteString IO ByteString
+forceHead :: InvalidRequest -> C.Sink ByteString IO ByteString
 forceHead err = do
+    undefined
+    {-
   !mx <- EL.head
   case mx of
        !Nothing -> E.throwError err
        Just !x -> return x
+       -}
 {-# INLINE forceHead #-}
 
 checkCR :: ByteString -> Int -> Int

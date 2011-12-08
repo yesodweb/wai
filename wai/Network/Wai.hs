@@ -51,11 +51,9 @@ module Network.Wai
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.Typeable (Typeable)
-import Data.Enumerator (Enumerator, Iteratee (..), ($$), joinI, run_)
-import qualified Data.Enumerator as E
-import qualified Data.Enumerator.List as EL
-import Data.Enumerator.Binary (enumFile, enumFileRange)
-import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString)
+import Control.Monad.Trans.Resource (ResourceT)
+import qualified Data.Conduit as C
+import Blaze.ByteString.Builder (Builder, fromLazyByteString)
 import Network.Socket (SockAddr)
 import qualified Network.HTTP.Types as H
 import Data.Text (Text)
@@ -94,8 +92,9 @@ data Request = Request
   ,  pathInfo       :: [Text]
   -- | Parsed query string information
   ,  queryString    :: H.Query
+  ,  requestBody    :: C.Source IO B.ByteString
   }
-  deriving (Show, Typeable)
+  deriving (Typeable)
 
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
@@ -133,9 +132,12 @@ data FilePart = FilePart
 -- optimal size by sending a flush command.
 
 type ResponseEnumerator a =
-    (H.Status -> H.ResponseHeaders -> Iteratee Builder IO a) -> IO a
+    (H.Status -> H.ResponseHeaders -> C.Sink Builder IO a)
+    -> ResourceT IO a
 
 responseEnumerator :: Response -> ResponseEnumerator a
+responseEnumerator = undefined
+{-
 responseEnumerator (ResponseEnumerator e) f = e f
 responseEnumerator (ResponseFile s h fp mpart) f =
     run_ $ (maybe enumFile enumFilePart) mpart fp $$ joinI
@@ -144,14 +146,15 @@ responseEnumerator (ResponseBuilder s h b) f = run_ $ do
     E.yield () $ E.Chunks [b]
     f s h
 
-enumFilePart :: FilePart -> FilePath -> Enumerator B.ByteString IO a
+enumFilePart :: FilePart -> FilePath -> C.Source IO B.ByteString
 enumFilePart (FilePart offset count) fp =
     enumFileRange fp (Just offset) (Just count)
+-}
 
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString
 
-type Application = Request -> Iteratee B.ByteString IO Response
+type Application = Request -> ResourceT IO Response
 
 -- | Middleware is a component that sits between the server and application. It
 -- can do such tasks as GZIP encoding or response caching. What follows is the
