@@ -209,7 +209,7 @@ serveConnection settings th onException port app conn remoteHost' = do
     fromClient = sourceSocket th bytesPerRead conn
     serveConnection' :: ResourceT IO ()
     serveConnection' = do
-        (len, env) <- fromClient C.$$ parseRequest port remoteHost'
+        (len, env) <- parseRequest port remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
@@ -218,14 +218,16 @@ serveConnection settings th onException port app conn remoteHost' = do
                 liftIO $ T.resume th
                 keepAlive <- liftIO $ sendResponse th env conn res
                 if keepAlive then serveConnection' else return ()
-            Just intercept -> undefined {-do
+            Just intercept -> error "intercept" {-do
                 liftIO $ T.pause th
                 intercept conn-}
 
-parseRequest :: Port -> SockAddr -> C.Sink S.ByteString IO (Integer, Request)
-parseRequest port remoteHost' = do
-    headers' <- takeHeaders
-    parseRequest' port headers' remoteHost'
+parseRequest :: Port -> SockAddr
+             -> C.Source IO S.ByteString
+             -> ResourceT IO (Integer, Request)
+parseRequest port remoteHost' src = do
+    headers' <- takeHeaders src
+    parseRequest' port headers' remoteHost' src
 
 -- FIXME come up with good values here
 bytesPerRead, maxTotalHeaderLength :: Int
@@ -246,9 +248,10 @@ instance Exception InvalidRequest
 parseRequest' :: Port
               -> [ByteString]
               -> SockAddr
-              -> C.Sink S.ByteString IO (Integer, Request)
-parseRequest' _ [] _ = throwIO $ NotEnoughLines []
-parseRequest' port (firstLine:otherLines) remoteHost' = do
+              -> C.Source IO S.ByteString
+              -> ResourceT IO (Integer, Request)
+parseRequest' _ [] _ _ = throwIO $ NotEnoughLines []
+parseRequest' port (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
     let (host',rpath) =
             if S.null rpath'
@@ -277,6 +280,7 @@ parseRequest' port (firstLine:otherLines) remoteHost' = do
                 , requestHeaders = heads
                 , isSecure = False
                 , remoteHost = remoteHost'
+                , requestBody = src -- FIXME isolate
                 })
 
 
@@ -288,7 +292,7 @@ takeUntil c bs =
 {-# INLINE takeUntil #-}
 
 parseFirst :: ByteString
-           -> C.Sink S.ByteString IO (ByteString, ByteString, ByteString, H.HttpVersion)
+           -> ResourceT IO (ByteString, ByteString, ByteString, H.HttpVersion)
 parseFirst s = 
     case S.split 32 s of  -- ' '
         [method, query, http'] -> do
@@ -420,7 +424,7 @@ sendResponse th req socket r = sendResponse' r
                        `mappend` chunkedTransferTerminator
                   else (headers' False) `mappend` b
 
-    sendResponse' (ResponseEnumerator res) = undefined {-res enumResponse
+    sendResponse' (ResponseEnumerator res) = error "sendResponse'" {-res enumResponse
       where
         enumResponse s hs = response True
           where
@@ -522,10 +526,10 @@ defaultSettings = Settings
     go' (Just ThreadKilled) = False
     go' _ = True
 
-takeHeaders :: C.Sink ByteString IO [ByteString]
-takeHeaders = do
-  !x <- forceHead ConnectionClosedByPeer
-  takeHeaders' 0 id id x
+takeHeaders :: C.Source IO ByteString -> ResourceT IO [ByteString]
+takeHeaders src = do
+  !x <- forceHead ConnectionClosedByPeer src
+  takeHeaders' 0 id id x src
 
 {-# INLINE takeHeaders #-}
 
@@ -533,17 +537,18 @@ takeHeaders' :: Int
              -> ([ByteString] -> [ByteString])
              -> ([ByteString] -> [ByteString])
              -> ByteString
-             -> C.Sink S.ByteString IO [ByteString]
-takeHeaders' !len _ _ _ | len > maxTotalHeaderLength = throwIO OverLargeHeader
-takeHeaders' !len !lines !prepend !bs = do
+             -> C.Source IO ByteString
+             -> ResourceT IO [ByteString]
+takeHeaders' !len _ _ _ _ | len > maxTotalHeaderLength = throwIO OverLargeHeader
+takeHeaders' !len !lines !prepend !bs src = do
   let !bsLen = {-# SCC "takeHeaders'.bsLen" #-} S.length bs
       !mnl = {-# SCC "takeHeaders'.mnl" #-} S.elemIndex 10 bs
   case mnl of
        -- no newline.  prepend entire bs to next line
        !Nothing -> {-# SCC "takeHeaders'.noNewline" #-} do
          let !len' = len + bsLen
-         !more <- forceHead IncompleteHeaders
-         takeHeaders' len' lines (prepend . (:) bs) more
+         !more <- forceHead IncompleteHeaders src
+         takeHeaders' len' lines (prepend . (:) bs) more src
        Just !nl -> {-# SCC "takeHeaders'.newline" #-} do
          let !end = nl 
              !start = nl + 1
@@ -561,7 +566,7 @@ takeHeaders' !len !lines !prepend !bs = do
               if start < bsLen
                  then {-# SCC "takeHeaders'.noMoreHeaders.yield" #-} do
                    let !rest = {-# SCC "takeHeaders'.noMoreHeaders.yield.rest" #-} SU.unsafeDrop start bs
-                   undefined -- E.yield lines' $! E.Chunks [rest]
+                   error "yield" -- E.yield lines' $! E.Chunks [rest]
                  else return lines'
 
             -- more headers
@@ -571,19 +576,18 @@ takeHeaders' !len !lines !prepend !bs = do
               !more <- {-# SCC "takeHeaders'.more" #-} 
                        if start < bsLen
                           then return $! SU.unsafeDrop start bs
-                          else forceHead IncompleteHeaders
-              {-# SCC "takeHeaders'.takeMore" #-} takeHeaders' len' lines' id more
+                          else forceHead IncompleteHeaders src
+              {-# SCC "takeHeaders'.takeMore" #-} takeHeaders' len' lines' id more src
 {-# INLINE takeHeaders' #-}
 
-forceHead :: InvalidRequest -> C.Sink ByteString IO ByteString
-forceHead err = do
-    undefined
-    {-
-  !mx <- EL.head
+forceHead :: InvalidRequest
+          -> C.Source IO ByteString
+          -> ResourceT IO ByteString
+forceHead err src = do
+  !mx <- src C.$$ CL.head
   case mx of
-       !Nothing -> E.throwError err
        Just !x -> return x
-       -}
+       Nothing -> throwIO err
 {-# INLINE forceHead #-}
 
 checkCR :: ByteString -> Int -> Int
