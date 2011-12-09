@@ -474,7 +474,7 @@ sinkSocket :: T.Handle
            -> Socket
            -> C.Sink B.ByteString IO ()
 sinkSocket th sock =
-    C.Sink $ return go
+    C.Sink $ return $ C.SinkData go
   where
     go C.EOF = liftIO (T.resume th) >> return (C.SinkResult [] (Just ()))
     go (C.Chunks []) = return $ C.SinkResult [] Nothing
