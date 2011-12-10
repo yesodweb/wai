@@ -11,16 +11,16 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
 import Network.WebSockets (WebSockets, runWebSockets, RequestHttpPart(RequestHttpPart), Protocol)
 import qualified Network.WebSockets as WS
-import Network.Socket.Enumerator (iterSocket)
+import Network.Wai.Handler.Warp (iterSocket, Handle)
 
 intercept :: Protocol p
           => (WS.Request -> WebSockets p ())
           -> Request
-          -> Maybe (Socket -> Iteratee ByteString IO ())
+          -> Maybe (Socket -> Handle -> Iteratee ByteString IO ())
 intercept app req =
     case lookup "upgrade" $ requestHeaders req of
-        Just s | S.map toLower s=="websocket" -> Just $ \socket -> do
-            runWebSockets req' app (iterSocket socket)
+        Just s | S.map toLower s=="websocket" -> Just $ \socket th -> do
+            runWebSockets req' app (iterSocket th socket)
         _ -> Nothing
   where
     req' = RequestHttpPart (rawPathInfo req) (requestHeaders req)
