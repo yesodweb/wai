@@ -630,7 +630,7 @@ staticAppPieces ss pieces req = liftIO $ do
                   Just hash -> replace "etag" (Just hash) (W.queryString req)
                   Nothing   -> remove "etag" (W.queryString req)
 
-            return $ W.responseLBS H.status302
+            return $ W.responseLBS H.status301
                 [ ("Content-Type", "text/plain")
                 , ("Location", S8.append loc $ H.renderQuery True qString)
                 ] "Redirect"
