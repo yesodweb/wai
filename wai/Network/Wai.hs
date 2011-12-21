@@ -39,8 +39,8 @@ module Network.Wai
     ( -- * WAI interface
       Request (..)
     , Response (..)
-    , ResponseEnumerator
-    , responseEnumerator
+    , ResponseStream
+    , responseStream
     , Application
     , Middleware
     , FilePart (..)
@@ -53,11 +53,15 @@ import qualified Data.ByteString.Lazy as L
 import Data.Typeable (Typeable)
 import Control.Monad.Trans.Resource (ResourceT)
 import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
+import qualified Data.Conduit.Binary as CB
 import Blaze.ByteString.Builder (Builder, fromLazyByteString)
 import Network.Socket (SockAddr)
 import qualified Network.HTTP.Types as H
 import Data.Text (Text)
 import Data.ByteString.Lazy.Char8 () -- makes it easier to use responseLBS
+import Blaze.ByteString.Builder (fromByteString)
+import Filesystem.Path.CurrentOS (decodeString)
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
@@ -99,7 +103,7 @@ data Request = Request
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
-    | ResponseEnumerator (forall a. ResponseEnumerator a)
+    | ResponseStream (forall a. ResponseStream a)
   deriving Typeable
 
 data FilePart = FilePart
@@ -131,25 +135,22 @@ data FilePart = FilePart
 -- A3. You can force blaze-builder to output a ByteString before it is an
 -- optimal size by sending a flush command.
 
-type ResponseEnumerator a =
-    (H.Status -> H.ResponseHeaders -> C.Sink Builder IO a)
+type ResponseStream a =
+    (H.Status -> H.ResponseHeaders -> C.SinkM Builder IO a)
     -> ResourceT IO a
 
-responseEnumerator :: Response -> ResponseEnumerator a
-responseEnumerator = undefined
-{-
-responseEnumerator (ResponseEnumerator e) f = e f
-responseEnumerator (ResponseFile s h fp mpart) f =
-    run_ $ (maybe enumFile enumFilePart) mpart fp $$ joinI
-         $ EL.map fromByteString $$ f s h
-responseEnumerator (ResponseBuilder s h b) f = run_ $ do
-    E.yield () $ E.Chunks [b]
-    f s h
+responseStream :: Response -> ResponseStream a
+responseStream (ResponseStream e) f = e f
+responseStream (ResponseFile s h fp (Just part)) f =
+    sourceFilePart part fp C.$$ CL.map fromByteString C.=$ f s h
+responseStream (ResponseFile s h fp Nothing) f =
+    CB.sourceFile (decodeString fp) C.$$ CL.map fromByteString C.=$ f s h
+responseStream (ResponseBuilder s h b) f =
+    CL.fromList [b] C.$$ f s h
 
-enumFilePart :: FilePart -> FilePath -> C.Source IO B.ByteString
-enumFilePart (FilePart offset count) fp =
-    enumFileRange fp (Just offset) (Just count)
--}
+sourceFilePart :: FilePart -> FilePath -> C.SourceM IO B.ByteString
+sourceFilePart (FilePart offset count) fp =
+    CB.sourceFileRange (decodeString fp) (Just offset) (Just count)
 
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString
