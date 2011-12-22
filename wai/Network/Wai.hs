@@ -96,7 +96,7 @@ data Request = Request
   ,  pathInfo       :: [Text]
   -- | Parsed query string information
   ,  queryString    :: H.Query
-  ,  requestBody    :: C.Source IO B.ByteString
+  ,  requestBody    :: C.BSource IO B.ByteString
   }
   deriving (Typeable)
 

@@ -87,6 +87,7 @@ import Data.Typeable (Typeable)
 
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import qualified Data.Conduit as C
+import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Control.Exception.Lifted (throwIO)
 import Blaze.ByteString.Builder.HTTP
@@ -206,9 +207,9 @@ serveConnection settings th onException port app conn remoteHost' = do
           (sClose conn))
         onException
   where
-    fromClient = sourceSocket th bytesPerRead conn
     serveConnection' :: ResourceT IO ()
     serveConnection' = do
+        fromClient <- C.bufferSource $ sourceSocket th bytesPerRead conn
         (len, env) <- parseRequest port remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
@@ -223,7 +224,7 @@ serveConnection settings th onException port app conn remoteHost' = do
                 intercept conn-}
 
 parseRequest :: Port -> SockAddr
-             -> C.Source IO S.ByteString
+             -> C.BSource IO S.ByteString
              -> ResourceT IO (Integer, Request)
 parseRequest port remoteHost' src = do
     headers' <- takeHeaders src
@@ -248,7 +249,7 @@ instance Exception InvalidRequest
 parseRequest' :: Port
               -> [ByteString]
               -> SockAddr
-              -> C.Source IO S.ByteString
+              -> C.BSource IO S.ByteString
               -> ResourceT IO (Integer, Request)
 parseRequest' _ [] _ _ = throwIO $ NotEnoughLines []
 parseRequest' port (firstLine:otherLines) remoteHost' src = do
@@ -268,6 +269,7 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
     let serverName' = takeUntil 58 host -- ':'
     -- FIXME isolate takes an Integer instead of Int or Int64. If this is a
     -- performance penalty, we may need our own version.
+    rbody <- C.bufferSource $ src C.$= CB.isolate (fromIntegral len)
     return (len, Request
                 { requestMethod = method
                 , httpVersion = httpversion
@@ -280,7 +282,7 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
                 , requestHeaders = heads
                 , isSecure = False
                 , remoteHost = remoteHost'
-                , requestBody = src -- FIXME isolate
+                , requestBody = rbody
                 })
 
 
@@ -424,7 +426,7 @@ sendResponse th req socket r = sendResponse' r
                        `mappend` chunkedTransferTerminator
                   else (headers' False) `mappend` b
 
-    sendResponse' (ResponseEnumerator res) = error "sendResponse'" {-res enumResponse
+    sendResponse' (ResponseStream res) = error "sendResponse'" {-res enumResponse
       where
         enumResponse s hs = response True
           where
@@ -462,27 +464,38 @@ parseHeaderNoAttr s =
      in (CI.mk k, rest')
 
 sourceSocket :: T.Handle -> Int -> Socket -> C.Source IO ByteString
-sourceSocket th len socket = C.mkSource $ do
-    bs <- liftIO $ Sock.recv socket len
-    liftIO $ T.tickle th
-    return $ if S.null bs then C.EOF else C.Chunks [bs]
+sourceSocket th len socket = C.Source
+    { C.sourcePull = do
+        bs <- liftIO $ Sock.recv socket len
+        liftIO $ T.tickle th
+        return $ if S.null bs
+            then C.SourceResult C.StreamClosed []
+            else C.SourceResult C.StreamOpen [bs]
+    , C.sourceClose = return ()
+    }
 
 ------ The functions below are not warp-specific and could be split out into a
 --separate package.
 
 sinkSocket :: T.Handle
            -> Socket
-           -> C.Sink B.ByteString IO ()
-sinkSocket th sock =
-    C.Sink $ return $ C.SinkData go
+           -> C.SinkM B.ByteString IO ()
+sinkSocket th sock = C.SinkM $ return $ C.SinkData
+    { C.sinkPush = push
+    , C.sinkClose = close
+    }
   where
-    go C.EOF = liftIO (T.resume th) >> return (C.SinkResult [] (Just ()))
-    go (C.Chunks []) = return $ C.SinkResult [] Nothing
-    go (C.Chunks xs) = do
+    close xs = do
+        liftIO (T.resume th)
+        liftIO $ Sock.sendMany sock xs
+        liftIO (T.resume th)
+        return (C.SinkResult [] ())
+    push [] = return $ C.Processing
+    push xs = do
         liftIO $ T.resume th
         liftIO $ Sock.sendMany sock xs
         liftIO $ T.pause th
-        return $ C.SinkResult [] Nothing
+        return $ C.Processing
     -- We pause timeouts before passing control back to user code. This ensures
     -- that a timeout will only ever be executed when Warp is in control. We
     -- also make sure to resume the timeout after the completion of user code
@@ -526,7 +539,7 @@ defaultSettings = Settings
     go' (Just ThreadKilled) = False
     go' _ = True
 
-takeHeaders :: C.Source IO ByteString -> ResourceT IO [ByteString]
+takeHeaders :: C.BSource IO ByteString -> ResourceT IO [ByteString]
 takeHeaders src = do
   !x <- forceHead ConnectionClosedByPeer src
   takeHeaders' 0 id id x src
@@ -537,7 +550,7 @@ takeHeaders' :: Int
              -> ([ByteString] -> [ByteString])
              -> ([ByteString] -> [ByteString])
              -> ByteString
-             -> C.Source IO ByteString
+             -> C.BSource IO ByteString
              -> ResourceT IO [ByteString]
 takeHeaders' !len _ _ _ _ | len > maxTotalHeaderLength = throwIO OverLargeHeader
 takeHeaders' !len !lines !prepend !bs src = do
@@ -581,7 +594,7 @@ takeHeaders' !len !lines !prepend !bs src = do
 {-# INLINE takeHeaders' #-}
 
 forceHead :: InvalidRequest
-          -> C.Source IO ByteString
+          -> C.BSource IO ByteString
           -> ResourceT IO ByteString
 forceHead err src = do
   !mx <- src C.$$ CL.head
