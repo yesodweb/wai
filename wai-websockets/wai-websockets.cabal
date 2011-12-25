@@ -14,6 +14,8 @@ Description:         This is primarily intended for use with Warp and its settin
 
 extra-source-files: static/client.js, static/client.html, static/screen.css
 
+flag example
+
 Library
   Build-Depends:     base                          >= 3        && < 5
                    , bytestring                >= 0.9.1.4  && < 0.10
@@ -28,6 +30,10 @@ Library
   ghc-options:       -Wall
 
 Executable           wai-websockets-example
+  if flag(example)
+    buildable: True
+  else
+    buildable: False
   Build-Depends:     base >=3 && < 5,
                      wai-websockets,
                      websockets,
