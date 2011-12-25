@@ -22,6 +22,7 @@ debug = debugHandle $ hPutStrLn stderr . T.unpack
 -- | Prints a message using the given callback function for each request.
 -- This is not for serious production use- it is inefficient.
 -- It immediately consumes a POST body and fills it back in and is otherwise inefficient
+-- For production use use module Network.Wai.Middleware.RequestLogger
 debugHandle :: (T.Text -> IO ()) -> Middleware
 debugHandle cb app req = do
     body <- consume

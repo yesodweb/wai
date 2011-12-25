@@ -37,12 +37,14 @@ Library
                    , case-insensitive          >= 0.2
                    , zlib-enum                 >= 0.2.1    && < 0.3
                    , data-default              >= 0.3      && < 0.4
+                   , fast-logger                >= 0.0.1
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
                      Network.Wai.Middleware.Autohead
                      Network.Wai.Middleware.CleanPath
                      Network.Wai.Middleware.Debug
+                     Network.Wai.Middleware.RequestLogger
                      Network.Wai.Middleware.Gzip
                      Network.Wai.Middleware.Jsonp
                      Network.Wai.Middleware.MethodOverride
