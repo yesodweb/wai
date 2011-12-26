@@ -10,21 +10,30 @@ Category:            Web
 Build-type:          Simple
 Cabal-version:       >=1.2
 
+flag example
+
+-- TODO: Library interface
+
 Executable wai-eventsource
+  if flag(example)
+    buildable: True
+  else
+    buildable: False
+
   hs-source-dirs: src
   main-is: Main.hs
 
   Build-depends:
-      base >= 4.3 && < 5
+      base                      >= 4.3 && < 5
     , bytestring                >= 0.9.1.4  && < 0.10
-    , blaze-builder >= 0.3 && < 0.4
+    , blaze-builder             >= 0.3 && < 0.4
     , MonadCatchIO-transformers >= 0.2.1 && < 0.3
-    , mtl >= 2 && < 3
-    , http-types             >= 0.6      && < 0.7
-    , enumerator             >= 0.4.8    && < 0.5
-    , time >= 1.2 && < 1.4
-    , wai >= 0.4
-    , warp >= 0.4
+    , mtl                       >= 2 && < 3
+    , http-types                >= 0.6      && < 0.7
+    , enumerator                >= 0.4.8    && < 0.5
+    , time                      >= 1.2 && < 1.4
+    , wai                       >= 0.4
+    , warp                      >= 0.4
 
   if impl(ghc >= 6.12.0)
     ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields
