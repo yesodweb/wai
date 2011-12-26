@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pkgs=(        ./wai
+pkgs=(            ./wai
                   ./wai-test
                   ./wai-extra
                   ./warp
@@ -9,4 +9,5 @@ pkgs=(        ./wai
                   ./wai-handler-launch
                   ./wai-handler-scgi
                   ./warp-static
-                  ./wai-websockets        )
+     )
+                  # ./wai-websockets        

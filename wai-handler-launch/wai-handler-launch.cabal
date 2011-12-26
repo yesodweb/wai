@@ -1,5 +1,5 @@
 Name:                wai-handler-launch
-Version:             0.0.4
+Version:             1.0.0
 Synopsis:            Launch a web app in the default browser.
 Description:         This handles cross-platform launching and inserts Javascript code to ping the server. When the server no longer receives pings, it shuts down.
 License:             BSD3
@@ -13,15 +13,17 @@ Cabal-version:       >=1.2
 Library
     Exposed-modules: Network.Wai.Handler.Launch
     build-depends:   base                    >= 4      && < 5
-                   , wai                     >= 0.4    && < 0.5
-                   , warp                    >= 0.4    && < 0.5
+                   , wai                     >= 1.0    && < 1.1
+                   , warp                    >= 1.0    && < 1.1
                    , http-types              >= 0.6    && < 0.7
                    , transformers          >= 0.2.2         && < 0.3
                    , bytestring                >= 0.9.1.4  && < 0.10
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , enumerator             >= 0.4.8    && < 0.5
                    , blaze-builder-enumerator >= 0.2    && < 0.3
-                   , zlib-enum >= 0.2.1 && < 0.3
+                   , conduit
+                   , blaze-builder-conduit
+                   , zlib-conduit
 
     if os(windows)
         c-sources: windows.c

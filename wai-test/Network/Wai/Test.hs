@@ -26,14 +26,14 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
-import Data.Enumerator (joinI, ($$), run_, enumList)
-import Data.Enumerator.List (consume)
-import Blaze.ByteString.Builder.Enumerator (builderToByteString)
+import Data.Conduit.Blaze (builderToByteString)
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Network.HTTP.Types as H
 import Data.CaseInsensitive (CI)
 import qualified Data.ByteString as S
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
 
 type Session = ReaderT Application (StateT ClientState IO)
 
@@ -73,23 +73,26 @@ defaultRequest = Request
     , remoteHost = error "Network.Wai.Test.defaultRequest{remoteHost}"
     , pathInfo = []
     , queryString = []
+    , requestBody = error "requestBody of defaultRequest"
     }
 
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
     app <- ask
-    res <- liftIO $ run_ $ enumList 4 (L.toChunks bod) $$ app req
-    sres <- liftIO $ runResponse res
-    -- FIXME cookie processing
-    return sres
+    liftIO $ C.runResourceT $ do
+        body <- C.bufferSource $ CL.sourceList $ L.toChunks bod
+        let req' = req { requestBody = body }
+        res <- app req'
+        sres <- runResponse res
+        -- FIXME cookie processing
+        return sres
 
-runResponse :: Response -> IO SResponse
-runResponse res =
-    responseEnumerator res go
+runResponse :: Response -> C.ResourceT IO SResponse
+runResponse res = do
+    bss <- body C.$= builderToByteString C.$$ CL.consume
+    return $ SResponse s h $ L.fromChunks bss
   where
-    go s h = do
-        bss <- joinI $ builderToByteString $$ consume
-        return $ SResponse s h $ L.fromChunks bss
+    (s, h, body) = responseSource res
 
 assertBool :: String -> Bool -> Session ()
 assertBool s b = liftIO $ H.assertBool s b

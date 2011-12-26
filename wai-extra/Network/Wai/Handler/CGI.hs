@@ -19,20 +19,19 @@ import Control.Arrow ((***))
 import Data.Char (toLower)
 import qualified System.IO
 import qualified Data.String as String
-import Data.Enumerator
-    ( Enumerator, Step (..), Stream (..), continue, yield
-    , enumList, ($$), joinI, returnI, (>>==), run_
-    )
 import Data.Monoid (mconcat)
 import Blaze.ByteString.Builder (fromByteString, toLazyByteString)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromString)
-import Blaze.ByteString.Builder.Enumerator (builderToByteString)
+import Data.Conduit.Blaze (builderToByteString)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import System.IO (Handle)
 import Network.HTTP.Types (Status (..))
 import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
+import Data.Monoid (mappend)
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
 
 safeRead :: Read a => a -> String -> a
 safeRead d s =
@@ -67,7 +66,7 @@ runSendfile sf app = do
 -- stick with 'run' or 'runSendfile'.
 runGeneric
      :: [(String, String)] -- ^ all variables
-     -> (forall a. Int -> Enumerator B.ByteString IO a) -- ^ responseBody of input
+     -> (Int -> C.Source IO B.ByteString) -- ^ responseBody of input
      -> (B.ByteString -> IO ()) -- ^ destination for output
      -> Maybe B.ByteString -- ^ does the server support the X-Sendfile header?
      -> Application
@@ -95,26 +94,32 @@ runGeneric vars inputH outputH xsendfile app = do
             case addrs of
                 a:_ -> addrAddress a
                 [] -> error $ "Invalid REMOTE_ADDR or REMOTE_HOST: " ++ remoteHost'
-    let env = Request
-            { requestMethod = rmethod
-            , rawPathInfo = B.pack pinfo
-            , pathInfo = H.decodePathSegments $ B.pack pinfo
-            , rawQueryString = B.pack qstring
-            , queryString = H.parseQuery $ B.pack qstring
-            , serverName = B.pack servername
-            , serverPort = serverport
-            , requestHeaders = map (cleanupVarName *** B.pack) vars
-            , isSecure = isSecure'
-            , remoteHost = addr
-            , httpVersion = H.http11 -- FIXME
-            }
-    -- FIXME worry about exception?
-    res <- run_ $ inputH contentLength $$ app env
-    case (xsendfile, res) of
-        (Just sf, ResponseFile s hs fp Nothing) ->
-            mapM_ outputH $ L.toChunks $ toLazyByteString $ sfBuilder s hs sf fp
-        _ -> responseEnumerator res $ \s hs ->
-            joinI $ enumList 1 [headers s hs, fromChar '\n'] $$ builderIter
+    C.runResourceT $ do
+        input <- C.bufferSource $ inputH contentLength
+        let env = Request
+                { requestMethod = rmethod
+                , rawPathInfo = B.pack pinfo
+                , pathInfo = H.decodePathSegments $ B.pack pinfo
+                , rawQueryString = B.pack qstring
+                , queryString = H.parseQuery $ B.pack qstring
+                , serverName = B.pack servername
+                , serverPort = serverport
+                , requestHeaders = map (cleanupVarName *** B.pack) vars
+                , isSecure = isSecure'
+                , remoteHost = addr
+                , httpVersion = H.http11 -- FIXME
+                , requestBody = input
+                }
+        -- FIXME worry about exception?
+        res <- app env
+        case (xsendfile, res) of
+            (Just sf, ResponseFile s hs fp Nothing) ->
+                liftIO $ mapM_ outputH $ L.toChunks $ toLazyByteString $ sfBuilder s hs sf fp
+            _ -> do
+                let (s, hs, b) = responseSource res
+                    src = CL.sourceList [headers s hs `mappend` fromChar '\n']
+                          `mappend` b
+                src C.$$ builderSink
   where
     headers s hs = mconcat (map header $ status s : map header' (fixHeaders hs))
     status (Status i m) = (fromByteString "Status", mconcat
@@ -136,11 +141,11 @@ runGeneric vars inputH outputH xsendfile app = do
         , fromByteString sf
         , fromByteString " not supported"
         ]
-    bsStep = Continue bsStep'
-    bsStep' EOF = yield () EOF
-    bsStep' (Chunks []) = continue bsStep'
-    bsStep' (Chunks bss) = liftIO (mapM_ outputH bss) >> continue bsStep'
-    builderIter = builderToByteString bsStep
+    bsSink = C.Sink $ return $ C.SinkData push (return ())
+    push bs = do
+        liftIO $ outputH bs
+        return C.Processing
+    builderSink = builderToByteString C.=$ bsSink
     fixHeaders h =
         case lookup "content-type" h of
             Nothing -> ("Content-Type", "text/html; charset=utf-8") : h
@@ -159,21 +164,17 @@ cleanupVarName s =
     helper' (x:rest) = toLower x : helper' rest
     helper' [] = []
 
-requestBodyHandle :: Handle -> Int -> Enumerator B.ByteString IO a
-requestBodyHandle h =
-    requestBodyFunc go
-  where
-    go i = Just `fmap` B.hGet h (min i defaultChunkSize)
+requestBodyHandle :: Handle -> Int -> C.Source IO B.ByteString
+requestBodyHandle h = requestBodyFunc $ \i -> do
+    bs <- B.hGet h i
+    return $ if B.null bs then Nothing else Just bs
 
-requestBodyFunc :: (Int -> IO (Maybe B.ByteString))
-                -> Int
-                -> Enumerator B.ByteString IO a
-requestBodyFunc _ 0 step = returnI step
-requestBodyFunc h len (Continue k) = do
-    mbs <- liftIO $ h len
-    case mbs of
-        Nothing -> continue k
-        Just bs -> do
-            let newLen = len - B.length bs
-            k (Chunks [bs]) >>== requestBodyFunc h newLen
-requestBodyFunc _ _ step = returnI step
+requestBodyFunc :: (Int -> IO (Maybe B.ByteString)) -> Int -> C.Source IO B.ByteString
+requestBodyFunc get count0 =
+    C.sourceState count0 pull
+  where
+    pull 0 = return (0, C.Closed)
+    pull count = do
+        mbs <- liftIO $ get $ min count defaultChunkSize
+        let count' = count - maybe 0 B.length mbs
+        return (count', maybe C.Closed C.Open mbs)

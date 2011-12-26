@@ -1,5 +1,5 @@
 Name:                warp-static
-Version:             0.2.2
+Version:             1.0.0
 Synopsis:            Static file server based on Warp and wai-app-static
 Homepage:            http://github.com/yesodweb/wai
 License:             BSD3
@@ -15,9 +15,9 @@ Description:         Serve up static files by running the warp executable. Based
 Executable warp
   Main-is:       warp.hs
   Build-depends: base            >= 4                  && < 5
-               , warp            >= 0.4                && < 0.5
-               , wai-app-static  >= 0.3                && < 0.4
-               , wai-extra       >= 0.4                && < 0.5
+               , warp            >= 1.0                && < 1.1
+               , wai-app-static  >= 1.0                && < 1.1
+               , wai-extra       >= 1.0                && < 1.1
                , cmdargs         >= 0.6.7
                , directory       >= 1.0
                , containers      >= 0.2                && < 0.5

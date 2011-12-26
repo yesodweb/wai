@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             0.4.6
+Version:             1.0.0
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             BSD3
@@ -22,22 +22,24 @@ extra-source-files:
 Library
   Build-Depends:     base                      >= 4 && < 5
                    , bytestring                >= 0.9.1.4  && < 0.10
-                   , wai                       >= 0.4      && < 0.5
+                   , wai                       >= 1.0      && < 1.1
                    , old-locale                >= 1.0.0.2  && < 1.1
                    , time                      >= 1.1.4
                    , network                   >= 2.2.1.5  && < 2.4
                    , directory                 >= 1.0.1    && < 1.2
                    , zlib-bindings             >= 0.0      && < 0.1
-                   , blaze-builder-enumerator  >= 0.2      && < 0.3
                    , transformers              >= 0.2.2    && < 0.3
-                   , enumerator                >= 0.4.8    && < 0.5
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , http-types                >= 0.6      && < 0.7
                    , text                      >= 0.7      && < 0.12
                    , case-insensitive          >= 0.2
-                   , zlib-enum                 >= 0.2.1    && < 0.3
                    , data-default              >= 0.3      && < 0.4
                    , fast-logger                >= 0.0.1
+                   , conduit
+                   , zlib-conduit
+                   , blaze-builder-conduit
+                   -- FIXME this must be removed
+                   , enumerator
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
@@ -50,7 +52,6 @@ Library
                      Network.Wai.Middleware.MethodOverride
                      Network.Wai.Middleware.Rewrite
                      Network.Wai.Middleware.Vhost
-                     Network.Wai.Zlib
                      Network.Wai.Parse
   ghc-options:       -Wall
 
@@ -69,16 +70,16 @@ test-suite tests
                    , wai
                    , http-types
                    , transformers
-                   , enumerator
                    , zlib
                    , text
                    , bytestring
                    , directory 
                    , zlib-bindings
-                   , blaze-builder-enumerator >= 0.2 && < 0.3
                    , blaze-builder             >= 0.2.1.4  && < 0.4
-                   , zlib-enum
                    , data-default
+                   , conduit
+                   -- FIXME this must be removed
+                   , enumerator
 
 source-repository head
   type:     git

@@ -39,8 +39,7 @@ module Network.Wai
     ( -- * WAI interface
       Request (..)
     , Response (..)
-    , ResponseStream
-    , responseStream
+    , responseSource
     , Application
     , Middleware
     , FilePart (..)
@@ -61,7 +60,6 @@ import qualified Network.HTTP.Types as H
 import Data.Text (Text)
 import Data.ByteString.Lazy.Char8 () -- makes it easier to use responseLBS
 import Blaze.ByteString.Builder (fromByteString)
-import Filesystem.Path.CurrentOS (decodeString)
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
@@ -96,20 +94,9 @@ data Request = Request
   ,  pathInfo       :: [Text]
   -- | Parsed query string information
   ,  queryString    :: H.Query
-  ,  requestBody    :: C.BSource IO B.ByteString
+  ,  requestBody    :: C.BufferedSource IO B.ByteString
   }
   deriving (Typeable)
-
-data Response
-    = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
-    | ResponseBuilder H.Status H.ResponseHeaders Builder
-    | ResponseStream (forall a. ResponseStream a)
-  deriving Typeable
-
-data FilePart = FilePart
-    { filePartOffset :: Integer
-    , filePartByteCount :: Integer
-    } deriving Show
 
 -- |
 --
@@ -134,23 +121,29 @@ data FilePart = FilePart
 --
 -- A3. You can force blaze-builder to output a ByteString before it is an
 -- optimal size by sending a flush command.
+data Response
+    = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
+    | ResponseBuilder H.Status H.ResponseHeaders Builder
+    | ResponseSource H.Status H.ResponseHeaders (C.Source IO Builder)
+  deriving Typeable
 
-type ResponseStream a =
-    (H.Status -> H.ResponseHeaders -> C.SinkM Builder IO a)
-    -> ResourceT IO a
+data FilePart = FilePart
+    { filePartOffset :: Integer
+    , filePartByteCount :: Integer
+    } deriving Show
 
-responseStream :: Response -> ResponseStream a
-responseStream (ResponseStream e) f = e f
-responseStream (ResponseFile s h fp (Just part)) f =
-    sourceFilePart part fp C.$$ CL.map fromByteString C.=$ f s h
-responseStream (ResponseFile s h fp Nothing) f =
-    CB.sourceFile (decodeString fp) C.$$ CL.map fromByteString C.=$ f s h
-responseStream (ResponseBuilder s h b) f =
-    CL.fromList [b] C.$$ f s h
+responseSource :: Response -> (H.Status, H.ResponseHeaders, C.Source IO Builder) -- FIXME re-analyze usage of Builder
+responseSource (ResponseSource s h b) = (s, h, b)
+responseSource (ResponseFile s h fp (Just part)) =
+    (s, h, sourceFilePart part fp C.$= CL.map fromByteString)
+responseSource (ResponseFile s h fp Nothing) =
+    (s, h, CB.sourceFile fp C.$= CL.map fromByteString)
+responseSource (ResponseBuilder s h b) =
+    (s, h, CL.sourceList [b])
 
-sourceFilePart :: FilePart -> FilePath -> C.SourceM IO B.ByteString
+sourceFilePart :: FilePart -> FilePath -> C.Source IO B.ByteString
 sourceFilePart (FilePart offset count) fp =
-    CB.sourceFileRange (decodeString fp) (Just offset) (Just count)
+    CB.sourceFileRange fp (Just offset) (Just count)
 
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString

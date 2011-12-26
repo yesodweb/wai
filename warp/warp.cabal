@@ -21,6 +21,7 @@ Library
                    , wai                           >= 1.0      && < 1.1
                    , transformers              >= 0.2.2    && < 0.3
                    , conduit                   >= 0.0      && < 0.1
+                   , blaze-builder-conduit     >= 0.0      && < 0.1
                    , lifted-base               >= 0.1      && < 0.2
                    , blaze-builder                 >= 0.2.1.4  && < 0.4
                    , simple-sendfile               >= 0.1      && < 0.3

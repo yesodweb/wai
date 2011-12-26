@@ -1,5 +1,5 @@
 Name:                wai-websockets
-Version:             0.5.0.1
+Version:             1.0.0
 Synopsis:            Provide a bridge betweeen WAI and the websockets package.
 License:             BSD3
 License-file:        LICENSE
@@ -19,7 +19,7 @@ flag example
 Library
   Build-Depends:     base                          >= 3        && < 5
                    , bytestring                >= 0.9.1.4  && < 0.10
-                   , wai                           >= 0.4      && < 0.5
+                   , wai                           >= 1.0      && < 1.1
                    , enumerator                >= 0.4.8    && < 0.5
                    , network-enumerator            >= 0.1.2    && < 0.2
                    , blaze-builder                 >= 0.2.1.4  && < 0.4

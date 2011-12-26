@@ -13,7 +13,6 @@ import Data.IORef
 import Control.Concurrent
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as S
-import Data.Enumerator (($$), joinI, Enumeratee, Stream (..), Iteratee (..), Step (..))
 import Blaze.ByteString.Builder (fromByteString)
 #if WINDOWS
 import Foreign
@@ -21,10 +20,10 @@ import Foreign.C.String
 #else
 import System.Cmd (rawSystem)
 #endif
-import Codec.Zlib.Enum (ungzip)
-import Blaze.ByteString.Builder.Enumerator (builderToByteString)
-import qualified Data.Enumerator.List as EL
-import Control.Monad.Trans.Class (lift)
+import Data.Conduit.Zlib (ungzip)
+import Data.Conduit.Blaze (builderToByteString)
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
 
 ping :: IORef Bool -> Middleware
 ping  var app req
@@ -42,64 +41,45 @@ ping  var app req
                 | not $ isHtml hs -> return res
             ResponseBuilder _ hs _
                 | not $ isHtml hs -> return res
+            ResponseSource _ hs _
+                | not $ isHtml hs -> return res
             _ -> do
-                let renum = responseEnumerator res
-                return $ ResponseEnumerator $ \f -> renum $ \status headers ->
-                    if isHtml headers
-                        then do
-                            let (isEnc, headers') = fixHeaders id headers
-                            let headers'' = filter (\(x, _) -> x /= "content-length") headers'
-                            let fixEnc x =
-                                    if isEnc
-                                        then joinI $ ungzip $$ x
-                                        else x
-                            joinI $ builderToByteString $$ fixEnc $ joinI $ insideHead "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping\",false);x.send();},60000)</script>" $$ joinI $ EL.map fromByteString $$ f status headers''
-                        else f status headers
+                let (s, hs, body) = responseSource res
+                let (isEnc, headers') = fixHeaders id hs
+                let headers'' = filter (\(x, _) -> x /= "content-length") headers'
+                let fixEnc src = if isEnc then src C.$= ungzip else src
+                return $ ResponseSource s headers''
+                    $ fixEnc (body C.$= builderToByteString)
+                    C.$= insideHead
+                    C.$= CL.map fromByteString
 
-insideHead :: S.ByteString -> Enumeratee S.ByteString S.ByteString IO a
-insideHead toInsert =
-    go "" whole
+toInsert :: S.ByteString
+toInsert = "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping\",false);x.send();},60000)</script>"
+
+insideHead :: C.Conduit S.ByteString IO S.ByteString
+insideHead =
+    C.conduitState (Just (S.empty, whole)) push close
   where
     whole = "<head>"
-    go :: S.ByteString -> S.ByteString -> Step S.ByteString IO a -> Iteratee S.ByteString IO (Step S.ByteString IO a)
-    go held atFront step = do
-        mx <- EL.head
-        case mx of
-            Nothing -> feedDone $ Chunks [held, toInsert]
-            Just x
-                | atFront `S.isPrefixOf` x -> do
-                    let y = S.drop (S.length atFront) x
-                    let stream = Chunks [held, atFront, toInsert, y]
-                    feedDone stream
-                | whole `S.isInfixOf` x -> do
-                    let (before, rest) = S.breakSubstring whole x
-                    let after = S.drop (S.length whole) rest
-                    feedDone $ Chunks [held, before, whole, toInsert, after]
-                | x `S.isPrefixOf` atFront -> go
-                    (held `S.append` x)
-                    (S.drop (S.length x) atFront)
-                    step
-                | otherwise -> do
-                    let (held', atFront', x') = getOverlap whole x
-                    feedCont held' atFront' $ Chunks [held, x']
-      where
-        --feedDone :: Stream S.ByteString -> Iteratee S.ByteString IO (Step S.ByteString IO a)
-        feedDone stream =
-            case step of
-                Continue k -> do
-                    step' <- lift $ runIteratee $ k stream
-                    EL.map id step'
-                Yield b s -> return $ Yield b s
-                Error e -> return $ Error e
+    push (Just (held, atFront)) x
+        | atFront `S.isPrefixOf` x = do
+            let y = S.drop (S.length atFront) x
+            return (Nothing, C.Producing [held, atFront, toInsert, y])
+        | whole `S.isInfixOf` x = do
+            let (before, rest) = S.breakSubstring whole x
+            let after = S.drop (S.length whole) rest
+            return (Nothing, C.Producing [held, before, whole, toInsert, after])
+        | x `S.isPrefixOf` atFront = do
+            let held' = held `S.append` x
+                atFront' = S.drop (S.length x) atFront
+            return (Just (held', atFront'), C.Producing [])
+        | otherwise = do
+            let (held', atFront', x') = getOverlap whole x
+            return (Just (held', atFront'), C.Producing [held, x'])
+    push Nothing x = return (Nothing, C.Producing [x])
 
-        --feedCont :: Monad m => S.ByteString -> S.ByteString -> Stream S.ByteString -> Iteratee S.ByteString m (Step S.ByteString m a)
-        feedCont held' atFront' stream = do
-            case step of
-                Continue k -> do
-                    step' <- lift $ runIteratee $ k stream
-                    go held' atFront' step'
-                Yield b s -> return $ Yield b s
-                Error e -> return $ Error e
+    close (Just (held, _)) = return [held, toInsert]
+    close Nothing = return []
 
 getOverlap :: S.ByteString -> S.ByteString -> (S.ByteString, S.ByteString, S.ByteString)
 getOverlap whole x =

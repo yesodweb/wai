@@ -21,8 +21,10 @@ import qualified Data.Text.Encoding as TE
 import Network.Wai.Parse (parseRequestBody, lbsSink, fileName, Param, File)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Enumerator (run_, ($$), enumList)
-import Data.Enumerator.List (consume)
 import System.IO (hPutStrLn, stderr)
+
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
 
 -- | like @logHandle@, but prints to 'stdout'
 logStdout :: Middleware
@@ -68,7 +70,7 @@ logHandleDevLT cb app req =
 -- For production use use module Network.Wai.Middleware.RequestLogger
 logHandleDev :: (BS.ByteString -> IO ()) -> Middleware
 logHandleDev cb app req = do
-    body <- consume
+    body <- requestBody req C.$$ CL.consume
     postParams <- if any (requestMethod req ==) ["GET", "HEAD"]
       then return []
       else do postParams <- liftIO $ allPostParams req body
@@ -86,7 +88,8 @@ logHandleDev cb app req = do
         , paramsToBS "POST " postParams
         ]
     -- we just consumed the body- fill the enumerator back up so it is available again
-    liftIO $ run_ $ enumList 1 body $$ app req
+    body' <- C.bufferSource $ CL.sourceList body
+    app req { requestBody = body' }
   where
     paramsToBS prefix params =
       if null params then ""

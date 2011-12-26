@@ -96,7 +96,7 @@ import Blaze.ByteString.Builder.HTTP
 import Blaze.ByteString.Builder
     (copyByteString, Builder, toLazyByteString, toByteStringIO)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
-import Data.Monoid (mappend, mconcat)
+import Data.Monoid (mappend)
 import Network.Sendfile
 
 import qualified System.PosixCompat.Files as P
@@ -211,12 +211,13 @@ serveConnection settings th onException port app conn remoteHost' = do
     serveConnection' :: ResourceT IO ()
     serveConnection' = do
         fromClient <- C.bufferSource $ sourceSocket th bytesPerRead conn
-        (len, env) <- parseRequest port remoteHost' fromClient
+        env <- parseRequest port remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
                 liftIO $ T.pause th
                 res <- app env
+                -- FIXME flush the rest of the request body
                 liftIO $ T.resume th
                 keepAlive <- sendResponse th env conn res
                 if keepAlive then serveConnection' else return ()
@@ -225,8 +226,8 @@ serveConnection settings th onException port app conn remoteHost' = do
                 intercept fromClient conn
 
 parseRequest :: Port -> SockAddr
-             -> C.BSource IO S.ByteString
-             -> ResourceT IO (Integer, Request)
+             -> C.BufferedSource IO S.ByteString
+             -> ResourceT IO Request
 parseRequest port remoteHost' src = do
     headers' <- takeHeaders src
     parseRequest' port headers' remoteHost' src
@@ -250,8 +251,8 @@ instance Exception InvalidRequest
 parseRequest' :: Port
               -> [ByteString]
               -> SockAddr
-              -> C.BSource IO S.ByteString
-              -> ResourceT IO (Integer, Request)
+              -> C.BufferedSource IO S.ByteString
+              -> ResourceT IO Request
 parseRequest' _ [] _ _ = throwIO $ NotEnoughLines []
 parseRequest' port (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
@@ -270,21 +271,21 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
     let serverName' = takeUntil 58 host -- ':'
     -- FIXME isolate takes an Integer instead of Int or Int64. If this is a
     -- performance penalty, we may need our own version.
-    rbody <- C.bufferSource $ src C.$= CB.isolate (fromIntegral len)
-    return (len, Request
-                { requestMethod = method
-                , httpVersion = httpversion
-                , pathInfo = H.decodePathSegments rpath
-                , rawPathInfo = rpath
-                , rawQueryString = gets
-                , queryString = H.parseQuery gets
-                , serverName = serverName'
-                , serverPort = port
-                , requestHeaders = heads
-                , isSecure = False
-                , remoteHost = remoteHost'
-                , requestBody = rbody
-                })
+    rbody <- C.bufferSource $ src C.$= CB.isolate len
+    return Request
+            { requestMethod = method
+            , httpVersion = httpversion
+            , pathInfo = H.decodePathSegments rpath
+            , rawPathInfo = rpath
+            , rawQueryString = gets
+            , queryString = H.parseQuery gets
+            , serverName = serverName'
+            , serverPort = port
+            , requestHeaders = heads
+            , isSecure = False
+            , remoteHost = remoteHost'
+            , requestBody = rbody
+            }
 
 
 takeUntil :: Word8 -> ByteString -> ByteString
@@ -427,41 +428,33 @@ sendResponse th req socket r = sendResponse' r
                        `mappend` chunkedTransferTerminator
                   else (headers' False) `mappend` b
 
-    sendResponse' (ResponseStream res) =
-        res enumResponse
+    sendResponse' (ResponseSource s hs body) =
+        response
       where
-        enumResponse :: H.Status -> H.ResponseHeaders -> C.SinkM Builder IO Bool
-        enumResponse s hs =
-            response
-          where
-            headers' = headers version s hs
-            -- FIXME perhaps alloca a buffer per thread and reuse that in all functiosn below. Should lessen greatly the GC burden (I hope)
-            response
-                | not (hasBody s req) = do
-                    liftIO $ Sock.sendMany socket
-                           $ L.toChunks $ toLazyByteString
-                           $ headers' False
-                    return (checkPersist req)
-                | otherwise = C.SinkM $ do
-                    let sink = builderToByteString C.=$ sinkSocket th (isKeepAlive hs) socket
-                    CL.fromList [headers' needsChunked'] C.$$ sink
-                    C.genSink $ chunk' sink
-            needsChunked' = needsChunked hs
-            chunk' sink = if needsChunked'
-                              then chunk C.=$ sink
-                              else sink
-            chunk :: C.ConduitM Builder IO Builder
-            chunk = C.ConduitM $ return $ C.Conduit
-                { C.conduitPush = push
-                , C.conduitClose = close
-                }
+        headers' = headers version s hs
+        -- FIXME perhaps alloca a buffer per thread and reuse that in all
+        -- functions below. Should lessen greatly the GC burden (I hope)
+        response
+            | not (hasBody s req) = do
+                liftIO $ Sock.sendMany socket
+                       $ L.toChunks $ toLazyByteString
+                       $ headers' False
+                return (checkPersist req)
+            | otherwise = do
+                let src =
+                        CL.sourceList [headers' needsChunked'] `mappend`
+                        (if needsChunked' then body C.$= chunk else body)
+                src C.$$ builderToByteString C.=$ sinkSocket th socket
+                return $ isKeepAlive hs
+        needsChunked' = needsChunked hs
+        chunk :: C.Conduit Builder IO Builder
+        chunk = C.Conduit $ return $ C.PreparedConduit
+            { C.conduitPush = push
+            , C.conduitClose = close
+            }
 
-            go [] = id
-            go [x] = (chunkedTransferEncoding x:)
-            go xs = (chunkedTransferEncoding (mconcat xs):)
-
-            push xs = return $ C.ConduitResult C.Processing $ go xs []
-            close xs = return $ C.ConduitResult [] $ go xs [chunkedTransferTerminator]
+        push x = return $ C.Producing [chunkedTransferEncoding x]
+        close = return [chunkedTransferTerminator]
 
 parseHeaderNoAttr :: ByteString -> H.Header
 parseHeaderNoAttr s =
@@ -473,14 +466,14 @@ parseHeaderNoAttr s =
                    else rest
      in (CI.mk k, rest')
 
-sourceSocket :: T.Handle -> Int -> Socket -> C.Source IO ByteString
-sourceSocket th len socket = C.Source
+sourceSocket :: T.Handle -> Int -> Socket -> C.PreparedSource IO ByteString
+sourceSocket th len socket = C.PreparedSource
     { C.sourcePull = do
         bs <- liftIO $ Sock.recv socket len
         liftIO $ T.tickle th
         return $ if S.null bs
-            then C.SourceResult C.StreamClosed []
-            else C.SourceResult C.StreamOpen [bs]
+            then C.Closed
+            else C.Open bs
     , C.sourceClose = return ()
     }
 
@@ -488,23 +481,19 @@ sourceSocket th len socket = C.Source
 --separate package.
 
 sinkSocket :: T.Handle
-           -> ret
            -> Socket
-           -> C.SinkM B.ByteString IO ret
-sinkSocket th ret sock = C.SinkM $ return $ C.SinkData
+           -> C.Sink B.ByteString IO ()
+sinkSocket th sock = C.Sink $ return $ C.SinkData
     { C.sinkPush = push
     , C.sinkClose = close
     }
   where
-    close xs = do
+    close = do
         liftIO (T.resume th)
-        liftIO $ Sock.sendMany sock xs
-        liftIO (T.resume th)
-        return (C.SinkResult [] ret)
-    push [] = return $ C.Processing
-    push xs = do
+        return ()
+    push x = do
         liftIO $ T.resume th
-        liftIO $ Sock.sendMany sock xs
+        liftIO $ Sock.sendAll sock x
         liftIO $ T.pause th
         return $ C.Processing
     -- We pause timeouts before passing control back to user code. This ensures
@@ -523,7 +512,7 @@ data Settings = Settings
     , settingsHost :: String -- ^ Host to bind to, or * for all. Default value: *
     , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
-    , settingsIntercept :: Request -> Maybe (C.BSource IO S.ByteString -> Socket -> ResourceT IO ())
+    , settingsIntercept :: Request -> Maybe (C.BufferedSource IO S.ByteString -> Socket -> ResourceT IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     }
 
@@ -550,7 +539,7 @@ defaultSettings = Settings
     go' (Just ThreadKilled) = False
     go' _ = True
 
-takeHeaders :: C.BSource IO ByteString -> ResourceT IO [ByteString]
+takeHeaders :: C.BufferedSource IO ByteString -> ResourceT IO [ByteString]
 takeHeaders src = do
   !x <- forceHead ConnectionClosedByPeer src
   takeHeaders' 0 id id x src
@@ -561,7 +550,7 @@ takeHeaders' :: Int
              -> ([ByteString] -> [ByteString])
              -> ([ByteString] -> [ByteString])
              -> ByteString
-             -> C.BSource IO ByteString
+             -> C.BufferedSource IO ByteString
              -> ResourceT IO [ByteString]
 takeHeaders' !len _ _ _ _ | len > maxTotalHeaderLength = throwIO OverLargeHeader
 takeHeaders' !len !lines !prepend !bs src = do
@@ -590,7 +579,7 @@ takeHeaders' !len !lines !prepend !bs src = do
               if start < bsLen
                  then {-# SCC "takeHeaders'.noMoreHeaders.yield" #-} do
                    let !rest = {-# SCC "takeHeaders'.noMoreHeaders.yield.rest" #-} SU.unsafeDrop start bs
-                   C.bsourceUnpull src [rest]
+                   C.bsourceUnpull src rest
                    return lines'
                  else return lines'
 
@@ -606,7 +595,7 @@ takeHeaders' !len !lines !prepend !bs src = do
 {-# INLINE takeHeaders' #-}
 
 forceHead :: InvalidRequest
-          -> C.BSource IO ByteString
+          -> C.BufferedSource IO ByteString
           -> ResourceT IO ByteString
 forceHead err src = do
   !mx <- src C.$$ CL.head
