@@ -13,7 +13,7 @@ import Text.Printf (printf)
 import System.Directory (canonicalizePath)
 import Control.Monad (unless)
 import Network.Wai.Middleware.Autohead
-import Network.Wai.Middleware.Debug
+import Network.Wai.Middleware.RequestLogger (logStdout)
 import Network.Wai.Middleware.Gzip
 import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as S8
@@ -43,7 +43,7 @@ main = do
     docroot' <- canonicalizePath docroot
     unless quiet $ printf "Serving directory %s on port %d with %s index files.\n" docroot' port (if noindex then "no" else show index)
     let middle = gzip False
-               . (if verbose then debug else id)
+               . (if verbose then logStdout else id)
                . autohead
     runSettings defaultSettings
         { settingsPort = port
