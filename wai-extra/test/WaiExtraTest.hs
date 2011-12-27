@@ -24,11 +24,13 @@ import Network.Wai.Middleware.AcceptOverride
 import Network.Wai.Middleware.Debug (debugHandle)
 import Codec.Compression.GZip (decompress)
 
-import Data.Enumerator (run_, enumList, ($$), Iteratee)
-import Data.Enumerator.Binary (enumFile)
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
+import Data.Conduit.Binary (sourceFile)
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (parseSimpleQuery, status200)
+import Data.Monoid (mappend)
 
 specs :: Specs
 specs = do
@@ -95,12 +97,14 @@ caseParseHttpAccept = do
 
 parseRequestBody' :: Sink ([S8.ByteString] -> [S8.ByteString]) L.ByteString
                   -> SRequest
-                  -> Iteratee S.ByteString IO ([(S.ByteString, S.ByteString)], [(S.ByteString, FileInfo L.ByteString)])
+                  -> C.ResourceT IO ([(S.ByteString, S.ByteString)], [(S.ByteString, FileInfo L.ByteString)])
 parseRequestBody' sink (SRequest req bod) =
-    enumList 1 (L.toChunks bod) $$ parseRequestBody sink req
+    CL.sourceList (L.toChunks bod) C.$$ parseRequestBody sink req
 
 caseParseRequestBody :: Assertion
-caseParseRequestBody = run_ t where
+caseParseRequestBody =
+    C.runResourceT t
+  where
     content2 = S8.pack $
         "--AaB03x\n" ++
         "Content-Disposition: form-data; name=\"document\"; filename=\"b.txt\"\n" ++
@@ -394,7 +398,8 @@ caseDalvikMultipart = do
     let request' = defaultRequest
             { requestHeaders = headers
             }
-    (params, files) <- run_ $ enumFile "test/requests/dalvik-request" $$ parseRequestBody lbsSink request'
+    (params, files) <- C.runResourceT $ sourceFile "test/requests/dalvik-request"
+                       C.$$ parseRequestBody lbsSink request'
     lookup "scannedTime" params @?= Just "1.298590056748E9"
     lookup "geoLong" params @?= Just "0"
     lookup "geoLat" params @?= Just "0"

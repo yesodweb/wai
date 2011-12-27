@@ -20,7 +20,6 @@ import qualified Data.Text.Encoding as TE
 
 import Network.Wai.Parse (parseRequestBody, lbsSink, fileName, Param, File)
 import qualified Data.ByteString.Lazy as LBS
-import Data.Enumerator (run_, ($$), enumList)
 import System.IO (hPutStrLn, stderr)
 
 import qualified Data.Conduit as C
@@ -95,7 +94,7 @@ logHandleDev cb app req = do
       if null params then ""
         else BS.concat ["\n", prefix, pack (show params)]
 
-    allPostParams req' body = run_ $ enumList 1 body $$ parseRequestBody lbsSink req'
+    allPostParams req' body = C.runResourceT $ CL.sourceList body C.$$ parseRequestBody lbsSink req'
 
     emptyGetParam :: (BS.ByteString, Maybe BS.ByteString) -> (BS.ByteString, BS.ByteString)
     emptyGetParam (k, Just v) = (k,v)

@@ -38,8 +38,6 @@ Library
                    , conduit
                    , zlib-conduit
                    , blaze-builder-conduit
-                   -- FIXME this must be removed
-                   , enumerator
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
@@ -78,8 +76,6 @@ test-suite tests
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , data-default
                    , conduit
-                   -- FIXME this must be removed
-                   , enumerator
 
 source-repository head
   type:     git
