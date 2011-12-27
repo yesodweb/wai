@@ -60,6 +60,7 @@ import qualified Network.HTTP.Types as H
 import Data.Text (Text)
 import Data.ByteString.Lazy.Char8 () -- makes it easier to use responseLBS
 import Blaze.ByteString.Builder (fromByteString)
+import Data.Vault (Vault)
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
@@ -95,6 +96,8 @@ data Request = Request
   -- | Parsed query string information
   ,  queryString    :: H.Query
   ,  requestBody    :: C.BufferedSource IO B.ByteString
+  -- | A location for arbitrary data to be shared by applications and middleware.
+  , vault           :: Vault
   }
   deriving (Typeable)
 

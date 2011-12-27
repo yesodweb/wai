@@ -24,6 +24,7 @@ import Network.Wai.Test
 import Network.Socket.Internal as Sock
 import qualified Network.HTTP.Types as H
 import Control.Monad.IO.Class (liftIO)
+import Data.Monoid (mempty)
 
 defRequest :: Request
 defRequest = Request {
@@ -38,6 +39,8 @@ defRequest = Request {
 , serverPort = 80
 , isSecure = False
 , remoteHost = Sock.SockAddrInet 1 2
+, vault = mempty
+, requestBody = error "requestBody"
 }
 
 setRawPathInfo :: Request -> S8.ByteString -> Request

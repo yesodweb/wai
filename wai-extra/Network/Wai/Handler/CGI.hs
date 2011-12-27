@@ -19,7 +19,7 @@ import Control.Arrow ((***))
 import Data.Char (toLower)
 import qualified System.IO
 import qualified Data.String as String
-import Data.Monoid (mconcat)
+import Data.Monoid (mconcat, mempty)
 import Blaze.ByteString.Builder (fromByteString, toLazyByteString)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromString)
 import Data.Conduit.Blaze (builderToByteString)
@@ -109,6 +109,7 @@ runGeneric vars inputH outputH xsendfile app = do
                 , remoteHost = addr
                 , httpVersion = H.http11 -- FIXME
                 , requestBody = input
+                , vault = mempty
                 }
         -- FIXME worry about exception?
         res <- app env

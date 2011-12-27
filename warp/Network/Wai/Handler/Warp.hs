@@ -96,7 +96,7 @@ import Blaze.ByteString.Builder.HTTP
 import Blaze.ByteString.Builder
     (copyByteString, Builder, toLazyByteString, toByteStringIO)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
-import Data.Monoid (mappend)
+import Data.Monoid (mappend, mempty)
 import Network.Sendfile
 
 import qualified System.PosixCompat.Files as P
@@ -285,6 +285,7 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
             , isSecure = False
             , remoteHost = remoteHost'
             , requestBody = rbody
+            , vault = mempty
             }
 
 

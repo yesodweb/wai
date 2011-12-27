@@ -34,6 +34,7 @@ import Data.CaseInsensitive (CI)
 import qualified Data.ByteString as S
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
+import Data.Monoid (mempty)
 
 type Session = ReaderT Application (StateT ClientState IO)
 
@@ -74,6 +75,7 @@ defaultRequest = Request
     , pathInfo = []
     , queryString = []
     , requestBody = error "requestBody of defaultRequest"
+    , vault = mempty
     }
 
 srequest :: SRequest -> Session SResponse
