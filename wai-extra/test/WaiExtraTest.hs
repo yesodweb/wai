@@ -13,6 +13,7 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text.Lazy as T
+import qualified Data.Text.Encoding as TE
 import Control.Arrow
 
 import Network.Wai.Middleware.Jsonp
@@ -21,7 +22,7 @@ import Network.Wai.Middleware.Vhost
 import Network.Wai.Middleware.Autohead
 import Network.Wai.Middleware.MethodOverride
 import Network.Wai.Middleware.AcceptOverride
-import Network.Wai.Middleware.Debug (debugHandle)
+import Network.Wai.Middleware.RequestLogger (logHandle)
 import Codec.Compression.GZip (decompress)
 
 import qualified Data.Conduit as C
@@ -169,7 +170,7 @@ toRequest :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest ctype content = SRequest defaultRequest
     { requestHeaders = [("Content-Type", ctype)]
     , requestMethod = "POST"
-    , rawPathInfo = ""
+    , rawPathInfo = "/"
     , rawQueryString = ""
     , queryString = []
     } (L.fromChunks [content])
@@ -423,10 +424,14 @@ caseDebugRequestBody = do
                 }
   where
     params = [("foo", "bar"), ("baz", "bin")]
-    postOutput = T.pack $ "POST \nAccept: \nPOST " ++ (show params)
-    getOutput _qs = T.pack $ "GET /location" ++ "\nAccept: \nGET " ++ (show params) -- \nAccept: \n" ++ (show params)
+    -- FIXME change back once we include post parameter output in logging postOutput = T.pack $ "POST \nAccept: \nPOST " ++ (show params)
+    postOutput = T.pack $ "POST / Accept: "
+    -- FIXME getOutput _qs = T.pack $ "GET /location" ++ "\nAccept: \nGET " ++ (show params) -- \nAccept: \n" ++ (show params)
+    getOutput _qs = T.pack $ "GET /location?foo=bar&baz=bin Accept: "
 
-    debugApp output = debugHandle (\t -> liftIO $ assertEqual "debug" output t) $ \_req -> do
+    debugApp output' = logHandle (\t -> liftIO $ assertEqual "debug" output t) $ \_req -> do
         return $ responseLBS status200 [ ] ""
+      where
+        output = TE.encodeUtf8 $ T.toStrict output'
     {-debugApp = debug $ \req -> do-}
         {-return $ responseLBS status200 [ ] ""-}
