@@ -271,7 +271,10 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
     let serverName' = takeUntil 58 host -- ':'
     -- FIXME isolate takes an Integer instead of Int or Int64. If this is a
     -- performance penalty, we may need our own version.
-    rbody <- C.bufferSource $ src C.$= CB.isolate len
+    rbody <- C.bufferSource $
+        if len == 0
+            then CL.sourceList []
+            else src C.$= CB.isolate len
     return Request
             { requestMethod = method
             , httpVersion = httpversion
