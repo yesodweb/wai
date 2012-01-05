@@ -1,5 +1,5 @@
 name:            wai-frontend-monadcgi
-version:         0.1.0
+version:         0.2.0
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -15,10 +15,10 @@ library
                    bytestring,
                    containers >= 0.2,
                    cgi,
-                   enumerator,
+                   conduit,
                    http-types,
                    transformers,
                    case-insensitive,
-                   wai >= 0.4 && < 0.5
+                   wai >= 1.0 && < 1.1
     exposed-modules: Network.Wai.Frontend.MonadCGI
     ghc-options:     -Wall

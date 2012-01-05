@@ -10,7 +10,8 @@ import Network.HTTP.Types (Status (..))
 import Control.Monad.IO.Class (liftIO)
 import Data.CaseInsensitive (original)
 
-import qualified Data.Enumerator.List as EL
+import Data.Conduit
+import Data.Conduit.Lazy (lazyConsume)
 
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as BS
@@ -28,15 +29,18 @@ safeRead d s = case reads s of
 cgiToApp :: CGI CGIResult -> Application
 cgiToApp = cgiToAppGeneric id
 
+unbufferSource :: Monad m => BufferedSource m a -> Source m a
+unbufferSource bsrc = Source $ return $ PreparedSource
+    { sourcePull = bsourcePull bsrc
+    , sourceClose = bsourceClose bsrc
+    }
+
 cgiToAppGeneric :: Monad m
                 => (m (Headers, CGIResult) -> IO (Headers, CGIResult))
                 -> CGIT m CGIResult
                 -> Application
 cgiToAppGeneric toIO cgi env = do
-    -- Note: the next line will read the entire request body into memory.
-    -- This is a flaw in enumerator-based WAI. Conduit-based WAI will allow
-    -- for lazy I/O here.
-    input <- fmap BS.fromChunks EL.consume
+    input <- fmap BS.fromChunks $ lazyConsume $ unbufferSource $ requestBody env
     let vars = map (first fixVarName . go) (requestHeaders env)
                ++ getCgiVars env
         (inputs, body') = decodeInput vars input
