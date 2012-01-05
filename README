@@ -1,1 +1,1 @@
-Allows programs written against MonadCGI to run with any WAI handler.
+Run CGI apps on WAI handlers.
