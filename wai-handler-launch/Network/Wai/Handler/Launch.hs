@@ -4,6 +4,7 @@
 module Network.Wai.Handler.Launch
     ( run
     , runUrl
+    , runUrlPort
     ) where
 
 import Network.Wai
@@ -105,32 +106,35 @@ foreign import ccall "launch"
     launch' :: Int -> CString -> IO ()
 #endif
 
-launch :: String -> IO ()
+launch :: Int -> String -> IO ()
 
 #if WINDOWS
-launch s = withCString s $ launch' 4587
+launch port s = withCString s $ launch' port
 #else
-launch s = forkIO (rawSystem
+launch port s = forkIO (rawSystem
 #if MAC
     "open"
 #else
     "xdg-open"
 #endif
-    ["http://127.0.0.1:4587/" ++ s] >> return ()) >> return ()
+    ["http://127.0.0.1:" ++ show port ++ "/" ++ s] >> return ()) >> return ()
 #endif
 
 run :: Application -> IO ()
 run = runUrl ""
 
 runUrl :: String -> Application -> IO ()
-runUrl url app = do
+runUrl = runUrlPort 4587
+
+runUrlPort :: Int -> String -> Application -> IO ()
+runUrlPort port url app = do
     x <- newIORef True
     _ <- forkIO $ Warp.runSettings Warp.defaultSettings
-        { Warp.settingsPort = 4587
+        { Warp.settingsPort = port
         , Warp.settingsOnException = const $ return ()
         , Warp.settingsHost = "127.0.0.1"
         } $ ping x app
-    launch url
+    launch port url
     loop x
 
 loop :: IORef Bool -> IO ()
