@@ -8,6 +8,7 @@ pkgs=(            ./wai
                   ./wai-handler-fastcgi
                   ./wai-handler-launch
                   ./wai-handler-scgi
+                  ./wai-frontend-monadcgi
                   ./warp-static
      )
                   # ./wai-websockets        
