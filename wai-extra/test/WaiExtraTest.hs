@@ -425,9 +425,9 @@ caseDebugRequestBody = do
   where
     params = [("foo", "bar"), ("baz", "bin")]
     -- FIXME change back once we include post parameter output in logging postOutput = T.pack $ "POST \nAccept: \nPOST " ++ (show params)
-    postOutput = T.pack $ "POST / Accept: "
+    postOutput = T.pack $ "POST / Accept: \n"
     -- FIXME getOutput _qs = T.pack $ "GET /location" ++ "\nAccept: \nGET " ++ (show params) -- \nAccept: \n" ++ (show params)
-    getOutput _qs = T.pack $ "GET /location?foo=bar&baz=bin Accept: "
+    getOutput _qs = T.pack $ "GET /location?foo=bar&baz=bin Accept: \n"
 
     debugApp output' = logHandle (\t -> liftIO $ assertEqual "debug" output t) $ \_req -> do
         return $ responseLBS status200 [ ] ""
