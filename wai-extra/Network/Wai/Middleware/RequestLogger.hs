@@ -47,6 +47,7 @@ logHandle cb app req = do
         , " "
         , "Accept: "
         , maybe "" toBS $ lookup "Accept" $ requestHeaders req
+        , "\n"
         ]
     app req
 
@@ -85,6 +86,7 @@ logHandleDev cb app req = do
         , maybe "" id $ lookup "Accept" $ requestHeaders req
         , paramsToBS  "GET " getParams
         , paramsToBS "POST " postParams
+        , "\n"
         ]
     -- we just consumed the body- fill the enumerator back up so it is available again
     body' <- C.bufferSource $ CL.sourceList body
