@@ -16,7 +16,6 @@
 ---------------------------------------------------------
 module Network.Wai.Middleware.Gzip
     ( gzip
-    , gzip'
     , GzipSettings
     , gzipFiles
     , GzipFiles (..)
@@ -62,14 +61,8 @@ defaultCheckMime = S8.isPrefixOf "text/"
 -- Possible future enhancements:
 --
 -- * Only compress if the response is above a certain size.
-gzip :: Bool -- ^ should we gzip files?
-     -> Middleware
-gzip files = gzip' def
-    { gzipFiles = if files then GzipCompress else GzipIgnore
-    }
-
-gzip' :: GzipSettings -> Middleware
-gzip' set app env = do
+gzip :: GzipSettings -> Middleware
+gzip set app env = do
     res <- app env
     case res of
         ResponseFile{} | gzipFiles set == GzipIgnore -> return res

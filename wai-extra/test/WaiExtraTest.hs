@@ -261,7 +261,7 @@ caseJsonp = flip runSession jsonpApp $ do
     assertBody "{\"foo\":\"bar\"}" sres3
 
 gzipApp :: Application
-gzipApp = gzip True $ const $ return $ responseLBS status200
+gzipApp = gzip def $ const $ return $ responseLBS status200
     [("Content-Type", "text/plain")]
     "test"
 
