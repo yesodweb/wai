@@ -8,7 +8,7 @@ import Network.Wai.Application.Static
 import Network.Wai.Handler.Warp
     ( runSettings, defaultSettings, settingsHost, settingsPort
     )
-import System.Console.CmdArgs
+import System.Console.CmdArgs hiding (def)
 import Text.Printf (printf)
 import System.Directory (canonicalizePath)
 import Control.Monad (unless)
@@ -42,7 +42,7 @@ main = do
     let mimeMap = Map.fromList mime' `Map.union` defaultMimeTypes
     docroot' <- canonicalizePath docroot
     unless quiet $ printf "Serving directory %s on port %d with %s index files.\n" docroot' port (if noindex then "no" else show index)
-    let middle = gzip False
+    let middle = gzip def
                . (if verbose then logStdout else id)
                . autohead
     runSettings defaultSettings
