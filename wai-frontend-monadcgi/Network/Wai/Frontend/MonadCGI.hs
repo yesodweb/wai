@@ -29,12 +29,6 @@ safeRead d s = case reads s of
 cgiToApp :: CGI CGIResult -> Application
 cgiToApp = cgiToAppGeneric id
 
-unbufferSource :: Monad m => BufferedSource m a -> Source m a
-unbufferSource bsrc = Source $ return $ PreparedSource
-    { sourcePull = bsourcePull bsrc
-    , sourceClose = bsourceClose bsrc
-    }
-
 cgiToAppGeneric :: Monad m
                 => (m (Headers, CGIResult) -> IO (Headers, CGIResult))
                 -> CGIT m CGIResult
