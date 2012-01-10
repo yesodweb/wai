@@ -15,8 +15,10 @@ app req = return $
     case rawPathInfo req of
         "/builder/withlen" -> builderWithLen
         "/builder/nolen" -> builderNoLen
+        {-
         "/enum/withlen" -> enumWithLen
         "/enum/nolen" -> enumNoLen
+        -}
         "/file/withlen" -> fileWithLen
         "/file/nolen" -> fileNoLen
         x -> index x
@@ -49,6 +51,7 @@ fileNoLen = ResponseFile
     "pong.txt"
     Nothing
 
+{-
 enumWithLen = ResponseEnumerator $ \f ->
     run_ $ (enumList 1 $ map copyByteString ["P", "O", "NG"]) $$ f
         status200
@@ -61,6 +64,7 @@ enumNoLen = ResponseEnumerator $ \f ->
         status200
         [ ("Content-Type", "text/plain")
         ]
+-}
 
 index p = ResponseBuilder status200 [("Content-Type", "text/html")] $ mconcat $ map copyByteString
     [ "<p><a href='/builder/withlen'>builder withlen</a></p>\n"

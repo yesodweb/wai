@@ -4,26 +4,24 @@ module Network.Wai.Handler.WarpTLS
     , runTLS
     ) where
 
-import Network.TLS
+import qualified Network.TLS as TLS
 import Network.Wai.Handler.Warp
 import Network.Wai
 import Network.Socket
 import System.IO
 import Crypto.Random
 import qualified Data.ByteString.Lazy as L
-import qualified Data.Enumerator.List as EL
-import Data.Enumerator.Binary (enumFileRange)
-import Data.Enumerator (run_, ($$))
+import Data.Conduit.Binary (sourceFileRange)
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
 import Control.Monad.IO.Class (liftIO)
 import Control.Exception (bracket, handle, SomeException)
-import qualified Data.ByteString as S
-import Network.TLS.Extra
-import qualified Crypto.Cipher.RSA as RSA
-import qualified Data.Certificate.KeyRSA as KeyRSA
-import Data.Certificate.X509
-import Data.Certificate.PEM
+import qualified Network.TLS.Extra as TLSExtra
+import qualified Data.Certificate.X509 as X509
+import qualified Data.Certificate.PEM as PEM
 import qualified Data.ByteString as B
 import Control.Monad (unless)
+import qualified Data.Certificate.KeyRSA as KeyRSA
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -34,18 +32,18 @@ runTLS :: TLSSettings -> Settings -> Application -> IO ()
 runTLS tset set app = do
     cert    <- readCertificate $ certFile tset
     pk      <- readPrivateKey $ keyFile tset
-    let params = defaultParams
-            { pWantClientCert = False
-            , pAllowedVersions = [SSL3,TLS10,TLS11,TLS12]
-            , pCiphers         = ciphers
-            , pCertificates    = [(cert, Just pk)]
+    let params = TLS.defaultParams
+            { TLS.pWantClientCert = False
+            , TLS.pAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
+            , TLS.pCiphers         = ciphers
+            , TLS.pCertificates    = [(cert, Just pk)]
             }
     bracket
         (bindPort (settingsPort set) (settingsHost set))
         sClose
         (\sock -> runSettingsConnection set (getter params sock) app)
   where
-    retry :: TLSParams -> Socket -> SomeException -> IO (Connection, SockAddr)
+    retry :: TLS.TLSParams -> Socket -> SomeException -> IO (Connection, SockAddr)
     retry a b _ = getter a b
 
     getter params sock = do
@@ -54,68 +52,62 @@ runTLS tset set app = do
             h <- socketToHandle s ReadWriteMode
             hSetBuffering h NoBuffering
             gen <- newGenIO
-            ctx <- server params (gen :: SystemRandom) h
-            b <- handshake ctx
+            ctx <- TLS.server params (gen :: SystemRandom) h
+            b <- TLS.handshake ctx
             unless b $ error "Invalid handshake"
-            let sink = do
-                    x <- EL.head
-                    case x of
-                        Just y -> do
-                            liftIO $ sendData ctx $ L.fromChunks [y]
-                            sink
-                        Nothing -> return ()
+            let sink = C.Sink $ return $ C.SinkData
+                    { C.sinkPush = \bs -> do
+                        liftIO $ TLS.sendData ctx $ L.fromChunks [bs]
+                        return C.Processing
+                    , C.sinkClose = return ()
+                    }
             let conn = Connection
-                    { connSendMany = sendData ctx . L.fromChunks
-                    , connSendAll = sendData ctx . L.fromChunks . return
-                    , connSendFile = \fp offset length _th -> run_ $ enumFileRange fp (Just offset) (Just length) $$ EL.mapM_ (sendData ctx . L.fromChunks . return)
-                    , connIter = \_th -> sink
+                    { connSendMany = TLS.sendData ctx . L.fromChunks
+                    , connSendAll = TLS.sendData ctx . L.fromChunks . return
+                    , connSendFile = \fp offset len _th -> C.runResourceT $ sourceFileRange fp (Just offset) (Just len) C.$$ CL.mapM_ (TLS.sendData ctx . L.fromChunks . return)
+                    , connSink = \_th -> sink
                     , connClose = do
-                        bye ctx
+                        TLS.bye ctx
                         hClose h
-                    , connEnum = \_th -> EL.generateM $ do
-                        lbs <- recvData ctx
-                        if L.null lbs
-                            then return Nothing
-                            else return $ Just $ S.concat $ L.toChunks lbs
+                    , connSource = \_th -> C.bufferSource $ C.sourceState []
+                        (\buffer ->
+                            case buffer of
+                                (bs:bss) -> return (bss, C.Open bs)
+                                [] -> do
+                                    lbs <- TLS.recvData ctx
+                                    if L.null lbs
+                                        then return (undefined, C.Closed)
+                                        else let (bs:bss) = L.toChunks lbs
+                                              in return (bss, C.Open bs))
                     }
             return (conn, sa)
 
 -- taken from stunnel example in tls-extra
-ciphers :: [Cipher]
+ciphers :: [TLS.Cipher]
 ciphers =
-	[ cipher_AES128_SHA1
-	, cipher_AES256_SHA1
-	, cipher_RC4_128_MD5
-	, cipher_RC4_128_SHA1
+	[ TLSExtra.cipher_AES128_SHA1
+	, TLSExtra.cipher_AES256_SHA1
+	, TLSExtra.cipher_RC4_128_MD5
+	, TLSExtra.cipher_RC4_128_SHA1
 	]
 
-readCertificate :: FilePath -> IO X509
+readCertificate :: FilePath -> IO X509.X509
 readCertificate filepath = do
 	content <- B.readFile filepath
-	let certdata = case parsePEMCert content of
+	let certdata = case PEM.parsePEMCert content of
 		Nothing -> error ("no valid certificate section")
 		Just x  -> x
-	let cert = case decodeCertificate $ L.fromChunks [certdata] of
+	let cert = case X509.decodeCertificate $ L.fromChunks [certdata] of
 		Left err -> error ("cannot decode certificate: " ++ err)
 		Right x  -> x
 	return cert
 
-readPrivateKey :: FilePath -> IO PrivateKey
+readPrivateKey :: FilePath -> IO TLS.PrivateKey
 readPrivateKey filepath = do
 	content <- B.readFile filepath
-	let pkdata = case parsePEMKeyRSA content of
+	let pkdata = case PEM.parsePEMKeyRSA content of
 		Nothing -> error ("no valid RSA key section")
 		Just x  -> L.fromChunks [x]
-	let pk = case KeyRSA.decodePrivate pkdata of
+	case KeyRSA.decodePrivate pkdata of
 		Left err -> error ("cannot decode key: " ++ err)
-		Right x  -> PrivRSA $ RSA.PrivateKey
-			{ RSA.private_sz   = fromIntegral $ KeyRSA.lenmodulus x
-			, RSA.private_n    = KeyRSA.modulus x
-			, RSA.private_d    = KeyRSA.private_exponant x
-			, RSA.private_p    = KeyRSA.p1 x
-			, RSA.private_q    = KeyRSA.p2 x
-			, RSA.private_dP   = KeyRSA.exp1 x
-			, RSA.private_dQ   = KeyRSA.exp2 x
-			, RSA.private_qinv = KeyRSA.coef x
-			}
-	return pk
+		Right (_pub, x)  -> return $ TLS.PrivRSA x
