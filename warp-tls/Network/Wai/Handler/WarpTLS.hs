@@ -85,29 +85,29 @@ runTLS tset set app = do
 -- taken from stunnel example in tls-extra
 ciphers :: [TLS.Cipher]
 ciphers =
-	[ TLSExtra.cipher_AES128_SHA1
-	, TLSExtra.cipher_AES256_SHA1
-	, TLSExtra.cipher_RC4_128_MD5
-	, TLSExtra.cipher_RC4_128_SHA1
-	]
+    [ TLSExtra.cipher_AES128_SHA1
+    , TLSExtra.cipher_AES256_SHA1
+    , TLSExtra.cipher_RC4_128_MD5
+    , TLSExtra.cipher_RC4_128_SHA1
+    ]
 
 readCertificate :: FilePath -> IO X509.X509
 readCertificate filepath = do
-	content <- B.readFile filepath
-	let certdata = case PEM.parsePEMCert content of
-		Nothing -> error ("no valid certificate section")
-		Just x  -> x
-	let cert = case X509.decodeCertificate $ L.fromChunks [certdata] of
-		Left err -> error ("cannot decode certificate: " ++ err)
-		Right x  -> x
-	return cert
+    content <- B.readFile filepath
+    let certdata = case PEM.parsePEMCert content of
+        Nothing -> error ("no valid certificate section")
+        Just x  -> x
+    let cert = case X509.decodeCertificate $ L.fromChunks [certdata] of
+        Left err -> error ("cannot decode certificate: " ++ err)
+        Right x  -> x
+    return cert
 
 readPrivateKey :: FilePath -> IO TLS.PrivateKey
 readPrivateKey filepath = do
-	content <- B.readFile filepath
-	let pkdata = case PEM.parsePEMKeyRSA content of
-		Nothing -> error ("no valid RSA key section")
-		Just x  -> L.fromChunks [x]
-	case KeyRSA.decodePrivate pkdata of
-		Left err -> error ("cannot decode key: " ++ err)
-		Right (_pub, x)  -> return $ TLS.PrivRSA x
+    content <- B.readFile filepath
+    let pkdata = case PEM.parsePEMKeyRSA content of
+        Nothing -> error ("no valid RSA key section")
+        Just x  -> L.fromChunks [x]
+    case KeyRSA.decodePrivate pkdata of
+        Left err -> error ("cannot decode key: " ++ err)
+        Right (_pub, x)  -> return $ TLS.PrivRSA x
