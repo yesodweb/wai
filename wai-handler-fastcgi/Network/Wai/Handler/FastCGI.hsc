@@ -1,5 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE CPP #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Network.Wai.Handler.FastCGI
@@ -24,7 +25,11 @@ import Control.Monad    ( liftM, forever )
 import Data.Word (Word8)
 import Foreign          ( Ptr, castPtr, nullPtr, peekArray0
                         , throwIfNeg_, mallocBytes, free )
+#ifdef GHC_7_4
+import Foreign.C        (CInt(..), CString, CStringLen)
+#else
 import Foreign.C        (CInt, CString, CStringLen)
+#endif
 import Control.Exception (finally)
 import Foreign.Storable ( Storable (..) )
 

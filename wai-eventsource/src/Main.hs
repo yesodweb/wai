@@ -47,5 +47,5 @@ source chan = forever $ do
 main :: IO ()
 main = do
     chan <- newChan
-    forkIO . source $ chan
+    _ <- forkIO . source $ chan
     run 8000 (app chan)

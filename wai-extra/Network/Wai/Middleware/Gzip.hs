@@ -16,7 +16,6 @@
 ---------------------------------------------------------
 module Network.Wai.Middleware.Gzip
     ( gzip
-    , gzip'
     , GzipSettings
     , gzipFiles
     , GzipFiles (..)
@@ -25,18 +24,20 @@ module Network.Wai.Middleware.Gzip
     ) where
 
 import Network.Wai
-import Network.Wai.Zlib
 import Data.Maybe (fromMaybe)
-import Data.Enumerator (($$), joinI, (=$), run)
-import Data.Enumerator.Binary (enumFile, iterHandle)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString as S
 import Data.Default
 import Network.HTTP.Types (Status, Header)
 import Control.Monad.IO.Class (liftIO)
-import qualified Codec.Zlib.Enum as CZE
-import qualified System.IO as SIO
 import System.Directory (doesFileExist, createDirectoryIfMissing)
+import qualified Data.Conduit as C
+import qualified Data.Conduit.Zlib as CZ
+import qualified Data.Conduit.Binary as CB
+import qualified Data.Conduit.List as CL
+import Data.Conduit.Blaze (builderToByteString)
+import Blaze.ByteString.Builder (fromByteString)
+import Control.Exception (try, SomeException)
 
 data GzipSettings = GzipSettings
     { gzipFiles :: GzipFiles
@@ -60,14 +61,8 @@ defaultCheckMime = S8.isPrefixOf "text/"
 -- Possible future enhancements:
 --
 -- * Only compress if the response is above a certain size.
-gzip :: Bool -- ^ should we gzip files?
-     -> Middleware
-gzip files = gzip' def
-    { gzipFiles = if files then GzipCompress else GzipIgnore
-    }
-
-gzip' :: GzipSettings -> Middleware
-gzip' set app env = do
+gzip :: GzipSettings -> Middleware
+gzip set app env = do
     res <- app env
     case res of
         ResponseFile{} | gzipFiles set == GzipIgnore -> return res
@@ -79,7 +74,7 @@ gzip' set app env = do
                                 Just m
                                     | gzipCheckMime set m -> liftIO $ compressFile s hs file cache
                                 _ -> return res
-                        _ -> return $ ResponseEnumerator $ compressE set $ responseEnumerator res
+                        _ -> return $ compressE set res
                 else return res
   where
     enc = fromMaybe [] $ (splitCommas . S8.unpack)
@@ -94,15 +89,16 @@ compressFile s hs file cache = do
         then onSucc
         else do
             createDirectoryIfMissing True cache
-            x <- SIO.withFile tmpfile SIO.WriteMode $ \h ->
-                   run
-                 $ enumFile file
-                $$ CZE.gzip
-                =$ iterHandle h
-            either (const onErr) (const onSucc) x
+            x <-
+               try $ C.runResourceT $ CB.sourceFile file
+                C.$$ CZ.gzip C.=$ CB.sinkFile tmpfile
+            either onErr (const onSucc) x
   where
     onSucc = return $ ResponseFile s (fixHeaders hs) tmpfile Nothing
-    onErr = return $ ResponseFile s hs file Nothing
+
+    onErr :: SomeException -> IO Response
+    onErr = const $ return $ ResponseFile s hs file Nothing -- FIXME log the error message
+
     tmpfile = cache ++ '/' : map safe file
     safe c
         | 'A' <= c && c <= 'Z' = c
@@ -113,16 +109,18 @@ compressFile s hs file cache = do
     safe _ = '_'
 
 compressE :: GzipSettings
-          -> (forall a. ResponseEnumerator a)
-          -> (forall a. ResponseEnumerator a)
-compressE set re f =
-    re f'
-    --e s hs'
+          -> Response
+          -> Response
+compressE set res =
+    case lookup "content-type" hs of
+        Just m | gzipCheckMime set m ->
+            let hs' = fixHeaders hs
+             in ResponseSource s hs' $ b C.$= builderToByteString
+                                         C.$= CZ.gzip
+                                         C.$= CL.map fromByteString
+        _ -> res
   where
-    f' s hs =
-        case lookup "content-type" hs of
-            Just m | gzipCheckMime set m -> joinI $ compress $$ f s (fixHeaders hs)
-            _ -> f s hs
+    (s, hs, b) = responseSource res
 
 -- Remove Content-Length header, since we will certainly have a
 -- different length after gzip compression.

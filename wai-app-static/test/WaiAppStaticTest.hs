@@ -1,13 +1,15 @@
 {-# LANGUAGE OverloadedStrings, NoMonomorphismRestriction #-}
+module WaiAppStaticTest (specs) where 
+
 import Network.Wai.Application.Static
 
 import Test.Hspec.Monadic
 import Test.Hspec.QuickCheck
 import Test.Hspec.HUnit ()
 import Test.HUnit ((@?=))
-import Distribution.Simple.Utils (isInfixOf)
+import Data.List (isInfixOf)
 import qualified Data.ByteString.Char8 as S8
-import qualified Data.ByteString.Lazy.Char8 as L8
+-- import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import System.PosixCompat.Files (getFileStatus, modificationTime)
@@ -22,6 +24,7 @@ import Network.Wai.Test
 import Network.Socket.Internal as Sock
 import qualified Network.HTTP.Types as H
 import Control.Monad.IO.Class (liftIO)
+import Data.Monoid (mempty)
 
 defRequest :: Request
 defRequest = Request {
@@ -36,6 +39,8 @@ defRequest = Request {
 , serverPort = 80
 , isSecure = False
 , remoteHost = Sock.SockAddrInet 1 2
+, vault = mempty
+, requestBody = error "requestBody"
 }
 
 setRawPathInfo :: Request -> S8.ByteString -> Request
@@ -43,11 +48,10 @@ setRawPathInfo r rawPinfo =
   let pInfo = T.split (== '/') $ TE.decodeUtf8 rawPinfo
   in  r { rawPathInfo = rawPinfo, pathInfo = pInfo }
 
-
-main :: IO a
-main = hspecX $ do
-  let webApp = flip runSession $ staticApp defaultWebAppSettings  {ssFolder = fileSystemLookup "tests"}
-  let fileServerApp = flip runSession $ staticApp defaultFileServerSettings  {ssFolder = fileSystemLookup "tests"}
+specs :: Specs
+specs = do
+  let webApp = flip runSession $ staticApp defaultWebAppSettings  {ssFolder = fileSystemLookup "test"}
+  let fileServerApp = flip runSession $ staticApp defaultFileServerSettings  {ssFolder = fileSystemLookup "test"}
 
   let etag = "1B2M2Y8AsgTpgAmY7PhCfg=="
   let file = "a/b"
@@ -82,7 +86,7 @@ main = hspecX $ do
       assertHeader "Location" "../../a/b/c" req
 
     let absoluteApp = flip runSession $ staticApp $ defaultWebAppSettings {
-          ssFolder = fileSystemLookup "tests", ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
+          ssFolder = fileSystemLookup "test", ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
         }
     it "301 redirect when multiple slashes" $ absoluteApp $
       flip mapM_ ["/a//b/c", "a//b/c"] $ \path -> do
@@ -127,7 +131,7 @@ main = hspecX $ do
 
   describe "fileServerApp" $ do
     let fileDate = do
-          stat <- liftIO $ getFileStatus $ "tests/" ++ file
+          stat <- liftIO $ getFileStatus $ "test/" ++ file
           return $ formatHTTPDate . epochTimeToHTTPDate $ modificationTime stat
 
     it "directory listing for index" $ fileServerApp $ do

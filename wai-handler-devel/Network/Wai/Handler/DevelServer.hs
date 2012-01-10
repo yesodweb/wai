@@ -6,6 +6,8 @@ module Network.Wai.Handler.DevelServer
     ( run
     , runQuit
     , runNoWatch
+    , runWithReloadActions
+    , runQuitWithReloadActions
     ) where
 
 import Language.Haskell.Interpreter hiding (typeOf)
@@ -37,14 +39,18 @@ runNoWatch :: Int -> ModuleName -> FunctionName
            -> (FilePath -> IO [FilePath]) -> IO ()
 runNoWatch port modu func extras = do
     ah <- initAppHolder
-    _ <- reload modu func extras Nothing ah
+    _ <- reload modu func extras Nothing ah []
     Warp.run port $ toApp ah
 
 runQuit :: Int -> ModuleName -> FunctionName -> (FilePath -> IO [FilePath])
         -> IO ()
-runQuit port modu func extras = do
+runQuit port modu func extras = runQuitWithReloadActions port modu func extras []
+
+runQuitWithReloadActions :: Int -> ModuleName -> FunctionName -> (FilePath -> IO [FilePath])
+                         -> [IO (IO ())] -> IO ()
+runQuitWithReloadActions port modu func extras actions = do
     sig <- newEmptyMVar
-    _ <- forkIO $ run port modu func extras (Just sig)
+    _ <- forkIO $ runWithReloadActions port modu func extras (Just sig) actions
     go sig
   where
     go sig = do
@@ -57,12 +63,18 @@ runQuit port modu func extras = do
                 go sig
             _ -> go sig
 
+runWithReloadActions :: Int -> ModuleName -> FunctionName -> (FilePath -> IO [FilePath]) 
+                     -> Maybe (MVar ()) -> [IO (IO ())] -> IO ()
+runWithReloadActions port modu func extras msig initActions = do
+    actions <- mapM id initActions
+    ah <- initAppHolder
+    _ <- forkIO $ fillApp modu func extras ah msig actions 
+    Warp.run port $ toApp ah
+    return ()
+
 run :: Int -> ModuleName -> FunctionName -> (FilePath -> IO [FilePath]) -> Maybe (MVar ())
     -> IO ()
-run port modu func extras msig = do
-    ah <- initAppHolder
-    _ <- forkIO $ fillApp modu func extras ah msig
-    Warp.run port $ toApp ah
+run port modu func extras msig = runWithReloadActions port modu func extras msig []
 
 {-
 startApp :: Queue -> Handler -> IO ()
@@ -93,8 +105,8 @@ constSE :: x -> SomeException -> x
 constSE = const
 
 fillApp :: String -> String
-        -> (FilePath -> IO [FilePath]) -> AppHolder -> Maybe (MVar ()) -> IO ()
-fillApp modu func dirs ah msig =
+        -> (FilePath -> IO [FilePath]) -> AppHolder -> Maybe (MVar ()) -> [IO ()] -> IO ()
+fillApp modu func dirs ah msig actions =
     go Nothing []
   where
     go prevError prevFiles = do
@@ -107,7 +119,7 @@ fillApp modu func dirs ah msig =
                     return $ times /= map snd prevFiles
         (newError, newFiles) <-
             if toReload
-                then reload modu func dirs prevError ah
+                then reload modu func dirs prevError ah actions
                 else return (prevError, prevFiles)
         threadDelay 1000000
         go newError newFiles
@@ -116,8 +128,9 @@ reload :: String -> String
        -> (FilePath -> IO [FilePath])
        -> Maybe SomeException
        -> AppHolder
+       -> [IO ()]
        -> IO (Maybe SomeException, [(FilePath, ClockTime)])
-reload modu func extras prevError ah = do
+reload modu func extras prevError ah actions = do
     case prevError of
          Nothing -> putStrLn "Attempting to interpret your app..."
          _       -> return ()
@@ -136,6 +149,7 @@ reload modu func extras prevError ah = do
             E.handle onInitErr $ do
                 swapApp (\f -> app $ f . debug) ah
                 times <- getTimes files
+                sequence_ actions
                 return (Nothing, zip files times)
     where
         onInitErr e = do

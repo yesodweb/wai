@@ -1,5 +1,5 @@
 Name:                wai-websockets
-Version:             0.4.0
+Version:             1.0.0
 Synopsis:            Provide a bridge betweeen WAI and the websockets package.
 License:             BSD3
 License-file:        LICENSE
@@ -14,20 +14,26 @@ Description:         This is primarily intended for use with Warp and its settin
 
 extra-source-files: static/client.js, static/client.html, static/screen.css
 
+flag example
+
 Library
   Build-Depends:     base                          >= 3        && < 5
-                   , bytestring                    >= 0.9      && < 0.10
-                   , wai                           >= 0.4      && < 0.5
-                   , enumerator                    >= 0.4.5    && < 0.5
+                   , bytestring                >= 0.9.1.4  && < 0.10
+                   , wai                           >= 1.0      && < 1.1
+                   , enumerator                >= 0.4.8    && < 0.5
                    , network-enumerator            >= 0.1.2    && < 0.2
                    , blaze-builder                 >= 0.2.1.4  && < 0.4
-                   , case-insensitive              >= 0.2      && < 0.4
-                   , network                       >= 2.2      && < 2.4
-                   , websockets                    >= 0.3      && < 0.4
+                   , case-insensitive              >= 0.2
+                   , network                   >= 2.2.1.5 && < 2.4
+                   , websockets                    >= 0.4      && < 0.5
   Exposed-modules:   Network.Wai.Handler.WebSockets
   ghc-options:       -Wall
 
 Executable           wai-websockets-example
+  if flag(example)
+    buildable: True
+  else
+    buildable: False
   Build-Depends:     base >=3 && < 5,
                      wai-websockets,
                      websockets,
@@ -44,7 +50,7 @@ Executable           wai-websockets-example
                      text,
                      file-embed
 
-  ghc-options:       -Wall -O2 -threaded
+  ghc-options:       -Wall -threaded
   main-is:           server.lhs
 
 source-repository head

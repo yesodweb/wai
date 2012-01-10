@@ -1,5 +1,5 @@
 name:            wai-app-static
-version:         0.3.4
+version:         1.0.0
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -12,10 +12,11 @@ cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        http://www.yesodweb.com/book/wai
 Extra-source-files:
-  folder.png
-  haskell.png
-  tests/runtests.hs
-  tests/a/b
+  images/folder.png
+  images/haskell.png
+  test/WaiAppStaticTest.hs
+  test/a/b
+  tests.hs
 
 Flag print
     Description:   print debug info
@@ -23,18 +24,18 @@ Flag print
 
 library
     build-depends:   base                      >= 4        && < 5
-                   , wai                       >= 0.4      && < 0.5
+                   , wai                       >= 1.0      && < 1.1
                    , bytestring                >= 0.9.1.4  && < 0.10
                    , http-types                >= 0.6      && < 0.7
                    , transformers              >= 0.2.2    && < 0.3
-                   , unix-compat               >= 0.2      && < 0.3
-                   , directory                 >= 1.0      && < 1.2
+                   , unix-compat               >= 0.2
+                   , directory                 >= 1.0.1    && < 1.2
                    , containers                >= 0.2      && < 0.5
                    , blaze-html                >= 0.4      && < 0.5
-                   , time                      >= 1.1.4    && < 1.4
+                   , time                      >= 1.1.4
                    , old-locale                >= 1.0.0.2  && < 1.1
                    , file-embed                >= 0.0.3.1  && < 0.1
-                   , text                      >= 0.5      && < 1.0
+                   , text                  >= 0.7           && < 0.12
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , base64-bytestring         >= 0.1      && < 0.2
                    , cryptohash                >= 0.7      && < 0.8
@@ -47,19 +48,18 @@ library
       cpp-options:  -DPRINT
 
 test-suite runtests
-    hs-source-dirs: tests
-    main-is: runtests.hs
+    hs-source-dirs: test
+    main-is: ../tests.hs
     type: exitcode-stdio-1.0
 
     build-depends:   base                      >= 4        && < 5
-                   , hspec >= 0.8 && < 0.9
+                   , hspec >= 0.8 && < 0.10
                    , HUnit
-                   , unix-compat               >= 0.2      && < 0.3
-                   , time                      >= 1.1.4    && < 1.4
+                   , unix-compat               >= 0.2
+                   , time                      >= 1.1.4
                    , old-locale                >= 1.0.0.2  && < 1.1
                    , http-date
-                   , Cabal
-                   , wai-app-static >= 0.3
+                   , wai-app-static >= 1.0
                    , wai-test
                    , wai
                    , http-types

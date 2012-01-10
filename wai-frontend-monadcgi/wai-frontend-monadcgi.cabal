@@ -1,0 +1,29 @@
+name:            wai-frontend-monadcgi
+version:         0.2.0
+license:         BSD3
+license-file:    LICENSE
+author:          Michael Snoyman <michael@snoyman.com>
+maintainer:      Michael Snoyman <michael@snoyman.com>
+synopsis:        Run CGI apps on WAI.
+description:     Allows programs written against MonadCGI to run with any WAI handler. This is most useful for running your existing CGI apps on Warp. For true "yo dawg"-ness, try running this through the WAI CGI backend.
+category:        Web
+stability:       stable
+cabal-version:   >= 1.6
+build-type:      Simple
+
+library
+    build-depends: base              >= 4        && < 5
+                 , bytestring
+                 , containers        >= 0.2
+                 , cgi
+                 , conduit           >= 0.0.1    && < 0.1
+                 , http-types
+                 , transformers
+                 , case-insensitive
+                 , wai               >= 1.0      && < 1.1
+    exposed-modules: Network.Wai.Frontend.MonadCGI
+    ghc-options:     -Wall
+
+Source-repository head
+    type:            git
+    location:        git://github.com/yesodweb/wai.git

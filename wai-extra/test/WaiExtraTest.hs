@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-import Test.Hspec
+module WaiExtraTest (specs) where
+
+import Test.Hspec.Monadic
 import Test.Hspec.HUnit ()
 import Test.HUnit hiding (Test)
 
@@ -11,6 +13,7 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text.Lazy as T
+import qualified Data.Text.Encoding as TE
 import Control.Arrow
 
 import Network.Wai.Middleware.Jsonp
@@ -19,22 +22,24 @@ import Network.Wai.Middleware.Vhost
 import Network.Wai.Middleware.Autohead
 import Network.Wai.Middleware.MethodOverride
 import Network.Wai.Middleware.AcceptOverride
-import Network.Wai.Middleware.Debug (debugHandle)
+import Network.Wai.Middleware.RequestLogger (logHandle)
 import Codec.Compression.GZip (decompress)
 
-import Data.Enumerator (run_, enumList, ($$), Iteratee)
-import Data.Enumerator.Binary (enumFile)
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
+import Data.Conduit.Binary (sourceFile)
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (parseSimpleQuery, status200)
+import Data.Monoid (mappend)
 
-main :: IO ()
-main = hspecX $ do
-  describe "Network.Wai.Parse"
-    [ it "parseQueryString" caseParseQueryString
-    , it "parseQueryString with question mark" caseParseQueryStringQM
-    , it "parseHttpAccept" caseParseHttpAccept
-    , it "parseRequestBody" caseParseRequestBody
+specs :: Specs
+specs = do
+  describe "Network.Wai.Parse" $ do
+    it "parseQueryString" caseParseQueryString
+    it "parseQueryString with question mark" caseParseQueryStringQM
+    it "parseHttpAccept" caseParseHttpAccept
+    it "parseRequestBody" caseParseRequestBody
     {-
     , it "findBound" caseFindBound
     , it "sinkTillBound" caseSinkTillBound
@@ -42,16 +47,15 @@ main = hspecX $ do
     , it "killCRLF" caseKillCRLF
     , it "takeLine" caseTakeLine
     -}
-    , it "jsonp" caseJsonp
-    , it "gzip" caseGzip
-    , it "gzip not for MSIE" caseGzipMSIE
-    , it "vhost" caseVhost
-    , it "autohead" caseAutohead
-    , it "method override" caseMethodOverride
-    , it "accept override" caseAcceptOverride
-    , it "dalvik multipart" caseDalvikMultipart
-    , it "debug request body" caseDebugRequestBody
-    ]
+    it "jsonp" caseJsonp
+    it "gzip" caseGzip
+    it "gzip not for MSIE" caseGzipMSIE
+    it "vhost" caseVhost
+    it "autohead" caseAutohead
+    it "method override" caseMethodOverride
+    it "accept override" caseAcceptOverride
+    it "dalvik multipart" caseDalvikMultipart
+    it "debug request body" caseDebugRequestBody
 
 caseParseQueryString :: Assertion
 caseParseQueryString = do
@@ -94,12 +98,14 @@ caseParseHttpAccept = do
 
 parseRequestBody' :: Sink ([S8.ByteString] -> [S8.ByteString]) L.ByteString
                   -> SRequest
-                  -> Iteratee S.ByteString IO ([(S.ByteString, S.ByteString)], [(S.ByteString, FileInfo L.ByteString)])
+                  -> C.ResourceT IO ([(S.ByteString, S.ByteString)], [(S.ByteString, FileInfo L.ByteString)])
 parseRequestBody' sink (SRequest req bod) =
-    enumList 1 (L.toChunks bod) $$ parseRequestBody sink req
+    CL.sourceList (L.toChunks bod) C.$$ parseRequestBody sink req
 
 caseParseRequestBody :: Assertion
-caseParseRequestBody = run_ t where
+caseParseRequestBody =
+    C.runResourceT t
+  where
     content2 = S8.pack $
         "--AaB03x\n" ++
         "Content-Disposition: form-data; name=\"document\"; filename=\"b.txt\"\n" ++
@@ -164,7 +170,7 @@ toRequest :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest ctype content = SRequest defaultRequest
     { requestHeaders = [("Content-Type", ctype)]
     , requestMethod = "POST"
-    , rawPathInfo = ""
+    , rawPathInfo = "/"
     , rawQueryString = ""
     , queryString = []
     } (L.fromChunks [content])
@@ -255,7 +261,7 @@ caseJsonp = flip runSession jsonpApp $ do
     assertBody "{\"foo\":\"bar\"}" sres3
 
 gzipApp :: Application
-gzipApp = gzip True $ const $ return $ responseLBS status200
+gzipApp = gzip def $ const $ return $ responseLBS status200
     [("Content-Type", "text/plain")]
     "test"
 
@@ -393,7 +399,8 @@ caseDalvikMultipart = do
     let request' = defaultRequest
             { requestHeaders = headers
             }
-    (params, files) <- run_ $ enumFile "test/dalvik-request" $$ parseRequestBody lbsSink request'
+    (params, files) <- C.runResourceT $ sourceFile "test/requests/dalvik-request"
+                       C.$$ parseRequestBody lbsSink request'
     lookup "scannedTime" params @?= Just "1.298590056748E9"
     lookup "geoLong" params @?= Just "0"
     lookup "geoLat" params @?= Just "0"
@@ -417,10 +424,14 @@ caseDebugRequestBody = do
                 }
   where
     params = [("foo", "bar"), ("baz", "bin")]
-    postOutput = T.pack $ "POST \nAccept: \nPOST " ++ (show params)
-    getOutput _qs = T.pack $ "GET /location" ++ "\nAccept: \nGET " ++ (show params) -- \nAccept: \n" ++ (show params)
+    -- FIXME change back once we include post parameter output in logging postOutput = T.pack $ "POST \nAccept: \nPOST " ++ (show params)
+    postOutput = T.pack $ "POST / Accept: \n"
+    -- FIXME getOutput _qs = T.pack $ "GET /location" ++ "\nAccept: \nGET " ++ (show params) -- \nAccept: \n" ++ (show params)
+    getOutput _qs = T.pack $ "GET /location?foo=bar&baz=bin Accept: \n"
 
-    debugApp output = debugHandle (\t -> liftIO $ assertEqual "debug" output t) $ \_req -> do
+    debugApp output' = logHandle (\t -> liftIO $ assertEqual "debug" output t) $ \_req -> do
         return $ responseLBS status200 [ ] ""
+      where
+        output = TE.encodeUtf8 $ T.toStrict output'
     {-debugApp = debug $ \req -> do-}
         {-return $ responseLBS status200 [ ] ""-}

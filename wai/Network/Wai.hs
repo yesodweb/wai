@@ -39,8 +39,7 @@ module Network.Wai
     ( -- * WAI interface
       Request (..)
     , Response (..)
-    , ResponseEnumerator
-    , responseEnumerator
+    , responseSource
     , Application
     , Middleware
     , FilePart (..)
@@ -51,15 +50,17 @@ module Network.Wai
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.Typeable (Typeable)
-import Data.Enumerator (Enumerator, Iteratee (..), ($$), joinI, run_)
-import qualified Data.Enumerator as E
-import qualified Data.Enumerator.List as EL
-import Data.Enumerator.Binary (enumFile, enumFileRange)
-import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString)
+import Control.Monad.Trans.Resource (ResourceT)
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
+import qualified Data.Conduit.Binary as CB
+import Blaze.ByteString.Builder (Builder, fromLazyByteString)
 import Network.Socket (SockAddr)
 import qualified Network.HTTP.Types as H
 import Data.Text (Text)
 import Data.ByteString.Lazy.Char8 () -- makes it easier to use responseLBS
+import Blaze.ByteString.Builder (fromByteString)
+import Data.Vault (Vault)
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
@@ -94,13 +95,39 @@ data Request = Request
   ,  pathInfo       :: [Text]
   -- | Parsed query string information
   ,  queryString    :: H.Query
+  ,  requestBody    :: C.BufferedSource IO B.ByteString
+  -- | A location for arbitrary data to be shared by applications and middleware.
+  , vault           :: Vault
   }
-  deriving (Show, Typeable)
+  deriving (Typeable)
 
+-- |
+--
+-- Some questions and answers about the usage of 'Builder' here:
+--
+-- Q1. Shouldn't it be at the user's discretion to use Builders internally and
+-- then create a stream of ByteStrings?
+--
+-- A1. That would be less efficient, as we wouldn't get cheap concatenation
+-- with the response headers.
+--
+-- Q2. Isn't it really inefficient to convert from ByteString to Builder, and
+-- then right back to ByteString?
+--
+-- A2. No. If the ByteStrings are small, then they will be copied into a larger
+-- buffer, which should be a performance gain overall (less system calls). If
+-- they are already large, then blaze-builder uses an InsertByteString
+-- instruction to avoid copying.
+--
+-- Q3. Doesn't this prevent us from creating comet-style servers, since data
+-- will be cached?
+--
+-- A3. You can force blaze-builder to output a ByteString before it is an
+-- optimal size by sending a flush command.
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
-    | ResponseEnumerator (forall a. ResponseEnumerator a)
+    | ResponseSource H.Status H.ResponseHeaders (C.Source IO Builder)
   deriving Typeable
 
 data FilePart = FilePart
@@ -108,26 +135,23 @@ data FilePart = FilePart
     , filePartByteCount :: Integer
     } deriving Show
 
-type ResponseEnumerator a =
-    (H.Status -> H.ResponseHeaders -> Iteratee Builder IO a) -> IO a
+responseSource :: Response -> (H.Status, H.ResponseHeaders, C.Source IO Builder) -- FIXME re-analyze usage of Builder
+responseSource (ResponseSource s h b) = (s, h, b)
+responseSource (ResponseFile s h fp (Just part)) =
+    (s, h, sourceFilePart part fp C.$= CL.map fromByteString)
+responseSource (ResponseFile s h fp Nothing) =
+    (s, h, CB.sourceFile fp C.$= CL.map fromByteString)
+responseSource (ResponseBuilder s h b) =
+    (s, h, CL.sourceList [b])
 
-responseEnumerator :: Response -> ResponseEnumerator a
-responseEnumerator (ResponseEnumerator e) f = e f
-responseEnumerator (ResponseFile s h fp mpart) f =
-    run_ $ (maybe enumFile enumFilePart) mpart fp $$ joinI
-         $ EL.map fromByteString $$ f s h
-responseEnumerator (ResponseBuilder s h b) f = run_ $ do
-    E.yield () $ E.Chunks [b]
-    f s h
-
-enumFilePart :: FilePart -> FilePath -> Enumerator B.ByteString IO a
-enumFilePart (FilePart offset count) fp =
-    enumFileRange fp (Just offset) (Just count)
+sourceFilePart :: FilePart -> FilePath -> C.Source IO B.ByteString
+sourceFilePart (FilePart offset count) fp =
+    CB.sourceFileRange fp (Just offset) (Just count)
 
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString
 
-type Application = Request -> Iteratee B.ByteString IO Response
+type Application = Request -> ResourceT IO Response
 
 -- | Middleware is a component that sits between the server and application. It
 -- can do such tasks as GZIP encoding or response caching. What follows is the

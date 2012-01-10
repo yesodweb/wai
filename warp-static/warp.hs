@@ -5,13 +5,15 @@ import Network.Wai.Application.Static
     , defaultFileServerSettings, fileSystemLookup
     , fileName, toFilePath
     )
-import Network.Wai.Handler.Warp (run)
-import System.Console.CmdArgs
+import Network.Wai.Handler.Warp
+    ( runSettings, defaultSettings, settingsHost, settingsPort
+    )
+import System.Console.CmdArgs hiding (def)
 import Text.Printf (printf)
 import System.Directory (canonicalizePath)
 import Control.Monad (unless)
 import Network.Wai.Middleware.Autohead
-import Network.Wai.Middleware.Debug
+import Network.Wai.Middleware.RequestLogger (logStdout)
 import Network.Wai.Middleware.Gzip
 import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as S8
@@ -26,11 +28,12 @@ data Args = Args
     , quiet :: Bool
     , verbose :: Bool
     , mime :: [(String, String)]
+    , host :: String
     }
     deriving (Show, Data, Typeable)
 
 defaultArgs :: Args
-defaultArgs = Args "." ["index.html", "index.htm"] 3000 False False False []
+defaultArgs = Args "." ["index.html", "index.htm"] 3000 False False False [] "*"
 
 main :: IO ()
 main = do
@@ -39,10 +42,13 @@ main = do
     let mimeMap = Map.fromList mime' `Map.union` defaultMimeTypes
     docroot' <- canonicalizePath docroot
     unless quiet $ printf "Serving directory %s on port %d with %s index files.\n" docroot' port (if noindex then "no" else show index)
-    let middle = gzip False
-               . (if verbose then debug else id)
+    let middle = gzip def
+               . (if verbose then logStdout else id)
                . autohead
-    run port $ middle $ staticApp defaultFileServerSettings
+    runSettings defaultSettings
+        { settingsPort = port
+        , settingsHost = host
+        } $ middle $ staticApp defaultFileServerSettings
         { ssFolder = fileSystemLookup $ toFilePath docroot
         , ssIndices = if noindex then [] else map pack index
         , ssListing = Just defaultListing
