@@ -120,6 +120,12 @@ import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
 #endif
 
+import Data.Version (showVersion)
+import qualified Paths_warp
+
+warpVersion :: String
+warpVersion = showVersion Paths_warp.version
+
 data Connection = Connection
     { connSendMany :: [B.ByteString] -> IO ()
     , connSendAll  :: B.ByteString -> IO ()
@@ -653,6 +659,3 @@ serverHeader hdrs = case lookup key hdrs of
     key = "Server"
     ver = B.pack $ "Warp/" ++ warpVersion
     server = (key, ver)
-
-warpVersion :: String
-warpVersion = error "warpVersion"

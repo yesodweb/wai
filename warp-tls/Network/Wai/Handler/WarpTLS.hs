@@ -94,20 +94,21 @@ ciphers =
 readCertificate :: FilePath -> IO X509.X509
 readCertificate filepath = do
     content <- B.readFile filepath
-    let certdata = case PEM.parsePEMCert content of
-        Nothing -> error ("no valid certificate section")
-        Just x  -> x
-    let cert = case X509.decodeCertificate $ L.fromChunks [certdata] of
+    certdata <-
+        case PEM.parsePEMCert content of
+            Nothing -> error "no valid certificate section"
+            Just x  -> return x
+    case X509.decodeCertificate $ L.fromChunks [certdata] of
         Left err -> error ("cannot decode certificate: " ++ err)
-        Right x  -> x
-    return cert
+        Right x  -> return x
 
 readPrivateKey :: FilePath -> IO TLS.PrivateKey
 readPrivateKey filepath = do
     content <- B.readFile filepath
-    let pkdata = case PEM.parsePEMKeyRSA content of
-        Nothing -> error ("no valid RSA key section")
-        Just x  -> L.fromChunks [x]
+    pkdata <-
+        case PEM.parsePEMKeyRSA content of
+            Nothing -> error "no valid RSA key section"
+            Just x  -> return (L.fromChunks [x])
     case KeyRSA.decodePrivate pkdata of
         Left err -> error ("cannot decode key: " ++ err)
         Right (_pub, x)  -> return $ TLS.PrivRSA x
