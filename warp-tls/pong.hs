@@ -1,12 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Network.Wai
-import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp (defaultSettings)
+import Network.Wai.Handler.WarpTLS
 import Network.HTTP.Types (status200)
 import Blaze.ByteString.Builder (copyByteString)
 import Data.Monoid
 import qualified Data.Conduit.List as CL
 
-main = run 3000 app
+main = do
+    putStrLn "https://localhost:3000/"
+    runTLS (TLSSettings "certificate.pem" "key.pem") defaultSettings app
 
 app req = return $
     case rawPathInfo req of
