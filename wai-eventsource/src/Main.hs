@@ -8,10 +8,10 @@ import Control.Concurrent.Chan
 import Network.Wai.Handler.Warp (run)
 import Network.Wai
 import Network.HTTP.Types (statusOK)
-import Data.Enumerator (run_, ($$))
-import Data.Enumerator.List (generateM)
+import qualified Data.Conduit as C
 import Data.Time.Clock.POSIX
 import Blaze.ByteString.Builder.Char.Utf8 (fromString)
+import Blaze.ByteString.Builder (Builder)
 
 import EventStream
 
@@ -27,14 +27,16 @@ app chan req =
 
 
 res :: Chan ServerEvent -> Response
-res chan = ResponseEnumerator (resE chan)
+res chan = ResponseSource statusOK [("Content-Type", "text/event-stream")] (resE chan)
 
 
-resE :: Chan ServerEvent -> ResponseEnumerator a
-resE chan genIter =
-    run_ $ generateM (fmap eventToBuilder $ readChan chan) $$ iter
+resE :: Chan ServerEvent -> C.Source IO Builder
+resE chan =
+  C.sourceIO ign (\_ -> ign) (\_ -> fmap (f . eventToBuilder) $ readChan chan)
   where
-    iter = genIter statusOK [("Content-Type", "text/event-stream")]
+    ign = return ()
+    f Nothing = C.Closed
+    f (Just b) = C.Open b
 
 
 source :: Chan ServerEvent -> IO ()
