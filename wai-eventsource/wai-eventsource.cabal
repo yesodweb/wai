@@ -12,7 +12,23 @@ Cabal-version:       >=1.2
 
 flag example
 
--- TODO: Library interface
+
+Library
+  Build-depends:
+      base                      >= 4.3 && < 5
+    , bytestring                >= 0.9.1.4  && < 0.10
+    , blaze-builder             >= 0.3 && < 0.4
+    , conduit                   >= 0.0 && < 0.1
+    , MonadCatchIO-transformers >= 0.2.1 && < 0.3
+    , mtl                       >= 2 && < 3
+    , http-types                >= 0.6      && < 0.7
+    , wai                       >= 0.4
+    , warp                      >= 0.4
+
+  ghc-options:     -Wall
+  hs-source-dirs:  src
+  exposed-modules: Network.Wai.EventSource
+  other-modules:   Network.Wai.EventSource.EventStream
 
 Executable wai-eventsource
   if flag(example)
