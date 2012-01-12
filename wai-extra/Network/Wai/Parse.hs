@@ -5,6 +5,7 @@
 module Network.Wai.Parse
     ( parseHttpAccept
     , parseRequestBody
+    , conduitRequestBody
     , Sink (..)
     , lbsSink
     , tempFileSink
@@ -36,6 +37,7 @@ import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Control.Monad.IO.Class (liftIO)
 import qualified Network.HTTP.Types as H
+import Data.Either (partitionEithers)
 
 uncons :: S.ByteString -> Maybe (Word8, S.ByteString)
 uncons s
@@ -129,15 +131,23 @@ type File y = (S.ByteString, FileInfo y)
 parseRequestBody :: Sink x y
                  -> Request
                  -> C.Sink S.ByteString IO ([Param], [File y])
-parseRequestBody sink req = do
+parseRequestBody s r = fmap partitionEithers $ conduitRequestBody s r C.=$ CL.consume
+
+conduitRequestBody :: Sink x y
+                   -> Request
+                   -> C.Conduit S.ByteString IO (Either Param (File y))
+conduitRequestBody sink req = do
     case ctype of
-        Nothing -> return ([], [])
-        Just Nothing -> do -- url-encoded
+        Nothing -> C.Conduit $ return $ C.PreparedConduit
+            { C.conduitPush = \bs -> return $ C.Finished (Just bs) []
+            , C.conduitClose = return []
+            }
+        Just Nothing -> C.sequenceSink () $ \() -> do -- url-encoded
             -- NOTE: in general, url-encoded data will be in a single chunk.
             -- Therefore, I'm optimizing for the usual case by sticking with
             -- strict byte strings here.
             bs <- CL.consume
-            return (H.parseSimpleQuery $ S.concat bs, [])
+            return $ C.Emit () $ map Left $ H.parseSimpleQuery $ S.concat bs
         Just (Just bound) -> -- multi-part
             let bound'' = S8.pack "--" `S.append` bound
              in parsePieces sink bound''
@@ -186,12 +196,18 @@ takeLines = do
                 return $ l : ls
 
 parsePieces :: Sink x y -> S.ByteString
-            -> C.Sink S.ByteString IO ([Param], [File y])
-parsePieces sink bound = do
+            -> C.Conduit S.ByteString IO (Either Param (File y))
+parsePieces sink bound = C.sequenceSink True (parsePiecesSink sink bound)
+
+parsePiecesSink :: Sink x y
+                -> S.ByteString
+                -> C.SequencedSink Bool S.ByteString IO (Either Param (File y))
+parsePiecesSink _ _ False = return C.Stop
+parsePiecesSink sink bound True = do
     _boundLine <- takeLine
     res' <- takeLines
     case res' of
-        [] -> return ([], [])
+        [] -> return C.Stop
         _ -> do
             let ls' = map parsePair res'
             let x = do
@@ -209,11 +225,7 @@ parsePieces sink bound = do
                     y <- liftIO $ sinkClose sink seed'
                     let fi = FileInfo filename ct y
                     let y' = (name, fi)
-                    (xs, ys) <-
-                        if wasFound
-                            then parsePieces sink bound
-                            else return ([], [])
-                    return (xs, y' : ys)
+                    return $ C.Emit wasFound [Right y']
                 Just (_ct, name, Nothing) -> do
                     let seed = id
                     let iter front bs = return $ front . (:) bs
@@ -221,19 +233,13 @@ parsePieces sink bound = do
                         sinkTillBound bound iter seed
                     let bs = S.concat $ front []
                     let x' = (name, qsDecode bs)
-                    (xs, ys) <-
-                        if wasFound
-                            then parsePieces sink bound
-                            else return ([], [])
-                    return (x' : xs, ys)
+                    return $ C.Emit wasFound [Left x']
                 _ -> do
                     -- ignore this part
                     let seed = ()
                         iter () _ = return ()
                     ((), wasFound) <- sinkTillBound bound iter seed
-                    if wasFound
-                        then parsePieces sink bound
-                        else return ([], [])
+                    return $ C.Emit wasFound []
   where
     contDisp = S8.pack "Content-Disposition"
     contType = S8.pack "Content-Type"
