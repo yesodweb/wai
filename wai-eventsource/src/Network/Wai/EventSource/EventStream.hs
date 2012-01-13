@@ -5,7 +5,7 @@
     A WAI adapter to the HTML5 Server-Sent Events API.  Push-mode and
     pull-mode interfaces are both available.
 -}
-module EventStream (
+module Network.Wai.EventSource.EventStream (
     ServerEvent(..),
     eventToBuilder
     ) where
