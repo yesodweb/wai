@@ -1,9 +1,9 @@
 Name:                wai-websockets
-Version:             1.1.0
+Version:             1.1.1
 Synopsis:            Provide a bridge betweeen WAI and the websockets package.
 License:             BSD3
 License-file:        LICENSE
-Author:              Michael Snoyman
+Author:              Michael Snoyman, Jasper Van der Jeugt
 Maintainer:          michael@snoyman.com
 Homepage:            http://github.com/yesodweb/wai
 Category:            Web, Yesod
