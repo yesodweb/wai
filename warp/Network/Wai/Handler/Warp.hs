@@ -253,7 +253,7 @@ serveConnection settings th onException port app conn remoteHost' = do
   where
     serveConnection' :: ResourceT IO ()
     serveConnection' = do
-        fromClient <- C.bufferSource $ connSource conn th
+        fromClient <- C.bufferSource $ C.Source $ return $ connSource conn th
         serveConnection'' fromClient
 
     serveConnection'' fromClient = do
