@@ -19,7 +19,7 @@ library
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , transformers              >= 0.2.2    && < 0.3
                    , containers                >= 0.2      && < 0.5
-                   , conduit                   >= 0.0      && < 0.1
+                   , conduit
                    , blaze-builder-conduit     >= 0.0      && < 0.1
                    , cookie                    >= 0.2      && < 0.4
                    , HUnit                     >= 1.2      && < 1.3

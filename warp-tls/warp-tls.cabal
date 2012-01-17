@@ -18,7 +18,7 @@ Library
                    , wai                           >= 1.0      && < 1.1
                    , warp                          >= 1.0      && < 1.1
                    , transformers                  >= 0.2      && < 0.3
-                   , conduit                       >= 0.0      && < 0.1
+                   , conduit
                    , certificate                   >= 1.0.1    && < 1.1
                    , cryptocipher                  >= 0.3      && < 0.4
                    , tls-extra                     >= 0.4      && < 0.5

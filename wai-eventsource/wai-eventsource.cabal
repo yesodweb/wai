@@ -18,7 +18,7 @@ Library
       base                      >= 4.3 && < 5
     , bytestring                >= 0.9.1.4  && < 0.10
     , blaze-builder             >= 0.3 && < 0.4
-    , conduit                   >= 0.0 && < 0.1
+    , conduit
     , MonadCatchIO-transformers >= 0.2.1 && < 0.3
     , mtl                       >= 2 && < 3
     , http-types                >= 0.6      && < 0.7
