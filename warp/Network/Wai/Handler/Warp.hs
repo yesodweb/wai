@@ -120,15 +120,11 @@ import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
 #endif
 
-
-#ifndef MEGA
 import Data.Version (showVersion)
 import qualified Paths_warp
-warpVersion = showVersion Paths_warp.version
-#else
-warpVersion = "0.4.6"
-#endif
+
 warpVersion :: String
+warpVersion = showVersion Paths_warp.version
 
 data Connection = Connection
     { connSendMany :: [B.ByteString] -> IO ()
