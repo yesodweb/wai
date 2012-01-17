@@ -8,6 +8,7 @@ import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Monad (forM_)
 
 import System.IO (hFlush)
+import System.IO.Unsafe (unsafePerformIO)
 import Data.ByteString (ByteString, hPutStr, hGetSome)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -53,12 +54,18 @@ ignoreBody icount req = do
         else err icount ("Invalid request method" :: String, requestMethod req)
     return $ responseLBS status200 [] "Ignored the body"
 
+nextPort :: I.IORef Int
+nextPort = unsafePerformIO $ I.newIORef 5000
+
+getPort :: IO Int
+getPort = I.atomicModifyIORef nextPort $ \p -> (p + 1, p)
+
 runTest :: Int -- ^ expected number of requests
-        -> Int -- ^ port to run on
         -> CounterApplication
         -> [ByteString] -- ^ chunks to send
         -> IO ()
-runTest expected port app chunks = do
+runTest expected app chunks = do
+    port <- getPort
     ref <- I.newIORef (Right 0)
     tid <- forkIO $ run port $ app ref
     threadDelay 1000
@@ -81,24 +88,24 @@ singlePostHello = "POST /hello HTTP/1.1\r\nHost: localhost\r\nContent-length: 5\
 main :: IO ()
 main = hspecX $ do
     describe "non-pipelining" $ do
-        it "no body, read" $ runTest 5 5007 readBody $ replicate 5 singleGet
-        it "no body, ignore" $ runTest 5 5003 ignoreBody $ replicate 5 singleGet
-        it "has body, read" $ runTest 2 5004 readBody
+        it "no body, read" $ runTest 5 readBody $ replicate 5 singleGet
+        it "no body, ignore" $ runTest 5 ignoreBody $ replicate 5 singleGet
+        it "has body, read" $ runTest 2 readBody
             [ singlePostHello
             , singleGet
             ]
-        it "has body, ignore" $ runTest 2 5005 ignoreBody
+        it "has body, ignore" $ runTest 2 ignoreBody
             [ singlePostHello
             , singleGet
             ]
     describe "pipelining" $ do
-        it "no body, read" $ runTest 5 5006 readBody [S.concat $ replicate 5 singleGet]
-        it "no body, ignore" $ runTest 5 5002 ignoreBody [S.concat $ replicate 5 singleGet]
-        it "has body, read" $ runTest 2 5001 readBody $ return $ S.concat
+        it "no body, read" $ runTest 5 readBody [S.concat $ replicate 5 singleGet]
+        it "no body, ignore" $ runTest 5 ignoreBody [S.concat $ replicate 5 singleGet]
+        it "has body, read" $ runTest 2 readBody $ return $ S.concat
             [ singlePostHello
             , singleGet
             ]
-        it "has body, ignore" $ runTest 2 5000 ignoreBody $ return $ S.concat
+        it "has body, ignore" $ runTest 2 ignoreBody $ return $ S.concat
             [ singlePostHello
             , singleGet
             ]
