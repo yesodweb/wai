@@ -8,7 +8,7 @@ module Network.Wai.Middleware.RequestLogger
     , logHandleDevLT
     ) where
 
-import System.IO (stdout)
+import System.IO (stdout, hFlush)
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
 import Control.Monad.IO.Class (liftIO)
@@ -30,13 +30,20 @@ logStdout :: Middleware
 logStdout = logHandle $ \bs -> hPutLogStr stdout [LB bs]
 
 -- | like @logHandleDev@, but prints to 'stdout'
+--
+-- Note that this flushes 'stdout' on each call to make it useful for
+-- development. This is very inefficient for production use.
 logStdoutDev :: Middleware
-logStdoutDev = logHandleDev $ \bs -> hPutLogStr stdout [LB bs]
+logStdoutDev = logHandleDev $ \bs -> hPutLogStr stdout [LB bs] >> hFlush stdout
+
+-- FIXME This is not appropriately named at all. It's not working on a Handle,
+-- it's working on a function. I find the functions in this module to be very
+-- confusing.
+-- - Michael
 
 -- | Prints a message using the given callback function for each request.
 -- Designed for fast production use at the expense of convenience.
 -- In particular, no POST parameter information is currently given
--- For something with more useful output, use Network.Wai.Middleware.Debug
 logHandle :: (BS.ByteString -> IO ()) -> Middleware
 logHandle cb app req = do
     liftIO $ cb $ BS.concat
@@ -54,6 +61,11 @@ logHandle cb app req = do
 toBS :: H.Ascii -> BS.ByteString
 toBS = id
 
+-- FIXME: What's the purpose of this function? Why would it ever be preferable
+-- to logStdoutDev? And why is it implemented via unpack instead of using a
+-- more efficient Data.Text.IO function?
+-- - Michael
+
 -- | Inefficient, but convenient Development load logger middleware
 -- Prints a message to 'stderr' for each request using logHandleDevLT
 logStdoutDevLT :: Middleware
@@ -67,7 +79,8 @@ logHandleDevLT cb app req =
 -- | Prints a message using the given callback function for each request.
 -- This is not for serious production use- it is inefficient.
 -- It immediately consumes a POST body and fills it back in and is otherwise inefficient
--- For production use use module Network.Wai.Middleware.RequestLogger
+--
+-- Note that this function will not flush output.
 logHandleDev :: (BS.ByteString -> IO ()) -> Middleware
 logHandleDev cb app req = do
     body <- requestBody req C.$$ CL.consume
