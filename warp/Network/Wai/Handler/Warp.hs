@@ -109,7 +109,7 @@ import qualified Timeout as T
 import Timeout (Manager, registerKillThread, pause, resume)
 import Data.Word (Word8)
 import Data.List (foldl')
-import Control.Monad (forever)
+import Control.Monad (forever, when)
 import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import System.IO (hPutStrLn, stderr)
@@ -126,13 +126,29 @@ import qualified Paths_warp
 warpVersion :: String
 warpVersion = showVersion Paths_warp.version
 
+-- |
+--
+-- In order to provide slowloris protection, Warp provides timeout handlers. We
+-- follow these rules:
+--
+-- * A timeout is created when a connection is opened.
+--
+-- * When all request headers are read, the timeout is tickled.
+--
+-- * Every time at least 2048 bytes of the request body are read, the timeout
+--   is tickled.
+--
+-- * The timeout is paused while executing user code. This will apply to both
+--   the application itself, and a ResponseSource response. The timeout is
+--   resumed as soon as we return from user code.
+--
+-- * Every time data is successfully sent to the client, the timeout is tickled.
 data Connection = Connection
     { connSendMany :: [B.ByteString] -> IO ()
     , connSendAll  :: B.ByteString -> IO ()
     , connSendFile :: FilePath -> Integer -> Integer -> IO () -> IO () -- ^ offset, length
-    , connSink     :: T.Handle -> C.Sink B.ByteString IO ()
     , connClose    :: IO ()
-    , connSource   :: T.Handle -> C.Source IO B.ByteString
+    , connRecv     :: IO B.ByteString
     }
 
 socketConnection :: Socket -> Connection
@@ -140,9 +156,8 @@ socketConnection s = Connection
     { connSendMany = Sock.sendMany s
     , connSendAll = Sock.sendAll s
     , connSendFile = \fp off len act -> sendfile s fp (PartOfFile off len) act
-    , connSink = flip sinkSocket s
     , connClose = sClose s
-    , connSource = \th -> C.Source $ return $ sourceSocket th bytesPerRead s
+    , connRecv = Sock.recv s bytesPerRead
     }
 
 
@@ -423,6 +438,8 @@ sendResponse th req conn r = sendResponse' r
         connSendMany conn $ L.toChunks $ toLazyByteString $
           headers version s lengthyHeaders False
 
+        T.tickle th
+
         if not (hasBody s req) then return isPersist else do
             case mpart of
                 Nothing   -> connSendFile conn fp 0 cl (T.tickle th)
@@ -461,10 +478,11 @@ sendResponse th req conn r = sendResponse' r
         -- FIXME perhaps alloca a buffer per thread and reuse that in all
         -- functions below. Should lessen greatly the GC burden (I hope)
         response
-            | not (hasBody s req) = do
-                liftIO $ connSendMany conn
-                       $ L.toChunks $ toLazyByteString
-                       $ headers' False
+            | not (hasBody s req) = liftIO $ do
+                connSendMany conn
+                   $ L.toChunks $ toLazyByteString
+                   $ headers' False
+                T.tickle th
                 return (checkPersist req)
             | otherwise = do
                 let src =
@@ -492,40 +510,38 @@ parseHeaderNoAttr s =
                    else rest
      in (CI.mk k, rest')
 
-sourceSocket :: T.Handle -> Int -> Socket -> C.PreparedSource IO ByteString
-sourceSocket th len socket = C.PreparedSource
+connSource :: Connection -> T.Handle -> C.PreparedSource IO ByteString
+connSource Connection { connRecv = recv } th = C.PreparedSource
     { C.sourcePull = do
-        bs <- liftIO $ Sock.recv socket len
-        liftIO $ T.tickle th
-        return $ if S.null bs
-            then C.Closed
-            else C.Open bs
+        bs <- liftIO recv
+        if S.null bs
+            then return C.Closed
+            else do
+                when (S.length bs >= 2048) $ liftIO $ T.tickle th
+                return (C.Open bs)
     , C.sourceClose = return ()
     }
 
------- The functions below are not warp-specific and could be split out into a
---separate package.
-
-sinkSocket :: T.Handle
-           -> Socket
-           -> C.Sink B.ByteString IO ()
-sinkSocket th sock = C.Sink $ return $ C.SinkData
+-- | Use 'connSendAll' to send this data while respecting timeout rules.
+connSink :: Connection -> T.Handle -> C.Sink B.ByteString IO ()
+connSink Connection { connSendAll = send } th = C.Sink $ return $ C.SinkData
     { C.sinkPush = push
     , C.sinkClose = close
     }
   where
-    close = do
-        liftIO (T.resume th)
-        return ()
+    close = liftIO (T.resume th)
     push x = do
         liftIO $ T.resume th
-        liftIO $ Sock.sendAll sock x
+        liftIO $ send x
         liftIO $ T.pause th
         return $ C.Processing
     -- We pause timeouts before passing control back to user code. This ensures
     -- that a timeout will only ever be executed when Warp is in control. We
     -- also make sure to resume the timeout after the completion of user code
     -- so that we can kill idle connections.
+
+------ The functions below are not warp-specific and could be split out into a
+--separate package.
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
 -- type so that new settings can be added without breaking backwards
