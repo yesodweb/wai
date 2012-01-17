@@ -14,7 +14,6 @@ import qualified Data.ByteString.Lazy as L
 import Data.Conduit.Binary (sourceFileRange)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import Control.Monad.IO.Class (liftIO)
 import Control.Exception (bracket, handle, SomeException)
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.Certificate.X509 as X509
@@ -22,6 +21,7 @@ import qualified Data.Certificate.PEM as PEM
 import qualified Data.ByteString as B
 import Control.Monad (unless)
 import qualified Data.Certificate.KeyRSA as KeyRSA
+import Control.Applicative ((<$>))
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -55,30 +55,14 @@ runTLS tset set app = do
             ctx <- TLS.server params (gen :: SystemRandom) h
             b <- TLS.handshake ctx
             unless b $ error "Invalid handshake"
-            let sink = C.Sink $ return $ C.SinkData
-                    { C.sinkPush = \bs -> do
-                        liftIO $ TLS.sendData ctx $ L.fromChunks [bs]
-                        return C.Processing
-                    , C.sinkClose = return ()
-                    }
             let conn = Connection
                     { connSendMany = TLS.sendData ctx . L.fromChunks
                     , connSendAll = TLS.sendData ctx . L.fromChunks . return
                     , connSendFile = \fp offset len _th -> C.runResourceT $ sourceFileRange fp (Just offset) (Just len) C.$$ CL.mapM_ (TLS.sendData ctx . L.fromChunks . return)
-                    , connSink = \_th -> sink
                     , connClose = do
                         TLS.bye ctx
                         hClose h
-                    , connSource = \_th -> C.sourceState []
-                        (\buffer ->
-                            case buffer of
-                                (bs:bss) -> return (bss, C.Open bs)
-                                [] -> do
-                                    lbs <- TLS.recvData ctx
-                                    if L.null lbs
-                                        then return (undefined, C.Closed)
-                                        else let (bs:bss) = L.toChunks lbs
-                                              in return (bss, C.Open bs))
+                    , connRecv = B.concat . L.toChunks <$> TLS.recvData ctx
                     }
             return (conn, sa)
 
