@@ -322,7 +322,7 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
     -- performance penalty, we may need our own version.
     rbody <- C.bufferSource $
         if len == 0
-            then CL.sourceList []
+            then mempty
             else src C.$= CB.isolate len
     return Request
             { requestMethod = method
