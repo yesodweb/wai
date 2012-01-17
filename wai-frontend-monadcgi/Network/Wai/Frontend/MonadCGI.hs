@@ -10,7 +10,6 @@ import Network.HTTP.Types (Status (..))
 import Control.Monad.IO.Class (liftIO)
 import Data.CaseInsensitive (original)
 
-import Data.Conduit
 import Data.Conduit.Lazy (lazyConsume)
 
 import qualified Data.Map as Map
@@ -34,7 +33,7 @@ cgiToAppGeneric :: Monad m
                 -> CGIT m CGIResult
                 -> Application
 cgiToAppGeneric toIO cgi env = do
-    input <- fmap BS.fromChunks $ lazyConsume $ unbufferSource $ requestBody env
+    input <- fmap BS.fromChunks $ lazyConsume $ requestBody env
     let vars = map (first fixVarName . go) (requestHeaders env)
                ++ getCgiVars env
         (inputs, body') = decodeInput vars input

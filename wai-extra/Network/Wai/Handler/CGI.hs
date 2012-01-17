@@ -95,7 +95,6 @@ runGeneric vars inputH outputH xsendfile app = do
                 a:_ -> addrAddress a
                 [] -> error $ "Invalid REMOTE_ADDR or REMOTE_HOST: " ++ remoteHost'
     C.runResourceT $ do
-        input <- C.bufferSource $ inputH contentLength
         let env = Request
                 { requestMethod = rmethod
                 , rawPathInfo = B.pack pinfo
@@ -108,7 +107,7 @@ runGeneric vars inputH outputH xsendfile app = do
                 , isSecure = isSecure'
                 , remoteHost = addr
                 , httpVersion = H.http11 -- FIXME
-                , requestBody = input
+                , requestBody = inputH contentLength
                 , vault = mempty
                 }
         -- FIXME worry about exception?

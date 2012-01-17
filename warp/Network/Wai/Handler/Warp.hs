@@ -319,7 +319,7 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
     let serverName' = takeUntil 58 host -- ':'
     -- FIXME isolate takes an Integer instead of Int or Int64. If this is a
     -- performance penalty, we may need our own version.
-    rbody <- C.bufferSource $
+    rbody <- C.prepareSource $
         if len == 0
             then mempty
             else src C.$= CB.isolate len
@@ -335,7 +335,7 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
             , requestHeaders = heads
             , isSecure = False
             , remoteHost = remoteHost'
-            , requestBody = rbody
+            , requestBody = C.Source $ return rbody
             , vault = mempty
             }
 

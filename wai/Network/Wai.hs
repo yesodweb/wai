@@ -95,7 +95,7 @@ data Request = Request
   ,  pathInfo       :: [Text]
   -- | Parsed query string information
   ,  queryString    :: H.Query
-  ,  requestBody    :: C.BufferedSource IO B.ByteString
+  ,  requestBody    :: C.Source IO B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.
   , vault           :: Vault
   }

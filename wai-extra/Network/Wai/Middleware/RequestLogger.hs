@@ -102,8 +102,7 @@ logHandleDev cb app req = do
         , "\n"
         ]
     -- we just consumed the body- fill the enumerator back up so it is available again
-    body' <- C.bufferSource $ CL.sourceList body
-    app req { requestBody = body' }
+    app req { requestBody = CL.sourceList body }
   where
     paramsToBS prefix params =
       if null params then ""

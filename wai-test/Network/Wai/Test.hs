@@ -74,7 +74,7 @@ defaultRequest = Request
     , remoteHost = error "Network.Wai.Test.defaultRequest{remoteHost}"
     , pathInfo = []
     , queryString = []
-    , requestBody = error "requestBody of defaultRequest"
+    , requestBody = mempty
     , vault = mempty
     }
 
@@ -82,8 +82,7 @@ srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
     app <- ask
     liftIO $ C.runResourceT $ do
-        body <- C.bufferSource $ CL.sourceList $ L.toChunks bod
-        let req' = req { requestBody = body }
+        let req' = req { requestBody = CL.sourceList $ L.toChunks bod }
         res <- app req'
         sres <- runResponse res
         -- FIXME cookie processing
