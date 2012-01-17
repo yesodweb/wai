@@ -8,7 +8,7 @@ Maintainer:          michael@snoyman.com
 Homepage:            http://github.com/yesodweb/wai
 Category:            Web, Yesod
 Build-Type:          Simple
-Cabal-Version:       >=1.6
+Cabal-Version:       >=1.8
 Stability:           Stable
 Description:         The premier WAI handler. For more information, see <http://steve.vinoski.net/blog/2011/05/01/warp-a-haskell-web-server/>.
 
@@ -39,6 +39,23 @@ Library
   ghc-options:       -Wall
   if os(windows)
       Cpp-options: -DWINDOWS
+
+test-suite test
+    main-is: main.hs
+    hs-source-dirs: test
+    type: exitcode-stdio-1.0
+
+    ghc-options:   -Wall
+    build-depends: base >= 4 && < 5
+                 , HUnit
+                 , hspec
+                 , bytestring
+                 , warp
+                 , conduit
+                 , network
+                 , http-types
+                 , transformers
+                 , wai
 
 source-repository head
   type:     git

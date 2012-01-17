@@ -254,16 +254,22 @@ serveConnection settings th onException port app conn remoteHost' = do
     serveConnection' :: ResourceT IO ()
     serveConnection' = do
         fromClient <- C.bufferSource $ connSource conn th
+        serveConnection'' fromClient
+
+    serveConnection'' fromClient = do
         env <- parseRequest port remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
                 liftIO $ T.pause th
                 res <- app env
-                -- FIXME flush the rest of the request body
+
+                -- flush the rest of the request body
+                requestBody env C.$$ CL.sinkNull
+
                 liftIO $ T.resume th
                 keepAlive <- sendResponse th env conn res
-                if keepAlive then serveConnection' else return ()
+                if keepAlive then serveConnection'' fromClient else return ()
             Just intercept -> do
                 liftIO $ T.pause th
                 intercept fromClient conn
