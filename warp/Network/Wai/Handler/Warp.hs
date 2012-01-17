@@ -278,7 +278,7 @@ parseRequest :: Port -> SockAddr
              -> C.BufferedSource IO S.ByteString
              -> ResourceT IO Request
 parseRequest port remoteHost' src = do
-    headers' <- takeHeaders src
+    headers' <- src C.$$ takeHeaders
     parseRequest' port headers' remoteHost' src
 
 -- FIXME come up with good values here
@@ -291,7 +291,6 @@ data InvalidRequest =
     | BadFirstLine String
     | NonHttp
     | IncompleteHeaders
-    | ConnectionClosedByPeer
     | OverLargeHeader
     deriving (Show, Typeable, Eq)
 instance Exception InvalidRequest
@@ -587,73 +586,63 @@ defaultSettings = Settings
     go' (Just ThreadKilled) = False
     go' _ = True
 
-takeHeaders :: C.BufferedSource IO ByteString -> ResourceT IO [ByteString]
-takeHeaders src = do
-  !x <- forceHead ConnectionClosedByPeer src
-  takeHeaders' 0 id id x src
+type BSEndo = ByteString -> ByteString
+type BSEndoList = [ByteString] -> [ByteString]
 
+data THStatus = THStatus
+    {-# UNPACK #-} !Int -- running total byte count
+    BSEndoList -- previously parsed lines
+    BSEndo -- bytestrings to be prepended
+
+takeHeaders :: C.Sink ByteString IO [ByteString]
+takeHeaders =
+    C.sinkState (THStatus 0 id id) takeHeadersPush close
+  where
+    close _ = throwIO IncompleteHeaders
 {-# INLINE takeHeaders #-}
 
-takeHeaders' :: Int
-             -> ([ByteString] -> [ByteString])
-             -> ([ByteString] -> [ByteString])
-             -> ByteString
-             -> C.BufferedSource IO ByteString
-             -> ResourceT IO [ByteString]
-takeHeaders' !len _ _ _ _ | len > maxTotalHeaderLength = throwIO OverLargeHeader
-takeHeaders' !len !lines !prepend !bs src = do
-  let !bsLen = {-# SCC "takeHeaders'.bsLen" #-} S.length bs
-      !mnl = {-# SCC "takeHeaders'.mnl" #-} S.elemIndex 10 bs
-  case mnl of
-       -- no newline.  prepend entire bs to next line
-       !Nothing -> {-# SCC "takeHeaders'.noNewline" #-} do
-         let !len' = len + bsLen
-         !more <- forceHead IncompleteHeaders src
-         takeHeaders' len' lines (prepend . (:) bs) more src
-       Just !nl -> {-# SCC "takeHeaders'.newline" #-} do
-         let !end = nl 
-             !start = nl + 1
-             !line = {-# SCC "takeHeaders'.line" #-}
-                     if end > 0
-                        -- line data included in this chunk
-                        then S.concat $! prepend [SU.unsafeTake (checkCR bs end) bs]
-                        --then S.concat $! prepend [SU.unsafeTake (end-1) bs]
-                        -- no line data in this chunk (all in prepend, or empty line)
-                        else S.concat $! prepend []
-         if S.null line
-            -- no more headers
-            then {-# SCC "takeHeaders'.noMoreHeaders" #-} do
-              let !lines' = {-# SCC "takeHeaders'.noMoreHeaders.lines'" #-} lines []
-              if start < bsLen
-                 then {-# SCC "takeHeaders'.noMoreHeaders.yield" #-} do
-                   let !rest = {-# SCC "takeHeaders'.noMoreHeaders.yield.rest" #-} SU.unsafeDrop start bs
-                   C.bsourceUnpull src rest
-                   return lines'
-                 else return lines'
-
-            -- more headers
-            else {-# SCC "takeHeaders'.moreHeaders" #-} do
-              let !len' = len + start 
-                  !lines' = {-# SCC "takeHeaders.lines'" #-} lines . (:) line
-              !more <- {-# SCC "takeHeaders'.more" #-} 
-                       if start < bsLen
-                          then return $! SU.unsafeDrop start bs
-                          else forceHead IncompleteHeaders src
-              {-# SCC "takeHeaders'.takeMore" #-} takeHeaders' len' lines' id more src
-{-# INLINE takeHeaders' #-}
-
-forceHead :: InvalidRequest
-          -> C.BufferedSource IO ByteString
-          -> ResourceT IO ByteString
-forceHead err src = do
-  !mx <- src C.$$ CL.head
-  case mx of
-       Just !x -> return x
-       Nothing -> throwIO err
-{-# INLINE forceHead #-}
+takeHeadersPush :: THStatus
+                -> ByteString
+                -> ResourceT IO (THStatus, C.SinkResult ByteString [ByteString])
+takeHeadersPush (THStatus len _ _ ) _
+    | len > maxTotalHeaderLength = throwIO OverLargeHeader
+takeHeadersPush (THStatus len lines prepend) bs =
+    case mnl of
+        -- no newline.  prepend entire bs to next line
+        Nothing -> do
+            let len' = len + bsLen
+            return (THStatus len' lines (prepend . S.append bs), C.Processing)
+        Just nl -> do
+            let end = nl
+                start = nl + 1
+                line = prepend (if end > 0
+                                    then SU.unsafeTake (checkCR bs end) bs
+                                    else S.empty)
+            if S.null line
+                -- no more headers
+                then do
+                    let lines' = lines []
+                    if start < bsLen
+                        then do
+                            let rest = SU.unsafeDrop start bs
+                            return (undefined, C.Done (Just rest) lines')
+                        else return (undefined, C.Done Nothing lines')
+                -- more headers
+                else do
+                    let len' = len + start
+                        lines' = lines . (:) line
+                    if start < bsLen
+                        then do
+                            let more = SU.unsafeDrop start bs
+                            takeHeadersPush (THStatus len' lines' id) more
+                        else return (THStatus len' lines' id, C.Processing)
+  where
+    bsLen = S.length bs
+    mnl = S.elemIndex 10 bs
+{-# INLINE takeHeadersPush #-}
 
 checkCR :: ByteString -> Int -> Int
-checkCR bs pos = 
+checkCR bs pos =
   let !p = pos - 1
   in if '\r' == B.index bs p
         then p
