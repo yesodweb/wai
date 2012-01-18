@@ -36,8 +36,8 @@ Library
                    , data-default              >= 0.3      && < 0.4
                    , fast-logger                >= 0.0.1
                    , conduit
-                   , zlib-conduit
-                   , blaze-builder-conduit
+                   , zlib-conduit              >= 0.0.1
+                   , blaze-builder-conduit     >= 0.0.1
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
