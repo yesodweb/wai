@@ -3,8 +3,8 @@ Version:             1.0.0
 Synopsis:            WAI support for server-sent events
 Description:         WAI support for server-sent events
 License:             BSD3
-Author:              Chris Smigh, Mathias Biilmann Christensen
-Maintainer:          info@mathias-biilmann.net, greg@gregweber.info
+Author:              Chris Smith, Mathias Biilmann Christensen
+Maintainer:          greg@gregweber.info
 Stability:           Experimental
 Category:            Web
 Build-type:          Simple
