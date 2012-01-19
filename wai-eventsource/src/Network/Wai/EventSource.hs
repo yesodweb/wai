@@ -6,7 +6,7 @@ module Network.Wai.EventSource (
 
 import           Blaze.ByteString.Builder (Builder)
 import           Control.Concurrent.Chan (Chan, dupChan, readChan)
-import           Control.Monad.Trans (liftIO)
+import           Control.Monad.IO.Class (liftIO)
 import qualified Data.Conduit as C
 import           Network.HTTP.Types (statusOK)
 import           Network.Wai (Application, Response(..))

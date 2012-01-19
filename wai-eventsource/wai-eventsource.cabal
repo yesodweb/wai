@@ -1,17 +1,16 @@
 Name:                wai-eventsource
-Version:             0.1
-Synopsis:            Project Synopsis Here
-Description:         Project Description Here
+Version:             1.0.0
+Synopsis:            WAI support for server-sent events
+Description:         WAI support for server-sent events
 License:             BSD3
 Author:              Chris Smigh, Mathias Biilmann Christensen
 Maintainer:          info@mathias-biilmann.net, greg@gregweber.info
 Stability:           Experimental
 Category:            Web
 Build-type:          Simple
-Cabal-version:       >=1.2
-
-flag example
-
+Cabal-version:       >=1.8
+homepage:            http://www.yesodweb.com/book/wai
+license-file:        LICENSE
 
 Library
   Build-depends:
@@ -19,41 +18,16 @@ Library
     , bytestring                >= 0.9.1.4  && < 0.10
     , blaze-builder             >= 0.3 && < 0.4
     , conduit
-    , MonadCatchIO-transformers >= 0.2.1 && < 0.3
-    , mtl                       >= 2 && < 3
     , http-types                >= 0.6      && < 0.7
-    , wai                       >= 0.4
-    , warp                      >= 0.4
+    , wai                       >= 1.0
+    , warp                      >= 1.0
+    , transformers
 
   ghc-options:     -Wall
   hs-source-dirs:  src
   exposed-modules: Network.Wai.EventSource
   other-modules:   Network.Wai.EventSource.EventStream
 
-Executable wai-eventsource
-  if flag(example)
-    buildable: True
-  else
-    buildable: False
-
-  hs-source-dirs: src
-  main-is: Main.hs
-
-  Build-depends:
-      base                      >= 4.3 && < 5
-    , bytestring                >= 0.9.1.4  && < 0.10
-    , blaze-builder             >= 0.3 && < 0.4
-    , conduit                   >= 0.0 && < 0.1
-    , MonadCatchIO-transformers >= 0.2.1 && < 0.3
-    , mtl                       >= 2 && < 3
-    , http-types                >= 0.6      && < 0.7
-    , time                      >= 1.2 && < 1.4
-    , wai                       >= 0.4
-    , warp                      >= 0.4
-
-  if impl(ghc >= 6.12.0)
-    ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields
-                 -fno-warn-unused-do-bind
-  else
-    ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields
-
+source-repository head
+  type:     git
+  location: git://github.com/yesodweb/wai.git
