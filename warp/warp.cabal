@@ -11,6 +11,7 @@ Build-Type:          Simple
 Cabal-Version:       >=1.8
 Stability:           Stable
 Description:         The premier WAI handler. For more information, see <http://steve.vinoski.net/blog/2011/05/01/warp-a-haskell-web-server/>.
+extra-source-files:  test/main.hs
 
 flag network-bytestring
     Default: False
