@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.Middleware.RequestLogger
     ( logStdout
-    , logHandle
+    , logCallback
     , logStdoutDev
+    , logCallbackDev
+    -- * Deprecated
+    , logHandle
     , logHandleDev
-    , logStdoutDevLT
-    , logHandleDevLT
     ) where
 
 import System.IO (stdout, hFlush)
@@ -15,37 +16,41 @@ import Control.Monad.IO.Class (liftIO)
 import Network.Wai (Request(..), Middleware)
 import System.Log.FastLogger
 import Network.HTTP.Types as H
-import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Encoding as TE
 
 import Network.Wai.Parse (parseRequestBody, lbsSink, fileName, Param, File)
 import qualified Data.ByteString.Lazy as LBS
-import System.IO (hPutStrLn, stderr)
 
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 
--- | like @logHandle@, but prints to 'stdout'
+logHandle :: (BS.ByteString -> IO ()) -> Middleware
+logHandle = logCallback
+{-# DEPRECATED logHandle "Please use logCallback instead." #-}
+logHandleDev :: (BS.ByteString -> IO ()) -> Middleware
+logHandleDev = logCallbackDev
+{-# DEPRECATED logHandleDev "Please use logCallbackDev instead." #-}
+
+-- | Production request logger middleware.
+-- Implemented on top of "logCallback", but prints to 'stdout'
 logStdout :: Middleware
 logStdout = logHandle $ \bs -> hPutLogStr stdout [LB bs]
 
--- | like @logHandleDev@, but prints to 'stdout'
+-- | Development request logger middleware.
+-- Implemented on top of "logCallbackDev", but prints to 'stdout'
 --
--- Note that this flushes 'stdout' on each call to make it useful for
--- development. This is very inefficient for production use.
+-- Flushes 'stdout' on each request, which would be inefficient in production use.
+-- Use "logStdout" in production.
 logStdoutDev :: Middleware
 logStdoutDev = logHandleDev $ \bs -> hPutLogStr stdout [LB bs] >> hFlush stdout
-
--- FIXME This is not appropriately named at all. It's not working on a Handle,
--- it's working on a function. I find the functions in this module to be very
--- confusing.
--- - Michael
 
 -- | Prints a message using the given callback function for each request.
 -- Designed for fast production use at the expense of convenience.
 -- In particular, no POST parameter information is currently given
-logHandle :: (BS.ByteString -> IO ()) -> Middleware
-logHandle cb app req = do
+--
+-- This is lower-level - use "logStdout" unless you need this greater control
+logCallback :: (BS.ByteString -> IO ()) -- ^ A function that logs the ByteString log message.
+            -> Middleware
+logCallback cb app req = do
     liftIO $ cb $ BS.concat
         [ requestMethod req
         , " "
@@ -61,28 +66,14 @@ logHandle cb app req = do
 toBS :: H.Ascii -> BS.ByteString
 toBS = id
 
--- FIXME: What's the purpose of this function? Why would it ever be preferable
--- to logStdoutDev? And why is it implemented via unpack instead of using a
--- more efficient Data.Text.IO function?
--- - Michael
-
--- | Inefficient, but convenient Development load logger middleware
--- Prints a message to 'stderr' for each request using logHandleDevLT
-logStdoutDevLT :: Middleware
-logStdoutDevLT = logHandleDevLT $ hPutStrLn stderr . LT.unpack
-
--- | logHandleDev, but expects Lazy Text instead of a ByteString
-logHandleDevLT :: (LT.Text -> IO ()) -> Middleware
-logHandleDevLT cb app req =
-    logHandleDev (\msg -> cb $ LT.fromStrict $ TE.decodeUtf8 msg) app req
-
 -- | Prints a message using the given callback function for each request.
 -- This is not for serious production use- it is inefficient.
 -- It immediately consumes a POST body and fills it back in and is otherwise inefficient
 --
--- Note that this function will not flush output.
-logHandleDev :: (BS.ByteString -> IO ()) -> Middleware
-logHandleDev cb app req = do
+-- This is lower-level - use "logStdoutDev" unless you need this greater control
+logCallbackDev :: (BS.ByteString -> IO ()) -- ^ A function that logs the ByteString log message.
+               -> Middleware
+logCallbackDev cb app req = do
     body <- requestBody req C.$$ CL.consume
     postParams <- if any (requestMethod req ==) ["GET", "HEAD"]
       then return []
@@ -101,7 +92,7 @@ logHandleDev cb app req = do
         , paramsToBS "POST " postParams
         , "\n"
         ]
-    -- we just consumed the body- fill the enumerator back up so it is available again
+    -- The body was consumed. Fill it back up so it is available again
     app req { requestBody = CL.sourceList body }
   where
     paramsToBS prefix params =
