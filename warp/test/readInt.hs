@@ -12,12 +12,17 @@
 import Criterion.Main
 import Data.ByteString (ByteString)
 import Data.Int (Int64)
+import Data.Maybe (fromMaybe)
 
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Char as C
 import qualified Numeric as N
 import qualified Test.QuickCheck as QC
+
+-- ReadInt is a module internal to Warp.
+import qualified ReadInt as RI
+
 
 import GHC.Prim
 import GHC.Types
@@ -36,6 +41,12 @@ readDec s =
     case N.readDec (B.unpack s) of
         [] -> 0
         (x, _):_ -> x
+
+
+-- Use ByteString's readInteger function (which requires some extra stuff to
+-- slow us down).
+readIntegerBS :: ByteString -> Integer
+readIntegerBS bs = fst $ fromMaybe (0, "") $ B.readInteger bs
 
 
 -- No checking for non-digits. Will overflow at 2^31 on 32 bit CPUs.
@@ -102,6 +113,11 @@ mhDigitToInt (C# i) = I# (word2Int# $ indexWord8OffAddr# addr (ord# i))
         \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"#
 
 
+-- This is the one Warp actually uses.
+readIntWarp :: ByteString -> Integer
+readIntWarp s = fromIntegral $ RI.readInt64 s
+
+
 -- A QuickCheck property. Test that for a number >= 0, converting it to
 -- a string using show and then reading the value back with the function
 -- under test returns the original value.
@@ -121,20 +137,23 @@ runQuickCheckTests = do
     QC.quickCheck (prop_read_show_idempotent readInteger)
     QC.quickCheck (prop_read_show_idempotent readInt64MH)
     QC.quickCheck (prop_read_show_idempotent readIntegerMH)
+    QC.quickCheck (prop_read_show_idempotent readIntWarp)
+
 
 runCriterionTests :: ByteString -> IO ()
 runCriterionTests number =
     defaultMain
        [ bench "readIntOrig"   $ nf readIntOrig number
        , bench "readDec"       $ nf readDec number
+       , bench "readIntegerBS" $ nf readIntegerBS number
        , bench "readRaw"       $ nf readIntRaw number
        , bench "readInt"       $ nf readInt number
        , bench "readInt64"     $ nf readInt64 number
        , bench "readInteger"   $ nf readInteger number
        , bench "readInt64MH"   $ nf readInt64MH number
        , bench "readIntegerMH" $ nf readIntegerMH number
+       , bench "readIntWarp"   $ nf readIntWarp number
        ]
-
 
 main :: IO ()
 main = do
@@ -142,3 +161,4 @@ main = do
     runQuickCheckTests
     putStrLn "Criterion tests."
     runCriterionTests "1234567898765432178979128361238162386182"
+
