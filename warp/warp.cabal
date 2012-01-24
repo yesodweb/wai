@@ -37,6 +37,7 @@ Library
       build-depends: network               >= 2.3     && < 2.4
   Exposed-modules:   Network.Wai.Handler.Warp
   Other-modules:     Timeout
+                     ReadInt
                      Paths_warp
   ghc-options:       -Wall
   if os(windows)
