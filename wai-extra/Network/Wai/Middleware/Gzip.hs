@@ -51,7 +51,8 @@ instance Default GzipSettings where
     def = GzipSettings GzipIgnore defaultCheckMime
 
 defaultCheckMime :: S.ByteString -> Bool
-defaultCheckMime = S8.isPrefixOf "text/"
+defaultCheckMime "text/event-stream" = False
+defaultCheckMime bs = S8.isPrefixOf "text/" bs
 
 -- | Use gzip to compress the body of the response.
 --
