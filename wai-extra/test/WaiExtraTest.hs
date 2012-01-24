@@ -22,7 +22,7 @@ import Network.Wai.Middleware.Vhost
 import Network.Wai.Middleware.Autohead
 import Network.Wai.Middleware.MethodOverride
 import Network.Wai.Middleware.AcceptOverride
-import Network.Wai.Middleware.RequestLogger (logHandle)
+import Network.Wai.Middleware.RequestLogger (logCallback)
 import Codec.Compression.GZip (decompress)
 
 import qualified Data.Conduit as C
@@ -429,7 +429,7 @@ caseDebugRequestBody = do
     -- FIXME getOutput _qs = T.pack $ "GET /location" ++ "\nAccept: \nGET " ++ (show params) -- \nAccept: \n" ++ (show params)
     getOutput _qs = T.pack $ "GET /location?foo=bar&baz=bin Accept: \n"
 
-    debugApp output' = logHandle (\t -> liftIO $ assertEqual "debug" output t) $ \_req -> do
+    debugApp output' = logCallback (\t -> liftIO $ assertEqual "debug" output t) $ \_req -> do
         return $ responseLBS status200 [ ] ""
       where
         output = TE.encodeUtf8 $ T.toStrict output'
