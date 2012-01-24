@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, MagicHash, BangPatterns  #-}
 
 -- Copyright     : Erik de Castro Lopo <erikd@mega-nerd.com>
 -- License       : BSD3
@@ -19,6 +19,8 @@ import qualified Data.Char as C
 import qualified Numeric as N
 import qualified Test.QuickCheck as QC
 
+import GHC.Prim
+import GHC.Types
 
 -- This is the absolute mimimal solution. It will return garbage if the
 -- imput string contains anything other than ASCI digits.
@@ -58,6 +60,42 @@ readInt64 = readIntTC
 readInteger :: ByteString -> Integer
 readInteger = readIntTC
 
+
+-- MagicHash version suggested by Vincent Hanquez.
+readIntMH :: ByteString -> Int64
+readIntMH bs =
+    B.foldl' (\i c -> i * 10 + fromIntegral (mhDigitToInt c)) 0
+             $ B.takeWhile C.isDigit bs
+
+readIntegerMH :: ByteString -> Integer
+readIntegerMH bs = fromIntegral $ readIntMH bs
+
+data Table = Table !Addr#
+
+mhDigitToInt :: Char -> Int
+mhDigitToInt (C# i) = I# (word2Int# $ indexWord8OffAddr# addr (ord# i))
+  where
+    !(Table addr) = table
+    table :: Table
+    table = Table
+        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"#
+
+
 -- A QuickCheck property. Test that for a number >= 0, converting it to
 -- a string using show and then reading the value back with the function
 -- under test returns the original value.
@@ -75,17 +113,20 @@ runQuickCheckTests = do
     QC.quickCheck (prop_read_show_idempotent readInt)
     QC.quickCheck (prop_read_show_idempotent readInt64)
     QC.quickCheck (prop_read_show_idempotent readInteger)
-
+    QC.quickCheck (prop_read_show_idempotent readIntMH)
+    QC.quickCheck (prop_read_show_idempotent readIntegerMH)
 
 runCriterionTests :: ByteString -> IO ()
 runCriterionTests number =
     defaultMain
-       [ bench "readIntOrig" $ nf readIntOrig number
-       , bench "readDec"     $ nf readDec number
-       , bench "readRaw"     $ nf readIntRaw number
-       , bench "readInt"     $ nf readInt number
-       , bench "readInt64"   $ nf readInt64 number
-       , bench "readInteger" $ nf readInteger number
+       [ bench "readIntOrig"   $ nf readIntOrig number
+       , bench "readDec"       $ nf readDec number
+       , bench "readRaw"       $ nf readIntRaw number
+       , bench "readInt"       $ nf readInt number
+       , bench "readInt64"     $ nf readInt64 number
+       , bench "readInteger"   $ nf readInteger number
+       , bench "readIntMH"     $ nf readIntMH number
+       , bench "readIntegerMH" $ nf readIntegerMH number
        ]
 
 
