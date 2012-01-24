@@ -84,7 +84,7 @@ import Control.Exception
     )
 import Control.Concurrent (forkIO)
 import qualified Data.Char as C
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 
 import Data.Typeable (Typeable)
 
@@ -176,7 +176,7 @@ bindPort p s = do
         addr = if null addrs' then head addrs else head addrs'
     bracketOnError
         (Network.Socket.socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr))
-        (sClose)
+        sClose
         (\sock -> do
             setSocketOption sock ReuseAddr 1
             bindSocket sock (addrAddress addr)
@@ -207,7 +207,7 @@ runSettings set =
     bracket
         (bindPort (settingsPort set) (settingsHost set))
         sClose .
-        (flip (runSettingsSocket set))
+        flip (runSettingsSocket set)
 #endif
 
 type Port = Int
@@ -219,7 +219,7 @@ type Port = Int
 -- Note that the 'settingsPort' will still be passed to 'Application's via the
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
-runSettingsSocket set socket app = do
+runSettingsSocket set socket app =
     runSettingsConnection set getter app
   where
     getter = do
@@ -244,7 +244,7 @@ serveConnection :: Settings
                 -> T.Handle
                 -> (SomeException -> IO ())
                 -> Port -> Application -> Connection -> SockAddr -> IO ()
-serveConnection settings th onException port app conn remoteHost' = do
+serveConnection settings th onException port app conn remoteHost' =
     catch
         (finally
           (runResourceT serveConnection')
@@ -269,7 +269,7 @@ serveConnection settings th onException port app conn remoteHost' = do
 
                 liftIO $ T.resume th
                 keepAlive <- sendResponse th env conn res
-                if keepAlive then serveConnection'' fromClient else return ()
+                when keepAlive $ serveConnection'' fromClient
             Just intercept -> do
                 liftIO $ T.pause th
                 intercept fromClient conn
@@ -304,12 +304,10 @@ parseRequest' :: Port
 parseRequest' _ [] _ _ = throwIO $ NotEnoughLines []
 parseRequest' port (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
-    let (host',rpath) =
-            if S.null rpath'
-                then ("","/")
-                else if "http://" `S.isPrefixOf` rpath'
-                         then S.breakByte 47 $ S.drop 7 rpath' -- '/'
-                         else ("", rpath')
+    let (host',rpath)
+            | S.null rpath' = ("", "/")
+            | "http://" `S.isPrefixOf` rpath' = S.breakByte 47 $ S.drop 7 rpath'
+            | otherwise = ("", rpath')
     let heads = map parseHeaderNoAttr otherLines
     let host = fromMaybe host' $ lookup "host" heads
     let len =
@@ -349,7 +347,7 @@ takeUntil c bs =
 
 parseFirst :: ByteString
            -> ResourceT IO (ByteString, ByteString, ByteString, H.HttpVersion)
-parseFirst s = 
+parseFirst s =
     case S.split 32 s of  -- ' '
         [method, query, http'] -> do
             let (hfirst, hsecond) = B.splitAt 5 http'
@@ -375,8 +373,8 @@ colonSpaceBuilder = copyByteString ": "
 headers :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> Builder
 headers !httpversion !status !responseHeaders !isChunked' = {-# SCC "headers" #-}
     let !start = httpBuilder
-                `mappend` (copyByteString $
-                            case httpversion of
+                `mappend` copyByteString
+                            (case httpversion of
                                 H.HttpVersion 1 1 -> "1.1"
                                 _ -> "1.0")
                 `mappend` spaceBuilder
@@ -415,7 +413,7 @@ isChunked :: H.HttpVersion -> Bool
 isChunked = (==) H.http11
 
 hasBody :: H.Status -> Request -> Bool
-hasBody s req = s /= (H.Status 204 "") && s /= H.status304 &&
+hasBody s req = s /= H.Status 204 "" && s /= H.status304 &&
                 H.statusCode s >= 200 && requestMethod req /= "HEAD"
 
 sendResponse :: T.Handle
@@ -427,7 +425,7 @@ sendResponse th req conn r = sendResponse' r
     isChunked' = isChunked version
     needsChunked hs = isChunked' && not (hasLength hs)
     isKeepAlive hs = isPersist && (isChunked' || hasLength hs)
-    hasLength hs = lookup "content-length" hs /= Nothing
+    hasLength hs = isJust $ lookup "content-length" hs
 
     sendResponse' :: Response -> ResourceT IO Bool
     sendResponse' (ResponseFile s hs fp mpart) = liftIO $ do
@@ -471,10 +469,10 @@ sendResponse th req conn r = sendResponse' r
         headers' = headers version s hs
         needsChunked' = needsChunked hs
         body = if needsChunked'
-                  then (headers' needsChunked')
+                  then headers' needsChunked'
                        `mappend` chunkedTransferEncoding b
                        `mappend` chunkedTransferTerminator
-                  else (headers' False) `mappend` b
+                  else headers' False `mappend` b
 
     sendResponse' (ResponseSource s hs body) =
         response
@@ -497,7 +495,7 @@ sendResponse th req conn r = sendResponse' r
                 return $ isKeepAlive hs
         needsChunked' = needsChunked hs
         chunk :: C.Conduit Builder IO Builder
-        chunk = C.Conduit $ return $ C.PreparedConduit
+        chunk = C.Conduit $ return C.PreparedConduit
             { C.conduitPush = push
             , C.conduitClose = close
             }
@@ -529,17 +527,18 @@ connSource Connection { connRecv = recv } th = C.PreparedSource
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
 connSink :: Connection -> T.Handle -> C.Sink B.ByteString IO ()
-connSink Connection { connSendAll = send } th = C.Sink $ return $ C.SinkData
+connSink Connection { connSendAll = send } th = C.Sink $ return C.SinkData
     { C.sinkPush = push
     , C.sinkClose = close
     }
   where
     close = liftIO (T.resume th)
     push x = do
-        liftIO $ T.resume th
-        liftIO $ send x
-        liftIO $ T.pause th
-        return $ C.Processing
+        liftIO $ do
+            T.resume th
+            send x
+            T.pause th
+        return C.Processing
     -- We pause timeouts before passing control back to user code. This ensures
     -- that a timeout will only ever be executed when Warp is in control. We
     -- also make sure to resume the timeout after the completion of user code
@@ -573,9 +572,8 @@ defaultSettings = Settings
         case fromException e of
             Just x -> go x
             Nothing ->
-                if go' $ fromException e
-                    then hPutStrLn stderr $ show e
-                    else return ()
+                when (go' $ fromException e) $
+                    hPutStrLn stderr $ show e
     , settingsTimeout = 30
     , settingsIntercept = const Nothing
     , settingsManager = Nothing
