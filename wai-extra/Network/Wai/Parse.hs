@@ -1,14 +1,15 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExistentialQuantification #-}
 -- | Some helpers for parsing data out of a raw WAI 'Request'.
 
 module Network.Wai.Parse
     ( parseHttpAccept
     , parseRequestBody
     , conduitRequestBody
-    , Sink (..)
     , lbsSink
     , tempFileSink
+    , BackEnd (..)
     , Param
     , File
     , FileInfo (..)
@@ -89,24 +90,27 @@ parseHttpAccept = map fst
                 _ -> 1.0
     trimWhite = S.dropWhile (== 32) -- space
 
--- | A destination for data, the opposite of a 'Source'.
-data Sink x y = Sink
+-- | A destination for data, with concrete implemtations
+-- provided by 'lbsSink' and 'tempFileSink'
+data BackEnd y = forall x . BackEnd
     { sinkInit :: IO x
     , sinkAppend :: x -> S.ByteString -> IO x
     , sinkClose :: x -> IO y
     , sinkFinalize :: y -> IO ()
     }
 
-lbsSink :: Sink ([S.ByteString] -> [S.ByteString]) L.ByteString
-lbsSink = Sink
+-- | Store uploaded files in memory
+lbsSink :: BackEnd L.ByteString
+lbsSink = BackEnd
     { sinkInit = return id
     , sinkAppend = \front bs -> return $ front . (:) bs
     , sinkClose = \front -> return $ L.fromChunks $ front []
     , sinkFinalize = \_ -> return ()
     }
 
-tempFileSink :: Sink (FilePath, Handle) FilePath
-tempFileSink = Sink
+-- | Save uploaded files on disk as temporary files
+tempFileSink :: BackEnd FilePath
+tempFileSink = BackEnd
     { sinkInit = do
         tempDir <- getTemporaryDirectory
         openBinaryTempFile tempDir "webenc.buf"
@@ -128,12 +132,12 @@ data FileInfo c = FileInfo
 type Param = (S.ByteString, S.ByteString)
 type File y = (S.ByteString, FileInfo y)
 
-parseRequestBody :: Sink x y
+parseRequestBody :: BackEnd y
                  -> Request
                  -> C.Sink S.ByteString IO ([Param], [File y])
 parseRequestBody s r = fmap partitionEithers $ conduitRequestBody s r C.=$ CL.consume
 
-conduitRequestBody :: Sink x y
+conduitRequestBody :: BackEnd y
                    -> Request
                    -> C.Conduit S.ByteString IO (Either Param (File y))
 conduitRequestBody sink req = do
@@ -195,15 +199,16 @@ takeLines = do
                 ls <- takeLines
                 return $ l : ls
 
-parsePieces :: Sink x y -> S.ByteString
+parsePieces :: BackEnd y -> S.ByteString
             -> C.Conduit S.ByteString IO (Either Param (File y))
 parsePieces sink bound = C.sequenceSink True (parsePiecesSink sink bound)
 
-parsePiecesSink :: Sink x y
+parsePiecesSink :: BackEnd y
                 -> S.ByteString
                 -> C.SequencedSink Bool S.ByteString IO (Either Param (File y))
 parsePiecesSink _ _ False = return C.Stop
-parsePiecesSink sink bound True = do
+parsePiecesSink BackEnd{sinkInit=init,sinkAppend=append,sinkClose=close}
+                bound True = do
     _boundLine <- takeLine
     res' <- takeLines
     case res' of
@@ -219,10 +224,10 @@ parsePiecesSink sink bound True = do
             case x of
                 Just (mct, name, Just filename) -> do
                     let ct = fromMaybe "application/octet-stream" mct
-                    seed <- liftIO $ sinkInit sink
+                    seed <- liftIO init
                     (seed', wasFound) <-
-                        sinkTillBound bound (sinkAppend sink) seed
-                    y <- liftIO $ sinkClose sink seed'
+                        sinkTillBound bound append seed
+                    y <- liftIO $ close seed'
                     let fi = FileInfo filename ct y
                     let y' = (name, fi)
                     return $ C.Emit wasFound [Right y']
