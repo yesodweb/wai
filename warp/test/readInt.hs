@@ -62,13 +62,19 @@ readInteger = readIntTC
 
 
 -- MagicHash version suggested by Vincent Hanquez.
-readIntMH :: ByteString -> Int64
-readIntMH bs =
-    B.foldl' (\i c -> i * 10 + fromIntegral (mhDigitToInt c)) 0
+readIntMH :: Integral a => ByteString -> a
+readIntMH s = fromIntegral $ ireadInt64MH s
+  where
+    ireadInt64MH :: ByteString -> Int64
+    ireadInt64MH bs =
+        B.foldl' (\i c -> i * 10 + fromIntegral (mhDigitToInt c)) 0
              $ B.takeWhile C.isDigit bs
 
+readInt64MH :: ByteString -> Int64
+readInt64MH = readIntMH
+
 readIntegerMH :: ByteString -> Integer
-readIntegerMH bs = fromIntegral $ readIntMH bs
+readIntegerMH = readIntMH
 
 data Table = Table !Addr#
 
@@ -113,7 +119,7 @@ runQuickCheckTests = do
     QC.quickCheck (prop_read_show_idempotent readInt)
     QC.quickCheck (prop_read_show_idempotent readInt64)
     QC.quickCheck (prop_read_show_idempotent readInteger)
-    QC.quickCheck (prop_read_show_idempotent readIntMH)
+    QC.quickCheck (prop_read_show_idempotent readInt64MH)
     QC.quickCheck (prop_read_show_idempotent readIntegerMH)
 
 runCriterionTests :: ByteString -> IO ()
@@ -125,7 +131,7 @@ runCriterionTests number =
        , bench "readInt"       $ nf readInt number
        , bench "readInt64"     $ nf readInt64 number
        , bench "readInteger"   $ nf readInteger number
-       , bench "readIntMH"     $ nf readIntMH number
+       , bench "readInt64MH"   $ nf readInt64MH number
        , bench "readIntegerMH" $ nf readIntegerMH number
        ]
 
