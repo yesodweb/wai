@@ -84,7 +84,6 @@ import Control.Exception
     , bracketOnError
     )
 import Control.Concurrent (forkIO)
-import qualified Data.Char as C
 import Data.Maybe (fromMaybe, isJust)
 
 import Data.Typeable (Typeable)
@@ -114,9 +113,8 @@ import Control.Monad (forever, when)
 import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import System.IO (hPutStrLn, stderr)
-import Data.Int (Int64)
-import GHC.Prim
-import GHC.Types
+import ReadInt (readInt64)
+
 
 #if WINDOWS
 import Control.Concurrent (threadDelay)
@@ -651,47 +649,9 @@ checkCR bs pos =
         else pos
 {-# INLINE checkCR #-}
 
--- This function is used to parse the Content-Length field of HTTP headers and
--- is a performance hot spot. It should only be replaced with something
--- significantly and provably faster.
--- It needs to be able work correctly on 32 bit CPUs for file sizes > 2G so we
--- use Int64 here and then make a generic 'readInt' that allows conversion to
--- Int and Integer.
 readInt :: Integral a => ByteString -> a
-readInt s = fromIntegral $ readInt64MH s
-  where
-    readInt64MH :: ByteString -> Int64
-    readInt64MH bs =
-        B.foldl' (\i c -> i * 10 + fromIntegral (mhDigitToInt c)) 0
-             $ B.takeWhile C.isDigit bs
+readInt bs = fromIntegral $ readInt64 bs
 {-# INLINE readInt #-}
-
-data Table = Table !Addr#
-
-mhDigitToInt :: Char -> Int
-mhDigitToInt (C# i) = I# (word2Int# $ indexWord8OffAddr# addr (ord# i))
-  where
-    !(Table addr) = table
-    table :: Table
-    table = Table
-        "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-        \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"#
-
-
 
 
 -- | Call the inner function with a timeout manager.
