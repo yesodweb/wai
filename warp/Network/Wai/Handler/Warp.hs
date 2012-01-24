@@ -315,7 +315,7 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
     let len =
             case lookup "content-length" heads of
                 Nothing -> 0
-                Just bs -> fromIntegral $ B.foldl' (\i c -> i * 10 + C.digitToInt c) 0 $ B.takeWhile C.isDigit bs
+                Just bs -> readInt bs
     let serverName' = takeUntil 58 host -- ':'
     -- FIXME isolate takes an Integer instead of Int or Int64. If this is a
     -- performance penalty, we may need our own version.
@@ -649,10 +649,12 @@ checkCR bs pos =
         else pos
 {-# INLINE checkCR #-}
 
--- Note: This function produces garbage on invalid input. But serving an
--- invalid content-length is a bad idea, mkay?
-readInt :: S.ByteString -> Integer
-readInt = S.foldl' (\x w -> x * 10 + fromIntegral w - 48) 0
+-- This function is used to parse the Content-Length field of HTTP headers and
+-- is a performance hot spot. It should only be replaced with something
+-- significantly and provably faster.
+readInt :: Integral a => ByteString -> a
+readInt bs = fromIntegral
+    $ B.foldl' (\i c -> i * 10 + C.digitToInt c) 0 $ B.takeWhile C.isDigit bs
 
 -- | Call the inner function with a timeout manager.
 withManager :: Int -- ^ timeout in microseconds
