@@ -17,7 +17,7 @@ import Network.Wai (Request(..), Middleware)
 import System.Log.FastLogger
 import Network.HTTP.Types as H
 
-import Network.Wai.Parse (parseRequestBody, lbsSink, fileName, Param, File)
+import Network.Wai.Parse (parseRequestBody, lbsBackEnd, fileName, Param, File)
 import qualified Data.ByteString.Lazy as LBS
 
 import qualified Data.Conduit as C
@@ -99,7 +99,7 @@ logCallbackDev cb app req = do
       if null params then ""
         else BS.concat ["\n", prefix, pack (show params)]
 
-    allPostParams req' body = C.runResourceT $ CL.sourceList body C.$$ parseRequestBody lbsSink req'
+    allPostParams req' body = C.runResourceT $ CL.sourceList body C.$$ parseRequestBody lbsBackEnd req'
 
     emptyGetParam :: (BS.ByteString, Maybe BS.ByteString) -> (BS.ByteString, BS.ByteString)
     emptyGetParam (k, Just v) = (k,v)
