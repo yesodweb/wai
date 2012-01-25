@@ -96,7 +96,7 @@ caseParseHttpAccept = do
         expected = ["text/html", "text/x-c", "text/x-dvi", "text/plain"]
     expected @=? parseHttpAccept input
 
-parseRequestBody' :: Sink ([S8.ByteString] -> [S8.ByteString]) L.ByteString
+parseRequestBody' :: BackEnd L.ByteString
                   -> SRequest
                   -> C.ResourceT IO ([(S.ByteString, S.ByteString)], [(S.ByteString, FileInfo L.ByteString)])
 parseRequestBody' sink (SRequest req bod) =
@@ -126,13 +126,13 @@ caseParseRequestBody =
     t = do
         let content1 = "foo=bar&baz=bin"
         let ctype1 = "application/x-www-form-urlencoded"
-        result1 <- parseRequestBody' lbsSink $ toRequest ctype1 content1
+        result1 <- parseRequestBody' lbsBackEnd $ toRequest ctype1 content1
         liftIO $ assertEqual "parsing post x-www-form-urlencoded"
                     (map (S8.pack *** S8.pack) [("foo", "bar"), ("baz", "bin")], [])
                     result1
 
         let ctype2 = "multipart/form-data; boundary=AaB03x"
-        result2 <- parseRequestBody' lbsSink $ toRequest ctype2 content2
+        result2 <- parseRequestBody' lbsBackEnd $ toRequest ctype2 content2
         let expectedsmap2 =
               [ ("title", "A File")
               , ("summary", "This is my file\nfile test")
@@ -147,7 +147,7 @@ caseParseRequestBody =
                     result2
 
         let ctype3 = "multipart/form-data; boundary=----WebKitFormBoundaryB1pWXPZ6lNr8RiLh"
-        result3 <- parseRequestBody' lbsSink $ toRequest ctype3 content3
+        result3 <- parseRequestBody' lbsBackEnd $ toRequest ctype3 content3
         let expectedsmap3 = []
         let expectedfile3 = [(S8.pack "yaml", FileInfo (S8.pack "README") (S8.pack "application/octet-stream") $
                                 L8.pack "Photo blog using Hack.\n")]
@@ -156,12 +156,12 @@ caseParseRequestBody =
                     expected3
                     result3
 
-        result2' <- parseRequestBody' lbsSink $ toRequest' ctype2 content2
+        result2' <- parseRequestBody' lbsBackEnd $ toRequest' ctype2 content2
         liftIO $ assertEqual "parsing post multipart/form-data 2"
                     expected2
                     result2'
 
-        result3' <- parseRequestBody' lbsSink $ toRequest' ctype3 content3
+        result3' <- parseRequestBody' lbsBackEnd $ toRequest' ctype3 content3
         liftIO $ assertEqual "parsing actual post multipart/form-data 2"
                     expected3
                     result3'
@@ -400,7 +400,7 @@ caseDalvikMultipart = do
             { requestHeaders = headers
             }
     (params, files) <- C.runResourceT $ sourceFile "test/requests/dalvik-request"
-                       C.$$ parseRequestBody lbsSink request'
+                       C.$$ parseRequestBody lbsBackEnd request'
     lookup "scannedTime" params @?= Just "1.298590056748E9"
     lookup "geoLong" params @?= Just "0"
     lookup "geoLat" params @?= Just "0"

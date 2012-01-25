@@ -35,7 +35,7 @@ import Data.Maybe (fromMaybe)
 import Data.List (sortBy)
 import Data.Function (on)
 import System.Directory (removeFile, getTemporaryDirectory)
-import System.IO (hClose, openBinaryTempFile, Handle)
+import System.IO (hClose, openBinaryTempFile)
 import Network.Wai
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
