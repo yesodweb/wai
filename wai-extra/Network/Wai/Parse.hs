@@ -7,12 +7,15 @@ module Network.Wai.Parse
     ( parseHttpAccept
     , parseRequestBody
     , conduitRequestBody
-    , lbsSink
-    , tempFileSink
+    , lbsBackEnd
+    , tempFileBackEnd
     , BackEnd (..)
     , Param
     , File
     , FileInfo (..)
+    -- ** Deprecated
+    , lbsSink
+    , tempFileSink
 #if TEST
     , Bound (..)
     , findBound
@@ -90,36 +93,47 @@ parseHttpAccept = map fst
                 _ -> 1.0
     trimWhite = S.dropWhile (== 32) -- space
 
--- | A destination for data, with concrete implemtations
--- provided by 'lbsSink' and 'tempFileSink'
+-- | A destination for file data, with concrete implemtations
+-- provided by 'lbsBackEnd' and 'tempFileBackEnd'
 data BackEnd y = forall x . BackEnd
-    { sinkInit :: IO x
-    , sinkAppend :: x -> S.ByteString -> IO x
-    , sinkClose :: x -> IO y
-    , sinkFinalize :: y -> IO ()
+    { initialize :: IO x
+    , append :: x -> S.ByteString -> IO x
+    , close :: x -> IO y
+    , finalize :: y -> IO ()
     }
 
 -- | Store uploaded files in memory
-lbsSink :: BackEnd L.ByteString
-lbsSink = BackEnd
-    { sinkInit = return id
-    , sinkAppend = \front bs -> return $ front . (:) bs
-    , sinkClose = \front -> return $ L.fromChunks $ front []
-    , sinkFinalize = \_ -> return ()
+lbsBackEnd :: BackEnd L.ByteString
+lbsBackEnd = BackEnd
+    { initialize = return id
+    , append = \front bs -> return $ front . (:) bs
+    , close = \front -> return $ L.fromChunks $ front []
+    , finalize = \_ -> return ()
     }
 
 -- | Save uploaded files on disk as temporary files
-tempFileSink :: BackEnd FilePath
-tempFileSink = BackEnd
-    { sinkInit = do
+tempFileBackEnd :: BackEnd FilePath
+tempFileBackEnd = BackEnd
+    { initialize = do
         tempDir <- getTemporaryDirectory
         openBinaryTempFile tempDir "webenc.buf"
-    , sinkAppend = \(fp, h) bs -> S.hPut h bs >> return (fp, h)
-    , sinkClose = \(fp, h) -> do
+    , append = \(fp, h) bs -> S.hPut h bs >> return (fp, h)
+    , close = \(fp, h) -> do
         hClose h
         return fp
-    , sinkFinalize = \fp -> removeFile fp
+    , finalize = \fp -> removeFile fp
     }
+
+-- | This function has been renamed to 'lbsBackEnd'
+lbsSink :: BackEnd L.ByteString
+lbsSink = lbsBackEnd
+
+-- | This function has been renamed to  'tempFileBackEnd'
+tempFileSink :: BackEnd FilePath
+tempFileSink = tempFileBackEnd
+
+{-# DEPRECATED lbsSink "Please use 'lbsBackEnd'" #-}
+{-# DEPRECATED tempFileSink "Please use 'tempFileBackEnd'" #-}
 
 -- | Information on an uploaded file.
 data FileInfo c = FileInfo
@@ -177,9 +191,9 @@ conduitRequestBody sink req = do
 
 takeLine :: C.Sink S.ByteString IO (Maybe S.ByteString)
 takeLine =
-    C.sinkState id push close
+    C.sinkState id push close'
   where
-    close _ = return Nothing
+    close' _ = return Nothing
     push front bs = do
         let (x, y) = S.break (== 10) $ front bs -- LF
          in if S.null y
@@ -207,7 +221,7 @@ parsePiecesSink :: BackEnd y
                 -> S.ByteString
                 -> C.SequencedSink Bool S.ByteString IO (Either Param (File y))
 parsePiecesSink _ _ False = return C.Stop
-parsePiecesSink BackEnd{sinkInit=init,sinkAppend=append,sinkClose=close}
+parsePiecesSink BackEnd{initialize=initialize',append=append',close=close'}
                 bound True = do
     _boundLine <- takeLine
     res' <- takeLines
@@ -224,10 +238,10 @@ parsePiecesSink BackEnd{sinkInit=init,sinkAppend=append,sinkClose=close}
             case x of
                 Just (mct, name, Just filename) -> do
                     let ct = fromMaybe "application/octet-stream" mct
-                    seed <- liftIO init
+                    seed <- liftIO initialize'
                     (seed', wasFound) <-
-                        sinkTillBound bound append seed
-                    y <- liftIO $ close seed'
+                        sinkTillBound bound append' seed
+                    y <- liftIO $ close' seed'
                     let fi = FileInfo filename ct y
                     let y' = (name, fi)
                     return $ C.Emit wasFound [Right y']
@@ -281,9 +295,9 @@ sinkTillBound :: S.ByteString
 sinkTillBound bound iter seed0 = C.sinkState
     (id, seed0)
     push
-    close
+    close'
   where
-    close (front, seed) = do
+    close' (front, seed) = do
         seed' <- liftIO $ iter seed $ front S.empty
         return (seed', False)
     push (front, seed) bs' = do
