@@ -24,6 +24,7 @@ import Data.Monoid (mappend)
 import Control.Monad (join)
 import Data.Maybe (fromMaybe)
 import qualified Data.ByteString as S
+import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 
 -- | Wrap json responses in a jsonp callback.
@@ -79,9 +80,9 @@ jsonp app env = do
 
     addCallback cb s hs b =
         return $ ResponseSource s hs $
-            CL.sourceList [copyByteString cb `mappend` fromChar '(']
+            CL.sourceList [C.Chunk $ copyByteString cb `mappend` fromChar '(']
             `mappend` b
-            `mappend` CL.sourceList [fromChar ')']
+            `mappend` CL.sourceList [C.Chunk $ fromChar ')']
 
 changeVal :: Eq a
           => a

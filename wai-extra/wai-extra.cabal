@@ -22,12 +22,11 @@ extra-source-files:
 Library
   Build-Depends:     base                      >= 4 && < 5
                    , bytestring                >= 0.9.1.4  && < 0.10
-                   , wai                       >= 1.0      && < 1.1
+                   , wai                       >= 1.1      && < 1.2
                    , old-locale                >= 1.0.0.2  && < 1.1
                    , time                      >= 1.1.4
                    , network                   >= 2.2.1.5  && < 2.4
                    , directory                 >= 1.0.1    && < 1.2
-                   , zlib-bindings             >= 0.0      && < 0.1
                    , transformers              >= 0.2.2    && < 0.3
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , http-types                >= 0.6      && < 0.7
@@ -36,7 +35,7 @@ Library
                    , data-default              >= 0.3      && < 0.4
                    , fast-logger                >= 0.0.1
                    , conduit
-                   , zlib-conduit              >= 0.0.1
+                   , zlib-conduit              >= 0.0.2
                    , blaze-builder-conduit     >= 0.0.1
 
   Exposed-modules:   Network.Wai.Handler.CGI

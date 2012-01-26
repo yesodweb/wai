@@ -21,8 +21,8 @@ import Foreign.C.String
 #else
 import System.Cmd (rawSystem)
 #endif
-import Data.Conduit.Zlib (ungzip)
-import Data.Conduit.Blaze (builderToByteString)
+import Data.Conduit.Zlib (decompressFlush, WindowBits (WindowBits))
+import Data.Conduit.Blaze (builderToByteStringFlush)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 
@@ -48,20 +48,25 @@ ping  var app req
                 let (s, hs, body) = responseSource res
                 let (isEnc, headers') = fixHeaders id hs
                 let headers'' = filter (\(x, _) -> x /= "content-length") headers'
-                let fixEnc src = if isEnc then src C.$= ungzip else src
+                let fixEnc src =
+                        if isEnc then
+                            src C.$= decompressFlush (WindowBits 31)
+                            else src
                 return $ ResponseSource s headers''
-                    $ fixEnc (body C.$= builderToByteString)
+                    $ fixEnc (body C.$= builderToByteStringFlush)
                     C.$= insideHead
-                    C.$= CL.map fromByteString
+                    C.$= CL.map (fmap fromByteString)
 
 toInsert :: S.ByteString
 toInsert = "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping\",false);x.send();},60000)</script>"
 
-insideHead :: C.Conduit S.ByteString IO S.ByteString
+insideHead :: C.Conduit (C.Flush S.ByteString) IO (C.Flush S.ByteString)
 insideHead =
-    C.conduitState (Just (S.empty, whole)) push close
+    C.conduitState (Just (S.empty, whole)) push' close
   where
     whole = "<head>"
+    push' state (C.Chunk x) = (fmap . fmap . fmap) C.Chunk (push state x)
+    push' state C.Flush = return (state, C.Producing [C.Flush])
     push (Just (held, atFront)) x
         | atFront `S.isPrefixOf` x = do
             let y = S.drop (S.length atFront) x
@@ -79,7 +84,7 @@ insideHead =
             return (Just (held', atFront'), C.Producing [held, x'])
     push Nothing x = return (Nothing, C.Producing [x])
 
-    close (Just (held, _)) = return [held, toInsert]
+    close (Just (held, _)) = return [C.Chunk held, C.Chunk toInsert]
     close Nothing = return []
 
 getOverlap :: S.ByteString -> S.ByteString -> (S.ByteString, S.ByteString, S.ByteString)

@@ -1,5 +1,5 @@
 name:            wai-handler-webkit
-version:         1.0.0
+version:         1.1.0
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -16,8 +16,8 @@ homepage:        http://www.yesodweb.com/book/wai
 
 library
     build-depends:     base      >= 4       && < 5
-                     , wai       >= 1.0     && < 1.1
-                     , warp      >= 1.0     && < 1.1
+                     , wai       >= 1.1     && < 1.2
+                     , warp      >= 1.1     && < 1.2
     ghc-options:       -Wall
     exposed-modules:   Network.Wai.Handler.Webkit
     c-sources:         webkit.cpp

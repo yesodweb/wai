@@ -97,7 +97,7 @@ import Control.Exception.Lifted (throwIO)
 import Blaze.ByteString.Builder.HTTP
     (chunkedTransferEncoding, chunkedTransferTerminator)
 import Blaze.ByteString.Builder
-    (copyByteString, Builder, toLazyByteString, toByteStringIO)
+    (copyByteString, Builder, toLazyByteString, toByteStringIO, flush)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
 import Data.Monoid (mappend, mempty)
 import Network.Sendfile
@@ -476,9 +476,12 @@ sendResponse th req conn r = sendResponse' r
                        `mappend` chunkedTransferTerminator
                   else headers' False `mappend` b
 
-    sendResponse' (ResponseSource s hs body) =
+    sendResponse' (ResponseSource s hs bodyFlush) =
         response
       where
+        body = fmap (\x -> case x of
+                        C.Flush -> flush
+                        C.Chunk builder -> builder) bodyFlush
         headers' = headers version s hs
         -- FIXME perhaps alloca a buffer per thread and reuse that in all
         -- functions below. Should lessen greatly the GC burden (I hope)

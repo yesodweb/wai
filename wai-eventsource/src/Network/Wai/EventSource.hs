@@ -23,10 +23,13 @@ eventSourceApp chan _ = do
 res :: Chan ServerEvent -> Response
 res chan = ResponseSource statusOK [("Content-Type", "text/event-stream")] $ resE chan
 
-resE :: Chan ServerEvent -> C.Source IO Builder
+resE :: Chan ServerEvent -> C.Source IO (C.Flush Builder)
 resE chan =
-  C.sourceIO ign (const ign) (const $ fmap (f . eventToBuilder) $ readChan chan)
+    C.sourceState Nothing pull
   where
-    ign = return ()
-    f Nothing = C.Closed
-    f (Just b) = C.Open b
+    pull Nothing = do
+        x <- liftIO $ readChan chan
+        return $ case eventToBuilder x of
+            Nothing -> (Nothing, C.Closed)
+            Just y -> (Just C.Flush, C.Open $ C.Chunk y)
+    pull (Just x) = return (Nothing, C.Open x)

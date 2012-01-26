@@ -35,7 +35,7 @@ import qualified Data.Conduit as C
 import qualified Data.Conduit.Zlib as CZ
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
-import Data.Conduit.Blaze (builderToByteString)
+import Data.Conduit.Blaze (builderToByteStringFlush)
 import Blaze.ByteString.Builder (fromByteString)
 import Control.Exception (try, SomeException)
 
@@ -51,8 +51,7 @@ instance Default GzipSettings where
     def = GzipSettings GzipIgnore defaultCheckMime
 
 defaultCheckMime :: S.ByteString -> Bool
-defaultCheckMime "text/event-stream" = False
-defaultCheckMime bs = S8.isPrefixOf "text/" bs
+defaultCheckMime = S8.isPrefixOf "text/"
 
 -- | Use gzip to compress the body of the response.
 --
@@ -116,9 +115,9 @@ compressE set res =
     case lookup "content-type" hs of
         Just m | gzipCheckMime set m ->
             let hs' = fixHeaders hs
-             in ResponseSource s hs' $ b C.$= builderToByteString
-                                         C.$= CZ.gzip
-                                         C.$= CL.map fromByteString
+             in ResponseSource s hs' $ b C.$= builderToByteStringFlush
+                                         C.$= CZ.compressFlush 1 (CZ.WindowBits 31)
+                                         C.$= CL.map (fmap fromByteString)
         _ -> res
   where
     (s, hs, b) = responseSource res

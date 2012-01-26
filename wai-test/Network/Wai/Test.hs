@@ -27,6 +27,7 @@ import qualified Data.Map as Map
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
 import Data.Conduit.Blaze (builderToByteString)
+import Blaze.ByteString.Builder (flush)
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Network.HTTP.Types as H
@@ -90,10 +91,12 @@ srequest (SRequest req bod) = do
 
 runResponse :: Response -> C.ResourceT IO SResponse
 runResponse res = do
-    bss <- body C.$= builderToByteString C.$$ CL.consume
+    bss <- fmap toBuilder body C.$= builderToByteString C.$$ CL.consume
     return $ SResponse s h $ L.fromChunks bss
   where
     (s, h, body) = responseSource res
+    toBuilder (C.Chunk builder) = builder
+    toBuilder C.Flush = flush
 
 assertBool :: String -> Bool -> Session ()
 assertBool s b = liftIO $ H.assertBool s b

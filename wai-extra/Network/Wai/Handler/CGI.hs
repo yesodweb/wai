@@ -22,7 +22,7 @@ import qualified Data.String as String
 import Data.Monoid (mconcat, mempty)
 import Blaze.ByteString.Builder (fromByteString, toLazyByteString)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromString)
-import Data.Conduit.Blaze (builderToByteString)
+import Data.Conduit.Blaze (builderToByteStringFlush)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import System.IO (Handle)
@@ -117,7 +117,7 @@ runGeneric vars inputH outputH xsendfile app = do
                 liftIO $ mapM_ outputH $ L.toChunks $ toLazyByteString $ sfBuilder s hs sf fp
             _ -> do
                 let (s, hs, b) = responseSource res
-                    src = CL.sourceList [headers s hs `mappend` fromChar '\n']
+                    src = CL.sourceList [C.Chunk $ headers s hs `mappend` fromChar '\n']
                           `mappend` b
                 src C.$$ builderSink
   where
@@ -142,10 +142,11 @@ runGeneric vars inputH outputH xsendfile app = do
         , fromByteString " not supported"
         ]
     bsSink = C.Sink $ return $ C.SinkData push (return ())
-    push bs = do
+    push (C.Chunk bs) = do
         liftIO $ outputH bs
         return C.Processing
-    builderSink = builderToByteString C.=$ bsSink
+    push C.Flush = return C.Processing
+    builderSink = builderToByteStringFlush C.=$ bsSink
     fixHeaders h =
         case lookup "content-type" h of
             Nothing -> ("Content-Type", "text/html; charset=utf-8") : h

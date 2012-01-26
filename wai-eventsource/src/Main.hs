@@ -5,6 +5,7 @@ import Control.Monad
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Chan
 import Network.Wai.Handler.Warp (run)
+import Network.Wai.Middleware.Gzip (gzip, def)
 import Network.Wai
 import Network.HTTP.Types (statusOK)
 import Data.Time.Clock.POSIX
@@ -31,4 +32,4 @@ main :: IO ()
 main = do
     chan <- newChan
     _ <- forkIO . source $ chan
-    run 8000 (app chan)
+    run 8000 (gzip def $ app chan)

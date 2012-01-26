@@ -127,7 +127,7 @@ data Request = Request
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
-    | ResponseSource H.Status H.ResponseHeaders (C.Source IO Builder)
+    | ResponseSource H.Status H.ResponseHeaders (C.Source IO (C.Flush Builder))
   deriving Typeable
 
 data FilePart = FilePart
@@ -135,14 +135,14 @@ data FilePart = FilePart
     , filePartByteCount :: Integer
     } deriving Show
 
-responseSource :: Response -> (H.Status, H.ResponseHeaders, C.Source IO Builder) -- FIXME re-analyze usage of Builder
+responseSource :: Response -> (H.Status, H.ResponseHeaders, C.Source IO (C.Flush Builder))
 responseSource (ResponseSource s h b) = (s, h, b)
 responseSource (ResponseFile s h fp (Just part)) =
-    (s, h, sourceFilePart part fp C.$= CL.map fromByteString)
+    (s, h, sourceFilePart part fp C.$= CL.map (C.Chunk . fromByteString))
 responseSource (ResponseFile s h fp Nothing) =
-    (s, h, CB.sourceFile fp C.$= CL.map fromByteString)
+    (s, h, CB.sourceFile fp C.$= CL.map (C.Chunk . fromByteString))
 responseSource (ResponseBuilder s h b) =
-    (s, h, CL.sourceList [b])
+    (s, h, CL.sourceList [C.Chunk b])
 
 sourceFilePart :: FilePart -> FilePath -> C.Source IO B.ByteString
 sourceFilePart (FilePart offset count) fp =

@@ -11,5 +11,6 @@ pkgs=(            ./wai
                   ./wai-handler-scgi
                   ./wai-frontend-monadcgi
                   ./warp-static
+                  ./wai-websockets
+                  ./wai-eventsource
      )
-                  # ./wai-websockets        
