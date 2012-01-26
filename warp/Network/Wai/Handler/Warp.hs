@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 ---------------------------------------------------------
 --
 -- Module        : Network.Wai.Handler.Warp
@@ -79,6 +80,7 @@ import Control.Exception
     ( bracket, finally, Exception, SomeException, catch
     , fromException, AsyncException (ThreadKilled)
     , bracketOnError
+    , IOException
     )
 import Control.Concurrent (forkIO)
 import qualified Data.Char as C
@@ -137,17 +139,26 @@ bindPort p s = do
     addrs <- getAddrInfo (Just hints) host port
     -- Choose an IPv6 socket if exists.  This ensures the socket can
     -- handle both IPv4 and IPv6 if v6only is false.
-    let addrs' = filter (\x -> addrFamily x == AF_INET6) addrs
-        addr = if null addrs' then head addrs else head addrs'
-    bracketOnError
-        (Network.Socket.socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr))
-        (sClose)
-        (\sock -> do
-            setSocketOption sock ReuseAddr 1
-            bindSocket sock (addrAddress addr)
-            listen sock maxListenQueue
-            return sock
-        )
+    let addrs' = filter (\x -> addrFamily x == AF_INET6) addrs ++ filter (\x -> addrFamily x /= AF_INET6) addrs
+
+        tryAddrs (addr1:rest@(_:_)) = putStrLn ("trying: " ++ show addr1) >>
+                                      catch
+                                      (theBody addr1) 
+                                      (\(_ :: IOException) -> putStrLn "retrying ... " >> tryAddrs rest)
+        tryAddrs (addr1:[])         = theBody addr1
+        tryAddrs _                  = error "bindPort: addrs is empty"
+        theBody addr = 
+          bracketOnError
+          (Network.Socket.socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr))
+          (sClose)
+          (\sock -> do
+              putStrLn $ show addr ++ " out of " ++ show addrs
+              setSocketOption sock ReuseAddr 1
+              bindSocket sock (addrAddress addr)
+              listen sock maxListenQueue
+              return sock
+          )
+    tryAddrs addrs'
 
 -- | Run an 'Application' on the given port. This calls 'runSettings' with
 -- 'defaultSettings'.
