@@ -144,8 +144,9 @@ runGeneric vars inputH outputH xsendfile app = do
     bsSink = C.Sink $ return $ C.SinkData push (return ())
     push (C.Chunk bs) = do
         liftIO $ outputH bs
-        return C.Processing
-    push C.Flush = return C.Processing
+        return $ C.Processing push (return ())
+    -- FIXME actually flush?
+    push C.Flush = return $ C.Processing push (return ())
     builderSink = builderToByteStringFlush C.=$ bsSink
     fixHeaders h =
         case lookup "content-type" h of
@@ -174,8 +175,10 @@ requestBodyFunc :: (Int -> IO (Maybe B.ByteString)) -> Int -> C.Source IO B.Byte
 requestBodyFunc get count0 =
     C.sourceState count0 pull
   where
-    pull 0 = return (0, C.Closed)
+    pull 0 = return C.StateClosed
     pull count = do
         mbs <- liftIO $ get $ min count defaultChunkSize
         let count' = count - maybe 0 B.length mbs
-        return (count', maybe C.Closed C.Open mbs)
+        return $ case mbs of
+            Nothing -> C.StateClosed
+            Just bs -> C.StateOpen count' bs

@@ -65,24 +65,24 @@ insideHead =
     C.conduitState (Just (S.empty, whole)) push' close
   where
     whole = "<head>"
-    push' state (C.Chunk x) = (fmap . fmap . fmap) C.Chunk (push state x)
-    push' state C.Flush = return (state, C.Producing [C.Flush])
+    push' state (C.Chunk x) = (fmap . fmap) C.Chunk (push state x)
+    push' state C.Flush = return $ C.StateProducing state [C.Flush]
     push (Just (held, atFront)) x
         | atFront `S.isPrefixOf` x = do
             let y = S.drop (S.length atFront) x
-            return (Nothing, C.Producing [held, atFront, toInsert, y])
+            return $ C.StateProducing Nothing [held, atFront, toInsert, y]
         | whole `S.isInfixOf` x = do
             let (before, rest) = S.breakSubstring whole x
             let after = S.drop (S.length whole) rest
-            return (Nothing, C.Producing [held, before, whole, toInsert, after])
+            return $ C.StateProducing Nothing [held, before, whole, toInsert, after]
         | x `S.isPrefixOf` atFront = do
             let held' = held `S.append` x
                 atFront' = S.drop (S.length x) atFront
-            return (Just (held', atFront'), C.Producing [])
+            return $ C.StateProducing (Just (held', atFront')) []
         | otherwise = do
             let (held', atFront', x') = getOverlap whole x
-            return (Just (held', atFront'), C.Producing [held, x'])
-    push Nothing x = return (Nothing, C.Producing [x])
+            return $ C.StateProducing (Just (held', atFront')) [held, x']
+    push Nothing x = return $ C.StateProducing Nothing [x]
 
     close (Just (held, _)) = return [C.Chunk held, C.Chunk toInsert]
     close Nothing = return []

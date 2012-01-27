@@ -12,16 +12,16 @@ Cabal-version:       >=1.2
 
 Library
     Exposed-modules: Network.Wai.Handler.Launch
-    build-depends:   base                    >= 4      && < 5
-                   , wai                     >= 1.1    && < 1.2
-                   , warp                    >= 1.1    && < 1.2
-                   , http-types              >= 0.6    && < 0.7
-                   , transformers          >= 0.2.2         && < 0.3
-                   , bytestring                >= 0.9.1.4  && < 0.10
-                   , blaze-builder             >= 0.2.1.4  && < 0.4
-                   , conduit
-                   , blaze-builder-conduit
-                   , zlib-conduit
+    build-depends:   base                    >= 4       && < 5
+                   , wai                     >= 1.1     && < 1.2
+                   , warp                    >= 1.1     && < 1.2
+                   , http-types              >= 0.6     && < 0.7
+                   , transformers            >= 0.2.2   && < 0.3
+                   , bytestring              >= 0.9.1.4 && < 0.10
+                   , blaze-builder           >= 0.2.1.4 && < 0.4
+                   , conduit                 >= 0.2
+                   , blaze-builder-conduit   >= 0.2
+                   , zlib-conduit            >= 0.2
 
     if os(windows)
         c-sources: windows.c

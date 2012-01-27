@@ -30,6 +30,6 @@ resE chan =
     pull Nothing = do
         x <- liftIO $ readChan chan
         return $ case eventToBuilder x of
-            Nothing -> (Nothing, C.Closed)
-            Just y -> (Just C.Flush, C.Open $ C.Chunk y)
-    pull (Just x) = return (Nothing, C.Open x)
+            Nothing -> C.StateClosed
+            Just y -> C.StateOpen (Just C.Flush) (C.Chunk y)
+    pull (Just x) = return $ C.StateOpen Nothing x

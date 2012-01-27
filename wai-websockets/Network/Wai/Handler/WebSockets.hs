@@ -53,4 +53,4 @@ runWebSockets opts req app source conn = do
 
     push iter bs = do
         step <- liftIO $ E.runIteratee $ E.enumList 1 [bs] E.$$ iter
-        return (E.returnI step, C.Processing)
+        return $ C.StateProcessing $ E.returnI step

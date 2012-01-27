@@ -197,10 +197,10 @@ takeLine =
     push front bs = do
         let (x, y) = S.break (== 10) $ front bs -- LF
          in if S.null y
-                then return (S.append x, C.Processing)
+                then return $ C.StateProcessing $ S.append x
                 else do
                     let lo = if S.length y > 1 then Just (S.drop 1 y) else Nothing
-                    return (error "takeLine", C.Done lo $ Just $ killCR x)
+                    return $ C.StateDone lo $ Just $ killCR x
 
 takeLines :: C.Sink S.ByteString IO [S.ByteString]
 takeLines = do
@@ -306,7 +306,7 @@ sinkTillBound bound iter seed0 = C.sinkState
             FoundBound before after -> do
                 let before' = killCRLF before
                 seed' <- liftIO $ iter seed before'
-                return (undefined, C.Done (Just after) (seed', True))
+                return $ C.StateDone (Just after) (seed', True)
             NoBound -> do
                 -- don't emit newlines, in case it's part of a bound
                 let (toEmit, front') =
@@ -315,8 +315,8 @@ sinkTillBound bound iter seed0 = C.sinkState
                                   in (x, S.append y)
                             else (bs, id)
                 seed' <- liftIO $ iter seed toEmit
-                return ((front', seed'), C.Processing)
-            PartialBound -> return ((S.append bs, seed), C.Processing)
+                return $ C.StateProcessing (front', seed')
+            PartialBound -> return $ C.StateProcessing (S.append bs, seed)
 
 parseAttrs :: S.ByteString -> [(S.ByteString, S.ByteString)]
 parseAttrs = map go . S.split 59 -- semicolon

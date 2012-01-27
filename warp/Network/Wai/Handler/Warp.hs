@@ -92,7 +92,6 @@ import Data.Typeable (Typeable)
 
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import qualified Data.Conduit as C
-import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Blaze (builderToByteString)
 import Control.Exception.Lifted (throwIO)
@@ -116,7 +115,7 @@ import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import System.IO (hPutStrLn, stderr)
 import ReadInt (readInt64)
-
+import qualified Data.IORef as I
 
 #if WINDOWS
 import Control.Concurrent (threadDelay)
@@ -322,17 +321,32 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
             | otherwise = ("", rpath')
     let heads = map parseHeaderNoAttr otherLines
     let host = fromMaybe host' $ lookup "host" heads
-    let len =
+    let len0 =
             case lookup "content-length" heads of
                 Nothing -> 0
                 Just bs -> readInt bs
     let serverName' = takeUntil 58 host -- ':'
     -- FIXME isolate takes an Integer instead of Int or Int64. If this is a
     -- performance penalty, we may need our own version.
-    rbody <- C.prepareSource $
-        if len == 0
-            then mempty
-            else src C.$= CB.isolate len
+    rbody <-
+        if len0 == 0
+            then return mempty
+            else do
+                -- We can't use the standard isolate, as its counter is not
+                -- kept in a mutable variable.
+                lenRef <- liftIO $ I.newIORef len0
+                let isolate = C.Conduit $ return $ C.PreparedConduit push close
+                    push bs = do
+                        len <- liftIO $ I.readIORef lenRef
+                        let (a, b) = S.splitAt len bs
+                            len' = len - S.length a
+                        liftIO $ I.writeIORef lenRef len'
+                        return $ if len' == 0
+                            then C.Finished (if S.null b then Nothing else Just b) (if S.null a then [] else [a])
+                            else C.Producing push close [a]
+                    close = return []
+                psrc <- C.prepareSource $ src C.$= isolate
+                return $ C.Source $ return psrc
     return Request
             { requestMethod = method
             , httpVersion = httpversion
@@ -345,7 +359,7 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
             , requestHeaders = heads
             , isSecure = False
             , remoteHost = remoteHost'
-            , requestBody = C.Source $ return rbody
+            , requestBody = rbody
             , vault = mempty
             }
 
@@ -515,7 +529,7 @@ sendResponse th req conn r = sendResponse' r
             , C.conduitClose = close
             }
 
-        push x = return $ C.Producing [chunkedTransferEncoding x]
+        push x = return $ C.Producing push close [chunkedTransferEncoding x]
         close = return [chunkedTransferTerminator]
 
 parseHeaderNoAttr :: ByteString -> H.Header
@@ -529,23 +543,24 @@ parseHeaderNoAttr s =
      in (CI.mk k, rest')
 
 connSource :: Connection -> T.Handle -> C.PreparedSource IO ByteString
-connSource Connection { connRecv = recv } th = C.PreparedSource
-    { C.sourcePull = do
-        bs <- liftIO recv
-        if S.null bs
-            then return C.Closed
-            else do
-                when (S.length bs >= 2048) $ liftIO $ T.tickle th
-                return (C.Open bs)
-    , C.sourceClose = return ()
-    }
+connSource Connection { connRecv = recv } th =
+    src
+  where
+    src = C.PreparedSource
+        { C.sourcePull = do
+            bs <- liftIO recv
+            if S.null bs
+                then return C.Closed
+                else do
+                    when (S.length bs >= 2048) $ liftIO $ T.tickle th
+                    return (C.Open src bs)
+        , C.sourceClose = return ()
+        }
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
 connSink :: Connection -> T.Handle -> C.Sink B.ByteString IO ()
-connSink Connection { connSendAll = send } th = C.Sink $ return C.SinkData
-    { C.sinkPush = push
-    , C.sinkClose = close
-    }
+connSink Connection { connSendAll = send } th =
+    C.Sink $ return $ C.SinkData push close
   where
     close = liftIO (T.resume th)
     push x = do
@@ -553,7 +568,7 @@ connSink Connection { connSendAll = send } th = C.Sink $ return C.SinkData
             T.resume th
             send x
             T.pause th
-        return C.Processing
+        return (C.Processing push close)
     -- We pause timeouts before passing control back to user code. This ensures
     -- that a timeout will only ever be executed when Warp is in control. We
     -- also make sure to resume the timeout after the completion of user code
@@ -616,7 +631,7 @@ takeHeaders =
 
 takeHeadersPush :: THStatus
                 -> ByteString
-                -> ResourceT IO (THStatus, C.SinkResult ByteString [ByteString])
+                -> ResourceT IO (C.SinkStateResult THStatus ByteString [ByteString])
 takeHeadersPush (THStatus len _ _ ) _
     | len > maxTotalHeaderLength = throwIO OverLargeHeader
 takeHeadersPush (THStatus len lines prepend) bs =
@@ -624,7 +639,7 @@ takeHeadersPush (THStatus len lines prepend) bs =
         -- no newline.  prepend entire bs to next line
         Nothing -> do
             let len' = len + bsLen
-            return (THStatus len' lines (prepend . S.append bs), C.Processing)
+            return $ C.StateProcessing $ THStatus len' lines (prepend . S.append bs)
         Just nl -> do
             let end = nl
                 start = nl + 1
@@ -638,8 +653,8 @@ takeHeadersPush (THStatus len lines prepend) bs =
                     if start < bsLen
                         then do
                             let rest = SU.unsafeDrop start bs
-                            return (undefined, C.Done (Just rest) lines')
-                        else return (undefined, C.Done Nothing lines')
+                            return $ C.StateDone (Just rest) lines'
+                        else return $ C.StateDone Nothing lines'
                 -- more headers
                 else do
                     let len' = len + start
@@ -648,7 +663,7 @@ takeHeadersPush (THStatus len lines prepend) bs =
                         then do
                             let more = SU.unsafeDrop start bs
                             takeHeadersPush (THStatus len' lines' id) more
-                        else return (THStatus len' lines' id, C.Processing)
+                        else return $ C.StateProcessing $ THStatus len' lines' id
   where
     bsLen = S.length bs
     mnl = S.elemIndex 10 bs
