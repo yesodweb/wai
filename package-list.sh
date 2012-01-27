@@ -1,7 +1,6 @@
 #!/bin/bash
 
-pkgs=(            ./zlib-bindings
-                  ./conduit/conduit
+pkgs=(            ./conduit/conduit
                   ./conduit/blaze-builder-conduit
                   ./conduit/zlib-conduit
                   ./wai
