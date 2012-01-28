@@ -264,7 +264,7 @@ serveConnection settings th onException port app conn remoteHost' =
   where
     serveConnection' :: ResourceT IO ()
     serveConnection' = do
-        fromClient <- C.bufferSource $ C.Source $ return $ connSource conn th
+        fromClient <- C.bufferSource $ connSource conn th
         serveConnection'' fromClient
 
     serveConnection'' fromClient = do
@@ -335,7 +335,7 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
                 -- We can't use the standard isolate, as its counter is not
                 -- kept in a mutable variable.
                 lenRef <- liftIO $ I.newIORef len0
-                let isolate = C.Conduit $ return $ C.PreparedConduit push close
+                let isolate = C.Conduit push close
                     push bs = do
                         len <- liftIO $ I.readIORef lenRef
                         let (a, b) = S.splitAt len bs
@@ -343,10 +343,9 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
                         liftIO $ I.writeIORef lenRef len'
                         return $ if len' == 0
                             then C.Finished (if S.null b then Nothing else Just b) (if S.null a then [] else [a])
-                            else C.Producing push close [a]
+                            else C.Producing isolate [a]
                     close = return []
-                psrc <- C.prepareSource $ src C.$= isolate
-                return $ C.Source $ return psrc
+                return $ src C.$= isolate
     return Request
             { requestMethod = method
             , httpVersion = httpversion
@@ -524,12 +523,13 @@ sendResponse th req conn r = sendResponse' r
                 return $ isKeepAlive hs
         needsChunked' = needsChunked hs
         chunk :: C.Conduit Builder IO Builder
-        chunk = C.Conduit $ return C.PreparedConduit
+        chunk = C.Conduit
             { C.conduitPush = push
             , C.conduitClose = close
             }
 
-        push x = return $ C.Producing push close [chunkedTransferEncoding x]
+        conduit = C.Conduit push close
+        push x = return $ C.Producing conduit [chunkedTransferEncoding x]
         close = return [chunkedTransferTerminator]
 
 parseHeaderNoAttr :: ByteString -> H.Header
@@ -542,11 +542,11 @@ parseHeaderNoAttr s =
                    else rest
      in (CI.mk k, rest')
 
-connSource :: Connection -> T.Handle -> C.PreparedSource IO ByteString
+connSource :: Connection -> T.Handle -> C.Source IO ByteString
 connSource Connection { connRecv = recv } th =
     src
   where
-    src = C.PreparedSource
+    src = C.Source
         { C.sourcePull = do
             bs <- liftIO recv
             if S.null bs
@@ -560,7 +560,7 @@ connSource Connection { connRecv = recv } th =
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
 connSink :: Connection -> T.Handle -> C.Sink B.ByteString IO ()
 connSink Connection { connSendAll = send } th =
-    C.Sink $ return $ C.SinkData push close
+    C.SinkData push close
   where
     close = liftIO (T.resume th)
     push x = do

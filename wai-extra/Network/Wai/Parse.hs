@@ -156,7 +156,7 @@ conduitRequestBody :: BackEnd y
                    -> C.Conduit S.ByteString IO (Either Param (File y))
 conduitRequestBody sink req = do
     case ctype of
-        Nothing -> C.Conduit $ return $ C.PreparedConduit
+        Nothing -> C.Conduit
             { C.conduitPush = \bs -> return $ C.Finished (Just bs) []
             , C.conduitClose = return []
             }

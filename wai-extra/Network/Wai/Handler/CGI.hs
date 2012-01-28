@@ -141,7 +141,7 @@ runGeneric vars inputH outputH xsendfile app = do
         , fromByteString sf
         , fromByteString " not supported"
         ]
-    bsSink = C.Sink $ return $ C.SinkData push (return ())
+    bsSink = C.SinkData push (return ())
     push (C.Chunk bs) = do
         liftIO $ outputH bs
         return $ C.Processing push (return ())
