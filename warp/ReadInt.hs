@@ -34,7 +34,7 @@ data Table = Table !Addr#
 
 {- NOINLINE mhDigitToInt #-}
 mhDigitToInt :: Char -> Int
-mhDigitToInt (C# i) = I# (word2Int# $ indexWord8OffAddr# addr (ord# i))
+mhDigitToInt (C# i) = I# (word2Int# (indexWord8OffAddr# addr (ord# i)))
   where
     !(Table addr) = table
     table :: Table
