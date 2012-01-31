@@ -346,6 +346,28 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
 
                     -- Make sure that we don't connect to the source after the
                     -- isolate conduit closes.
+                    --
+                    -- Here's the issue: we fuse our buffered request body with
+                    -- an isolate conduit which ensures no more than X bytes
+                    -- are read. Suppose we read all X bytes, and then we call
+                    -- requestBody again. What happens?
+                    --
+                    -- Previously, we would try to read one more chunk from the
+                    -- buffered source. This is inherent to conduit: we
+                    -- wouldn't know that the isolate Conduit isn't accepting
+                    -- more data until after we've pushed some data to it. This
+                    -- results in hanging, since there's no data available on
+                    -- the wire.
+                    --
+                    -- Instead, we add a wrapper that checks if the request
+                    -- body has already been depleted before making that first
+                    -- pull.
+                    --
+                    -- Possible optimization: do away with the Conduit
+                    -- entirely. However, this may be less efficient overall,
+                    -- as we'd now have to check the BufferedSource status on
+                    -- each call. Worth looking into.
+
                     wrap src' = C.Source
                         { C.sourcePull = do
                             len <- liftIO $ I.readIORef lenRef
