@@ -1,10 +1,6 @@
 #!/bin/bash
 
-pkgs=(            ./conduit/conduit
-                  ./conduit/blaze-builder-conduit
-                  ./conduit/zlib-conduit
-                  ./conduit/attoparsec-conduit
-                  ./wai
+pkgs=(            ./wai
                   ./wai-test
                   ./wai-extra
                   ./warp
