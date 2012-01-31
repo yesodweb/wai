@@ -54,6 +54,13 @@ ignoreBody icount req = do
         else err icount ("Invalid request method" :: String, requestMethod req)
     return $ responseLBS status200 [] "Ignored the body"
 
+doubleConnect :: CounterApplication
+doubleConnect icount req = do
+    _ <- requestBody req $$ Data.Conduit.List.consume
+    _ <- requestBody req $$ Data.Conduit.List.consume
+    incr icount
+    return $ responseLBS status200 [] "double connect"
+
 nextPort :: I.IORef Int
 nextPort = unsafePerformIO $ I.newIORef 5000
 
@@ -111,3 +118,4 @@ main = hspecX $ do
             ]
     describe "no hanging" $ do
         it "has body, read" $ runTest 1 readBody $ map S.singleton $ S.unpack singlePostHello
+        it "double connect" $ runTest 1 doubleConnect [singlePostHello]

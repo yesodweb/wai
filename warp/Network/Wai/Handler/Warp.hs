@@ -268,7 +268,7 @@ serveConnection settings th onException port app conn remoteHost' =
         serveConnection'' fromClient
 
     serveConnection'' fromClient = do
-        (flushBody, env) <- parseRequest port remoteHost' fromClient
+        env <- parseRequest port remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
@@ -276,7 +276,7 @@ serveConnection settings th onException port app conn remoteHost' =
                 res <- app env
 
                 -- flush the rest of the request body
-                flushBody
+                requestBody env C.$$ CL.sinkNull
 
                 liftIO $ T.resume th
                 keepAlive <- sendResponse th env conn res
@@ -287,7 +287,7 @@ serveConnection settings th onException port app conn remoteHost' =
 
 parseRequest :: Port -> SockAddr
              -> C.BufferedSource IO S.ByteString
-             -> ResourceT IO (ResourceT IO (), Request)
+             -> ResourceT IO Request
 parseRequest port remoteHost' src = do
     headers' <- src C.$$ takeHeaders
     parseRequest' port headers' remoteHost' src
@@ -311,7 +311,7 @@ parseRequest' :: Port
               -> [ByteString]
               -> SockAddr
               -> C.BufferedSource IO S.ByteString
-              -> ResourceT IO (ResourceT IO (), Request)
+              -> ResourceT IO Request
 parseRequest' _ [] _ _ = throwIO $ NotEnoughLines []
 parseRequest' port (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
@@ -326,9 +326,9 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
                 Nothing -> 0
                 Just bs -> readInt bs
     let serverName' = takeUntil 58 host -- ':'
-    (flush', rbody) <-
+    rbody <-
         if len0 == 0
-            then return (return (), mempty)
+            then return mempty
             else do
                 -- We can't use the standard isolate, as its counter is not
                 -- kept in a mutable variable.
@@ -344,22 +344,18 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
                             else C.Producing isolate [a]
                     close = return []
 
-                    binDrop i0 = C.sinkState i0 pushS closeS
-                    pushS i bs
-                        | S.length bs > i =
-                            return $ C.StateDone (Just $ S.drop i bs) ()
-                        | S.length bs == 0 =
-                            return $ C.StateDone Nothing ()
-                        | otherwise =
-                            return $ C.StateProcessing $ i - S.length bs
-                    closeS _ = return ()
-                    flush' = do
-                        len <- liftIO $ I.readIORef lenRef
-                        if len > 0
-                            then src C.$$ binDrop len
-                            else return ()
-                return (flush', src C.$= isolate)
-    return (flush', Request
+                    -- Make sure that we don't connect to the source after the
+                    -- isolate conduit closes.
+                    wrap src' = C.Source
+                        { C.sourcePull = do
+                            len <- liftIO $ I.readIORef lenRef
+                            if len <= 0
+                                then return C.Closed
+                                else C.sourcePull src'
+                        , C.sourceClose = return ()
+                        }
+                return $ wrap $ src C.$= isolate
+    return Request
             { requestMethod = method
             , httpVersion = httpversion
             , pathInfo = H.decodePathSegments rpath
@@ -373,7 +369,7 @@ parseRequest' port (firstLine:otherLines) remoteHost' src = do
             , remoteHost = remoteHost'
             , requestBody = rbody
             , vault = mempty
-            })
+            }
 
 
 takeUntil :: Word8 -> ByteString -> ByteString
