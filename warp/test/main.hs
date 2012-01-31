@@ -109,3 +109,5 @@ main = hspecX $ do
             [ singlePostHello
             , singleGet
             ]
+    describe "no hanging" $ do
+        it "has body, read" $ runTest 1 readBody $ map S.singleton $ S.unpack singlePostHello
