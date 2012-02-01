@@ -280,7 +280,7 @@ serveConnection settings th onException port app conn remoteHost' =
         serveConnection'' fromClient
 
     serveConnection'' fromClient = do
-        env <- parseRequest port remoteHost' fromClient
+        env <- parseRequest conn port remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
@@ -297,12 +297,12 @@ serveConnection settings th onException port app conn remoteHost' =
                 liftIO $ T.pause th
                 intercept fromClient conn
 
-parseRequest :: Port -> SockAddr
+parseRequest :: Connection -> Port -> SockAddr
              -> C.BufferedSource IO S.ByteString
              -> ResourceT IO Request
-parseRequest port remoteHost' src = do
+parseRequest conn port remoteHost' src = do
     headers' <- src C.$$ takeHeaders
-    parseRequest' port headers' remoteHost' src
+    parseRequest' conn port headers' remoteHost' src
 
 -- FIXME come up with good values here
 bytesPerRead, maxTotalHeaderLength :: Int
@@ -318,20 +318,37 @@ data InvalidRequest =
     deriving (Show, Typeable, Eq)
 instance Exception InvalidRequest
 
+handleExpect :: Connection
+             -> H.HttpVersion
+             -> ([H.Header] -> [H.Header])
+             -> [H.Header]
+             -> IO [H.Header]
+handleExpect _ _ front [] = return $ front []
+handleExpect conn hv front (("expect", "100-continue"):rest) = do
+    connSendAll conn $
+        if hv == H.http11
+            then "HTTP/1.1 100 Continue\r\n\r\n"
+            else "HTTP/1.0 100 Continue\r\n\r\n"
+    return $ front rest
+handleExpect conn hv front (x:xs) = handleExpect conn hv (front . (x:)) xs
+
 -- | Parse a set of header lines and body into a 'Request'.
-parseRequest' :: Port
+parseRequest' :: Connection
+              -> Port
               -> [ByteString]
               -> SockAddr
               -> C.BufferedSource IO S.ByteString
               -> ResourceT IO Request
-parseRequest' _ [] _ _ = throwIO $ NotEnoughLines []
-parseRequest' port (firstLine:otherLines) remoteHost' src = do
+parseRequest' _ _ [] _ _ = throwIO $ NotEnoughLines []
+parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
     let (host',rpath)
             | S.null rpath' = ("", "/")
             | "http://" `S.isPrefixOf` rpath' = S.breakByte 47 $ S.drop 7 rpath'
             | otherwise = ("", rpath')
-    let heads = map parseHeaderNoAttr otherLines
+    heads <- liftIO
+           $ handleExpect conn httpversion id
+             (map parseHeaderNoAttr otherLines)
     let host = fromMaybe host' $ lookup "host" heads
     let len0 =
             case lookup "content-length" heads of
