@@ -19,6 +19,7 @@ import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as S8
 import Control.Arrow ((***))
 import Data.Text (pack)
+import Data.String (fromString)
 
 data Args = Args
     { docroot :: FilePath
@@ -47,7 +48,7 @@ main = do
                . autohead
     runSettings defaultSettings
         { settingsPort = port
-        , settingsHost = host
+        , settingsHost = fromString host
         } $ middle $ staticApp defaultFileServerSettings
         { ssFolder = fileSystemLookup $ toFilePath docroot
         , ssIndices = if noindex then [] else map pack index
