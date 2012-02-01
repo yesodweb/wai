@@ -99,10 +99,11 @@ works without GHC extensions:
 
     import qualified Data.ByteString.Char8 as B8
     import qualified Data.ByteString.Lazy.Char8 as LB8
+    import           Data.CaseInsensitive (mk)
 
     notFound = responseLBS
         status404
-        [("Content-Type", B8.pack "text/plain")]
+        [(mk $ B8.pack "Content-Type", B8.pack "text/plain")]
         (LB8.pack "404 - Not Found")
 
 

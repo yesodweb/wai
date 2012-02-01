@@ -12,9 +12,12 @@ You want a minimal example? Here it is!
     import Network.HTTP.Types
     import Network.Wai.Handler.Warp (run)
     import Data.ByteString.Lazy.Char8 () -- Just for an orphan instance
+    import Control.Monad.IO.Class (liftIO)
 
     app :: Application
-    app _ = return $ responseLBS
+    app _ = do
+      liftIO $ putStrLn "I've done some IO here"
+      return $ responseLBS
         status200
         [("Content-Type", "text/plain")]
         "Hello, Web!"
@@ -91,10 +94,11 @@ For the sake of efficiency, WAI uses the [bytestring] package.  We used GHCs [ov
 
     import qualified Data.ByteString.Char8 as B8
     import qualified Data.ByteString.Lazy.Char8 as LB8
+    import           Data.CaseInsensitive (mk)
 
     notFound = responseLBS
         status404
-        [("Content-Type", B8.pack "text/plain")]
+        [(mk $ B8.pack "Content-Type", B8.pack "text/plain")]
         (LB8.pack "404 - Not Found")
 
 
