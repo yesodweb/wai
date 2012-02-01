@@ -23,7 +23,7 @@ Library
                    , cryptocipher                  >= 0.3      && < 0.4
                    , tls-extra                     >= 0.4      && < 0.5
                    , tls                           >= 0.8.1    && < 0.9
-                   , crypto-api                    >= 0.8      && < 0.9
+                   , crypto-api                    >= 0.8      && < 0.10
                    , network                       >= 2.2.1    && < 2.4
   Exposed-modules:   Network.Wai.Handler.WarpTLS
   ghc-options:       -Wall
