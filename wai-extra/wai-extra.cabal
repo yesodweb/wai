@@ -35,6 +35,8 @@ Library
                    , data-default              >= 0.3      && < 0.4
                    , fast-logger               >= 0.0.2
                    , conduit                   >= 0.2
+                   -- remove hard zlib dependency when zlib > 0.5.3.2 is released
+                   , zlib                      <= 0.5.3.1
                    , zlib-conduit              >= 0.2
                    , blaze-builder-conduit     >= 0.2
 
