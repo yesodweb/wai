@@ -38,6 +38,8 @@ module Network.Wai.Handler.Warp
     , settingsTimeout
     , settingsIntercept
     , settingsManager
+      -- ** Data types
+    , HostPreference (..)
       -- * Connection
     , Connection (..)
     , runSettingsConnection
@@ -116,6 +118,7 @@ import qualified Data.CaseInsensitive as CI
 import System.IO (hPutStrLn, stderr)
 import ReadInt (readInt64)
 import qualified Data.IORef as I
+import Data.String (IsString (..))
 
 #if WINDOWS
 import Control.Concurrent (threadDelay)
@@ -164,18 +167,27 @@ socketConnection s = Connection
     }
 
 
-bindPort :: Int -> String -> IO Socket
+bindPort :: Int -> HostPreference -> IO Socket
 bindPort p s = do
     let hints = defaultHints { addrFlags = [AI_PASSIVE
                                          , AI_NUMERICSERV
                                          , AI_NUMERICHOST]
                              , addrSocketType = Stream }
-        host = if s == "*" then Nothing else Just s
+        host =
+            case s of
+                Host s' -> Just s'
+                _ -> Nothing
         port = Just . show $ p
     addrs <- getAddrInfo (Just hints) host port
     -- Choose an IPv6 socket if exists.  This ensures the socket can
     -- handle both IPv4 and IPv6 if v6only is false.
-    let addrs' = filter (\x -> addrFamily x == AF_INET6) addrs ++ filter (\x -> addrFamily x /= AF_INET6) addrs
+    let addrs4 = filter (\x -> addrFamily x /= AF_INET6) addrs
+        addrs6 = filter (\x -> addrFamily x == AF_INET6) addrs
+        addrs' =
+            case s of
+                HostIPv4 -> addrs4 ++ addrs6
+                HostIPv6 -> addrs6 ++ addrs4
+                _ -> addrs
 
         tryAddrs (addr1:rest@(_:_)) = 
                                       catch
@@ -616,19 +628,51 @@ connSink Connection { connSendAll = send } th =
 -- > defaultSettings { settingsTimeout = 20 }
 data Settings = Settings
     { settingsPort :: Int -- ^ Port to listen on. Default value: 3000
-    , settingsHost :: String -- ^ Host to bind to, or * for all. Default value: *
+    , settingsHost :: HostPreference -- ^ Default value: HostIPv4
     , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
     , settingsIntercept :: Request -> Maybe (C.BufferedSource IO S.ByteString -> Connection -> ResourceT IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     }
 
+-- | Which host to bind.
+--
+-- Note: The @IsString@ instance recognizes the following special values:
+--
+-- * @*@ means @HostAny@
+--
+-- * @*4@ means @HostIPv4@
+--
+-- * @*6@ means @HostIPv6@
+data HostPreference =
+    HostAny
+  | HostIPv4
+  | HostIPv6
+  | Host String
+    deriving (Show, Eq, Ord)
+
+instance IsString HostPreference where
+    -- The funny code coming up is to get around some irritating warnings from
+    -- GHC. I should be able to just write:
+    {-
+    fromString "*" = HostAny
+    fromString "*4" = HostIPv4
+    fromString "*6" = HostIPv6
+    -}
+    fromString s'@('*':s) =
+        case s of
+            [] -> HostAny
+            ['4'] -> HostIPv4
+            ['6'] -> HostIPv6
+            _ -> Host s'
+    fromString s = Host s
+
 -- | The default settings for the Warp server. See the individual settings for
 -- the default value.
 defaultSettings :: Settings
 defaultSettings = Settings
     { settingsPort = 3000
-    , settingsHost = "*"
+    , settingsHost = HostIPv4
     , settingsOnException = \e ->
         case fromException e of
             Just x -> go x
