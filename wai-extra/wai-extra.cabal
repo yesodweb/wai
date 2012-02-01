@@ -33,7 +33,7 @@ Library
                    , text                      >= 0.7      && < 0.12
                    , case-insensitive          >= 0.2
                    , data-default              >= 0.3      && < 0.4
-                   , fast-logger               >= 0.0.1
+                   , fast-logger               >= 0.0.2
                    , conduit                   >= 0.2
                    , zlib-conduit              >= 0.2
                    , blaze-builder-conduit     >= 0.2
