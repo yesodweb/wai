@@ -100,7 +100,9 @@ parseRequestBody' :: BackEnd L.ByteString
                   -> SRequest
                   -> C.ResourceT IO ([(S.ByteString, S.ByteString)], [(S.ByteString, FileInfo L.ByteString)])
 parseRequestBody' sink (SRequest req bod) =
-    CL.sourceList (L.toChunks bod) C.$$ parseRequestBody sink req
+    case getRequestBodyType req of
+        Nothing -> return ([], [])
+        Just rbt -> CL.sourceList (L.toChunks bod) C.$$ sinkRequestBody sink rbt
 
 caseParseRequestBody :: Assertion
 caseParseRequestBody =
@@ -399,8 +401,11 @@ caseDalvikMultipart = do
     let request' = defaultRequest
             { requestHeaders = headers
             }
-    (params, files) <- C.runResourceT $ sourceFile "test/requests/dalvik-request"
-                       C.$$ parseRequestBody lbsBackEnd request'
+    (params, files) <-
+        case getRequestBodyType request' of
+            Nothing -> return ([], [])
+            Just rbt -> C.runResourceT $ sourceFile "test/requests/dalvik-request"
+                       C.$$ sinkRequestBody lbsBackEnd rbt
     lookup "scannedTime" params @?= Just "1.298590056748E9"
     lookup "geoLong" params @?= Just "0"
     lookup "geoLat" params @?= Just "0"

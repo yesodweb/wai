@@ -17,7 +17,7 @@ import Network.Wai (Request(..), Middleware)
 import System.Log.FastLogger
 import Network.HTTP.Types as H
 
-import Network.Wai.Parse (parseRequestBody, lbsBackEnd, fileName, Param, File)
+import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, getRequestBodyType)
 import qualified Data.ByteString.Lazy as LBS
 
 import qualified Data.Conduit as C
@@ -77,7 +77,7 @@ logCallbackDev cb app req = do
     body <- requestBody req C.$$ CL.consume
     postParams <- if any (requestMethod req ==) ["GET", "HEAD"]
       then return []
-      else do postParams <- liftIO $ allPostParams req body
+      else do postParams <- liftIO $ allPostParams body
               return $ collectPostParams postParams
     let getParams = map emptyGetParam $ queryString req
 
@@ -99,7 +99,10 @@ logCallbackDev cb app req = do
       if null params then ""
         else BS.concat ["\n", prefix, pack (show params)]
 
-    allPostParams req' body = C.runResourceT $ CL.sourceList body C.$$ parseRequestBody lbsBackEnd req'
+    allPostParams body =
+        case getRequestBodyType req of
+            Nothing -> return ([], [])
+            Just rbt -> C.runResourceT $ CL.sourceList body C.$$ sinkRequestBody lbsBackEnd rbt
 
     emptyGetParam :: (BS.ByteString, Maybe BS.ByteString) -> (BS.ByteString, BS.ByteString)
     emptyGetParam (k, Just v) = (k,v)

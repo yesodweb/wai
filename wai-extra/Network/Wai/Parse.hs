@@ -6,6 +6,9 @@
 module Network.Wai.Parse
     ( parseHttpAccept
     , parseRequestBody
+    , RequestBodyType (..)
+    , getRequestBodyType
+    , sinkRequestBody
     , conduitRequestBody
     , lbsBackEnd
     , tempFileBackEnd
@@ -146,29 +149,16 @@ data FileInfo c = FileInfo
 type Param = (S.ByteString, S.ByteString)
 type File y = (S.ByteString, FileInfo y)
 
-parseRequestBody :: BackEnd y
-                 -> Request
-                 -> C.Sink S.ByteString IO ([Param], [File y])
-parseRequestBody s r = fmap partitionEithers $ conduitRequestBody s r C.=$ CL.consume
+data RequestBodyType = UrlEncoded | Multipart S.ByteString
 
-conduitRequestBody :: BackEnd y
-                   -> Request
-                   -> C.Conduit S.ByteString IO (Either Param (File y))
-conduitRequestBody sink req = do
-    case ctype of
-        Nothing -> C.Conduit
-            { C.conduitPush = \bs -> return $ C.Finished (Just bs) []
-            , C.conduitClose = return []
-            }
-        Just Nothing -> C.sequenceSink () $ \() -> do -- url-encoded
-            -- NOTE: in general, url-encoded data will be in a single chunk.
-            -- Therefore, I'm optimizing for the usual case by sticking with
-            -- strict byte strings here.
-            bs <- CL.consume
-            return $ C.Emit () $ map Left $ H.parseSimpleQuery $ S.concat bs
-        Just (Just bound) -> -- multi-part
-            let bound'' = S8.pack "--" `S.append` bound
-             in parsePieces sink bound''
+getRequestBodyType :: Request -> Maybe RequestBodyType
+getRequestBodyType req = do
+    ctype <- lookup "Content-Type" $ requestHeaders req
+    if urlenc `S.isPrefixOf` ctype
+        then Just UrlEncoded
+        else case boundary ctype of
+                Just x -> Just $ Multipart x
+                Nothing -> Nothing
   where
     urlenc = S8.pack "application/x-www-form-urlencoded"
     formBound = S8.pack "multipart/form-data;"
@@ -181,13 +171,31 @@ conduitRequestBody sink req = do
                         then Just $ S.drop (S.length bound') s'
                         else Nothing
             else Nothing
-    ctype = do
-      ctype' <- lookup "Content-Type" $ requestHeaders req
-      if urlenc `S.isPrefixOf` ctype'
-          then Just Nothing
-          else case boundary ctype' of
-                Just x -> Just $ Just x
-                Nothing -> Nothing
+
+parseRequestBody :: BackEnd y
+                 -> Request
+                 -> C.ResourceT IO ([Param], [File y])
+parseRequestBody s r =
+    case getRequestBodyType r of
+        Nothing -> return ([], [])
+        Just rbt -> fmap partitionEithers $ requestBody r C.$$ conduitRequestBody s rbt C.=$ CL.consume
+
+sinkRequestBody :: BackEnd y
+                -> RequestBodyType
+                -> C.Sink S.ByteString IO ([Param], [File y])
+sinkRequestBody s r = fmap partitionEithers $ conduitRequestBody s r C.=$ CL.consume
+
+conduitRequestBody :: BackEnd y
+                   -> RequestBodyType
+                   -> C.Conduit S.ByteString IO (Either Param (File y))
+conduitRequestBody _ UrlEncoded = C.sequenceSink () $ \() -> do -- url-encoded
+    -- NOTE: in general, url-encoded data will be in a single chunk.
+    -- Therefore, I'm optimizing for the usual case by sticking with
+    -- strict byte strings here.
+    bs <- CL.consume
+    return $ C.Emit () $ map Left $ H.parseSimpleQuery $ S.concat bs
+conduitRequestBody backend (Multipart bound) =
+    parsePieces backend $ S8.pack "--" `S.append` bound
 
 takeLine :: C.Sink S.ByteString IO (Maybe S.ByteString)
 takeLine =
