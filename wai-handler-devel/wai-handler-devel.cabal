@@ -31,7 +31,7 @@ Library
                    , bytestring                >= 0.9.1.4  && < 0.10
                    , hint                  >= 0.3.2.3       && < 0.4
                    , text                  >= 0.7           && < 0.12
-                   , old-time              >= 1.0           && < 1.1
+                   , old-time
                    , transformers          >= 0.2.2         && < 0.3
                    , attoparsec            >= 0.10
   Exposed-modules:   Network.Wai.Handler.DevelServer
