@@ -115,7 +115,7 @@ import Data.List (foldl')
 import Control.Monad (forever, when)
 import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
-import System.IO (hPutStrLn, stderr)
+import System.IO (hPrint, stderr)
 import ReadInt (readInt64)
 import qualified Data.IORef as I
 import Data.String (IsString (..))
@@ -198,7 +198,7 @@ bindPort p s = do
         theBody addr = 
           bracketOnError
           (Network.Socket.socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr))
-          (sClose)
+          sClose
           (\sock -> do
               setSocketOption sock ReuseAddr 1
               bindSocket sock (addrAddress addr)
@@ -511,6 +511,7 @@ sendResponse th req conn r = sendResponse' r
     needsChunked hs = isChunked' && not (hasLength hs)
     isKeepAlive hs = isPersist && (isChunked' || hasLength hs)
     hasLength hs = isJust $ lookup "content-length" hs
+    sendHeader = connSendMany conn . L.toChunks . toLazyByteString
 
     sendResponse' :: Response -> ResourceT IO Bool
     sendResponse' (ResponseFile s hs fp mpart) = liftIO $ do
@@ -523,16 +524,16 @@ sendResponse th req conn r = sendResponse' r
                 (Nothing, Just part) -> do
                     let cl = filePartByteCount part
                     return $ addClToHeaders cl
-        connSendMany conn $ L.toChunks $ toLazyByteString $
-          headers version s lengthyHeaders False
-
+        let headers' = headers version s lengthyHeaders
+        sendHeader $ headers' False
         T.tickle th
-
-        if not (hasBody s req) then return isPersist else do
+        if hasBody s req then do
             case mpart of
                 Nothing   -> connSendFile conn fp 0 cl (T.tickle th)
                 Just part -> connSendFile conn fp (filePartOffset part) (filePartByteCount part) (T.tickle th)
             T.tickle th
+            return isPersist
+          else
             return isPersist
       where
         addClToHeaders cl = (("Content-Length", B.pack $ show cl):hs, fromIntegral cl)
@@ -544,10 +545,7 @@ sendResponse th req conn r = sendResponse' r
                 T.tickle th) body
               return (isKeepAlive hs)
         | otherwise = liftIO $ do
-            connSendMany conn
-                $ L.toChunks
-                $ toLazyByteString
-                $ headers' False
+            sendHeader $ headers' False
             T.tickle th
             return isPersist
       where
@@ -559,8 +557,16 @@ sendResponse th req conn r = sendResponse' r
                        `mappend` chunkedTransferTerminator
                   else headers' False `mappend` b
 
-    sendResponse' (ResponseSource s hs bodyFlush) =
-        response
+    sendResponse' (ResponseSource s hs bodyFlush)
+        | hasBody s req = do
+            let src = CL.sourceList [headers' needsChunked'] `mappend`
+                      (if needsChunked' then body C.$= chunk else body)
+            src C.$$ builderToByteString C.=$ connSink conn th
+            return $ isKeepAlive hs
+        | otherwise = liftIO $ do
+            sendHeader $ headers' False
+            T.tickle th
+            return isPersist
       where
         body = fmap (\x -> case x of
                         C.Flush -> flush
@@ -568,26 +574,12 @@ sendResponse th req conn r = sendResponse' r
         headers' = headers version s hs
         -- FIXME perhaps alloca a buffer per thread and reuse that in all
         -- functions below. Should lessen greatly the GC burden (I hope)
-        response
-            | not (hasBody s req) = liftIO $ do
-                connSendMany conn
-                   $ L.toChunks $ toLazyByteString
-                   $ headers' False
-                T.tickle th
-                return (checkPersist req)
-            | otherwise = do
-                let src =
-                        CL.sourceList [headers' needsChunked'] `mappend`
-                        (if needsChunked' then body C.$= chunk else body)
-                src C.$$ builderToByteString C.=$ connSink conn th
-                return $ isKeepAlive hs
         needsChunked' = needsChunked hs
         chunk :: C.Conduit Builder IO Builder
         chunk = C.Conduit
             { C.conduitPush = push
             , C.conduitClose = close
             }
-
         conduit = C.Conduit push close
         push x = return $ C.Producing conduit [chunkedTransferEncoding x]
         close = return [chunkedTransferTerminator]
@@ -695,7 +687,7 @@ defaultSettings = Settings
             Just x -> go x
             Nothing ->
                 when (go' $ fromException e) $
-                    hPutStrLn stderr $ show e
+                    hPrint stderr e
     , settingsTimeout = 30
     , settingsIntercept = const Nothing
     , settingsManager = Nothing
