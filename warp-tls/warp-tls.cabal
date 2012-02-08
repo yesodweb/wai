@@ -1,5 +1,5 @@
 Name:                warp-tls
-Version:             1.1.0
+Version:             1.1.1
 Synopsis:            SSL support for Warp via the TLS package
 License:             BSD3
 License-file:        LICENSE
@@ -19,10 +19,10 @@ Library
                    , warp                          >= 1.1      && < 1.2
                    , transformers                  >= 0.2      && < 0.3
                    , conduit                       >= 0.2
-                   , certificate                   >= 1.0.1    && < 1.1
+                   , certificate                   >= 1.1      && < 1.2
                    , cryptocipher                  >= 0.3      && < 0.4
-                   , tls-extra                     >= 0.4      && < 0.5
-                   , tls                           >= 0.8.1    && < 0.9
+                   , tls-extra                     >= 0.4.3    && < 0.5
+                   , tls                           >= 0.9      && < 0.10
                    , crypto-api                    >= 0.8      && < 0.10
                    , network                       >= 2.2.1    && < 2.4
   Exposed-modules:   Network.Wai.Handler.WarpTLS

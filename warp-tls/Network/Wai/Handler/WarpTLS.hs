@@ -19,9 +19,7 @@ import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.Certificate.X509 as X509
 import qualified Data.Certificate.PEM as PEM
 import qualified Data.ByteString as B
-import Control.Monad (unless)
 import qualified Data.Certificate.KeyRSA as KeyRSA
-import Control.Applicative ((<$>))
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -53,8 +51,7 @@ runTLS tset set app = do
             hSetBuffering h NoBuffering
             gen <- newGenIO
             ctx <- TLS.server params (gen :: SystemRandom) h
-            b <- TLS.handshake ctx
-            unless b $ error "Invalid handshake"
+            TLS.handshake ctx
             let conn = Connection
                     { connSendMany = TLS.sendData ctx . L.fromChunks
                     , connSendAll = TLS.sendData ctx . L.fromChunks . return
@@ -62,7 +59,7 @@ runTLS tset set app = do
                     , connClose = do
                         TLS.bye ctx
                         hClose h
-                    , connRecv = B.concat . L.toChunks <$> TLS.recvData ctx
+                    , connRecv = TLS.recvData ctx
                     }
             return (conn, sa)
 

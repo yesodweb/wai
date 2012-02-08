@@ -5,6 +5,7 @@ import Network.Wai.Handler.WarpTLS
 import Network.HTTP.Types (status200)
 import Blaze.ByteString.Builder (copyByteString)
 import Data.Monoid
+import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 
 main = do
@@ -39,13 +40,13 @@ sourceWithLen = ResponseSource
     [ ("Content-Type", "text/plain")
     , ("Content-Length", "4")
     ]
-    $ CL.sourceList [copyByteString "PONG"]
+    $ CL.sourceList [C.Chunk $ copyByteString "PONG"]
 
 sourceNoLen = ResponseSource
     status200
     [ ("Content-Type", "text/plain")
     ]
-    $ CL.sourceList [copyByteString "PONG"]
+    $ CL.sourceList [C.Chunk $ copyByteString "PONG"]
 
 fileWithLen = ResponseFile
     status200
