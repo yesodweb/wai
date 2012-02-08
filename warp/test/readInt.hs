@@ -19,10 +19,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.Char as C
 import qualified Numeric as N
 import qualified Test.QuickCheck as QC
-
--- ReadInt is a module internal to Warp.
-import qualified ReadInt as RI
-
+import qualified Data.ByteString.Lex.Integral as LI
 
 import GHC.Prim
 import GHC.Types
@@ -55,21 +52,17 @@ readIntRaw =
     B.foldl' (\i c -> i * 10 + C.digitToInt c) 0
 
 
--- The best solution.
-readIntTC :: Integral a => ByteString -> a
-readIntTC bs = fromIntegral
-    $ B.foldl' (\i c -> i * 10 + C.digitToInt c) 0 $ B.takeWhile C.isDigit bs
-
-
--- Three specialisations of readIntTC.
-readInt :: ByteString -> Int
-readInt = readIntTC
-
+-- The first good solution.
 readInt64 :: ByteString -> Int64
-readInt64 = readIntTC
+readInt64 bs =
+    B.foldl' (\i c -> i * 10 + fromIntegral (C.digitToInt c)) (0::Int64)
+            $ B.takeWhile C.isDigit bs
+
+readInt :: ByteString -> Int
+readInt bs = fromIntegral $ readInt64 bs
 
 readInteger :: ByteString -> Integer
-readInteger = readIntTC
+readInteger bs = fromIntegral $ readInt64 bs
 
 
 -- MagicHash version suggested by Vincent Hanquez.
@@ -90,7 +83,7 @@ readIntegerMH = readIntMH
 data Table = Table !Addr#
 
 mhDigitToInt :: Char -> Int
-mhDigitToInt (C# i) = I# (word2Int# $ indexWord8OffAddr# addr (ord# i))
+mhDigitToInt (C# i) = I# (word2Int# (indexWord8OffAddr# addr (ord# i)))
   where
     !(Table addr) = table
     table :: Table
@@ -113,9 +106,11 @@ mhDigitToInt (C# i) = I# (word2Int# $ indexWord8OffAddr# addr (ord# i))
         \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"#
 
 
--- This is the one Warp actually uses.
-readIntWarp :: ByteString -> Integer
-readIntWarp s = fromIntegral $ RI.readInt64 s
+readIntBSL :: ByteString -> Int
+readIntBSL = LI.readDecimal_
+
+readInt64BSL :: ByteString -> Int64
+readInt64BSL = LI.readDecimal_
 
 
 -- A QuickCheck property. Test that for a number >= 0, converting it to
@@ -124,7 +119,7 @@ readIntWarp s = fromIntegral $ RI.readInt64 s
 -- The functions under test only work on Natural numbers (the Conent-Length
 -- field in a HTTP header is always >= 0) so we check the absolute value of
 -- the value that QuickCheck generates for us.
-prop_read_show_idempotent :: Integral a => (ByteString -> a) -> a -> Bool
+prop_read_show_idempotent :: (Integral a, Show a) => (ByteString -> a) -> a -> Bool
 prop_read_show_idempotent freader x =
     let px = abs x
     in px == freader (B.pack $ show px)
@@ -137,8 +132,8 @@ runQuickCheckTests = do
     QC.quickCheck (prop_read_show_idempotent readInteger)
     QC.quickCheck (prop_read_show_idempotent readInt64MH)
     QC.quickCheck (prop_read_show_idempotent readIntegerMH)
-    QC.quickCheck (prop_read_show_idempotent readIntWarp)
-
+    QC.quickCheck (prop_read_show_idempotent readIntBSL)
+    QC.quickCheck (prop_read_show_idempotent readInt64BSL)
 
 runCriterionTests :: ByteString -> IO ()
 runCriterionTests number =
@@ -152,7 +147,10 @@ runCriterionTests number =
        , bench "readInteger"   $ nf readInteger number
        , bench "readInt64MH"   $ nf readInt64MH number
        , bench "readIntegerMH" $ nf readIntegerMH number
-       , bench "readIntWarp"   $ nf readIntWarp number
+
+       -- Current best.
+       , bench "readIntBSL"    $ nf readIntBSL number
+       , bench "readInt64BSL"  $ nf readInt64BSL number
        ]
 
 main :: IO ()
