@@ -9,6 +9,7 @@ module Network.Wai.Test
     , SRequest (..)
     , SResponse (..)
     , defaultRequest
+    , setRawPathInfo
       -- * Assertions
     , assertStatus
     , assertContentType
@@ -33,6 +34,8 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Network.HTTP.Types as H
 import Data.CaseInsensitive (CI)
 import qualified Data.ByteString as S
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Data.Monoid (mempty)
@@ -78,6 +81,11 @@ defaultRequest = Request
     , requestBody = mempty
     , vault = mempty
     }
+
+setRawPathInfo :: Request -> S8.ByteString -> Request
+setRawPathInfo r rawPinfo =
+  let pInfo = T.split (== '/') $ TE.decodeUtf8 rawPinfo
+  in  r { rawPathInfo = rawPinfo, pathInfo = pInfo }
 
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do

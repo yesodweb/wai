@@ -27,26 +27,7 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Monoid (mempty)
 
 defRequest :: Request
-defRequest = Request {
-  rawQueryString = ""
-, queryString = []
-, requestMethod = "GET"
-, rawPathInfo = ""
-, pathInfo = []
-, requestHeaders = []
-, serverName = "wai-test"
-, httpVersion = H.http11
-, serverPort = 80
-, isSecure = False
-, remoteHost = Sock.SockAddrInet 1 2
-, vault = mempty
-, requestBody = error "requestBody"
-}
-
-setRawPathInfo :: Request -> S8.ByteString -> Request
-setRawPathInfo r rawPinfo = 
-  let pInfo = T.split (== '/') $ TE.decodeUtf8 rawPinfo
-  in  r { rawPathInfo = rawPinfo, pathInfo = pInfo }
+defRequest = defaultRequest
 
 specs :: Specs
 specs = do
