@@ -6,10 +6,11 @@ import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck2
 import Test.HUnit hiding (Test)
 
-import Network.Wai.Handler.Warp (takeHeaders, InvalidRequest (..), readInt)
+import Network.Wai.Handler.Warp (takeHeaders, InvalidRequest (..))
 import Data.Enumerator (run_, ($$), enumList, run)
 import Control.Exception (fromException)
 import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Lex.Integral as LI
 
 main :: IO ()
 main = defaultMain [testSuite]
@@ -41,3 +42,6 @@ caseTakeUntilBlankTooMany = do
 caseTakeUntilBlankTooLarge = do
     x <- run $ (enumList 1 $ repeat "f") $$ takeHeaders
     assertException OverLargeHeader x
+
+
+readInt = LI.readDecimal_
