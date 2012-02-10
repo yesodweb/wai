@@ -45,6 +45,7 @@ module Network.Wai
     , FilePart (..)
       -- * Response body smart constructors
     , responseLBS
+    , responseStatus
     ) where
 
 import qualified Data.ByteString as B
@@ -129,6 +130,13 @@ data Response
     | ResponseBuilder H.Status H.ResponseHeaders Builder
     | ResponseSource H.Status H.ResponseHeaders (C.Source IO (C.Flush Builder))
   deriving Typeable
+
+responseStatus :: Response -> H.Status
+responseStatus rsp =
+    case rsp of
+      ResponseFile    s _ _ _ -> s
+      ResponseBuilder s _ _   -> s
+      ResponseSource  s _ _   -> s
 
 data FilePart = FilePart
     { filePartOffset :: Integer
