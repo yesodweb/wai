@@ -13,7 +13,7 @@ import System.IO (stdout, hFlush)
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
 import Control.Monad.IO.Class (liftIO)
-import Network.Wai (Request(..), Middleware)
+import Network.Wai (Request(..), Middleware, responseStatus)
 import System.Log.FastLogger
 import Network.HTTP.Types as H
 
@@ -90,11 +90,20 @@ logCallbackDev cb app req = do
         , maybe "" id $ lookup "Accept" $ requestHeaders req
         , paramsToBS  "GET " getParams
         , paramsToBS "POST " postParams
-        , "\n"
         ]
     -- The body was consumed. Fill it back up so it is available again
-    app req { requestBody = CL.sourceList body }
+    rsp <- app req { requestBody = CL.sourceList body }
+    liftIO $ cb $ BS.concat [
+          "Status: "
+        , code rsp
+        , " "
+        , msg rsp
+        , "\n"
+      ]
+    return rsp
   where
+    code = pack . show . statusCode . responseStatus
+    msg = statusMessage . responseStatus
     paramsToBS prefix params =
       if null params then ""
         else BS.concat ["\n", prefix, pack (show params)]
