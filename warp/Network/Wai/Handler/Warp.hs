@@ -521,7 +521,7 @@ sendResponse th req conn r = sendResponse' r
                     let cl = filePartByteCount part
                     return $ Right $ addClToHeaders cl
         case eres of
-            Left (e :: SomeException) -> sendResponse' $ responseLBS
+            Left (_ :: SomeException) -> sendResponse' $ responseLBS
                 H.status404
                 [("Content-Type", "text/plain")]
                 "File not found"
