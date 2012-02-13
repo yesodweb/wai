@@ -19,11 +19,7 @@
 --
 ---------------------------------------------------------
 
--- | A fast, light-weight HTTP server handler for WAI. Some random notes (a FAQ, if you will):
---
--- * When a 'ResponseFile' indicates a file which does not exist, an exception
---   is thrown. This will close the connection to the client as well. You should
---   handle file existance checks at the application level.
+-- | A fast, light-weight HTTP server handler for WAI.
 module Network.Wai.Handler.Warp
     ( -- * Run a Warp server
       run
@@ -85,6 +81,7 @@ import Control.Exception
     , fromException, AsyncException (ThreadKilled)
     , bracketOnError
     , IOException
+    , try
     )
 import Control.Concurrent (forkIO)
 import Data.Maybe (fromMaybe, isJust)
@@ -513,27 +510,33 @@ sendResponse th req conn r = sendResponse' r
     sendHeader = connSendMany conn . L.toChunks . toLazyByteString
 
     sendResponse' :: Response -> ResourceT IO Bool
-    sendResponse' (ResponseFile s hs fp mpart) = liftIO $ do
-        (lengthyHeaders, cl) <-
+    sendResponse' (ResponseFile s hs fp mpart) = do
+        eres <-
             case (LI.readDecimal_ `fmap` lookup "content-length" hs, mpart) of
-                (Just cl, _) -> return (hs, cl)
-                (Nothing, Nothing) -> do
+                (Just cl, _) -> return $ Right (hs, cl)
+                (Nothing, Nothing) -> liftIO $ try $ do
                     cl <- P.fileSize `fmap` P.getFileStatus fp
                     return $ addClToHeaders cl
                 (Nothing, Just part) -> do
                     let cl = filePartByteCount part
-                    return $ addClToHeaders cl
-        let headers' = headers version s lengthyHeaders
-        sendHeader $ headers' False
-        T.tickle th
-        if hasBody s req then do
-            case mpart of
-                Nothing   -> connSendFile conn fp 0 cl (T.tickle th)
-                Just part -> connSendFile conn fp (filePartOffset part) (filePartByteCount part) (T.tickle th)
-            T.tickle th
-            return isPersist
-          else
-            return isPersist
+                    return $ Right $ addClToHeaders cl
+        case eres of
+            Left (e :: SomeException) -> sendResponse' $ responseLBS
+                H.status404
+                [("Content-Type", "text/plain")]
+                "File not found"
+            Right (lengthyHeaders, cl) -> liftIO $ do
+                let headers' = headers version s lengthyHeaders
+                sendHeader $ headers' False
+                T.tickle th
+                if hasBody s req then do
+                    case mpart of
+                        Nothing   -> connSendFile conn fp 0 cl (T.tickle th)
+                        Just part -> connSendFile conn fp (filePartOffset part) (filePartByteCount part) (T.tickle th)
+                    T.tickle th
+                    return isPersist
+                  else
+                    return isPersist
       where
         addClToHeaders cl = (("Content-Length", B.pack $ show cl):hs, fromIntegral cl)
 

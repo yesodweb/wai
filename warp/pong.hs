@@ -17,6 +17,7 @@ app req = return $
         "/file/nolen" -> fileNoLen
         "/source/withlen" -> sourceWithLen
         "/source/nolen" -> sourceNoLen
+        "/notfound" -> ResponseFile status200 [] "notfound" Nothing
         x -> index x
 
 builderWithLen = ResponseBuilder
