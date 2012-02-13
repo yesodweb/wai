@@ -9,7 +9,7 @@
 <script>
   var output = document.getElementById("output");
 
-  var src = new EventSource("/es");
+  var src = new EventSource("/eschan");
 
   src.onmessage = function(msg) {
     var p = document.createElement("p");
