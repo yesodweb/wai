@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell, CPP #-}
 -- | Static file serving for WAI.
 module Network.Wai.Application.Static
@@ -66,7 +67,8 @@ import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime)
 import System.Posix.Types (EpochTime)
 import Control.Monad.IO.Class (liftIO)
 import qualified Crypto.Hash.MD5 as MD5
-import Control.Monad (filterM)
+import Control.Monad (forM)
+import Control.Exception (SomeException, try)
 
 import           Text.Blaze                  ((!))
 import qualified Text.Blaze.Html5            as H
@@ -433,23 +435,25 @@ defaultFileServerSettings = StaticSettings
     }
 
 fileHelper :: ETagLookup
-           -> FilePath -> FilePath -> IO File
+           -> FilePath -> FilePath -> IO (Maybe File)
 fileHelper hashFunc fp name = do
-    fs <- getFileStatus $ fromFilePath fp
-    return File
-        { fileGetSize = fromIntegral $ fileSize fs
-        , fileToResponse = \s h -> W.ResponseFile s h (fromFilePath fp) Nothing
-        , fileName = name
-        , fileGetHash = hashFunc fp
-        , fileGetModified = Just $ modificationTime fs
-        }
+    efs <- try $ getFileStatus $ fromFilePath fp
+    case efs of
+        Left (_ :: SomeException) -> return Nothing
+        Right fs -> return $ Just File
+            { fileGetSize = fromIntegral $ fileSize fs
+            , fileToResponse = \s h -> W.ResponseFile s h (fromFilePath fp) Nothing
+            , fileName = name
+            , fileGetHash = hashFunc fp
+            , fileGetModified = Just $ modificationTime fs
+            }
 
 type ETagLookup = (FilePath -> IO (Maybe ByteString))
 
 webAppLookup :: ETagLookup -> FilePath -> Pieces -> IO FileLookup
 webAppLookup cachedLookupHash prefix pieces = do
-    file <- fileHelper cachedLookupHash fp (last pieces)
-    return $ Just $ Right $ file
+    mfile <- fileHelper cachedLookupHash fp (last pieces)
+    return $ fmap Right mfile
   where
     fp = pathFromPieces prefix pieces
 
@@ -479,21 +483,22 @@ fileSystemLookupHash hashFunc prefix pieces = do
     let fp = pathFromPieces prefix pieces
     fe <- doesFileExist $ fromFilePath fp
     if fe
-        then fmap (Just . Right) $ fileHelper hashFunc fp $ last pieces
+        then (fmap . fmap) Right $ fileHelper hashFunc fp $ last pieces
         else do
             de <- doesDirectoryExist $ fromFilePath fp
             if de
                 then do
-                    let isVisible ('.':_) = return False
-                        isVisible "" = return False
-                        isVisible _ = return True
-                    entries <- getDirectoryContents (fromFilePath fp) >>= filterM isVisible >>= mapM (\nameRaw -> do
+                    let isVisible ('.':_) = False
+                        isVisible "" = False
+                        isVisible _ = True
+                    entries' <- fmap (filter isVisible) $ getDirectoryContents (fromFilePath fp)
+                    entries <- forM entries' $ \nameRaw -> do
                         let name = toFilePath nameRaw
                         let fp' = fp </> name
-                        fe' <- doesFileExist $ fromFilePath fp'
-                        if fe'
-                            then fmap Right $ fileHelper hashFunc fp' name
-                            else return $ Left $ Folder name [])
+                        mfile' <- fileHelper hashFunc fp' name
+                        case mfile' of
+                            Nothing -> return $ Left $ Folder name []
+                            Just file' -> return $ Right file'
                     return $ Just $ Left $ Folder (error "Network.Wai.Application.Static.fileSystemLookup") entries
                 else return Nothing
 
@@ -765,28 +770,3 @@ renderDirectoryContentsTable haskellSrc folderSrc fps =
       addCommas s = (++ (' ' : s)) . reverse . addCommas' . reverse . show
       addCommas' (a:b:c:d:e) = a : b : c : ',' : addCommas' (d : e)
       addCommas' x = x
-
-{-
-mdIsFile :: MetaData -> Bool
-mdIsFile FileMetaData{} = True
-mdIsFile FolderMetaData{} = False
-
--- | look up the meta data associated with a file
-getMetaData :: FilePath -- ^ path to directory on disk containing the entry
-            -> FilePath -- ^ entry in that directory
-            -> IO (Maybe MetaData)
-getMetaData _ ('.':_) = return Nothing
-getMetaData localPath fp = do
-    let fp' = localPath ++ '/' : fp
-    fe <- doesFileExist fp'
-    let fpPretty = T.pack $ fixPathName fp
-    if fe
-        then do
-            fs <- getFileStatus fp'
-            let modTime = modificationTime fs
-            let count = fileSize fs
-            return $ Just $ FileMetaData fpPretty (Just modTime) count
-        else do
-            de <- doesDirectoryExist fp'
-            return $ if de then Just (FolderMetaData fpPretty) else Nothing
--}
