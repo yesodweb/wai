@@ -11,7 +11,7 @@ module Network.Wai.Middleware.RequestLogger
 
 import System.IO (stdout, hFlush)
 import qualified Data.ByteString as BS
-import Data.ByteString.Char8 (pack)
+import Data.ByteString.Char8 (pack, unpack)
 import Control.Monad.IO.Class (liftIO)
 import Network.Wai (Request(..), Middleware, responseStatus)
 import System.Log.FastLogger
@@ -74,7 +74,14 @@ toBS = id
 logCallbackDev :: (BS.ByteString -> IO ()) -- ^ A function that logs the ByteString log message.
                -> Middleware
 logCallbackDev cb app req = do
-    body <- requestBody req C.$$ CL.consume
+    let mlen = lookup "content-length" (requestHeaders req) >>= readInt
+    (req', body) <-
+        case mlen of
+            Just len | len <= 2048 -> do
+                body <- requestBody req C.$$ CL.consume
+                let req' = req { requestBody = CL.sourceList body }
+                return (req', body)
+            _ -> return (req, [])
     postParams <- if any (requestMethod req ==) ["GET", "HEAD"]
       then return []
       else do postParams <- liftIO $ allPostParams body
@@ -90,9 +97,10 @@ logCallbackDev cb app req = do
         , maybe "" id $ lookup "Accept" $ requestHeaders req
         , paramsToBS  "GET " getParams
         , paramsToBS "POST " postParams
+        , "\n"
         ]
     -- The body was consumed. Fill it back up so it is available again
-    rsp <- app req { requestBody = CL.sourceList body }
+    rsp <- app req'
     liftIO $ cb $ BS.concat [
           "Status: "
         , code rsp
@@ -120,3 +128,8 @@ logCallbackDev cb app req = do
     collectPostParams :: ([Param], [File LBS.ByteString]) -> [Param]
     collectPostParams (postParams, files) = postParams ++
       (map (\(k,v) -> (k, BS.append "FILE: " (fileName v))) files)
+
+    readInt bs =
+        case reads $ unpack bs of
+            (i, _):_ -> Just (i :: Int)
+            [] -> Nothing
