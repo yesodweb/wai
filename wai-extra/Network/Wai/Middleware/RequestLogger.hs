@@ -23,6 +23,10 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 
+import System.Console.ANSI
+import Data.IORef
+import System.IO.Unsafe
+
 logHandle :: (BS.ByteString -> IO ()) -> Middleware
 logHandle = logCallback
 {-# DEPRECATED logHandle "Please use logCallback instead." #-}
@@ -66,9 +70,24 @@ logCallback cb app req = do
 toBS :: H.Ascii -> BS.ByteString
 toBS = id
 
+-- no black or white which are expected to be used already
+colors :: IORef [Color]
+colors = unsafePerformIO $ newIORef $ [
+    Red 
+  , Green 
+  , Yellow 
+  , Blue 
+  , Magenta 
+  , Cyan
+  ]
+
 -- | Prints a message using the given callback function for each request.
 -- This is not for serious production use- it is inefficient.
 -- It immediately consumes a POST body and fills it back in and is otherwise inefficient
+--
+-- Note that it logs the request immediately when it is received.
+-- This means if the app crashes you have still logged the request.
+-- However, if you are simulating 10 simultaneous users you may find this confusing.
 --
 -- This is lower-level - use "logStdoutDev" unless you need this greater control
 logCallbackDev :: (BS.ByteString -> IO ()) -- ^ A function that logs the ByteString log message.
@@ -88,9 +107,10 @@ logCallbackDev cb app req = do
               return $ collectPostParams postParams
     let getParams = map emptyGetParam $ queryString req
 
-    liftIO $ cb $ BS.concat
-        [ requestMethod req
-        , " "
+    color <- liftIO $ atomicModifyIORef colors (\(c:cs) -> (cs ++ [c], c))
+
+    liftIO $ cb $ BS.concat $ ansiColor color (requestMethod req) ++
+        [ " "
         , rawPathInfo req
         , "\n"
         , "Accept: "
@@ -99,18 +119,26 @@ logCallbackDev cb app req = do
         , paramsToBS "POST " postParams
         , "\n"
         ]
+
     -- The body was consumed. Fill it back up so it is available again
     rsp <- app req'
-    liftIO $ cb $ BS.concat [
-          "Status: "
-        , code rsp
+
+    liftIO $ cb $ BS.concat $ ansiColor color "Status: " ++ [
+          sCode rsp
         , " "
         , msg rsp
+        , ". "
+        , rawPathInfo req -- if you need help matching the 2 logging statements
         , "\n"
       ]
     return rsp
   where
-    code = pack . show . statusCode . responseStatus
+    ansiColor color bs = [
+        pack $ setSGRCode [SetColor Foreground Vivid color]
+      , bs
+      , pack $ setSGRCode [Reset]
+      ]
+    sCode = pack . show . statusCode . responseStatus
     msg = statusMessage . responseStatus
     paramsToBS prefix params =
       if null params then ""
