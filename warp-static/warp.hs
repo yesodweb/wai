@@ -52,6 +52,7 @@ main = do
         } $ middle $ staticApp defaultFileServerSettings
         { ssFolder = fileSystemLookup $ toFilePath docroot
         , ssIndices = if noindex then [] else map pack index
+        , ssRedirectToIndex = false
         , ssListing = Just defaultListing
         , ssGetMimeType = return . mimeTypeByExt mimeMap defaultMimeType . fileName
         }
