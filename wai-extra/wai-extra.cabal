@@ -37,6 +37,7 @@ Library
                    , conduit                   >= 0.2
                    , zlib-conduit              >= 0.2
                    , blaze-builder-conduit     >= 0.2
+                   , ansi-terminal
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
