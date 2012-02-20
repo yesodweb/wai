@@ -70,7 +70,7 @@ logCallback cb app req = do
 toBS :: H.Ascii -> BS.ByteString
 toBS = id
 
--- no black or white which are expected to be used already
+-- no black or white which are expected to be existing terminal colors.
 colors :: IORef [Color]
 colors = unsafePerformIO $ newIORef $ [
     Red 
@@ -81,34 +81,59 @@ colors = unsafePerformIO $ newIORef $ [
   , Cyan
   ]
 
+rotateColors :: [Color] -> ([Color], Color)
+rotateColors [] = error "Impossible! There must be colors!"
+rotateColors (c:cs) = (cs ++ [c], c)
+
 -- | Prints a message using the given callback function for each request.
 -- This is not for serious production use- it is inefficient.
 -- It immediately consumes a POST body and fills it back in and is otherwise inefficient
 --
 -- Note that it logs the request immediately when it is received.
--- This means if the app crashes you have still logged the request.
+-- This meanst that you can accurately see the interleaving of requests.
+-- And if the app crashes you have still logged the request.
 -- However, if you are simulating 10 simultaneous users you may find this confusing.
+-- The request and response are connected by color on Unix and also by the request path.
 --
--- This is lower-level - use "logStdoutDev" unless you need this greater control
+-- This is lower-level - use "logStdoutDev" unless you need greater control.
+--
+-- Example ouput:
+--
+-- GET search
+-- Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+--
+-- Status: 200 OK. search
+-- 
+-- GET static/css/normalize.css
+-- Accept: text/css,*/*;q=0.1
+-- GET [("LXwioiBG","")]
+--
+-- Status: 304 Not Modified. static/css/normalize.css
 logCallbackDev :: (BS.ByteString -> IO ()) -- ^ A function that logs the ByteString log message.
                -> Middleware
 logCallbackDev cb app req = do
     let mlen = lookup "content-length" (requestHeaders req) >>= readInt
     (req', body) <-
         case mlen of
+            -- log the request body if it is small
             Just len | len <= 2048 -> do
-                body <- requestBody req C.$$ CL.consume
-                let req' = req { requestBody = CL.sourceList body }
-                return (req', body)
+                 body <- requestBody req C.$$ CL.consume
+                 -- logging the body here consumes it, so fill it back up
+                 -- obviously not efficient, but this is the development logger
+                 let req' = req { requestBody = CL.sourceList body }
+                 return (req', body)
             _ -> return (req, [])
+
     postParams <- if any (requestMethod req ==) ["GET", "HEAD"]
       then return []
       else do postParams <- liftIO $ allPostParams body
               return $ collectPostParams postParams
+
     let getParams = map emptyGetParam $ queryString req
 
-    color <- liftIO $ atomicModifyIORef colors (\(c:cs) -> (cs ++ [c], c))
+    color <- liftIO $ atomicModifyIORef colors rotateColors
 
+    -- log the request immediately.
     liftIO $ cb $ BS.concat $ ansiColor color (requestMethod req) ++
         [ " "
         , rawPathInfo req
@@ -120,9 +145,11 @@ logCallbackDev cb app req = do
         , "\n"
         ]
 
-    -- The body was consumed. Fill it back up so it is available again
     rsp <- app req'
 
+    -- log the status of the response
+    -- this is color coordinated with the request logging
+    -- also includes the request path to connect it to the request
     liftIO $ cb $ BS.concat $ ansiColor color "Status: " ++ [
           sCode rsp
         , " "
@@ -140,6 +167,7 @@ logCallbackDev cb app req = do
       ]
     sCode = pack . show . statusCode . responseStatus
     msg = statusMessage . responseStatus
+
     paramsToBS prefix params =
       if null params then ""
         else BS.concat ["\n", prefix, pack (show params)]
