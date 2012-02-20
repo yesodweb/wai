@@ -13,7 +13,7 @@ import           Control.Monad.IO.Class (liftIO)
 import           Data.Conduit (($=))
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import           Network.HTTP.Types (statusOK)
+import           Network.HTTP.Types (status200)
 import           Network.Wai (Application, Response(..))
 
 import Network.Wai.EventSource.EventStream
@@ -42,7 +42,7 @@ eventSourceAppIO :: IO ServerEvent -> Application
 eventSourceAppIO act _ = return $ response ioToSource act
 
 response :: (a -> C.Source IO (C.Flush Builder)) -> a -> Response
-response f a = ResponseSource statusOK [("Content-Type", "text/event-stream")] $ f a
+response f a = ResponseSource status200 [("Content-Type", "text/event-stream")] $ f a
 
 chanToSource :: Chan ServerEvent -> C.Source IO (C.Flush Builder)
 chanToSource chan =
