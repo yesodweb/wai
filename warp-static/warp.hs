@@ -4,6 +4,7 @@ import Network.Wai.Application.Static
     , defaultMimeTypes, mimeTypeByExt
     , defaultFileServerSettings, fileSystemLookup
     , fileName, toFilePath
+    , ssRedirectToIndex
     )
 import Network.Wai.Handler.Warp
     ( runSettings, defaultSettings, settingsHost, settingsPort
@@ -52,7 +53,7 @@ main = do
         } $ middle $ staticApp defaultFileServerSettings
         { ssFolder = fileSystemLookup $ toFilePath docroot
         , ssIndices = if noindex then [] else map pack index
-        , ssRedirectToIndex = false
+        , ssRedirectToIndex = False
         , ssListing = Just defaultListing
         , ssGetMimeType = return . mimeTypeByExt mimeMap defaultMimeType . fileName
         }

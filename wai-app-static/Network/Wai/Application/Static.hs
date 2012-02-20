@@ -16,6 +16,7 @@ module Network.Wai.Application.Static
     , ssListing
     , ssIndices
     , ssMaxAge
+    , ssRedirectToIndex
       -- * Generic, non-WAI code
       -- ** Mime types
     , MimeType
