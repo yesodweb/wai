@@ -261,8 +261,9 @@ checkPieces :: (Pieces -> IO FileLookup) -- ^ file lookup function
             -> W.Request
             -> MaxAge
             -> Bool                      -- ^ use hash?
+            -> Bool                      -- ^ Redirect to Index?
             -> IO CheckPieces
-checkPieces fileLookup indices pieces req maxAge useHash
+checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
     | any unsafe pieces = return Forbidden
     | any nullFilePath $ safeInit pieces =
         return $ Redirect (filterButLast (not . nullFilePath) pieces) Nothing
@@ -281,7 +282,11 @@ checkPieces fileLookup indices pieces req maxAge useHash
             (Just Right{}, False) -> return $ Redirect (init pieces) Nothing
             (Just (Left folder@(Folder _ contents)), _) -> do
                 case checkIndices $ map fileName $ rights contents of
-                    Just index -> return $ Redirect (setLast pieces index) Nothing
+                    Just index -> 
+                      if redirectToIndex then
+                        return $ Redirect (setLast pieces index) Nothing
+                      else
+                        checkPieces fileLookup indices (setLast pieces index) req maxAge useHash redirectToIndex
                     Nothing ->
                         if isFolder
                             then return $ DirectoryResponse folder
@@ -392,6 +397,7 @@ data StaticSettings = StaticSettings
     , ssGetMimeType :: File -> IO MimeType
     , ssListing :: Maybe Listing
     , ssIndices :: [T.Text] -- index.html
+    , ssRedirectToIndex :: Bool
     , ssMaxAge :: MaxAge
     , ssUseHash :: Bool
     }
@@ -420,6 +426,7 @@ defaultWebAppSettings = StaticSettings
     , ssMaxAge  = MaxAgeForever
     , ssListing = Nothing
     , ssIndices = []
+    , ssRedirectToIndex = False
     , ssUseHash = True
     }
 
@@ -431,6 +438,7 @@ defaultFileServerSettings = StaticSettings
     , ssMaxAge = MaxAgeSeconds $ 60 * 60
     , ssListing = Just defaultListing
     , ssIndices = ["index.html", "index.htm"]
+    , ssRedirectToIndex = False
     , ssUseHash = False
     }
 
@@ -598,7 +606,7 @@ staticAppPieces ss pieces req = liftIO $ do
     let indices = ssIndices ss
     case checkSpecialDirListing pieces of
          Just res ->  response res
-         Nothing  ->  checkPieces (ssFolder ss) (map FilePath indices) pieces req (ssMaxAge ss) (ssUseHash ss) >>= response
+         Nothing  ->  checkPieces (ssFolder ss) (map FilePath indices) pieces req (ssMaxAge ss) (ssUseHash ss) (ssRedirectToIndex ss) >>= response
   where
     response cp = case cp of
         FileResponse file ch -> do
