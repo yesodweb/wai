@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             1.1.0
+Version:             1.1.0.1
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             BSD3
@@ -34,9 +34,9 @@ Library
                    , case-insensitive          >= 0.2
                    , data-default              >= 0.3      && < 0.4
                    , fast-logger               >= 0.0.2
-                   , conduit                   >= 0.2
-                   , zlib-conduit              >= 0.2
-                   , blaze-builder-conduit     >= 0.2
+                   , conduit                   >= 0.2      && < 0.3
+                   , zlib-conduit              >= 0.2      && < 0.3
+                   , blaze-builder-conduit     >= 0.2      && < 0.3
                    , ansi-terminal
 
   Exposed-modules:   Network.Wai.Handler.CGI
