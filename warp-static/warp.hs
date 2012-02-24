@@ -3,7 +3,7 @@ import Network.Wai.Application.Static
     ( StaticSettings (..), staticApp, defaultMimeType, defaultListing
     , defaultMimeTypes, mimeTypeByExt
     , defaultFileServerSettings, fileSystemLookup
-    , fileName, toFilePath
+    , toFilePath
     , ssRedirectToIndex
     )
 import Network.Wai.Handler.Warp
@@ -51,9 +51,8 @@ main = do
         { settingsPort = port
         , settingsHost = fromString host
         } $ middle $ staticApp defaultFileServerSettings
-        { ssFolder = fileSystemLookup $ toFilePath docroot
+        { ssFolder = fileSystemLookup (return . mimeTypeByExt mimeMap defaultMimeType) (toFilePath docroot)
         , ssIndices = if noindex then [] else map pack index
         , ssRedirectToIndex = False
         , ssListing = Just defaultListing
-        , ssGetMimeType = return . mimeTypeByExt mimeMap defaultMimeType . fileName
         }

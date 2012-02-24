@@ -9,9 +9,7 @@ import Test.Hspec.HUnit ()
 import Test.HUnit ((@?=))
 import Data.List (isInfixOf)
 import qualified Data.ByteString.Char8 as S8
--- import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
 import System.PosixCompat.Files (getFileStatus, modificationTime)
 
 import Network.HTTP.Date
@@ -21,18 +19,24 @@ import Network.HTTP.Date
 import Network.Wai
 import Network.Wai.Test
 
-import Network.Socket.Internal as Sock
-import qualified Network.HTTP.Types as H
 import Control.Monad.IO.Class (liftIO)
-import Data.Monoid (mempty)
 
 defRequest :: Request
 defRequest = defaultRequest
 
 specs :: Specs
 specs = do
-  let webApp = flip runSession $ staticApp defaultWebAppSettings  {ssFolder = fileSystemLookup "test"}
-  let fileServerApp = flip runSession $ staticApp defaultFileServerSettings  {ssFolder = fileSystemLookup "test"}
+  let htmlMimeType = (\_-> return "text/html")
+  let htmlLookup = fileSystemLookup htmlMimeType
+  let mkWebApp settings = flip runSession $ staticApp settings
+  let webApp = mkWebApp defaultWebAppSettings {ssFolder = htmlLookup "test"}
+  let webAppAssumeHtml = mkWebApp $ webAppSettingsLookupConf WebAppLookupConf {
+            assumeHtml = True
+          , etagLookup = hashFileIfExists
+          , prefixDir = "test"
+          , mimeTypeLookup = htmlMimeType
+        }
+  let fileServerApp = flip runSession $ staticApp defaultFileServerSettings  {ssFolder = htmlLookup "test"}
 
   let etag = "1B2M2Y8AsgTpgAmY7PhCfg=="
   let file = "a/b"
@@ -67,7 +71,7 @@ specs = do
       assertHeader "Location" "../../a/b/c" req
 
     let absoluteApp = flip runSession $ staticApp $ defaultWebAppSettings {
-          ssFolder = fileSystemLookup "test", ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
+          ssFolder = htmlLookup "test", ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
         }
     it "301 redirect when multiple slashes" $ absoluteApp $
       flip mapM_ ["/a//b/c", "a//b/c"] $ \path -> do
@@ -109,6 +113,27 @@ specs = do
       assertStatus 304 req
       assertNoHeader "Etag" req
       assertNoHeader "Last-Modified" req
+
+  describe "no file extenstion" $ do
+    describe "no html file exists" $ do
+      it "assume .html" $ webAppAssumeHtml $ do
+        req <- request statFile
+        assertStatus 404 req
+
+      it "don't assume .html" $ webApp $ do
+        req <- request statFile
+        assertStatus 200 req
+
+    let htmlFile = setRawPathInfo defRequest "a/html"
+
+    describe "html file exists" $ do
+      it "assume .html" $ webAppAssumeHtml $ do
+        req <- request htmlFile
+        assertStatus 200 req
+
+      it "don't assume .html" $ webApp $ do
+        req <- request htmlFile
+        assertStatus 404 req
 
   describe "fileServerApp" $ do
     let fileDate = do
