@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.EventSource (
     ServerEvent(..),
-    eventSourceApp,
     eventSourceAppChan,
     eventSourceAppSource,
     eventSourceAppIO
@@ -20,12 +19,6 @@ import Network.Wai.EventSource.EventStream
 
 -- | Make a new WAI EventSource application reading events from
 -- the given channel.
-eventSourceApp :: Chan ServerEvent -> Application
-eventSourceApp = eventSourceAppChan
-{-# DEPRECATED eventSourceApp "Use evnetSourceAppChan instead." #-}
-
--- | Make a new WAI EventSource application reading events from
--- the given channel.
 eventSourceAppChan :: Chan ServerEvent -> Application
 eventSourceAppChan chan _ = do
   chan' <- liftIO $ dupChan chan
@@ -33,7 +26,7 @@ eventSourceAppChan chan _ = do
 
 -- | Make a new WAI EventSource application reading events from
 -- the given source.
-eventSourceAppSource :: C.Source IO ServerEvent -> Application
+eventSourceAppSource :: C.Source (C.ResourceT IO) ServerEvent -> Application
 eventSourceAppSource src _ = return $ response sourceToSource src
 
 -- | Make a new WAI EventSource application reading events from
@@ -41,10 +34,10 @@ eventSourceAppSource src _ = return $ response sourceToSource src
 eventSourceAppIO :: IO ServerEvent -> Application
 eventSourceAppIO act _ = return $ response ioToSource act
 
-response :: (a -> C.Source IO (C.Flush Builder)) -> a -> Response
+response :: (a -> C.Source (C.ResourceT IO) (C.Flush Builder)) -> a -> Response
 response f a = ResponseSource status200 [("Content-Type", "text/event-stream")] $ f a
 
-chanToSource :: Chan ServerEvent -> C.Source IO (C.Flush Builder)
+chanToSource :: Chan ServerEvent -> C.Source (C.ResourceT IO) (C.Flush Builder)
 chanToSource chan =
     C.sourceState Nothing pull
   where
@@ -55,7 +48,7 @@ chanToSource chan =
             Just y -> C.StateOpen (Just C.Flush) (C.Chunk y)
     pull (Just x) = return $ C.StateOpen Nothing x
 
-ioToSource :: IO ServerEvent -> C.Source IO (C.Flush Builder)
+ioToSource :: IO ServerEvent -> C.Source (C.ResourceT IO) (C.Flush Builder)
 ioToSource act =
     C.sourceState Nothing pull
   where
@@ -66,7 +59,7 @@ ioToSource act =
             Just y -> C.StateOpen (Just C.Flush) (C.Chunk y)
     pull (Just x) = return $ C.StateOpen Nothing x
 
-sourceToSource :: C.Source IO ServerEvent -> C.Source IO (C.Flush Builder)
+sourceToSource :: Monad m => C.Source m ServerEvent -> C.Source m (C.Flush Builder)
 sourceToSource src = src $= CL.concatMap eventToFlushBuilder
   where
     eventToFlushBuilder event =

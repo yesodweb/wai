@@ -51,7 +51,6 @@ module Network.Wai
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.Typeable (Typeable)
-import Control.Monad.Trans.Resource (ResourceT)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import qualified Data.Conduit.Binary as CB
@@ -96,7 +95,7 @@ data Request = Request
   ,  pathInfo       :: [Text]
   -- | Parsed query string information
   ,  queryString    :: H.Query
-  ,  requestBody    :: C.Source IO B.ByteString
+  ,  requestBody    :: C.Source (C.ResourceT IO) B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.
   , vault           :: Vault
   }
@@ -128,7 +127,7 @@ data Request = Request
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
-    | ResponseSource H.Status H.ResponseHeaders (C.Source IO (C.Flush Builder))
+    | ResponseSource H.Status H.ResponseHeaders (C.Source (C.ResourceT IO) (C.Flush Builder))
   deriving Typeable
 
 responseStatus :: Response -> H.Status
@@ -143,7 +142,7 @@ data FilePart = FilePart
     , filePartByteCount :: Integer
     } deriving Show
 
-responseSource :: Response -> (H.Status, H.ResponseHeaders, C.Source IO (C.Flush Builder))
+responseSource :: Response -> (H.Status, H.ResponseHeaders, C.Source (C.ResourceT IO) (C.Flush Builder))
 responseSource (ResponseSource s h b) = (s, h, b)
 responseSource (ResponseFile s h fp (Just part)) =
     (s, h, sourceFilePart part fp C.$= CL.map (C.Chunk . fromByteString))
@@ -152,14 +151,14 @@ responseSource (ResponseFile s h fp Nothing) =
 responseSource (ResponseBuilder s h b) =
     (s, h, CL.sourceList [C.Chunk b])
 
-sourceFilePart :: FilePart -> FilePath -> C.Source IO B.ByteString
+sourceFilePart :: C.MonadResource m => FilePart -> FilePath -> C.Source m B.ByteString
 sourceFilePart (FilePart offset count) fp =
     CB.sourceFileRange fp (Just offset) (Just count)
 
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString
 
-type Application = Request -> ResourceT IO Response
+type Application = Request -> C.ResourceT IO Response
 
 -- | Middleware is a component that sits between the server and application. It
 -- can do such tasks as GZIP encoding or response caching. What follows is the

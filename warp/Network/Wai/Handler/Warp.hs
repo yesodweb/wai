@@ -88,7 +88,7 @@ import Data.Maybe (fromMaybe, isJust)
 
 import Data.Typeable (Typeable)
 
-import Control.Monad.Trans.Resource (ResourceT, runResourceT)
+import Data.Conduit (ResourceT, runResourceT)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Blaze (builderToByteString)
@@ -294,7 +294,7 @@ serveConnection settings th onException port app conn remoteHost' =
                 intercept fromClient conn
 
 parseRequest :: Connection -> Port -> SockAddr
-             -> C.BufferedSource IO S.ByteString
+             -> C.BufferedSource (ResourceT IO) S.ByteString
              -> ResourceT IO Request
 parseRequest conn port remoteHost' src = do
     headers' <- src C.$$ takeHeaders
@@ -333,7 +333,7 @@ parseRequest' :: Connection
               -> Port
               -> [ByteString]
               -> SockAddr
-              -> C.BufferedSource IO S.ByteString
+              -> C.BufferedSource (ResourceT IO) S.ByteString
               -> ResourceT IO Request
 parseRequest' _ _ [] _ _ = throwIO $ NotEnoughLines []
 parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
@@ -577,7 +577,7 @@ sendResponse th req conn r = sendResponse' r
         -- FIXME perhaps alloca a buffer per thread and reuse that in all
         -- functions below. Should lessen greatly the GC burden (I hope)
         needsChunked' = needsChunked hs
-        chunk :: C.Conduit Builder IO Builder
+        chunk :: C.Conduit Builder (ResourceT IO) Builder
         chunk = C.Conduit
             { C.conduitPush = push
             , C.conduitClose = close
@@ -596,7 +596,7 @@ parseHeaderNoAttr s =
                    else rest
      in (CI.mk k, rest')
 
-connSource :: Connection -> T.Handle -> C.Source IO ByteString
+connSource :: Connection -> T.Handle -> C.Source (ResourceT IO) ByteString
 connSource Connection { connRecv = recv } th =
     src
   where
@@ -612,7 +612,7 @@ connSource Connection { connRecv = recv } th =
         }
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
-connSink :: Connection -> T.Handle -> C.Sink B.ByteString IO ()
+connSink :: Connection -> T.Handle -> C.Sink B.ByteString (ResourceT IO) ()
 connSink Connection { connSendAll = send } th =
     C.SinkData push close
   where
@@ -642,7 +642,7 @@ data Settings = Settings
     , settingsHost :: HostPreference -- ^ Default value: HostIPv4
     , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
-    , settingsIntercept :: Request -> Maybe (C.BufferedSource IO S.ByteString -> Connection -> ResourceT IO ())
+    , settingsIntercept :: Request -> Maybe (C.BufferedSource (ResourceT IO) S.ByteString -> Connection -> ResourceT IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     }
 
@@ -708,7 +708,7 @@ data THStatus = THStatus
     BSEndoList -- previously parsed lines
     BSEndo -- bytestrings to be prepended
 
-takeHeaders :: C.Sink ByteString IO [ByteString]
+takeHeaders :: C.Sink ByteString (ResourceT IO) [ByteString]
 takeHeaders =
     C.sinkState (THStatus 0 id id) takeHeadersPush close
   where

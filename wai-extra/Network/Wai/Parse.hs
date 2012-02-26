@@ -182,12 +182,12 @@ parseRequestBody s r =
 
 sinkRequestBody :: BackEnd y
                 -> RequestBodyType
-                -> C.Sink S.ByteString IO ([Param], [File y])
+                -> C.Sink S.ByteString (C.ResourceT IO) ([Param], [File y])
 sinkRequestBody s r = fmap partitionEithers $ conduitRequestBody s r C.=$ CL.consume
 
 conduitRequestBody :: BackEnd y
                    -> RequestBodyType
-                   -> C.Conduit S.ByteString IO (Either Param (File y))
+                   -> C.Conduit S.ByteString (C.ResourceT IO) (Either Param (File y))
 conduitRequestBody _ UrlEncoded = C.sequenceSink () $ \() -> do -- url-encoded
     -- NOTE: in general, url-encoded data will be in a single chunk.
     -- Therefore, I'm optimizing for the usual case by sticking with
@@ -197,7 +197,7 @@ conduitRequestBody _ UrlEncoded = C.sequenceSink () $ \() -> do -- url-encoded
 conduitRequestBody backend (Multipart bound) =
     parsePieces backend $ S8.pack "--" `S.append` bound
 
-takeLine :: C.Sink S.ByteString IO (Maybe S.ByteString)
+takeLine :: C.Sink S.ByteString (C.ResourceT IO) (Maybe S.ByteString)
 takeLine =
     C.sinkState id push close'
   where
@@ -210,7 +210,7 @@ takeLine =
                     let lo = if S.length y > 1 then Just (S.drop 1 y) else Nothing
                     return $ C.StateDone lo $ Just $ killCR x
 
-takeLines :: C.Sink S.ByteString IO [S.ByteString]
+takeLines :: C.Sink S.ByteString (C.ResourceT IO) [S.ByteString]
 takeLines = do
     res <- takeLine
     case res of
@@ -222,12 +222,12 @@ takeLines = do
                 return $ l : ls
 
 parsePieces :: BackEnd y -> S.ByteString
-            -> C.Conduit S.ByteString IO (Either Param (File y))
+            -> C.Conduit S.ByteString (C.ResourceT IO) (Either Param (File y))
 parsePieces sink bound = C.sequenceSink True (parsePiecesSink sink bound)
 
 parsePiecesSink :: BackEnd y
                 -> S.ByteString
-                -> C.SequencedSink Bool S.ByteString IO (Either Param (File y))
+                -> C.SequencedSink Bool S.ByteString (C.ResourceT IO) (Either Param (File y))
 parsePiecesSink _ _ False = return C.Stop
 parsePiecesSink BackEnd{initialize=initialize',append=append',close=close'}
                 bound True = do
@@ -299,7 +299,7 @@ findBound b bs = go [0..S.length bs - 1]
 sinkTillBound :: S.ByteString
               -> (x -> S.ByteString -> IO x)
               -> x
-              -> C.Sink S.ByteString IO (x, Bool)
+              -> C.Sink S.ByteString (C.ResourceT IO) (x, Bool)
 sinkTillBound bound iter seed0 = C.sinkState
     (id, seed0)
     push

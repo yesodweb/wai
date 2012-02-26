@@ -60,7 +60,7 @@ ping  var app req
 toInsert :: S.ByteString
 toInsert = "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping\",false);x.send();},60000)</script>"
 
-insideHead :: C.Conduit (C.Flush S.ByteString) IO (C.Flush S.ByteString)
+insideHead :: C.Conduit (C.Flush S.ByteString) (C.ResourceT IO) (C.Flush S.ByteString)
 insideHead =
     C.conduitState (Just (S.empty, whole)) push' close
   where

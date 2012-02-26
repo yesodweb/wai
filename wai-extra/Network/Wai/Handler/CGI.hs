@@ -66,7 +66,7 @@ runSendfile sf app = do
 -- stick with 'run' or 'runSendfile'.
 runGeneric
      :: [(String, String)] -- ^ all variables
-     -> (Int -> C.Source IO B.ByteString) -- ^ responseBody of input
+     -> (Int -> C.Source (C.ResourceT IO) B.ByteString) -- ^ responseBody of input
      -> (B.ByteString -> IO ()) -- ^ destination for output
      -> Maybe B.ByteString -- ^ does the server support the X-Sendfile header?
      -> Application
@@ -166,12 +166,12 @@ cleanupVarName s =
     helper' (x:rest) = toLower x : helper' rest
     helper' [] = []
 
-requestBodyHandle :: Handle -> Int -> C.Source IO B.ByteString
+requestBodyHandle :: Handle -> Int -> C.Source (C.ResourceT IO) B.ByteString
 requestBodyHandle h = requestBodyFunc $ \i -> do
     bs <- B.hGet h i
     return $ if B.null bs then Nothing else Just bs
 
-requestBodyFunc :: (Int -> IO (Maybe B.ByteString)) -> Int -> C.Source IO B.ByteString
+requestBodyFunc :: (Int -> IO (Maybe B.ByteString)) -> Int -> C.Source (C.ResourceT IO) B.ByteString
 requestBodyFunc get count0 =
     C.sourceState count0 pull
   where

@@ -19,7 +19,7 @@ import Network.Wai.Handler.Warp (Connection (..))
 intercept :: WS.Protocol p
           => (WS.Request -> WS.WebSockets p ())
           -> Request
-          -> Maybe (C.BufferedSource IO ByteString -> Connection -> C.ResourceT IO ())
+          -> Maybe (C.BufferedSource (C.ResourceT IO) ByteString -> Connection -> C.ResourceT IO ())
 intercept = interceptWith WS.defaultWebSocketsOptions
 
 -- | Variation of 'intercept' which allows custom options.
@@ -27,7 +27,7 @@ interceptWith :: WS.Protocol p
               => WS.WebSocketsOptions
               -> (WS.Request -> WS.WebSockets p ())
               -> Request
-              -> Maybe (C.BufferedSource IO ByteString -> Connection -> C.ResourceT IO ())
+              -> Maybe (C.BufferedSource (C.ResourceT IO) ByteString -> Connection -> C.ResourceT IO ())
 interceptWith opts app req = case lookup "upgrade" $ requestHeaders req of
     Just s
         | S.map toLower s == "websocket" -> Just $ runWebSockets opts req' app
@@ -41,7 +41,7 @@ runWebSockets :: WS.Protocol p
               => WS.WebSocketsOptions
               -> WS.RequestHttpPart
               -> (WS.Request -> WS.WebSockets p ())
-              -> C.BufferedSource IO ByteString
+              -> C.BufferedSource (C.ResourceT IO) ByteString
               -> Connection
               -> C.ResourceT IO ()
 runWebSockets opts req app source conn = do
