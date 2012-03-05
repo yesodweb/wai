@@ -358,16 +358,20 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
                 -- We can't use the standard isolate, as its counter is not
                 -- kept in a mutable variable.
                 lenRef <- liftIO $ I.newIORef len0
-                let isolate = C.Conduit push close
-                    push bs = do
+                let isolate = C.Running push C.Closed
+                    push bs = flip C.ConduitM (return ()) $ do
                         len <- liftIO $ I.readIORef lenRef
                         let (a, b) = S.splitAt len bs
                             len' = len - S.length a
                         liftIO $ I.writeIORef lenRef len'
                         return $ if len' == 0
-                            then C.Finished (if S.null b then Nothing else Just b) (if S.null a then [] else [a])
-                            else C.Producing isolate [a]
-                    close = return []
+                            then
+                                let mleftover = if S.null b then Nothing else Just b
+                                    final = C.Finished mleftover
+                                 in if S.null a
+                                        then final
+                                        else C.HaveMore final (return ()) a
+                            else C.HaveMore isolate (return ()) a
 
                     -- Make sure that we don't connect to the source after the
                     -- isolate conduit closes.
@@ -393,14 +397,13 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
                     -- as we'd now have to check the BufferedSource status on
                     -- each call. Worth looking into.
 
-                    wrap src' = C.Source
-                        { C.sourcePull = do
+                    wrap src' = C.SourceM
+                        (do
                             len <- liftIO $ I.readIORef lenRef
                             if len <= 0
                                 then return C.Closed
-                                else C.sourcePull src'
-                        , C.sourceClose = return ()
-                        }
+                                else return src')
+                        (return ())
                 return $ wrap $ src C.$= isolate
     return Request
             { requestMethod = method
@@ -578,13 +581,9 @@ sendResponse th req conn r = sendResponse' r
         -- functions below. Should lessen greatly the GC burden (I hope)
         needsChunked' = needsChunked hs
         chunk :: C.Conduit Builder (ResourceT IO) Builder
-        chunk = C.Conduit
-            { C.conduitPush = push
-            , C.conduitClose = close
-            }
-        conduit = C.Conduit push close
-        push x = return $ C.Producing conduit [chunkedTransferEncoding x]
-        close = return [chunkedTransferTerminator]
+        chunk = C.Running push close
+        push x = C.HaveMore chunk (return ()) (chunkedTransferEncoding x)
+        close = C.Open C.Closed (return ()) chunkedTransferTerminator
 
 parseHeaderNoAttr :: ByteString -> H.Header
 parseHeaderNoAttr s =
@@ -600,24 +599,22 @@ connSource :: Connection -> T.Handle -> C.Source (ResourceT IO) ByteString
 connSource Connection { connRecv = recv } th =
     src
   where
-    src = C.Source
-        { C.sourcePull = do
-            bs <- liftIO recv
-            if S.null bs
-                then return C.Closed
-                else do
-                    when (S.length bs >= 2048) $ liftIO $ T.tickle th
-                    return (C.Open src bs)
-        , C.sourceClose = return ()
-        }
+    src = C.SourceM (do
+        bs <- liftIO recv
+        if S.null bs
+            then return C.Closed
+            else do
+                when (S.length bs >= 2048) $ liftIO $ T.tickle th
+                return (C.Open src (return ()) bs))
+        (return ())
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
 connSink :: Connection -> T.Handle -> C.Sink B.ByteString (ResourceT IO) ()
 connSink Connection { connSendAll = send } th =
-    C.SinkData push close
+    C.Processing push close
   where
     close = liftIO (T.resume th)
-    push x = do
+    push x = C.SinkM $ do
         liftIO $ do
             T.resume th
             send x
