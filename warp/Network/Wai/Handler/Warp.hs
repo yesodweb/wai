@@ -48,7 +48,6 @@ module Network.Wai.Handler.Warp
     , parseRequest
     , sendResponse
     , registerKillThread
-    , bindPort
     , pause
     , resume
     , T.cancel
@@ -68,19 +67,11 @@ import qualified Data.ByteString.Unsafe as SU
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as L
 import Network (sClose, Socket)
-import Network.Socket
-    ( accept, Family (..)
-    , SocketType (Stream), listen, bindSocket, setSocketOption, maxListenQueue
-    , SockAddr, SocketOption (ReuseAddr)
-    , AddrInfo(..), AddrInfoFlag(..), defaultHints, getAddrInfo
-    )
-import qualified Network.Socket
+import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Control.Exception
     ( bracket, finally, Exception, SomeException, catch
     , fromException, AsyncException (ThreadKilled)
-    , bracketOnError
-    , IOException
     , try
     )
 import Control.Concurrent (forkIO)
@@ -113,8 +104,8 @@ import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import System.IO (hPrint, stderr)
 import qualified Data.IORef as I
-import Data.String (IsString (..))
 import qualified Data.ByteString.Lex.Integral as LI
+import Data.Conduit.Network (bindPort, HostPreference (HostIPv4))
 
 #if WINDOWS
 import Control.Concurrent (threadDelay)
@@ -161,47 +152,6 @@ socketConnection s = Connection
     , connClose = sClose s
     , connRecv = Sock.recv s bytesPerRead
     }
-
-
-bindPort :: Int -> HostPreference -> IO Socket
-bindPort p s = do
-    let hints = defaultHints { addrFlags = [AI_PASSIVE
-                                         , AI_NUMERICSERV
-                                         , AI_NUMERICHOST]
-                             , addrSocketType = Stream }
-        host =
-            case s of
-                Host s' -> Just s'
-                _ -> Nothing
-        port = Just . show $ p
-    addrs <- getAddrInfo (Just hints) host port
-    -- Choose an IPv6 socket if exists.  This ensures the socket can
-    -- handle both IPv4 and IPv6 if v6only is false.
-    let addrs4 = filter (\x -> addrFamily x /= AF_INET6) addrs
-        addrs6 = filter (\x -> addrFamily x == AF_INET6) addrs
-        addrs' =
-            case s of
-                HostIPv4 -> addrs4 ++ addrs6
-                HostIPv6 -> addrs6 ++ addrs4
-                _ -> addrs
-
-        tryAddrs (addr1:rest@(_:_)) = 
-                                      catch
-                                      (theBody addr1) 
-                                      (\(_ :: IOException) -> tryAddrs rest)
-        tryAddrs (addr1:[])         = theBody addr1
-        tryAddrs _                  = error "bindPort: addrs is empty"
-        theBody addr = 
-          bracketOnError
-          (Network.Socket.socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr))
-          sClose
-          (\sock -> do
-              setSocketOption sock ReuseAddr 1
-              bindSocket sock (addrAddress addr)
-              listen sock maxListenQueue
-              return sock
-          )
-    tryAddrs addrs'
 
 -- | Run an 'Application' on the given port. This calls 'runSettings' with
 -- 'defaultSettings'.
@@ -642,38 +592,6 @@ data Settings = Settings
     , settingsIntercept :: Request -> Maybe (C.BufferedSource (ResourceT IO) S.ByteString -> Connection -> ResourceT IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     }
-
--- | Which host to bind.
---
--- Note: The @IsString@ instance recognizes the following special values:
---
--- * @*@ means @HostAny@
---
--- * @*4@ means @HostIPv4@
---
--- * @*6@ means @HostIPv6@
-data HostPreference =
-    HostAny
-  | HostIPv4
-  | HostIPv6
-  | Host String
-    deriving (Show, Eq, Ord)
-
-instance IsString HostPreference where
-    -- The funny code coming up is to get around some irritating warnings from
-    -- GHC. I should be able to just write:
-    {-
-    fromString "*" = HostAny
-    fromString "*4" = HostIPv4
-    fromString "*6" = HostIPv6
-    -}
-    fromString s'@('*':s) =
-        case s of
-            [] -> HostAny
-            ['4'] -> HostIPv4
-            ['6'] -> HostIPv6
-            _ -> Host s'
-    fromString s = Host s
 
 -- | The default settings for the Warp server. See the individual settings for
 -- the default value.
