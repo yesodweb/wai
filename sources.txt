@@ -1,3 +1,11 @@
+./zlib-bindings
+./conduit/resourcet
+./conduit/conduit
+./conduit/attoparsec-conduit
+./conduit/blaze-builder-conduit
+./conduit/filesystem-conduit
+./conduit/network-conduit
+./conduit/zlib-conduit
 ./wai
 ./wai-test
 ./wai-extra
