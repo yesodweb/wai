@@ -20,6 +20,7 @@ import qualified Data.Certificate.X509 as X509
 import qualified Data.Certificate.PEM as PEM
 import qualified Data.ByteString as B
 import qualified Data.Certificate.KeyRSA as KeyRSA
+import Data.Conduit.Network (bindPort)
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
