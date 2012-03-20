@@ -17,17 +17,18 @@ extra-source-files: static/client.js, static/client.html, static/screen.css
 flag example
 
 Library
-  Build-Depends:     base                          >= 3        && < 5
-                   , bytestring                >= 0.9.1.4  && < 0.10
-                   , conduit                   >= 0.0      && < 0.1
-                   , wai                           >= 1.0      && < 1.1
-                   , enumerator                >= 0.4.8    && < 0.5
-                   , network-enumerator            >= 0.1.2    && < 0.2
-                   , blaze-builder                 >= 0.2.1.4  && < 0.4
-                   , case-insensitive              >= 0.2
-                   , network                   >= 2.2.1.5 && < 2.4
-                   , transformers              >= 0.2     && < 0.3
-                   , websockets                    >= 0.5.1    && < 0.6
+  Build-Depends:     base               >= 3        && < 5
+                   , bytestring         >= 0.9.1.4  && < 0.10
+                   , conduit            >= 0.2      && < 0.3
+                   , wai                >= 1.1      && < 1.2
+                   , enumerator         >= 0.4.8    && < 0.5
+                   , network-enumerator >= 0.1.2    && < 0.2
+                   , blaze-builder      >= 0.2.1.4  && < 0.4
+                   , case-insensitive   >= 0.2
+                   , network            >= 2.2.1.5  && < 2.4
+                   , transformers       >= 0.2      && < 0.3
+                   , websockets         >= 0.6      && < 0.7
+                   , warp               >= 1.1      && < 1.2
   Exposed-modules:   Network.Wai.Handler.WebSockets
   ghc-options:       -Wall
 
@@ -36,22 +37,22 @@ Executable           wai-websockets-example
     buildable: True
   else
     buildable: False
-  Build-Depends:     base >=3 && < 5,
-                     conduit,
-                     wai-websockets,
-                     websockets,
-                     network-enumerator,
-                     warp,
-                     wai,
-                     wai-app-static,
-                     bytestring,
-                     case-insensitive,
-                     blaze-builder,
-                     enumerator,
-                     transformers,
-                     network,
-                     text,
-                     file-embed
+  Build-Depends:     base               >= 3 && < 5
+                   , conduit
+                   , wai-websockets
+                   , websockets
+                   , network-enumerator
+                   , warp
+                   , wai
+                   , wai-app-static
+                   , bytestring
+                   , case-insensitive
+                   , blaze-builder
+                   , enumerator
+                   , transformers
+                   , network
+                   , text
+                   , file-embed
 
   ghc-options:       -Wall -threaded
   main-is:           server.lhs
