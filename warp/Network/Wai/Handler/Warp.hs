@@ -55,6 +55,7 @@ module Network.Wai.Handler.Warp
     , T.initialize
 #if TEST
     , takeHeaders
+    , readInt
 #endif
     ) where
 
@@ -103,8 +104,8 @@ import Control.Monad (forever, when)
 import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import System.IO (hPrint, stderr)
+import ReadInt (readInt64)
 import qualified Data.IORef as I
-import qualified Data.ByteString.Lex.Integral as LI
 import Data.Conduit.Network (bindPort, HostPreference (HostIPv4))
 
 #if WINDOWS
@@ -299,7 +300,7 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
     let len0 =
             case lookup "content-length" heads of
                 Nothing -> 0
-                Just bs -> LI.readDecimal_ bs
+                Just bs -> readInt bs
     let serverName' = takeUntil 58 host -- ':'
     rbody <-
         if len0 == 0
@@ -465,7 +466,7 @@ sendResponse th req conn r = sendResponse' r
     sendResponse' :: Response -> ResourceT IO Bool
     sendResponse' (ResponseFile s hs fp mpart) = do
         eres <-
-            case (LI.readDecimal_ `fmap` lookup "content-length" hs, mpart) of
+            case (readInt `fmap` lookup "content-length" hs, mpart) of
                 (Just cl, _) -> return $ Right (hs, cl)
                 (Nothing, Nothing) -> liftIO $ try $ do
                     cl <- P.fileSize `fmap` P.getFileStatus fp
@@ -677,6 +678,11 @@ checkCR bs pos =
         then p
         else pos
 {-# INLINE checkCR #-}
+
+readInt :: Integral a => ByteString -> a
+readInt bs = fromIntegral $ readInt64 bs
+{-# INLINE readInt #-}
+
 
 -- | Call the inner function with a timeout manager.
 withManager :: Int -- ^ timeout in microseconds
