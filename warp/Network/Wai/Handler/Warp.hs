@@ -308,7 +308,7 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
                 -- We can't use the standard isolate, as its counter is not
                 -- kept in a mutable variable.
                 lenRef <- liftIO $ I.newIORef len0
-                let isolate = C.Running push C.Closed
+                let isolate = C.NeedInput push C.Closed
                     push bs = flip C.ConduitM (return ()) $ do
                         len <- liftIO $ I.readIORef lenRef
                         let (a, b) = S.splitAt len bs
@@ -320,8 +320,8 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
                                     final = C.Finished mleftover
                                  in if S.null a
                                         then final
-                                        else C.HaveMore final (return ()) a
-                            else C.HaveMore isolate (return ()) a
+                                        else C.HaveOutput final (return ()) a
+                            else C.HaveOutput isolate (return ()) a
 
                     -- Make sure that we don't connect to the source after the
                     -- isolate conduit closes.
@@ -531,8 +531,8 @@ sendResponse th req conn r = sendResponse' r
         -- functions below. Should lessen greatly the GC burden (I hope)
         needsChunked' = needsChunked hs
         chunk :: C.Conduit Builder (ResourceT IO) Builder
-        chunk = C.Running push close
-        push x = C.HaveMore chunk (return ()) (chunkedTransferEncoding x)
+        chunk = C.NeedInput push close
+        push x = C.HaveOutput chunk (return ()) (chunkedTransferEncoding x)
         close = C.Open C.Closed (return ()) chunkedTransferTerminator
 
 parseHeaderNoAttr :: ByteString -> H.Header
