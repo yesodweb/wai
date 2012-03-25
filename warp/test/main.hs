@@ -7,7 +7,7 @@ import Network.HTTP.Types
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Monad (forM_)
 
-import System.IO (hFlush)
+import System.IO (hFlush, hClose)
 import System.IO.Unsafe (unsafePerformIO)
 import Data.ByteString (ByteString, hPutStr, hGetSome)
 import qualified Data.ByteString as S
@@ -86,6 +86,29 @@ runTest expected app chunks = do
         Left s -> error s
         Right i -> i @?= expected
 
+dummyApp :: Application
+dummyApp _ = return $ responseLBS status200 [] "foo"
+
+runTerminateTest :: InvalidRequest
+                 -> ByteString
+                 -> IO ()
+runTerminateTest expected input = do
+    port <- getPort
+    ref <- I.newIORef Nothing
+    tid <- forkIO $ runSettings defaultSettings
+        { settingsOnException = \e -> I.writeIORef ref $ Just e
+        , settingsPort = port
+        } dummyApp
+    threadDelay 1000
+    handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+    hPutStr handle input
+    hFlush handle
+    hClose handle
+    threadDelay 1000
+    killThread tid
+    res <- I.readIORef ref
+    show res @?= show (Just expected)
+
 singleGet :: ByteString
 singleGet = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
 
@@ -119,3 +142,7 @@ main = hspecX $ do
     describe "no hanging" $ do
         it "has body, read" $ runTest 1 readBody $ map S.singleton $ S.unpack singlePostHello
         it "double connect" $ runTest 1 doubleConnect [singlePostHello]
+
+    describe "connection termination" $ do
+        it "ConnectionClosedByPeer" $ runTerminateTest ConnectionClosedByPeer "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello"
+        it "IncompleteHeaders" $ runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r\n"

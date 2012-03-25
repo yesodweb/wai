@@ -227,7 +227,7 @@ serveConnection settings th onException port app conn remoteHost' =
         serveConnection'' fromClient
 
     serveConnection'' fromClient = do
-        env <- parseRequest conn port remoteHost' fromClient
+        (env, requireDone) <- parseRequest conn port remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
@@ -236,6 +236,7 @@ serveConnection settings th onException port app conn remoteHost' =
 
                 -- flush the rest of the request body
                 requestBody env C.$$ CL.sinkNull
+                liftIO requireDone
 
                 liftIO $ T.resume th
                 keepAlive <- sendResponse th env conn res
@@ -244,9 +245,12 @@ serveConnection settings th onException port app conn remoteHost' =
                 liftIO $ T.pause th
                 intercept fromClient conn
 
+-- Require that the entire request body has been consumed
+type RequireDone = IO ()
+
 parseRequest :: Connection -> Port -> SockAddr
              -> C.BufferedSource (ResourceT IO) S.ByteString
-             -> ResourceT IO Request
+             -> ResourceT IO (Request, RequireDone)
 parseRequest conn port remoteHost' src = do
     headers' <- src C.$$ takeHeaders
     parseRequest' conn port headers' remoteHost' src
@@ -261,6 +265,7 @@ data InvalidRequest =
     | BadFirstLine String
     | NonHttp
     | IncompleteHeaders
+    | ConnectionClosedByPeer
     | OverLargeHeader
     deriving (Show, Typeable, Eq)
 instance Exception InvalidRequest
@@ -285,7 +290,7 @@ parseRequest' :: Connection
               -> [ByteString]
               -> SockAddr
               -> C.BufferedSource (ResourceT IO) S.ByteString
-              -> ResourceT IO Request
+              -> ResourceT IO (Request, RequireDone)
 parseRequest' _ _ [] _ _ = throwIO $ NotEnoughLines []
 parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
@@ -302,9 +307,9 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
                 Nothing -> 0
                 Just bs -> readInt bs
     let serverName' = takeUntil 58 host -- ':'
-    rbody <-
+    (rbody, requireDone) <-
         if len0 == 0
-            then return mempty
+            then return (mempty, return ())
             else do
                 -- We can't use the standard isolate, as its counter is not
                 -- kept in a mutable variable.
@@ -355,8 +360,12 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
                                 then return C.Closed
                                 else return src')
                         (return ())
-                return $ wrap $ src C.$= isolate
-    return Request
+
+                    requireDone = do
+                        len <- liftIO $ I.readIORef lenRef
+                        when (len > 0) $ throwIO ConnectionClosedByPeer
+                return (wrap $ src C.$= isolate, requireDone)
+    return (Request
             { requestMethod = method
             , httpVersion = httpversion
             , pathInfo = H.decodePathSegments rpath
@@ -370,7 +379,7 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
             , remoteHost = remoteHost'
             , requestBody = rbody
             , vault = mempty
-            }
+            }, requireDone)
 
 
 takeUntil :: Word8 -> ByteString -> ByteString
