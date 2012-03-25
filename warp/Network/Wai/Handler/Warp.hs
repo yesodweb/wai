@@ -626,50 +626,54 @@ data THStatus = THStatus
 
 takeHeaders :: C.Sink ByteString (ResourceT IO) [ByteString]
 takeHeaders =
-    C.sinkState (THStatus 0 id id) takeHeadersPush close
+    C.Processing (push (THStatus 0 id id)) close
   where
-    close _ = throwIO IncompleteHeaders
-{-# INLINE takeHeaders #-}
+    close = throwIO IncompleteHeaders
 
-takeHeadersPush :: THStatus
-                -> ByteString
-                -> ResourceT IO (C.SinkStateResult THStatus ByteString [ByteString])
-takeHeadersPush (THStatus len _ _ ) _
-    | len > maxTotalHeaderLength = throwIO OverLargeHeader
-takeHeadersPush (THStatus len lines prepend) bs =
-    case mnl of
-        -- no newline.  prepend entire bs to next line
-        Nothing -> do
-            let len' = len + bsLen
-            return $ C.StateProcessing $ THStatus len' lines (prepend . S.append bs)
-        Just nl -> do
-            let end = nl
-                start = nl + 1
-                line = prepend (if end > 0
-                                    then SU.unsafeTake (checkCR bs end) bs
-                                    else S.empty)
-            if S.null line
-                -- no more headers
-                then do
-                    let lines' = lines []
-                    if start < bsLen
-                        then do
-                            let rest = SU.unsafeDrop start bs
-                            return $ C.StateDone (Just rest) lines'
-                        else return $ C.StateDone Nothing lines'
-                -- more headers
-                else do
-                    let len' = len + start
-                        lines' = lines . (:) line
-                    if start < bsLen
-                        then do
-                            let more = SU.unsafeDrop start bs
-                            takeHeadersPush (THStatus len' lines' id) more
-                        else return $ C.StateProcessing $ THStatus len' lines' id
-  where
-    bsLen = S.length bs
-    mnl = S.elemIndex 10 bs
-{-# INLINE takeHeadersPush #-}
+    push (THStatus len lines prepend) bs
+        -- Too many bytes
+        | len > maxTotalHeaderLength = throwIO OverLargeHeader
+        | otherwise =
+            case mnl of
+                -- No newline find in this chunk.  Add it to the prepend,
+                -- update the length, and continue processing.
+                Nothing ->
+                    let len' = len + bsLen
+                        prepend' = prepend . S.append bs
+                        status = THStatus len' lines prepend'
+                     in C.Processing (push status) close
+                -- Found a newline at position end.
+                Just end ->
+                    let start = end + 1 -- start of next chunk
+                        line
+                            -- There were some bytes before the newline, get them
+                            | end > 0 = prepend $ SU.unsafeTake (checkCR bs end) bs
+                            -- No bytes before the newline
+                            | otherwise = prepend S.empty
+                     in if S.null line
+                            -- no more headers
+                            then
+                                let lines' = lines []
+                                    -- leftover
+                                    rest = if start < bsLen
+                                               then Just (SU.unsafeDrop start bs)
+                                               else Nothing
+                                 in C.Done rest lines'
+                            -- more headers
+                            else
+                                let len' = len + start
+                                    lines' = lines . (line:)
+                                    status = THStatus len' lines' id
+                                 in if start < bsLen
+                                        -- more bytes in this chunk, push again
+                                        then let bs' = SU.unsafeDrop start bs
+                                              in push status bs'
+                                        -- no more bytes in this chunk, ask for more
+                                        else C.Processing (push status) close
+      where
+        bsLen = S.length bs
+        mnl = S.elemIndex 10 bs
+{-# INLINE takeHeaders #-}
 
 checkCR :: ByteString -> Int -> Int
 checkCR bs pos =
