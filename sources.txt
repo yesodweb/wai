@@ -1,3 +1,8 @@
+./conduit/conduit
+./conduit/blaze-builder-conduit
+./conduit/attoparsec-conduit
+./conduit/network-conduit
+./conduit/zlib-conduit
 ./wai
 ./wai-test
 ./wai-extra
