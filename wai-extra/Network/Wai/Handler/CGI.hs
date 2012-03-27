@@ -141,10 +141,10 @@ runGeneric vars inputH outputH xsendfile app = do
         , fromByteString sf
         , fromByteString " not supported"
         ]
-    bsSink = C.Processing push (return ())
-    push (C.Chunk bs) = C.SinkM $ do
+    bsSink = C.NeedInput push (return ())
+    push (C.Chunk bs) = C.PipeM (do
         liftIO $ outputH bs
-        return bsSink
+        return bsSink) (return ())
     -- FIXME actually flush?
     push C.Flush = bsSink
     builderSink = builderToByteStringFlush C.=$ bsSink
