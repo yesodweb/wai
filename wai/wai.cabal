@@ -24,7 +24,7 @@ Library
                    , network                   >= 2.2.1.5  && < 2.4
                    , http-types                >= 0.6      && < 0.7
                    , text                      >= 0.7      && < 0.12
-                   , transformers              >= 0.2.2    && < 0.3
+                   , transformers              >= 0.2.2    && < 0.4
                    , vault                     >= 0.1      && < 0.2
   Exposed-modules:   Network.Wai
   ghc-options:       -Wall
