@@ -228,7 +228,7 @@ ibsIsolate ibs@(IsolatedBSSource ref) =
             then return $ C.Done Nothing ()
             else do
                 -- Get the next chunk (if available) and the updated source
-                (src', mbs) <- src C.$$& CL.head
+                (src', mbs) <- src C.$$+ CL.head
 
                 -- If no chunk available, then there aren't enough bytes in the
                 -- stream. Throw a ConnectionClosedByPeer
@@ -308,7 +308,7 @@ parseRequest :: Connection -> Port -> SockAddr
              -> C.Source (ResourceT IO) S.ByteString
              -> ResourceT IO (Request, IsolatedBSSource)
 parseRequest conn port remoteHost' src1 = do
-    (src2, headers') <- src1 C.$$& takeHeaders
+    (src2, headers') <- src1 C.$$+ takeHeaders
     parseRequest' conn port headers' remoteHost' src2
 
 -- FIXME come up with good values here
