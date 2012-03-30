@@ -13,9 +13,10 @@ import System.IO (stdout, hFlush)
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack, unpack)
 import Control.Monad.IO.Class (liftIO)
-import Network.Wai (Request(..), Middleware, responseStatus)
+import Network.Wai (Request(..), Middleware, responseStatus, Response)
 import System.Log.FastLogger
 import Network.HTTP.Types as H
+import Data.Maybe (fromMaybe)
 
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, getRequestBodyType)
 import qualified Data.ByteString.Lazy as LBS
@@ -37,7 +38,7 @@ logHandleDev = logCallbackDev
 -- | Production request logger middleware.
 -- Implemented on top of "logCallback", but prints to 'stdout'
 logStdout :: Middleware
-logStdout = logHandle $ \bs -> hPutLogStr stdout [LB bs]
+logStdout = logCallback $ \bs -> hPutLogStr stdout [LB bs]
 
 -- | Development request logger middleware.
 -- Implemented on top of "logCallbackDev", but prints to 'stdout'
@@ -45,7 +46,7 @@ logStdout = logHandle $ \bs -> hPutLogStr stdout [LB bs]
 -- Flushes 'stdout' on each request, which would be inefficient in production use.
 -- Use "logStdout" in production.
 logStdoutDev :: Middleware
-logStdoutDev = logHandleDev $ \bs -> hPutLogStr stdout [LB bs] >> hFlush stdout
+logStdoutDev = logCallbackDev $ \bs -> hPutLogStr stdout [LB bs] >> hFlush stdout
 
 -- | Prints a message using the given callback function for each request.
 -- Designed for fast production use at the expense of convenience.
@@ -55,6 +56,7 @@ logStdoutDev = logHandleDev $ \bs -> hPutLogStr stdout [LB bs] >> hFlush stdout
 logCallback :: (BS.ByteString -> IO ()) -- ^ A function that logs the ByteString log message.
             -> Middleware
 logCallback cb app req = do
+    rsp <- app req
     liftIO $ cb $ BS.concat
         [ requestMethod req
         , " "
@@ -64,15 +66,19 @@ logCallback cb app req = do
         , "Accept: "
         , maybe "" toBS $ lookup "Accept" $ requestHeaders req
         , "\n"
+        , "Status: "
+        , statusBS rsp
+        , " "
+        , msgBS rsp
         ]
-    app req
+    return rsp
 
 toBS :: H.Ascii -> BS.ByteString
 toBS = id
 
 -- no black or white which are expected to be existing terminal colors.
 colors :: IORef [Color]
-colors = unsafePerformIO $ newIORef $ [
+colors = unsafePerformIO $ newIORef [
     Red 
   , Green 
   , Yellow 
@@ -124,7 +130,7 @@ logCallbackDev cb app req = do
                  return (req', body)
             _ -> return (req, [])
 
-    postParams <- if any (requestMethod req ==) ["GET", "HEAD"]
+    postParams <- if requestMethod req `elem` ["GET", "HEAD"]
       then return []
       else do postParams <- liftIO $ allPostParams body
               return $ collectPostParams postParams
@@ -139,7 +145,7 @@ logCallbackDev cb app req = do
         , rawPathInfo req
         , "\n"
         , "Accept: "
-        , maybe "" id $ lookup "Accept" $ requestHeaders req
+        , fromMaybe "" $ lookup "Accept" $ requestHeaders req
         , paramsToBS  "GET " getParams
         , paramsToBS "POST " postParams
         , "\n"
@@ -151,9 +157,9 @@ logCallbackDev cb app req = do
     -- this is color coordinated with the request logging
     -- also includes the request path to connect it to the request
     liftIO $ cb $ BS.concat $ ansiColor color "Status: " ++ [
-          sCode rsp
+          statusBS rsp
         , " "
-        , msg rsp
+        , msgBS rsp
         , ". "
         , rawPathInfo req -- if you need help matching the 2 logging statements
         , "\n"
@@ -165,8 +171,6 @@ logCallbackDev cb app req = do
       , bs
       , pack $ setSGRCode [Reset]
       ]
-    sCode = pack . show . statusCode . responseStatus
-    msg = statusMessage . responseStatus
 
     paramsToBS prefix params =
       if null params then ""
@@ -183,9 +187,15 @@ logCallbackDev cb app req = do
 
     collectPostParams :: ([Param], [File LBS.ByteString]) -> [Param]
     collectPostParams (postParams, files) = postParams ++
-      (map (\(k,v) -> (k, BS.append "FILE: " (fileName v))) files)
+      map (\(k,v) -> (k, BS.append "FILE: " (fileName v))) files
 
     readInt bs =
         case reads $ unpack bs of
             (i, _):_ -> Just (i :: Int)
             [] -> Nothing
+
+statusBS :: Response -> BS.ByteString
+statusBS = pack . show . statusCode . responseStatus
+
+msgBS :: Response -> BS.ByteString
+msgBS = statusMessage . responseStatus
