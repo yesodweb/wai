@@ -7,7 +7,7 @@ maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        Wai handler to fastcgi
 category:        Web
 stability:       stable
-cabal-version:   >= 1.2
+cabal-version:   >= 1.6
 build-type:      Configure
 extra-source-files: configure fastcgi.buildinfo.in
 homepage:        http://www.yesodweb.com/book/wai
@@ -25,3 +25,7 @@ library
 
     if impl(ghc >= 7.4)
       cpp-options:     -DGHC_7_4
+
+source-repository head
+  type:     git
+  location: git://github.com/yesodweb/wai.git

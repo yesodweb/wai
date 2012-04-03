@@ -10,7 +10,7 @@ description:     Runs any WAI application using
                  to view it.
 category:        Web
 stability:       unstable
-cabal-version:   >= 1.2
+cabal-version:   >= 1.6
 build-type:      Simple
 homepage:        http://www.yesodweb.com/book/wai
 
@@ -25,3 +25,7 @@ library
         extra-libraries: QtCore4, QtGui4, QtNetwork4, QtWebKit4
     else
         pkgconfig-depends: QtWebKit
+
+source-repository head
+  type:     git
+  location: git://github.com/yesodweb/wai.git
