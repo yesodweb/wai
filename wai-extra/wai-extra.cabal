@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             1.2.0.1
+Version:             1.2.0.2
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             MIT
