@@ -8,7 +8,7 @@ Author:              Michael Snoyman
 Maintainer:          michael@snoyman.com
 Category:            Web
 Build-type:          Simple
-Cabal-version:       >=1.2
+Cabal-version:       >=1.6
 
 Library
     Exposed-modules: Network.Wai.Handler.Launch
@@ -31,3 +31,7 @@ Library
         build-depends: process >= 1.0 && < 1.2
         if os(darwin)
             cpp-options: -DMAC
+
+source-repository head
+  type:     git
+  location: git://github.com/yesodweb/wai.git
