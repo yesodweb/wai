@@ -101,20 +101,20 @@ rotateColors (c:cs) = (cs ++ [c], c)
 -- However, if you are simulating 10 simultaneous users you may find this confusing.
 -- The request and response are connected by color on Unix and also by the request path.
 --
--- This is lower-level - use "logStdoutDev" unless you need greater control.
+-- This is lower-level - use 'logStdoutDev' unless you need greater control.
 --
 -- Example ouput:
 --
--- GET search
--- Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
---
--- Status: 200 OK. search
--- 
--- GET static/css/normalize.css
--- Accept: text/css,*/*;q=0.1
--- GET [("LXwioiBG","")]
---
--- Status: 304 Not Modified. static/css/normalize.css
+-- > GET search
+-- > Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+-- >
+-- > Status: 200 OK. search
+-- >
+-- > GET static/css/normalize.css
+-- > Accept: text/css,*/*;q=0.1
+-- > GET [("LXwioiBG","")]
+-- >
+-- > Status: 304 Not Modified. static/css/normalize.css
 logCallbackDev :: (BS.ByteString -> IO ()) -- ^ A function that logs the ByteString log message.
                -> Middleware
 logCallbackDev cb app req = do
