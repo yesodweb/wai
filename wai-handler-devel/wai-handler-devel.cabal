@@ -6,7 +6,7 @@ Description:         This handler automatically reloads your source code upon an
                      One major note: the type of the application is most likely not what you expect. A common case for WAI applications is having a withApplication function, and this library assumes this is the case. Therefore, the type signature of your application function must be:
                      .
                      > withYourApp :: (Application -> IO ()) -> IO ()
-License:             BSD3
+License:             MIT
 License-file:        LICENSE
 Author:              Michael Snoyman
 Maintainer:          michael@snoyman.com
