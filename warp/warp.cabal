@@ -26,7 +26,7 @@ Library
                    , blaze-builder-conduit     >= 0.4      && < 0.5
                    , lifted-base               >= 0.1      && < 0.2
                    , blaze-builder             >= 0.2.1.4  && < 0.4
-                   , simple-sendfile           >= 0.1      && < 0.3
+                   , simple-sendfile           >= 0.2.2    && < 0.3
                    , http-types                >= 0.6      && < 0.7
                    , case-insensitive          >= 0.2
                    , unix-compat               >= 0.2
