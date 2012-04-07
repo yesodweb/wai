@@ -330,8 +330,8 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
                             Just lastHash ->
                               if hash == lastHash
                                   then return NotModified
-                                  else return $ FileResponse file $ [("ETag", hash)]
-                            Nothing -> return $ FileResponse file $ [("ETag", hash)]
+                                  else return $ FileResponse file $ ("ETag", hash):cacheControl
+                            Nothing -> return $ FileResponse file $ ("ETag", hash):cacheControl
 
             Just mEtag -> do
                 mHash <- fileGetHash file
