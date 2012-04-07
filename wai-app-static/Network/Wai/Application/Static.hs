@@ -366,9 +366,7 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
     checkIndices :: [FilePath] -> Maybe FilePath
     checkIndices contents = find (flip elem indices) contents
 
-    cacheControl = case ccInt of
-        Nothing -> []
-        Just i  -> [("Cache-Control", S8.append "max-age=" $ S8.pack $ show i)]
+    cacheControl = headerCacheControl $ headerExpires []
       where
         ccInt =
             case maxAge of
@@ -377,6 +375,16 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
                 MaxAgeForever -> Just oneYear
         oneYear :: Int
         oneYear = 60 * 60 * 24 * 365
+
+        headerCacheControl =
+          case ccInt of
+            Nothing -> id
+            Just i  -> (:) ("Cache-Control", S8.append "public, max-age=" $ S8.pack $ show i)
+        headerExpires =
+          case maxAge of
+            NoMaxAge        -> id
+            MaxAgeSeconds _ -> id -- FIXME
+            MaxAgeForever   -> (:) ("Expires", "Thu, 31 Dec 2037 23:55:55 GMT")
 
 type Listing = (Pieces -> Folder -> IO L.ByteString)
 
