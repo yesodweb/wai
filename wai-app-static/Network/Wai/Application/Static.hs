@@ -352,8 +352,8 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
                 Just lastSent ->
                   if lastSent == mdate
                       then return NotModified
-                      else return $ FileResponse file $ [("last-modified", formatHTTPDate mdate)]
-                Nothing -> return $ FileResponse file $ [("last-modified", formatHTTPDate mdate)]
+                      else return $ FileResponse file $ ("last-modified", formatHTTPDate mdate):cacheControl
+                Nothing -> return $ FileResponse file $ ("last-modified", formatHTTPDate mdate):cacheControl
           _ -> return $ FileResponse file []
 
     setLast :: Pieces -> FilePath -> Pieces
