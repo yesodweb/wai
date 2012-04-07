@@ -7,7 +7,7 @@ module Network.Wai.Application.Static
       staticApp
       -- ** Settings
     , defaultWebAppSettings
-    , webAppSettingsWithLookup 
+    , webAppSettingsWithLookup
     , defaultFileServerSettings
     , StaticSettings
     , ssFolder
@@ -285,7 +285,7 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
             (Just Right{}, False) -> return $ Redirect (init pieces) Nothing
             (Just (Left folder@(Folder _ contents)), _) -> do
                 case checkIndices $ map fileName $ rights contents of
-                    Just index -> 
+                    Just index ->
                       if redirectToIndex then
                         return $ Redirect (setLast pieces index) Nothing
                       else
