@@ -59,7 +59,7 @@ module Network.Wai.Handler.Warp
 #endif
     ) where
 
-import Prelude hiding (catch, lines)
+import Prelude hiding (lines)
 import Network.Wai
 
 import Data.ByteString (ByteString)
@@ -71,7 +71,8 @@ import Network (sClose, Socket)
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Control.Exception
-    ( bracket, finally, Exception, SomeException, catch
+    ( mask, allowInterrupt, handle, onException, bracket
+    , Exception, SomeException
     , fromException, AsyncException (ThreadKilled)
     , try
     )
@@ -100,7 +101,7 @@ import qualified Timeout as T
 import Timeout (Manager, registerKillThread, pause, resume)
 import Data.Word (Word8)
 import Data.List (foldl')
-import Control.Monad (forever, when)
+import Control.Monad (forever, when, void)
 import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import System.IO (hPrint, stderr)
@@ -202,13 +203,14 @@ runSettingsConnection set getConn app = do
         port = settingsPort set
     tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
         $ settingsManager set
-    forever $ do
+    mask $ \restore -> forever $ do
+        allowInterrupt
         (conn, addr) <- getConn
-        _ <- forkIO $ do
+        void $ forkIO $ do
             th <- T.registerKillThread tm
-            serveConnection set th onE port app conn addr
-            T.cancel th
-        return ()
+            handle onE $ (do restore $ serveConnection set th port app conn addr
+                             connClose conn >> T.cancel th
+                         ) `onException` (T.cancel th >> connClose conn)
 
 -- | Contains a @Source@ and a byte count that is still to be read in.
 newtype IsolatedBSSource = IsolatedBSSource (I.IORef (Int, C.Source (ResourceT IO) ByteString))
@@ -271,14 +273,9 @@ ibsDone (IsolatedBSSource ref) = fmap snd $ I.readIORef ref
 
 serveConnection :: Settings
                 -> T.Handle
-                -> (SomeException -> IO ())
-                -> Port -> Application -> Connection -> SockAddr -> IO ()
-serveConnection settings th onException port app conn remoteHost' =
-    catch
-        (finally
-          (runResourceT serveConnection')
-          (connClose conn))
-        onException
+                -> Port -> Application -> Connection -> SockAddr-> IO ()
+serveConnection settings th port app conn remoteHost' =
+    runResourceT serveConnection'
   where
     serveConnection' :: ResourceT IO ()
     serveConnection' = do
