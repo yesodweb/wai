@@ -17,6 +17,6 @@ methodOverride app req =
     app req'
   where
     req' =
-        case (requestMethod m, join $ lookup "_method" $ queryString req) of
+        case (requestMethod req, join $ lookup "_method" $ queryString req) of
             ("POST", Just m) -> req { requestMethod = m }
             _ -> req
