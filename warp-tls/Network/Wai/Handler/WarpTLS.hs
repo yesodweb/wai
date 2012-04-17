@@ -17,10 +17,12 @@ import qualified Data.Conduit.List as CL
 import Control.Exception (bracket, handle, SomeException)
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.Certificate.X509 as X509
-import qualified Data.Certificate.PEM as PEM
 import qualified Data.ByteString as B
 import qualified Data.Certificate.KeyRSA as KeyRSA
 import Data.Conduit.Network (bindPort)
+import Data.Either (rights)
+import Control.Applicative ((<$>))
+import qualified Data.PEM as PEM
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -75,22 +77,21 @@ ciphers =
 
 readCertificate :: FilePath -> IO X509.X509
 readCertificate filepath = do
-    content <- B.readFile filepath
-    certdata <-
-        case PEM.parsePEMCert content of
-            Nothing -> error "no valid certificate section"
-            Just x  -> return x
-    case X509.decodeCertificate $ L.fromChunks [certdata] of
-        Left err -> error ("cannot decode certificate: " ++ err)
-        Right x  -> return x
+    certs <- rights . parseCerts . PEM.pemParseBS <$> B.readFile filepath
+    case certs of
+        []    -> error "no valid certificate found"
+        (x:_) -> return x
+    where parseCerts (Right pems) = map (X509.decodeCertificate . L.fromChunks . (:[]) . PEM.pemContent)
+                                  $ filter (flip elem ["CERTIFICATE", "TRUSTED CERTIFICATE"] . PEM.pemName) pems
+          parseCerts (Left err) = error $ "cannot parse PEM file: " ++ err
 
 readPrivateKey :: FilePath -> IO TLS.PrivateKey
 readPrivateKey filepath = do
-    content <- B.readFile filepath
-    pkdata <-
-        case PEM.parsePEMKeyRSA content of
-            Nothing -> error "no valid RSA key section"
-            Just x  -> return (L.fromChunks [x])
-    case KeyRSA.decodePrivate pkdata of
-        Left err -> error ("cannot decode key: " ++ err)
-        Right (_pub, x)  -> return $ TLS.PrivRSA x
+    pk <- rights . parseKey . PEM.pemParseBS <$> B.readFile filepath
+    case pk of
+        []    -> error "no valid RSA key found"
+        (x:_) -> return x
+
+    where parseKey (Right pems) = map (fmap (TLS.PrivRSA . snd) . KeyRSA.decodePrivate . L.fromChunks . (:[]) . PEM.pemContent)
+                                $ filter ((== "RSA PRIVATE KEY") . PEM.pemName) pems
+          parseKey (Left err) = error $ "Cannot parse PEM file: " ++ err
