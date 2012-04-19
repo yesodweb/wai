@@ -7,6 +7,7 @@ import Data.Monoid                  (mconcat)
 import Data.Conduit.Lazy            (lazyConsume)
 import Network.HTTP.Types           (parseQuery)
 import Control.Monad.Trans.Resource (ResourceT)
+import Data.Conduit.List            (sourceList)
 
 methodOverridePost :: Middleware
 methodOverridePost app req = case lookup "Content-Type" (requestHeaders req) of
@@ -16,5 +17,5 @@ methodOverridePost app req = case lookup "Content-Type" (requestHeaders req) of
 setPost :: Request -> ResourceT IO Request
 setPost req = do
   body <- lazyConsume (requestBody req)
-  case parseQuery (mconcat body) of (("_method", Just newmethod):_) -> return $ req {requestMethod = newmethod}
-                                    _                               -> return req
+  case parseQuery (mconcat body) of (("_method", Just newmethod):_) -> return $ req {requestBody = sourceList body, requestMethod = newmethod}
+                                    _                               -> return $ req {requestBody = sourceList body}
