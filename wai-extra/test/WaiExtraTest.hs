@@ -33,10 +33,6 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (parseSimpleQuery, status200)
 
-{-
-type Specs = Test.Hspec.Monadic.SpecM ()
-    -- Defined in `Test.Hspec.Monadic'
--}
 specs :: Specs
 specs = do
   describe "Network.Wai.Parse" $ do
