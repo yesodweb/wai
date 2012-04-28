@@ -21,6 +21,7 @@ import Network.Wai.Middleware.Gzip
 import Network.Wai.Middleware.Vhost
 import Network.Wai.Middleware.Autohead
 import Network.Wai.Middleware.MethodOverride
+import Network.Wai.Middleware.MethodOverridePost
 import Network.Wai.Middleware.AcceptOverride
 import Network.Wai.Middleware.RequestLogger (logCallback)
 import Codec.Compression.GZip (decompress)
@@ -31,8 +32,11 @@ import Data.Conduit.Binary (sourceFile)
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (parseSimpleQuery, status200)
-import Data.Monoid (mappend)
 
+{-
+type Specs = Test.Hspec.Monadic.SpecM ()
+    -- Defined in `Test.Hspec.Monadic'
+-}
 specs :: Specs
 specs = do
   describe "Network.Wai.Parse" $ do
@@ -53,6 +57,7 @@ specs = do
     it "vhost" caseVhost
     it "autohead" caseAutohead
     it "method override" caseMethodOverride
+    it "method override post" caseMethodOverridePost
     it "accept override" caseAcceptOverride
     it "dalvik multipart" caseDalvikMultipart
     it "debug request body" caseDebugRequestBody
@@ -353,6 +358,28 @@ caseMethodOverride = flip runSession moApp $ do
                 , queryString = [("_method", Just "PUT")]
                 }
     assertHeader "Method" "PUT" sres3
+
+mopApp :: Application
+mopApp = methodOverridePost $ \req -> return $ responseLBS status200 [("Method", requestMethod req)] ""
+
+caseMethodOverridePost :: Assertion
+caseMethodOverridePost = flip runSession mopApp $ do
+
+    -- Get Request are unmodified
+    sres1 <- let r = toRequest "application/x-www-form-urlencoded" "_method=PUT&foo=bar&baz=bin"
+                 s = simpleRequest r
+                 m = s { requestMethod = "GET" }
+                 b = r { simpleRequest = m }
+             in srequest b
+    assertHeader "Method" "GET" sres1
+
+    -- Post requests are modified if _method comes first
+    sres2 <- srequest $ toRequest "application/x-www-form-urlencoded" "_method=PUT&foo=bar&baz=bin"
+    assertHeader "Method" "PUT" sres2
+
+    -- Post requests are unmodified if _method doesn't come first
+    sres3 <- srequest $ toRequest "application/x-www-form-urlencoded" "foo=bar&_method=PUT&baz=bin"
+    assertHeader "Method" "POST" sres3
 
 aoApp :: Application
 aoApp = acceptOverride $ \req -> return $ responseLBS status200
