@@ -381,6 +381,10 @@ caseMethodOverridePost = flip runSession mopApp $ do
     sres3 <- srequest $ toRequest "application/x-www-form-urlencoded" "foo=bar&_method=PUT&baz=bin"
     assertHeader "Method" "POST" sres3
 
+    -- Post requests are unmodified if Content-Type header isn't set to "application/x-www-form-urlencoded"
+    sres4 <- srequest $ toRequest "text/html; charset=utf-8" "foo=bar&_method=PUT&baz=bin"
+    assertHeader "Method" "POST" sres4
+
 aoApp :: Application
 aoApp = acceptOverride $ \req -> return $ responseLBS status200
     [("Accept", fromMaybe "" $ lookup "Accept" $ requestHeaders req)] ""
