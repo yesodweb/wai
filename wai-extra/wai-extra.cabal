@@ -38,6 +38,7 @@ Library
                    , zlib-conduit              >= 0.4      && < 0.5
                    , blaze-builder-conduit     >= 0.4      && < 0.5
                    , ansi-terminal
+                   , resourcet                 >= 0.3      && < 0.4
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
@@ -47,6 +48,7 @@ Library
                      Network.Wai.Middleware.Gzip
                      Network.Wai.Middleware.Jsonp
                      Network.Wai.Middleware.MethodOverride
+                     Network.Wai.Middleware.MethodOverridePost
                      Network.Wai.Middleware.Rewrite
                      Network.Wai.Middleware.Vhost
                      Network.Wai.Parse
