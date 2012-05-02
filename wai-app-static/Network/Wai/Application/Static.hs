@@ -357,7 +357,7 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
             in case mLastSent of
                    Just lastSent ->
                      if lastSent == mdate
-                         then return NotModified respHeaders
+                         then return $ NotModified respHeaders
                          else return $ FileResponse file respHeaders
                    Nothing -> return $ FileResponse file respHeaders
           _ -> return $ FileResponse file []
