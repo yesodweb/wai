@@ -6,5 +6,5 @@ The premier WAI backend is the Warp web server.
 WAI also adds modularity and code-sharing through middleware and WAI applications.
 Code can be written that works with any web framework targeting WAI.
 
-[http://www.yesodweb.com/book/wai](Documentation)
+[http://www.yesodweb.com/book/web-application-interface](Documentation)
 [http://hackage.haskell.org/package/wai](Haddock Documentation)
