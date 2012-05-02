@@ -1,5 +1,5 @@
 Name:                wai-eventsource
-Version:             1.2.0
+Version:             1.2.0.1
 Synopsis:            WAI support for server-sent events
 Description:         WAI support for server-sent events
 License:             MIT
@@ -15,7 +15,7 @@ license-file:        LICENSE
 Library
   Build-depends:
       base                      >= 4.3 && < 5
-    , bytestring                >= 0.9.1.4  && < 0.10
+    , bytestring                >= 0.9.1.4
     , blaze-builder             >= 0.3 && < 0.4
     , conduit                   >= 0.4      && < 0.5
     , http-types                >= 0.6      && < 0.7

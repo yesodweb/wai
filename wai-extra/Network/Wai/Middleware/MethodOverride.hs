@@ -6,11 +6,17 @@ module Network.Wai.Middleware.MethodOverride
 import Network.Wai
 import Control.Monad (join)
 
+-- | Allows overriding of the HTTP request method via the _method query string
+-- parameter.
+--
+-- This middlware only applies when the initial request method is POST. This
+-- allow submitting of normal HTML forms, without worries of semantics
+-- mismatches in the HTTP spec.
 methodOverride :: Middleware
 methodOverride app req =
     app req'
   where
     req' =
-        case join $ lookup "_method" $ queryString req of
-            Nothing -> req
-            Just m -> req { requestMethod = m }
+        case (requestMethod req, join $ lookup "_method" $ queryString req) of
+            ("POST", Just m) -> req { requestMethod = m }
+            _ -> req

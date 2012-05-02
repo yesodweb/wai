@@ -73,7 +73,11 @@ import Control.Exception (SomeException, try)
 
 import           Text.Blaze                  ((!))
 import qualified Text.Blaze.Html5            as H
+#if MIN_VERSION_blaze_html(0,5,0)
+import qualified Text.Blaze.Html.Renderer.Utf8 as HU
+#else
 import qualified Text.Blaze.Renderer.Utf8    as HU
+#endif
 import qualified Text.Blaze.Html5.Attributes as A
 
 import Blaze.ByteString.Builder (toByteString, fromByteString)
