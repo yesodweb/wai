@@ -11,7 +11,6 @@ import Data.List (isInfixOf)
 import qualified Data.ByteString.Char8 as S8
 -- import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
 import System.PosixCompat.Files (getFileStatus, modificationTime)
 
 import Network.HTTP.Date
@@ -21,10 +20,7 @@ import Network.HTTP.Date
 import Network.Wai
 import Network.Wai.Test
 
-import Network.Socket.Internal as Sock
-import qualified Network.HTTP.Types as H
 import Control.Monad.IO.Class (liftIO)
-import Data.Monoid (mempty)
 
 defRequest :: Request
 defRequest = defaultRequest
