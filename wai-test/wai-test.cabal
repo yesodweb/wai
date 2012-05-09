@@ -19,7 +19,7 @@ library
                    , text                      >= 0.7      && < 0.12
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , transformers              >= 0.2.2    && < 0.4
-                   , containers                >= 0.2      && < 0.5
+                   , containers                >= 0.2
                    , conduit                   >= 0.4      && < 0.5
                    , blaze-builder-conduit     >= 0.4      && < 0.5
                    , cookie                    >= 0.2      && < 0.5
