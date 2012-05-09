@@ -108,6 +108,7 @@ import System.IO (hPrint, stderr)
 import ReadInt (readInt64)
 import qualified Data.IORef as I
 import Data.Conduit.Network (bindPort, HostPreference (HostIPv4))
+import Network.HTTP.Conduit.Chunk (chunkedConduit)
 
 #if WINDOWS
 import Control.Concurrent (threadDelay)
@@ -271,6 +272,17 @@ ibsIsolate ibs@(IsolatedBSSource ref) =
 ibsDone :: IsolatedBSSource -> IO (C.Source (ResourceT IO) ByteString)
 ibsDone (IsolatedBSSource ref) = fmap snd $ I.readIORef ref
 
+refSource :: MonadIO m => I.IORef (C.Source m a) -> C.Source m a
+refSource ref = C.PipeM pull (return ())
+  where
+    pull = do
+        src <- liftIO $ I.readIORef ref
+        (src', ma) <- src C.$$+ CL.head
+        liftIO $ I.writeIORef ref src'
+        case ma of
+            Nothing -> return $ C.Done Nothing ()
+            Just a  -> return $ C.HaveOutput (refSource ref) (return ()) a
+
 serveConnection :: Settings
                 -> T.Handle
                 -> Port -> Application -> Connection -> SockAddr-> IO ()
@@ -283,7 +295,7 @@ serveConnection settings th port app conn remoteHost' =
         serveConnection'' fromClient
 
     serveConnection'' fromClient = do
-        (env, ibs) <- parseRequest conn port remoteHost' fromClient
+        (env, getSource) <- parseRequest conn port remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
@@ -291,20 +303,20 @@ serveConnection settings th port app conn remoteHost' =
                 res <- app env
 
                 -- flush the rest of the request body
-                ibsIsolate ibs C.$$ CL.sinkNull
-                fromClient' <- liftIO $ ibsDone ibs
+                requestBody env C.$$ CL.sinkNull
+                fromClient' <- liftIO getSource
 
                 liftIO $ T.resume th
                 keepAlive <- sendResponse th env conn res
                 when keepAlive $ serveConnection'' fromClient'
             Just intercept -> do
                 liftIO $ T.pause th
-                fromClient' <- liftIO $ ibsDone ibs
+                fromClient' <- liftIO getSource
                 intercept fromClient' conn
 
 parseRequest :: Connection -> Port -> SockAddr
              -> C.Source (ResourceT IO) S.ByteString
-             -> ResourceT IO (Request, IsolatedBSSource)
+             -> ResourceT IO (Request, IO (C.Source (ResourceT IO) ByteString))
 parseRequest conn port remoteHost' src1 = do
     (src2, headers') <- src1 C.$$+ takeHeaders
     parseRequest' conn port headers' remoteHost' src2
@@ -344,7 +356,7 @@ parseRequest' :: Connection
               -> [ByteString]
               -> SockAddr
               -> C.Source (ResourceT IO) S.ByteString -- FIXME was buffered
-              -> ResourceT IO (Request, IsolatedBSSource)
+              -> ResourceT IO (Request, IO (C.Source (ResourceT IO) ByteString))
 parseRequest' _ _ [] _ _ = throwIO $ NotEnoughLines []
 parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
@@ -361,9 +373,17 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
                 Nothing -> 0
                 Just bs -> readInt bs
     let serverName' = takeUntil 58 host -- ':'
-    (rbody, ibs) <- liftIO $ do
-        ibs <- fmap IsolatedBSSource $ I.newIORef (len0, src)
-        return (ibsIsolate ibs, ibs)
+    let chunked = maybe False (=="chunked")
+                  $ lookup "transfer-encoding" heads
+    (rbody, getSource) <- liftIO $
+        if chunked
+          then do
+            ref <- I.newIORef (src C.$= chunkedConduit False)
+            return (refSource ref, I.readIORef ref)
+          else do
+            ibs <- fmap IsolatedBSSource $ I.newIORef (len0, src)
+            return (ibsIsolate ibs, ibsDone ibs)
+
     return (Request
             { requestMethod = method
             , httpVersion = httpversion
@@ -378,7 +398,7 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
             , remoteHost = remoteHost'
             , requestBody = rbody
             , vault = mempty
-            }, ibs)
+            }, getSource)
 
 
 takeUntil :: Word8 -> ByteString -> ByteString
