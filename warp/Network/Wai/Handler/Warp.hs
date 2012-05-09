@@ -302,7 +302,8 @@ serveConnection settings th onException port app conn remoteHost' =
                 when keepAlive $ serveConnection'' fromClient'
             Just intercept -> do
                 liftIO $ T.pause th
-                intercept fromClient conn
+                fromClient' <- liftIO $ ibsDone ibs
+                intercept fromClient' conn
 
 parseRequest :: Connection -> Port -> SockAddr
              -> C.Source (ResourceT IO) S.ByteString
