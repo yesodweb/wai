@@ -52,7 +52,10 @@ runWebSockets opts req app source conn = do
 
     push iter bs = do
         step <- liftIO $ E.runIteratee $ E.enumList 1 [bs] E.$$ iter
-        return $ C.StateProcessing $ E.returnI step
+        case step of
+            E.Continue _    -> return $ C.StateProcessing $ E.returnI step
+            E.Yield out inp -> return $ C.StateDone (streamToMaybe inp) out
+            E.Error e       -> C.monadThrow e
     close iter   = do
         _ <- liftIO $ E.runIteratee $ E.enumEOF E.$$ iter
         return ()
@@ -63,3 +66,7 @@ iterConnection c = E.continue go
     go (E.Chunks []) = E.continue go
     go (E.Chunks cs) = E.tryIO (Warp.connSendMany c cs) >> E.continue go
     go E.EOF         = E.continue go
+
+streamToMaybe :: E.Stream S.ByteString -> Maybe S.ByteString
+streamToMaybe E.EOF         = Nothing
+streamToMaybe (E.Chunks bs) = Just $ S.concat bs
