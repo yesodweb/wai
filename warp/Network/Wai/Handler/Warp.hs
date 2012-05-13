@@ -403,12 +403,15 @@ chunkedSource ipair = do
     (src, mlen) <- liftIO $ I.readIORef ipair
     go src mlen
   where
-    go src NeedLen = do
-        (src', len) <- lift $ src C.$$+ getLen
-        go src' $ HaveLen len
-    go src NeedLenNewline = do
-        (src', len) <- lift $ src C.$$+ (CB.take 2 >> getLen)
-        go src' $ HaveLen len
+    go' src front = do
+        (src', (len, bs)) <- lift $ src C.$$+ front getLen
+        let src''
+                | S.null bs = src'
+                | otherwise = C.yield bs >> src'
+        go src'' $ HaveLen len
+
+    go src NeedLen = go' src id
+    go src NeedLenNewline = go' src (CB.take 2 >>)
     go src (HaveLen 0) = liftIO $ I.writeIORef ipair (src, HaveLen 0)
     go src (HaveLen len) = do
         (src', mbs) <- lift $ src C.$$+ CL.head
@@ -430,14 +433,25 @@ chunkedSource ipair = do
         C.yield bs
         go src mlen
 
-    getLen :: MonadIO m => C.Sink ByteString m Word
+    getLen :: Monad m => C.Sink ByteString m (Word, ByteString)
     getLen = do
-        bss <- CB.takeWhile (/= 10) C.=$ CL.consume -- FIXME avoid attack
-        _ <- CB.take 1
-        return $
-            S.foldl' (\i c -> i * 16 + fromIntegral (hexToWord c)) 0
-            $ B.takeWhile isHexDigit
-            $ B.concat bss
+        mbs <- CL.head
+        case mbs of
+            Nothing -> return (0, S.empty)
+            Just bs -> do
+                (x, y) <-
+                    case S.breakByte 10 bs of
+                        (x, y)
+                            | S.null y -> do
+                                mbs2 <- CL.head
+                                case mbs2 of
+                                    Nothing -> return (x, y)
+                                    Just bs2 -> return $ S.breakByte 10 $ bs `S.append` bs2
+                            | otherwise -> return (x, y)
+                let w =
+                        S.foldl' (\i c -> i * 16 + fromIntegral (hexToWord c)) 0
+                        $ B.takeWhile isHexDigit x
+                return (w, S.drop 1 y)
 
     hexToWord w
         | w < 58 = w - 48

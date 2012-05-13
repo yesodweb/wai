@@ -173,6 +173,25 @@ main = hspecX $ do
                 [ "Hello World\nBye"
                 , "Hello World"
                 ]
+        it "lots of chunks" $ do
+            ifront <- I.newIORef id
+            port <- getPort
+            tid <- forkIO $ run port $ \req -> do
+                bss <- requestBody req $$ Data.Conduit.List.consume
+                liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                return $ responseLBS status200 [] ""
+            threadDelay 1000
+            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+            let input = concat $ replicate 2 $
+                    ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
+                    (replicate 500 "5\r\n12345\r\n") ++
+                    ["0\r\n"]
+            mapM_ (\bs -> hPutStr handle bs >> hFlush handle) input
+            hClose handle
+            threadDelay 1000
+            killThread tid
+            front <- I.readIORef ifront
+            front [] @?= replicate 2 (S.concat $ replicate 500 "12345")
         it "in chunks" $ do
             ifront <- I.newIORef id
             port <- getPort
