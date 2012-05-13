@@ -77,12 +77,15 @@ import Control.Exception
     )
 import Control.Concurrent (forkIO)
 import Data.Maybe (fromMaybe, isJust)
+import Data.Char (toLower, isHexDigit)
+import Data.Word (Word)
 
 import Data.Typeable (Typeable)
 
 import Data.Conduit (ResourceT, runResourceT)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
+import qualified Data.Conduit.Binary as CB
 import Data.Conduit.Blaze (builderToByteString)
 import Control.Exception.Lifted (throwIO)
 import Blaze.ByteString.Builder.HTTP
@@ -96,6 +99,7 @@ import Network.Sendfile
 import qualified System.PosixCompat.Files as P
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Class (lift)
 import qualified Timeout as T
 import Timeout (Manager, registerKillThread, pause, resume)
 import Data.Word (Word8)
@@ -107,7 +111,6 @@ import System.IO (hPrint, stderr)
 import ReadInt (readInt64)
 import qualified Data.IORef as I
 import Data.Conduit.Network (bindPort, HostPreference (HostIPv4))
-import Network.HTTP.Conduit.Chunk (chunkedConduit)
 
 #if WINDOWS
 import Control.Concurrent (threadDelay)
@@ -270,17 +273,6 @@ ibsIsolate ibs@(IsolatedBSSource ref) =
 ibsDone :: IsolatedBSSource -> IO (C.Source (ResourceT IO) ByteString)
 ibsDone (IsolatedBSSource ref) = fmap snd $ I.readIORef ref
 
-refSource :: MonadIO m => I.IORef (C.Source m a) -> C.Source m a
-refSource ref = C.PipeM pull (return ())
-  where
-    pull = do
-        src <- liftIO $ I.readIORef ref
-        (src', ma) <- src C.$$+ CL.head
-        liftIO $ I.writeIORef ref src'
-        case ma of
-            Nothing -> return $ C.Done Nothing ()
-            Just a  -> return $ C.HaveOutput (refSource ref) (return ()) a
-
 serveConnection :: Settings
                 -> T.Handle
                 -> (SomeException -> IO ())
@@ -376,13 +368,13 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
                 Nothing -> 0
                 Just bs -> readInt bs
     let serverName' = takeUntil 58 host -- ':'
-    let chunked = maybe False (=="chunked")
+    let chunked = maybe False ((== "chunked") . B.map toLower)
                   $ lookup "transfer-encoding" heads
     (rbody, getSource) <- liftIO $
         if chunked
           then do
-            ref <- I.newIORef (src C.$= chunkedConduit False)
-            return (refSource ref, I.readIORef ref)
+            ref <- I.newIORef (src, NeedLen)
+            return (chunkedSource ref, fmap fst $ I.readIORef ref)
           else do
             ibs <- fmap IsolatedBSSource $ I.newIORef (len0, src)
             return (ibsIsolate ibs, ibsDone ibs)
@@ -403,6 +395,57 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
             , vault = mempty
             }, getSource)
 
+data ChunkState = NeedLen
+                | NeedLenNewline
+                | HaveLen Word
+
+chunkedSource :: MonadIO m
+              => I.IORef (C.Source m ByteString, ChunkState)
+              -> C.Source m ByteString
+chunkedSource ipair = do
+    (src, mlen) <- liftIO $ I.readIORef ipair
+    go src mlen
+  where
+    go src NeedLen = do
+        (src', len) <- lift $ src C.$$+ getLen
+        go src' $ HaveLen len
+    go src NeedLenNewline = do
+        (src', len) <- lift $ src C.$$+ (CB.take 2 >> getLen)
+        go src' $ HaveLen len
+    go src (HaveLen 0) = liftIO $ I.writeIORef ipair (src, HaveLen 0)
+    go src (HaveLen len) = do
+        (src', mbs) <- lift $ src C.$$+ CL.head
+        case mbs of
+            Nothing -> liftIO $ I.writeIORef ipair (src', HaveLen 0)
+            Just bs ->
+                case S.length bs `compare` fromIntegral len of
+                    EQ -> yield' src' NeedLenNewline bs
+                    LT -> do
+                        let mlen = HaveLen $ len - fromIntegral (S.length bs)
+                        yield' src' mlen bs
+                    GT -> do
+                        let (x, y) = S.splitAt (fromIntegral len) bs
+                        let src'' = C.yield y >> src'
+                        yield' src'' NeedLenNewline x
+
+    yield' src mlen bs = do
+        liftIO $ I.writeIORef ipair (src, mlen)
+        C.yield bs
+        go src mlen
+
+    getLen :: MonadIO m => C.Sink ByteString m Word
+    getLen = do
+        bss <- CB.takeWhile (/= 10) C.=$ CL.consume -- FIXME avoid attack
+        _ <- CB.take 1
+        return $
+            S.foldl' (\i c -> i * 16 + fromIntegral (hexToWord c)) 0
+            $ B.takeWhile isHexDigit
+            $ B.concat bss
+
+    hexToWord w
+        | w < 58 = w - 48
+        | w < 71 = w - 55
+        | otherwise = w - 87
 
 takeUntil :: Word8 -> ByteString -> ByteString
 takeUntil c bs =

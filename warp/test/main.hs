@@ -146,3 +146,54 @@ main = hspecX $ do
     describe "connection termination" $ do
         it "ConnectionClosedByPeer" $ runTerminateTest ConnectionClosedByPeer "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello"
         it "IncompleteHeaders" $ runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r\n"
+
+    describe "chunked bodies" $ do
+        it "works" $ do
+            ifront <- I.newIORef id
+            port <- getPort
+            tid <- forkIO $ run port $ \req -> do
+                bss <- requestBody req $$ Data.Conduit.List.consume
+                liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                return $ responseLBS status200 [] ""
+            threadDelay 1000
+            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+            let input = S.concat
+                    [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                    , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
+                    , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                    , "b\r\nHello World\r\n0\r\n"
+                    ]
+            hPutStr handle input
+            hFlush handle
+            hClose handle
+            threadDelay 1000
+            killThread tid
+            front <- I.readIORef ifront
+            front [] @?=
+                [ "Hello World\nBye"
+                , "Hello World"
+                ]
+        it "in chunks" $ do
+            ifront <- I.newIORef id
+            port <- getPort
+            tid <- forkIO $ run port $ \req -> do
+                bss <- requestBody req $$ Data.Conduit.List.consume
+                liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                return $ responseLBS status200 [] ""
+            threadDelay 1000
+            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+            let input = S.concat
+                    [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                    , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
+                    , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                    , "b\r\nHello World\r\n0\r\n"
+                    ]
+            mapM_ (\bs -> hPutStr handle bs >> hFlush handle) $ map S.singleton $ S.unpack input
+            hClose handle
+            threadDelay 1000
+            killThread tid
+            front <- I.readIORef ifront
+            front [] @?=
+                [ "Hello World\nBye"
+                , "Hello World"
+                ]
