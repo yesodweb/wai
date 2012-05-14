@@ -5,6 +5,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MagicHash  #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 ---------------------------------------------------------
 --
 -- Module        : Network.Wai.Handler.Warp
@@ -71,10 +72,15 @@ import Network (sClose, Socket)
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Control.Exception
-    ( mask, allowInterrupt, handle, onException, bracket
+    ( mask, handle, onException, bracket
     , Exception, SomeException
     , fromException, AsyncException (ThreadKilled)
     , try
+#if GLASGOW_HASKELL >= 721
+    , allowInterrupt
+#else
+    , unblock
+#endif
     )
 import Control.Concurrent (forkIO)
 import Data.Maybe (fromMaybe, isJust)
@@ -124,6 +130,11 @@ import qualified Paths_warp
 
 warpVersion :: String
 warpVersion = showVersion Paths_warp.version
+
+#if GLASGOW_HASKELL < 721
+allowInterrupt :: IO ()
+allowInterrupt = unblock $ return ()
+#endif
 
 -- |
 --
