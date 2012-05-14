@@ -81,6 +81,9 @@ import Control.Exception
 #else
     , unblock
 #endif
+#if WINDOWS
+    , finally
+#endif
     )
 import Control.Concurrent (forkIO)
 import Data.Maybe (fromMaybe, isJust)
