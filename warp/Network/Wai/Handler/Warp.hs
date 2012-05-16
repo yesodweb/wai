@@ -699,8 +699,8 @@ data Settings = Settings
     { settingsPort :: Int -- ^ Port to listen on. Default value: 3000
     , settingsHost :: HostPreference -- ^ Default value: HostIPv4
     , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
-    , settingsOnOpen :: IO () -- ^ What to do when a connection is open
-    , settingsOnClose :: IO ()  -- ^ What to do when a connection is close
+    , settingsOnOpen :: IO () -- ^ What to do when a connection is open. Default: do nothing.
+    , settingsOnClose :: IO ()  -- ^ What to do when a connection is close. Default: do nothing.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
     , settingsIntercept :: Request -> Maybe (C.Source (ResourceT IO) S.ByteString -> Connection -> ResourceT IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
