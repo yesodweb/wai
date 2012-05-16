@@ -32,6 +32,8 @@ module Network.Wai.Handler.Warp
     , settingsPort
     , settingsHost
     , settingsOnException
+    , settingsOnOpen
+    , settingsOnClose
     , settingsTimeout
     , settingsIntercept
     , settingsManager
@@ -219,6 +221,8 @@ runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application ->
 runSettingsConnection set getConn app = do
     let onE = settingsOnException set
         port = settingsPort set
+        onOpen = settingsOnOpen set
+        onClose = settingsOnClose set
     tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
         $ settingsManager set
     mask $ \restore -> forever $ do
@@ -226,9 +230,10 @@ runSettingsConnection set getConn app = do
         (conn, addr) <- getConn
         void $ forkIO $ do
             th <- T.registerKillThread tm
-            handle onE $ (do restore $ serveConnection set th port app conn addr
-                             connClose conn >> T.cancel th
-                         ) `onException` (T.cancel th >> connClose conn)
+            handle onE $ (do onOpen
+                             restore $ serveConnection set th port app conn addr
+                             connClose conn >> T.cancel th >> onClose
+                         ) `onException` (T.cancel th >> connClose conn >> onClose)
 
 -- | Contains a @Source@ and a byte count that is still to be read in.
 newtype IsolatedBSSource = IsolatedBSSource (I.IORef (Int, C.Source (ResourceT IO) ByteString))
@@ -694,6 +699,8 @@ data Settings = Settings
     { settingsPort :: Int -- ^ Port to listen on. Default value: 3000
     , settingsHost :: HostPreference -- ^ Default value: HostIPv4
     , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
+    , settingsOnOpen :: IO () -- ^ What to do when a connection is open
+    , settingsOnClose :: IO ()  -- ^ What to do when a connection is close
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
     , settingsIntercept :: Request -> Maybe (C.Source (ResourceT IO) S.ByteString -> Connection -> ResourceT IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
@@ -711,6 +718,8 @@ defaultSettings = Settings
             Nothing ->
                 when (go' $ fromException e) $
                     hPrint stderr e
+    , settingsOnOpen = return ()
+    , settingsOnClose = return ()
     , settingsTimeout = 30
     , settingsIntercept = const Nothing
     , settingsManager = Nothing
