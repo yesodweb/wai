@@ -78,7 +78,7 @@ import Control.Exception
     , Exception, SomeException
     , fromException, AsyncException (ThreadKilled)
     , try
-#if GLASGOW_HASKELL >= 721
+#if __GLASGOW_HASKELL__ >= 702
     , allowInterrupt
 #else
     , unblock
@@ -136,7 +136,7 @@ import qualified Paths_warp
 warpVersion :: String
 warpVersion = showVersion Paths_warp.version
 
-#if GLASGOW_HASKELL < 721
+#if __GLASGOW_HASKELL__ < 702
 allowInterrupt :: IO ()
 allowInterrupt = unblock $ return ()
 #endif
