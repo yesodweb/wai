@@ -90,7 +90,7 @@ specs = do
     it "Cache-Control set when etag parameter is correct" $ webApp $ do
       req <- request statFile { queryString = [("etag", Just etag)] }
       assertStatus 200 req
-      assertHeader "Cache-Control" "max-age=31536000" req
+      assertHeader "Cache-Control" "public, max-age=31536000" req
       assertNoHeader "Last-Modified" req
 
     it "200 when invalid in-none-match sent" $ webApp $
