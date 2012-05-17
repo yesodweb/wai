@@ -7,7 +7,7 @@ module Network.Wai.Application.Static
       staticApp
       -- ** Settings
     , defaultWebAppSettings
-    , webAppSettingsWithLookup 
+    , webAppSettingsWithLookup
     , defaultFileServerSettings
     , StaticSettings
     , ssFolder
@@ -214,7 +214,7 @@ data CheckPieces =
     | Forbidden
     | NotFound
     | FileResponse File H.ResponseHeaders
-    | NotModified
+    | NotModified H.ResponseHeaders
     | DirectoryResponse Folder
     -- TODO: add file size
     | SendContent MimeType L.ByteString
@@ -289,7 +289,7 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
             (Just Right{}, False) -> return $ Redirect (init pieces) Nothing
             (Just (Left folder@(Folder _ contents)), _) -> do
                 case checkIndices $ map fileName $ rights contents of
-                    Just index -> 
+                    Just index ->
                       if redirectToIndex then
                         return $ Redirect (setLast pieces index) Nothing
                       else
@@ -330,12 +330,13 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
                 case mHash of
                     Nothing -> lastModifiedCache file
                     Just hash ->
-                        case lookup "if-none-match" headers of
-                            Just lastHash ->
-                              if hash == lastHash
-                                  then return NotModified
-                                  else return $ FileResponse file $ [("ETag", hash)]
-                            Nothing -> return $ FileResponse file $ [("ETag", hash)]
+                        let respHeaders = ("ETag", hash):cacheControl
+                        in case lookup "if-none-match" headers of
+                               Just lastHash ->
+                                 if hash == lastHash
+                                     then return $ NotModified respHeaders
+                                     else return $ FileResponse file respHeaders
+                               Nothing -> return $ FileResponse file respHeaders
 
             Just mEtag -> do
                 mHash <- fileGetHash file
@@ -350,14 +351,15 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
 
     lastModifiedCache file =
       case (lookup "if-modified-since" headers >>= parseHTTPDate, fileGetModified file) of
-          (mLastSent, Just modified) -> do
-            let mdate = epochTimeToHTTPDate modified in
-              case mLastSent of
-                Just lastSent ->
-                  if lastSent == mdate
-                      then return NotModified
-                      else return $ FileResponse file $ [("last-modified", formatHTTPDate mdate)]
-                Nothing -> return $ FileResponse file $ [("last-modified", formatHTTPDate mdate)]
+          (mLastSent, Just modified) ->
+            let mdate = epochTimeToHTTPDate modified
+                respHeaders = ("last-modified", formatHTTPDate mdate):cacheControl
+            in case mLastSent of
+                   Just lastSent ->
+                     if lastSent == mdate
+                         then return $ NotModified respHeaders
+                         else return $ FileResponse file respHeaders
+                   Nothing -> return $ FileResponse file respHeaders
           _ -> return $ FileResponse file []
 
     setLast :: Pieces -> FilePath -> Pieces
@@ -368,9 +370,7 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
     checkIndices :: [FilePath] -> Maybe FilePath
     checkIndices contents = find (flip elem indices) contents
 
-    cacheControl = case ccInt of
-        Nothing -> []
-        Just i  -> [("Cache-Control", S8.append "max-age=" $ S8.pack $ show i)]
+    cacheControl = headerCacheControl $ headerExpires []
       where
         ccInt =
             case maxAge of
@@ -379,6 +379,16 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
                 MaxAgeForever -> Just oneYear
         oneYear :: Int
         oneYear = 60 * 60 * 24 * 365
+
+        headerCacheControl =
+          case ccInt of
+            Nothing -> id
+            Just i  -> (:) ("Cache-Control", S8.append "public, max-age=" $ S8.pack $ show i)
+        headerExpires =
+          case maxAge of
+            NoMaxAge        -> id
+            MaxAgeSeconds _ -> id -- FIXME
+            MaxAgeForever   -> (:) ("Expires", "Thu, 31 Dec 2037 23:55:55 GMT")
 
 type Listing = (Pieces -> Folder -> IO L.ByteString)
 
@@ -623,10 +633,10 @@ staticAppPieces ss pieces req = liftIO $ do
                         : ("Content-Length", S8.pack $ show filesize)
                         : ch
             return $ fileToResponse file H.status200 headers
-        NotModified ->
+        NotModified ch ->
             return $ W.responseLBS statusNotModified
-                        [ ("Content-Type", "text/plain")
-                        ] "Not Modified"
+                        ( ("Content-Type", "text/plain") : ch )
+                        "Not Modified"
         DirectoryResponse fp -> do
             case ssListing ss of
                 (Just f) -> do
