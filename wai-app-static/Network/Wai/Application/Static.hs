@@ -8,11 +8,12 @@ module Network.Wai.Application.Static
       -- ** Settings
     , defaultWebAppSettings
     , webAppSettingsWithLookup 
+    , webAppSettingsLookupConf
+    , WebAppLookupConf(..)
     , defaultFileServerSettings
     , StaticSettings
     , ssFolder
     , ssMkRedirect
-    , ssGetMimeType
     , ssListing
     , ssIndices
     , ssMaxAge
@@ -28,6 +29,7 @@ module Network.Wai.Application.Static
     , defaultMimeTypes
     , mimeTypeByExt
     , defaultMimeTypeByExt
+    , defaultMimeTypeLookup
       -- ** Finding files
     , Pieces
     , pathFromPieces
@@ -38,6 +40,8 @@ module Network.Wai.Application.Static
     , fileSystemLookup
     , fileSystemLookupHash
     , embeddedLookup
+      -- ** Default file hash lookup
+    , hashFileIfExists
       -- ** Embedded
     , Embedded
     , EmbeddedEntry (..)
@@ -99,9 +103,10 @@ import Data.Function (on)
 import Data.Ord (comparing)
 import qualified Data.ByteString.Base64 as B64
 import Data.Either (rights)
-import Data.Maybe (isJust, fromJust)
+import Data.Maybe (isJust, fromJust, mapMaybe)
 import Network.HTTP.Date (parseHTTPDate, epochTimeToHTTPDate, formatHTTPDate)
 import Data.String (IsString (..))
+
 
 newtype FilePath = FilePath { unFilePath :: Text }
     deriving (Ord, Eq, Show)
@@ -111,10 +116,13 @@ instance IsString FilePath where
 (</>) :: FilePath -> FilePath -> FilePath
 (FilePath a) </> (FilePath b) = FilePath $ T.concat [a, "/", b]
 
+(<.>) :: FilePath -> FilePath -> FilePath
+(FilePath a) <.> (FilePath b) = FilePath $ T.concat [a, ".", b]
+
 -- | A list of all possible extensions, starting from the largest.
 takeExtensions :: FilePath -> [FilePath]
 takeExtensions (FilePath s) =
-    case T.break (== '.') s of
+    case T.breakOn (".") s of
         (_, "") -> []
         (_, x) -> FilePath (T.drop 1 x) : takeExtensions (FilePath $ T.drop 1 x)
 
@@ -192,36 +200,25 @@ defaultMimeTypes = Map.fromList [
   ( "xwd"     , "image/x-xwindowdump"               ),
   ( "zip"     , "application/zip"                   )]
 
+-- similar to Safe package
+headDef :: a -> [a] -> a
+headDef _ (x:_) = x
+headDef def []  = def
+
+-- similar to Safe package
+initSafe  :: [a] -> [a]
+initSafe [] = []
+initSafe xs = init xs
+
 mimeTypeByExt :: MimeMap
               -> MimeType -- ^ default mime type
               -> FilePath
               -> MimeType
 mimeTypeByExt mm def =
-    go . takeExtensions
-  where
-    go [] = def
-    go (e:es) =
-        case Map.lookup e mm of
-            Nothing -> go es
-            Just mt -> mt
+  headDef def . mapMaybe (flip Map.lookup mm) . takeExtensions
 
 defaultMimeTypeByExt :: FilePath -> MimeType
 defaultMimeTypeByExt = mimeTypeByExt defaultMimeTypes defaultMimeType
-
-data CheckPieces =
-      -- | Just the etag hash or Nothing for no etag hash
-      Redirect Pieces (Maybe ByteString)
-    | Forbidden
-    | NotFound
-    | FileResponse File H.ResponseHeaders
-    | NotModified
-    | DirectoryResponse Folder
-    -- TODO: add file size
-    | SendContent MimeType L.ByteString
-
-safeInit  :: [a] -> [a]
-safeInit [] = []
-safeInit xs = init xs
 
 filterButLast :: (a -> Bool) -> [a] -> [a]
 filterButLast _ [] = []
@@ -231,8 +228,8 @@ filterButLast f (x:xs)
     | otherwise = filterButLast f xs
 
 
-unsafe :: FilePath -> Bool
-unsafe (FilePath s)
+unsafePiece :: FilePath -> Bool
+unsafePiece (FilePath s)
     | T.null s = False
     | T.head s == '.' = True
     | otherwise = T.any (== '/') s
@@ -262,6 +259,17 @@ checkSpecialDirListing [".hidden", "haskell.png"] =
     Just $ SendContent "image/png" $ L.fromChunks [$(embedFile "images/haskell.png")]
 checkSpecialDirListing _ =  Nothing
 
+data CheckPieces =
+      -- | Just the etag hash or Nothing for no etag hash
+      Redirect Pieces (Maybe ByteString)
+    | Forbidden
+    | NotFound
+    | FileResponse File MimeType H.ResponseHeaders
+    | NotModified
+    | DirectoryResponse Folder
+    -- TODO: add file size
+    | SendContent MimeType L.ByteString
+
 checkPieces :: (Pieces -> IO FileLookup) -- ^ file lookup function
             -> [FilePath]                -- ^ List of default index files. Cannot contain slashes.
             -> Pieces                    -- ^ parsed request
@@ -271,21 +279,19 @@ checkPieces :: (Pieces -> IO FileLookup) -- ^ file lookup function
             -> Bool                      -- ^ Redirect to Index?
             -> IO CheckPieces
 checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
-    | any unsafe pieces = return Forbidden
-    | any nullFilePath $ safeInit pieces =
+    | any unsafePiece pieces = return Forbidden
+    | any nullFilePath $ initSafe pieces =
         return $ Redirect (filterButLast (not . nullFilePath) pieces) Nothing
     | otherwise = do
         let (isFile, isFolder) =
-                case () of
-                    ()
-                        | null pieces -> (True, True)
-                        | nullFilePath (last pieces) -> (False, True)
-                        | otherwise -> (True, False)
+              if        null pieces                then (True, True)
+                else if nullFilePath (last pieces) then (False, True)
+                                                   else (True, False)
 
         fl <- fileLookup pieces
         case (fl, isFile) of
             (Nothing, _) -> return NotFound
-            (Just (Right file), True)  -> handleCache file
+            (Just (Right (file, mimetype)), True)  -> handleCache file mimetype
             (Just Right{}, False) -> return $ Redirect (init pieces) Nothing
             (Just (Left folder@(Folder _ contents)), _) -> do
                 case checkIndices $ map fileName $ rights contents of
@@ -301,6 +307,7 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
   where
     headers = W.requestHeaders req
     queryString = W.queryString req
+
 
     -- HTTP caching has a cache control header that you can set an expire time for a resource.
     --   Max-Age is easiest because it is a simple number
@@ -319,8 +326,8 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
     -- * set ETag or last-modified
     --   * ETag must be calculated ahead of time.
     --   * last-modified is just the file mtime.
-    handleCache file =
-      if not useHash then lastModifiedCache file
+    handleCache file mimetype =
+      if not useHash then lastModifiedCache
         else do
           let etagParam = lookup "etag" queryString
 
@@ -328,37 +335,39 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
             Nothing -> do -- no query parameter. Set appropriate ETag headers
                 mHash <- fileGetHash file
                 case mHash of
-                    Nothing -> lastModifiedCache file
+                    Nothing -> lastModifiedCache
                     Just hash ->
-                        case lookup "if-none-match" headers of
+                        return $ case lookup "if-none-match" headers of
                             Just lastHash ->
                               if hash == lastHash
-                                  then return NotModified
-                                  else return $ FileResponse file $ [("ETag", hash)]
-                            Nothing -> return $ FileResponse file $ [("ETag", hash)]
+                                  then NotModified
+                                  else fileResponse file $ [("ETag", hash)]
+                            Nothing -> fileResponse file $ [("ETag", hash)]
 
             Just mEtag -> do
                 mHash <- fileGetHash file
-                case mHash of
+                return $ case mHash of
                   -- a file used to have an etag parameter, but no longer does
-                  Nothing -> return $ Redirect pieces Nothing
+                  Nothing -> Redirect pieces Nothing
                   Just hash ->
                     if isJust mEtag && hash == fromJust mEtag
-                      then return $ FileResponse file $ ("ETag", hash):cacheControl
-                      else return $ Redirect pieces (Just hash)
+                      then fileResponse file $ ("ETag", hash):cacheControl
+                      else Redirect pieces (Just hash)
 
+        where
+          fileResponse f hdrs = FileResponse f mimetype hdrs
 
-    lastModifiedCache file =
-      case (lookup "if-modified-since" headers >>= parseHTTPDate, fileGetModified file) of
-          (mLastSent, Just modified) -> do
-            let mdate = epochTimeToHTTPDate modified in
-              case mLastSent of
-                Just lastSent ->
-                  if lastSent == mdate
-                      then return NotModified
-                      else return $ FileResponse file $ [("last-modified", formatHTTPDate mdate)]
-                Nothing -> return $ FileResponse file $ [("last-modified", formatHTTPDate mdate)]
-          _ -> return $ FileResponse file []
+          lastModifiedCache = return $
+            case (lookup "if-modified-since" headers >>= parseHTTPDate, fileGetModified file) of
+                (mLastSent, Just modified) -> do
+                  let mdate = epochTimeToHTTPDate modified in
+                    case mLastSent of
+                      Just lastSent ->
+                        if lastSent == mdate
+                            then NotModified
+                            else fileResponse file $ [("last-modified", formatHTTPDate mdate)]
+                      Nothing -> fileResponse file $ [("last-modified", formatHTTPDate mdate)]
+                _ -> fileResponse file []
 
     setLast :: Pieces -> FilePath -> Pieces
     setLast [] x = [x]
@@ -391,7 +400,7 @@ checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
 type Listing = (Pieces -> Folder -> IO L.ByteString)
 
 
-type FileLookup = Maybe (Either Folder File)
+type FileLookup = Maybe (Either Folder (File, MimeType))
 
 data Folder = Folder
     { folderName :: FilePath
@@ -409,7 +418,6 @@ data File = File
 data StaticSettings = StaticSettings
     { ssFolder :: Pieces -> IO FileLookup -- TODO: not a folder, so rename
     , ssMkRedirect :: Pieces -> ByteString -> ByteString
-    , ssGetMimeType :: File -> IO MimeType
     , ssListing :: Maybe Listing
     , ssIndices :: [T.Text] -- index.html
     , ssRedirectToIndex :: Bool
@@ -429,15 +437,31 @@ defaultMkRedirect pieces newPath
     relDir = TE.encodeUtf8 (relativeDirFromPieces pieces)
 
 webAppSettingsWithLookup :: FilePath -> ETagLookup -> StaticSettings
-webAppSettingsWithLookup dir etagLookup =
-  defaultWebAppSettings { ssFolder = webAppLookup etagLookup dir}
+webAppSettingsWithLookup dir etl =
+    webAppSettingsLookupConf WebAppLookupConf {
+        assumeHtml = False
+      , etagLookup = etl
+      , prefixDir = dir
+      , mimeTypeLookup = defaultMimeTypeLookup
+    }
+
+defaultMimeTypeLookup :: FilePath -> IO MimeType
+defaultMimeTypeLookup = return . defaultMimeTypeByExt
+
+webAppSettingsLookupConf :: WebAppLookupConf -> StaticSettings
+webAppSettingsLookupConf settings =
+  defaultWebAppSettings { ssFolder = webAppLookup settings }
 
 
 defaultWebAppSettings :: StaticSettings
 defaultWebAppSettings = StaticSettings
-    { ssFolder = webAppLookup hashFileIfExists "static"
+    { ssFolder = webAppLookup WebAppLookupConf {
+          assumeHtml = False
+        , etagLookup = hashFileIfExists
+        , prefixDir = "static"
+        , mimeTypeLookup = defaultMimeTypeLookup
+        }
     , ssMkRedirect  = defaultMkRedirect
-    , ssGetMimeType = return . defaultMimeTypeByExt . fileName
     , ssMaxAge  = MaxAgeForever
     , ssListing = Nothing
     , ssIndices = []
@@ -447,9 +471,8 @@ defaultWebAppSettings = StaticSettings
 
 defaultFileServerSettings :: StaticSettings
 defaultFileServerSettings = StaticSettings
-    { ssFolder = fileSystemLookup "static"
+    { ssFolder = fileSystemLookup defaultMimeTypeLookup "static"
     , ssMkRedirect = defaultMkRedirect
-    , ssGetMimeType = return . defaultMimeTypeByExt . fileName
     , ssMaxAge = MaxAgeSeconds $ 60 * 60
     , ssListing = Just defaultListing
     , ssIndices = ["index.html", "index.htm"]
@@ -473,12 +496,27 @@ fileHelper hashFunc fp name = do
 
 type ETagLookup = (FilePath -> IO (Maybe ByteString))
 
-webAppLookup :: ETagLookup -> FilePath -> Pieces -> IO FileLookup
-webAppLookup cachedLookupHash prefix pieces = do
-    mfile <- fileHelper cachedLookupHash fp (last pieces)
-    return $ fmap Right mfile
+data WebAppLookupConf = WebAppLookupConf {
+    assumeHtml :: Bool -- ^ if there is no file extension for 'file', should we assume 'file.html' is desired
+  , etagLookup :: ETagLookup
+  , prefixDir  :: FilePath
+  , mimeTypeLookup :: FilePath -> IO MimeType
+}
+
+webAppLookup :: WebAppLookupConf -> Pieces -> IO FileLookup
+webAppLookup conf pieces = do
+    mfile <- fileHelper (etagLookup conf) fp (last modifiedPieces)
+    case mfile of
+      Nothing -> return Nothing
+      Just f -> do
+        mimeType <- (mimeTypeLookup conf) (fileName f)
+        return $ Just $ Right (f, mimeType)
   where
-    fp = pathFromPieces prefix pieces
+    fp = pathFromPieces (prefixDir conf) modifiedPieces
+    modifiedPieces = case (assumeHtml conf, takeExtensions $ last pieces) of
+           (False, _)  -> pieces
+           (True, [])  -> init pieces ++ [last pieces <.> "html"]
+           (True,  _)  -> pieces
 
 defaultFileSystemHash :: ETagLookup
 defaultFileSystemHash fp = fmap Just $ hashFile fp
@@ -494,20 +532,27 @@ hashFileIfExists :: ETagLookup
 hashFileIfExists fp = do
     fe <- doesFileExist $ fromFilePath fp
     if fe
-      then return Nothing
-      else defaultFileSystemHash fp
+      then defaultFileSystemHash fp
+      else return Nothing
 
-fileSystemLookup :: FilePath -> Pieces -> IO FileLookup
+fileSystemLookup :: (FilePath -> IO MimeType) -> FilePath -> Pieces -> IO FileLookup
 fileSystemLookup = fileSystemLookupHash defaultFileSystemHash
 
+fileExistsHelper :: ETagLookup -> FilePath -> FilePath -> IO (Maybe File)
+fileExistsHelper hashFunc fp name = do
+    fe <- doesFileExist (fromFilePath fp)
+    if fe then fileHelper hashFunc fp name else return Nothing
+
 fileSystemLookupHash :: ETagLookup
+                     -> (FilePath -> IO MimeType)
                      -> FilePath -> Pieces -> IO FileLookup
-fileSystemLookupHash hashFunc prefix pieces = do
+fileSystemLookupHash hashFunc getMimeType prefix pieces = do
     let fp = pathFromPieces prefix pieces
-    fe <- doesFileExist $ fromFilePath fp
-    if fe
-        then (fmap . fmap) Right $ fileHelper hashFunc fp $ last pieces
-        else do
+    mimeType <- getMimeType fp
+    f <- fileExistsHelper hashFunc fp $ last pieces
+    case f of
+      Just f' -> return $ Just $ Right (f', mimeType)
+      Nothing -> do
             de <- doesDirectoryExist $ fromFilePath fp
             if de
                 then do
@@ -520,7 +565,7 @@ fileSystemLookupHash hashFunc prefix pieces = do
                         let fp' = fp </> name
                         mfile' <- fileHelper hashFunc fp' name
                         case mfile' of
-                            Nothing -> return $ Left $ Folder name []
+                            Nothing    -> return $ Left $ Folder name []
                             Just file' -> return $ Right file'
                     return $ Just $ Left $ Folder (error "Network.Wai.Application.Static.fileSystemLookup") entries
                 else return Nothing
@@ -541,7 +586,7 @@ embeddedLookup root pieces =
             Nothing -> Nothing
             Just (EEFile f) ->
                 case ps of
-                    [] -> Just $ Right $ bsToFile p f
+                    [] -> Just $ Right $ (bsToFile p f, undefined)
                     _ -> Nothing
             Just (EEFolder y) -> elookup p ps y
 
@@ -621,11 +666,16 @@ staticAppPieces ss pieces req = liftIO $ do
     let indices = ssIndices ss
     case checkSpecialDirListing pieces of
          Just res ->  response res
-         Nothing  ->  checkPieces (ssFolder ss) (map FilePath indices) pieces req (ssMaxAge ss) (ssUseHash ss) (ssRedirectToIndex ss) >>= response
+         Nothing  ->  response =<< checkPieces (ssFolder ss)
+                                  (map FilePath indices)
+                                  pieces
+                                  req
+                                  (ssMaxAge ss)
+                                  (ssUseHash ss)
+                                  (ssRedirectToIndex ss)
   where
     response cp = case cp of
-        FileResponse file ch -> do
-            mimetype <- ssGetMimeType ss file
+        FileResponse file mimetype ch -> do
             let filesize = fileGetSize file
             let headers = ("Content-Type", mimetype)
                         : ("Content-Length", S8.pack $ show filesize)
