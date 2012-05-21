@@ -99,7 +99,7 @@ import Data.Function (on)
 import Data.Ord (comparing)
 import qualified Data.ByteString.Base64 as B64
 import Data.Either (rights)
-import Data.Maybe (isJust, fromJust)
+import Data.Maybe (isJust, fromJust, mapMaybe)
 import Network.HTTP.Date (parseHTTPDate, epochTimeToHTTPDate, formatHTTPDate)
 import Data.String (IsString (..))
 
@@ -114,7 +114,7 @@ instance IsString FilePath where
 -- | A list of all possible extensions, starting from the largest.
 takeExtensions :: FilePath -> [FilePath]
 takeExtensions (FilePath s) =
-    case T.break (== '.') s of
+    case T.breakOn (".") s of
         (_, "") -> []
         (_, x) -> FilePath (T.drop 1 x) : takeExtensions (FilePath $ T.drop 1 x)
 
@@ -192,36 +192,25 @@ defaultMimeTypes = Map.fromList [
   ( "xwd"     , "image/x-xwindowdump"               ),
   ( "zip"     , "application/zip"                   )]
 
+-- similar to Safe package
+headDef :: a -> [a] -> a
+headDef _ (x:_) = x
+headDef def []  = def
+
+-- similar to Safe package
+initSafe  :: [a] -> [a]
+initSafe [] = []
+initSafe xs = init xs
+
 mimeTypeByExt :: MimeMap
               -> MimeType -- ^ default mime type
               -> FilePath
               -> MimeType
 mimeTypeByExt mm def =
-    go . takeExtensions
-  where
-    go [] = def
-    go (e:es) =
-        case Map.lookup e mm of
-            Nothing -> go es
-            Just mt -> mt
+  headDef def . mapMaybe (flip Map.lookup mm) . takeExtensions
 
 defaultMimeTypeByExt :: FilePath -> MimeType
 defaultMimeTypeByExt = mimeTypeByExt defaultMimeTypes defaultMimeType
-
-data CheckPieces =
-      -- | Just the etag hash or Nothing for no etag hash
-      Redirect Pieces (Maybe ByteString)
-    | Forbidden
-    | NotFound
-    | FileResponse File H.ResponseHeaders
-    | NotModified
-    | DirectoryResponse Folder
-    -- TODO: add file size
-    | SendContent MimeType L.ByteString
-
-safeInit  :: [a] -> [a]
-safeInit [] = []
-safeInit xs = init xs
 
 filterButLast :: (a -> Bool) -> [a] -> [a]
 filterButLast _ [] = []
@@ -231,8 +220,8 @@ filterButLast f (x:xs)
     | otherwise = filterButLast f xs
 
 
-unsafe :: FilePath -> Bool
-unsafe (FilePath s)
+unsafePiece :: FilePath -> Bool
+unsafePiece (FilePath s)
     | T.null s = False
     | T.head s == '.' = True
     | otherwise = T.any (== '/') s
@@ -262,6 +251,17 @@ checkSpecialDirListing [".hidden", "haskell.png"] =
     Just $ SendContent "image/png" $ L.fromChunks [$(embedFile "images/haskell.png")]
 checkSpecialDirListing _ =  Nothing
 
+data CheckPieces =
+      -- | Just the etag hash or Nothing for no etag hash
+      Redirect Pieces (Maybe ByteString)
+    | Forbidden
+    | NotFound
+    | FileResponse File H.ResponseHeaders
+    | NotModified
+    | DirectoryResponse Folder
+    -- TODO: add file size
+    | SendContent MimeType L.ByteString
+
 checkPieces :: (Pieces -> IO FileLookup) -- ^ file lookup function
             -> [FilePath]                -- ^ List of default index files. Cannot contain slashes.
             -> Pieces                    -- ^ parsed request
@@ -271,16 +271,14 @@ checkPieces :: (Pieces -> IO FileLookup) -- ^ file lookup function
             -> Bool                      -- ^ Redirect to Index?
             -> IO CheckPieces
 checkPieces fileLookup indices pieces req maxAge useHash redirectToIndex
-    | any unsafe pieces = return Forbidden
-    | any nullFilePath $ safeInit pieces =
+    | any unsafePiece pieces = return Forbidden
+    | any nullFilePath $ initSafe pieces =
         return $ Redirect (filterButLast (not . nullFilePath) pieces) Nothing
     | otherwise = do
         let (isFile, isFolder) =
-                case () of
-                    ()
-                        | null pieces -> (True, True)
-                        | nullFilePath (last pieces) -> (False, True)
-                        | otherwise -> (True, False)
+              if        null pieces                then (True, True)
+                else if nullFilePath (last pieces) then (False, True)
+                                                   else (True, False)
 
         fl <- fileLookup pieces
         case (fl, isFile) of
@@ -621,7 +619,13 @@ staticAppPieces ss pieces req = liftIO $ do
     let indices = ssIndices ss
     case checkSpecialDirListing pieces of
          Just res ->  response res
-         Nothing  ->  checkPieces (ssFolder ss) (map FilePath indices) pieces req (ssMaxAge ss) (ssUseHash ss) (ssRedirectToIndex ss) >>= response
+         Nothing  ->  response =<< checkPieces (ssFolder ss)
+                                  (map FilePath indices)
+                                  pieces
+                                  req
+                                  (ssMaxAge ss)
+                                  (ssUseHash ss)
+                                  (ssRedirectToIndex ss)
   where
     response cp = case cp of
         FileResponse file ch -> do
