@@ -4,13 +4,9 @@ module WaiAppStaticTest (specs) where
 import Network.Wai.Application.Static
 
 import Test.Hspec.Monadic
-import Test.Hspec.QuickCheck
 import Test.Hspec.HUnit ()
-import Test.HUnit ((@?=))
-import Data.List (isInfixOf)
 import qualified Data.ByteString.Char8 as S8
 -- import qualified Data.ByteString.Lazy.Char8 as L8
-import qualified Data.Text as T
 import System.PosixCompat.Files (getFileStatus, modificationTime)
 
 import Network.HTTP.Date
@@ -27,13 +23,14 @@ defRequest = defaultRequest
 
 specs :: Specs
 specs = do
-  let webApp = flip runSession $ staticApp defaultWebAppSettings  {ssFolder = fileSystemLookup "test"}
-  let fileServerApp = flip runSession $ staticApp defaultFileServerSettings  {ssFolder = fileSystemLookup "test"}
+  let webApp = flip runSession $ staticApp defaultWebAppSettings  {ssLookupFile = fileSystemLookup "test"}
+  let fileServerApp = flip runSession $ staticApp defaultFileServerSettings  {ssLookupFile = fileSystemLookup "test"}
 
   let etag = "1B2M2Y8AsgTpgAmY7PhCfg=="
   let file = "a/b"
   let statFile = setRawPathInfo defRequest file
 
+  {-
   describe "Pieces: pathFromPieces" $ do
     it "converts to a file path" $
       (pathFromPieces "prefix" ["a", "bc"]) @?= "prefix/a/bc"
@@ -41,6 +38,7 @@ specs = do
     prop "each piece is in file path" $ \piecesS ->
       let pieces = map (FilePath . T.pack) piecesS
       in  all (\p -> ("/" ++ p) `isInfixOf` (T.unpack $ unFilePath $ pathFromPieces "root" $ pieces)) piecesS
+  -}
 
   describe "webApp" $ do
     it "403 for unsafe paths" $ webApp $
@@ -63,7 +61,7 @@ specs = do
       assertHeader "Location" "../../a/b/c" req
 
     let absoluteApp = flip runSession $ staticApp $ defaultWebAppSettings {
-          ssFolder = fileSystemLookup "test", ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
+          ssLookupFile = fileSystemLookup "test", ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
         }
     it "301 redirect when multiple slashes" $ absoluteApp $
       flip mapM_ ["/a//b/c", "a//b/c"] $ \path -> do
