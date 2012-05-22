@@ -19,7 +19,7 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as HU
 
 -- Code below taken from Happstack: http://patch-tag.com/r/mae/happstack/snapshot/current/content/pretty/happstack-server/src/Happstack/Server/FileServe/BuildingBlocks.hs
 defaultListing :: Listing
-defaultListing pieces (Folder _ contents) = do
+defaultListing pieces (Folder contents) = do
     let isTop = null pieces || map Just pieces == [toPiece ""]
     let fps'' :: [Either FolderName File]
         fps'' = (if isTop then id else (Left (unsafeToPiece "") :)) contents -- FIXME emptyParentFolder feels like a bit of a hack

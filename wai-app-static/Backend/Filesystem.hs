@@ -136,7 +136,7 @@ fileSystemLookupHash hashFunc prefix pieces = do
                                 case mfile of
                                     Nothing -> return Nothing
                                     Just file -> return $ Just $ Right file
-                    return $ LRFolder $ Folder lastPiece $ catMaybes entries
+                    return $ LRFolder $ Folder $ catMaybes entries
                 else return LRNotFound
   where
     lastPiece

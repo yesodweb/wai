@@ -91,8 +91,7 @@ type FolderName = Piece
 -- | Represent contents of a single folder, which can be itself either a file
 -- or a folder.
 data Folder = Folder
-    { folderName :: Piece
-    , folderContents :: [Either FolderName File]
+    { folderContents :: [Either FolderName File]
     }
 
 -- | Information on an individual file.
