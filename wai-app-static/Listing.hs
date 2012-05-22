@@ -15,11 +15,7 @@ import System.Locale (defaultTimeLocale)
 import Data.List (sortBy)
 import Util
 
-#if MIN_VERSION_blaze_html(0,5,0)
 import qualified Text.Blaze.Html.Renderer.Utf8 as HU
-#else
-import qualified Text.Blaze.Renderer.Utf8    as HU
-#endif
 
 -- Code below taken from Happstack: http://patch-tag.com/r/mae/happstack/snapshot/current/content/pretty/happstack-server/src/Happstack/Server/FileServe/BuildingBlocks.hs
 defaultListing :: Listing

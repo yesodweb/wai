@@ -1,22 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 module WaiAppStatic.Types
-    ( Pieces
+    ( -- * Pieces
+      Piece
     , toPiece
-    , unsafeToPiece
-    , toPieces
     , fromPiece
+    , unsafeToPiece
+    , Pieces
+    , toPieces
     , pieceExtensions
-    , MaxAge (..)
-    , Folder (..)
-    , File (..)
-    , Piece
-    , emptyParentFolder
+      -- * Mime
     , MimeType
     , Extension
     , MimeMap
+      -- * File\/folder serving
+    , MaxAge (..)
+    , Folder (..)
+    , File (..)
     , LookupResult (..)
-    , StaticSettings (..)
     , Listing
+      -- * Settings
+    , StaticSettings (..)
+    , emptyParentFolder
     ) where
 
 import Data.Text (Text)
@@ -29,10 +33,19 @@ import qualified Data.Map as Map
 import Blaze.ByteString.Builder (Builder)
 
 -- | An individual component of a path, or of a filepath.
+--
+-- This is the core type used by wai-app-static for doing lookups. It provides
+-- a smart constructor to avoid the possibility of constructing unsafe path
+-- segments (though @unsafeToPiece@ can get around that as necessary).
+--
+-- Individual file lookup backends must know how to convert from a @Piece@ to
+-- their storage system.
 newtype Piece = Piece { fromPiece :: Text }
     deriving (Show, Eq, Ord)
 
--- | Smart constructor for a @Piece@. Won\'t allow unsafe components.
+-- | Smart constructor for a @Piece@. Won\'t allow unsafe components, such as
+-- pieces beginning with a period or containing a slash. This /will/, however,
+-- allow null pieces.
 toPiece :: Text -> Maybe Piece
 toPiece t
     | T.null t = Just $ Piece t
@@ -40,15 +53,22 @@ toPiece t
     | T.any (== '/') t = Nothing
     | otherwise = Just $ Piece t
 
+-- | Construct a @Piece@ without input validation.
 unsafeToPiece :: Text -> Piece
 unsafeToPiece = Piece
 
+-- | Call @toPiece@ on a list.
+--
+-- > toPieces = mapM toPiece
 toPieces :: [Text] -> Maybe Pieces
 toPieces = mapM toPiece
 
 -- | Request coming from a user. Corresponds to @pathInfo@.
 type Pieces = [Piece]
 
+-- | Get a list of all of the file name extensions from a piece.
+--
+-- > pieceExtensions (unsafeToPiece "foo.tar.gz") == ["tar.gz", "gz"]
 pieceExtensions :: Piece -> [Extension]
 pieceExtensions =
     go . fromPiece
@@ -64,37 +84,59 @@ data MaxAge = NoMaxAge -- ^ no cache-control set
             | MaxAgeSeconds Int -- ^ set to the given number of seconds
             | MaxAgeForever -- ^ essentially infinite caching; in reality, probably one year
 
-data Folder = Folder -- FIXME revisit this
+-- | Represent contents of a single folder, which can be itself either a file
+-- or a folder.
+data Folder = Folder
     { folderName :: Piece
-    , folderContents :: [Either Folder File]
+    , folderContents :: [Either Folder File] -- FIXME replace Folder with FolderName?
     }
 
+-- | Information on an individual file.
 data File = File
-    { fileGetSize :: Int
+    { -- | Size of file in bytes
+      fileGetSize :: Int
+      -- | How to construct a WAI response for this file. Some files are stored
+      -- on the filesystem and can use @ResponseFile@, while others are stored
+      -- in memory and should use @ResponseBuilder@.
     , fileToResponse :: H.Status -> H.ResponseHeaders -> W.Response
+      -- | Last component of the filename.
     , fileName :: Piece
+      -- | Calculate a hash of the contents of this file, such as for etag.
     , fileGetHash :: IO (Maybe ByteString)
+      -- | Last modified time, used for both display in listings and if-modified-since.
     , fileGetModified :: Maybe EpochTime
     }
 
-emptyParentFolder :: Folder
-emptyParentFolder = Folder (Piece "") []
-
-type MimeType = ByteString
-type Extension = Text
-type MimeMap = Map.Map Extension MimeType
-
+-- | Result of looking up a file in some storage backend.
+--
+-- The lookup is either a file or folder, or does not exist.
 data LookupResult = LRFile File
                   | LRFolder Folder
                   | LRNotFound
 
+-- | How to construct a directory listing page for the given request path and
+-- the resulting folder.
 type Listing = Pieces -> Folder -> IO Builder
 
+-- | Individual mime type for be served over the wire.
+type MimeType = ByteString
+
+-- | Path extension. May include multiple components, e.g. tar.gz
+type Extension = Text
+
+-- | Maps extensions to mime types.
+type MimeMap = Map.Map Extension MimeType
+
+-- | All of the settings available to users for tweaking wai-app-static.
 data StaticSettings = StaticSettings
-    { -- | Lookup a single file or folder.
+    {
+      -- | Lookup a single file or folder. This is how you can control storage
+      -- backend (filesystem, embedded, etc) and where to lookup.
       ssLookupFile :: Pieces -> IO LookupResult
 
-      -- | Determine the mime type of the given file.
+      -- | Determine the mime type of the given file. Note that this function
+      -- lives in @IO@ in case you want to perform more complicated mimetype
+      -- analysis, such as via the @file@ utility.
     , ssGetMimeType :: File -> IO MimeType
 
       -- | Ordered list of filenames to be used for indices. If the user
@@ -121,3 +163,6 @@ data StaticSettings = StaticSettings
       -- FIXME Need clarity on what exactly is going on here.
     , ssUseHash :: Bool
     }
+
+emptyParentFolder :: Folder -- FIXME get rid of this?
+emptyParentFolder = Folder (Piece "") []
