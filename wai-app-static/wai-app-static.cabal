@@ -43,14 +43,16 @@ library
                    , http-date
                    , blaze-html                >= 0.5      && < 0.6
                    , blaze-markup              >= 0.5.1    && < 0.6
+                   , crypto-conduit            >= 0.3.2    && < 0.4
+                   , cereal                    >= 0.3.5    && < 0.4
 
     exposed-modules: Network.Wai.Application.Static
                      WaiAppStatic.Types
+                     WaiAppStatic.Storage.Filesystem
     other-modules:   Listing
                      Mime
                      Util
-                     Backend.Filesystem
-    ghc-options:     -Wall
+    ghc-options:     -Wall -Werror
     extensions:     CPP
 
     if flag(print)

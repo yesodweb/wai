@@ -36,11 +36,7 @@ module Network.Wai.Application.Static
       -- ** Directory listings
     , Listing
     , defaultListing
-      -- ** Lookup functions
-    , fileSystemLookup
-    , fileSystemLookupHash
     {-
-    , embeddedLookup
       -- ** Embedded
     , Embedded
     , EmbeddedEntry (..)
@@ -79,7 +75,7 @@ import WaiAppStatic.Types
 import Mime
 import Listing
 import Util
-import Backend.Filesystem
+import WaiAppStatic.Storage.Filesystem
 
 data StaticResponse =
       -- | Just the etag hash or Nothing for no etag hash
