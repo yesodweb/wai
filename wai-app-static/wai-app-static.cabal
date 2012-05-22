@@ -48,6 +48,7 @@ library
 
     exposed-modules: Network.Wai.Application.Static
                      WaiAppStatic.Storage.Filesystem
+                     WaiAppStatic.Storage.Embedded
                      WaiAppStatic.Listing
                      WaiAppStatic.Mime
                      WaiAppStatic.Types

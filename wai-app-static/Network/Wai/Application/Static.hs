@@ -10,6 +10,7 @@ module Network.Wai.Application.Static
     , defaultWebAppSettings
     , webAppSettingsWithLookup
     , defaultFileServerSettings
+    , embeddedSettings
       -- ** Settings
     , StaticSettings
     , ssLookupFile
@@ -45,6 +46,7 @@ import Data.Monoid (First (First, getFirst), mconcat)
 import WaiAppStatic.Types
 import Util
 import WaiAppStatic.Storage.Filesystem
+import WaiAppStatic.Storage.Embedded
 
 data StaticResponse =
       -- | Just the etag hash or Nothing for no etag hash
