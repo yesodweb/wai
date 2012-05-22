@@ -8,9 +8,6 @@ module WaiAppStatic.Storage.Filesystem
     , defaultWebAppSettings
     , defaultFileServerSettings
     , webAppSettingsWithLookup
-      -- * Misc for testing
-    , hashFile
-    , fileSystemLookup
     ) where
 
 import WaiAppStatic.Types

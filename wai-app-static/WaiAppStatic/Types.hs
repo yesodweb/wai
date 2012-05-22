@@ -131,6 +131,9 @@ type Extension = Text
 type MimeMap = Map.Map Extension MimeType
 
 -- | All of the settings available to users for tweaking wai-app-static.
+--
+-- Note that you should use the settings type approach for modifying values.
+-- See <http://www.yesodweb.com/book/settings-types> for more information.
 data StaticSettings = StaticSettings
     {
       -- | Lookup a single file or folder. This is how you can control storage

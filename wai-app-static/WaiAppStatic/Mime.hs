@@ -96,6 +96,6 @@ mimeByExt mm def =
             Nothing -> go es
             Just mt -> mt
 
--- | @mimeTypeByExt@ applied to @defaultMimeType@ and @defaultMimeMap@.
+-- | @mimeByExt@ applied to @defaultMimeType@ and @defaultMimeMap@.
 defaultMimeLookup :: Piece -> MimeType
 defaultMimeLookup = mimeByExt defaultMimeMap defaultMimeType

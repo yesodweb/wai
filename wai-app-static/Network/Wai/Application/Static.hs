@@ -204,6 +204,7 @@ serveFile StaticSettings {..} pieces req file =
             MaxAgeSeconds _ -> id -- FIXME
             MaxAgeForever   -> (:) ("Expires", "Thu, 31 Dec 2037 23:55:55 GMT")
 
+-- | Turn a @StaticSettings@ into a WAI application.
 staticApp :: StaticSettings -> W.Application
 staticApp set req = staticAppPieces set (W.pathInfo req) req
 
