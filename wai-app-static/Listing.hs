@@ -21,8 +21,8 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as HU
 defaultListing :: Listing
 defaultListing pieces (Folder _ contents) = do
     let isTop = null pieces || map Just pieces == [toPiece ""]
-    let fps'' :: [Either Folder File]
-        fps'' = (if isTop then id else (Left emptyParentFolder :)) contents -- FIXME emptyParentFolder feels like a bit of a hack
+    let fps'' :: [Either FolderName File]
+        fps'' = (if isTop then id else (Left (unsafeToPiece "") :)) contents -- FIXME emptyParentFolder feels like a bit of a hack
     return $ HU.renderHtmlBuilder
            $ H.html $ do
              H.head $ do
@@ -72,7 +72,7 @@ defaultListing pieces (Folder _ contents) = do
 -- see also: 'getMetaData', 'renderDirectoryContents'
 renderDirectoryContentsTable :: String
                              -> String
-                             -> [Either Folder File]
+                             -> [Either FolderName File]
                              -> H.Html
 renderDirectoryContentsTable haskellSrc folderSrc fps =
            H.table $ do H.thead $ do H.th ! (A.class_ "first") $ H.img ! (A.src $ H.toValue haskellSrc)
@@ -81,12 +81,13 @@ renderDirectoryContentsTable haskellSrc folderSrc fps =
                                      H.th "Size"
                         H.tbody $ mapM_ mkRow (zip (sortBy sortMD fps) $ cycle [False, True])
     where
-      sortMD :: Either Folder File -> Either Folder File -> Ordering
+      sortMD :: Either FolderName File -> Either FolderName File -> Ordering
       sortMD Left{} Right{} = LT
       sortMD Right{} Left{} = GT
-      sortMD (Left a) (Left b) = compare (folderName a) (folderName b)
+      sortMD (Left a) (Left b) = compare a b
       sortMD (Right a) (Right b) = compare (fileName a) (fileName b)
-      mkRow :: (Either Folder File, Bool) -> H.Html
+
+      mkRow :: (Either FolderName File, Bool) -> H.Html
       mkRow (md, alt) =
           (if alt then (! A.class_ "alt") else id) $
           H.tr $ do
@@ -95,7 +96,7 @@ renderDirectoryContentsTable haskellSrc folderSrc fps =
                             Left{} -> H.img ! A.src (H.toValue folderSrc)
                                             ! A.alt "Folder"
                             Right{} -> return ()
-                   let name = either folderName fileName md
+                   let name = either id fileName md
                    let isFile = either (const False) (const True) md
                    H.td (H.a ! A.href (H.toValue $ fromPiece name `T.append` if isFile then "" else "/") $ H.toHtml $ fromPiece name)
                    H.td ! A.class_ "date" $ H.toHtml $

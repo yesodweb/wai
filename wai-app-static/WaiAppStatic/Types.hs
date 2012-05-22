@@ -12,15 +12,16 @@ module WaiAppStatic.Types
     , MimeType
     , Extension
     , MimeMap
-      -- * File\/folder serving
+      -- * Caching
     , MaxAge (..)
+      -- * File\/folder serving
+    , FolderName
     , Folder (..)
     , File (..)
     , LookupResult (..)
     , Listing
       -- * Settings
     , StaticSettings (..)
-    , emptyParentFolder
     ) where
 
 import Data.Text (Text)
@@ -84,11 +85,14 @@ data MaxAge = NoMaxAge -- ^ no cache-control set
             | MaxAgeSeconds Int -- ^ set to the given number of seconds
             | MaxAgeForever -- ^ essentially infinite caching; in reality, probably one year
 
+-- | Just the name of a folder.
+type FolderName = Piece
+
 -- | Represent contents of a single folder, which can be itself either a file
 -- or a folder.
 data Folder = Folder
     { folderName :: Piece
-    , folderContents :: [Either Folder File] -- FIXME replace Folder with FolderName?
+    , folderContents :: [Either FolderName File]
     }
 
 -- | Information on an individual file.
@@ -163,6 +167,3 @@ data StaticSettings = StaticSettings
       -- FIXME Need clarity on what exactly is going on here.
     , ssUseHash :: Bool
     }
-
-emptyParentFolder :: Folder -- FIXME get rid of this?
-emptyParentFolder = Folder (Piece "") []
