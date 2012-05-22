@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Backend.Filesystem where
 
-import Types
+import WaiAppStatic.Types
 import Prelude hiding (FilePath)
 import Filesystem.Path.CurrentOS (FilePath, (</>))
 import qualified Filesystem.Path.CurrentOS as F

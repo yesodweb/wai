@@ -75,7 +75,7 @@ import Data.Maybe (isJust, fromJust)
 import Network.HTTP.Date (parseHTTPDate, epochTimeToHTTPDate, formatHTTPDate)
 import Data.Monoid (First (First, getFirst), mconcat)
 
-import Types
+import WaiAppStatic.Types
 import Mime
 import Listing
 import Util

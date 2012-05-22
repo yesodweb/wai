@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Types
+module WaiAppStatic.Types
     ( Pieces
     , toPiece
     , unsafeToPiece
     , toPieces
     , fromPiece
+    , pieceExtensions
     , MaxAge (..)
     , Folder (..)
     , File (..)
@@ -47,6 +48,16 @@ toPieces = mapM toPiece
 
 -- | Request coming from a user. Corresponds to @pathInfo@.
 type Pieces = [Piece]
+
+pieceExtensions :: Piece -> [Extension]
+pieceExtensions =
+    go . fromPiece
+  where
+    go t
+        | T.null e = []
+        | otherwise = e : go e
+      where
+        e = T.drop 1 $ T.dropWhile (/= '.') t
 
 -- | Values for the max-age component of the cache-control response header.
 data MaxAge = NoMaxAge -- ^ no cache-control set

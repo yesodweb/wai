@@ -5,6 +5,7 @@ import Network.Wai.Application.Static
 
 import Test.Hspec.Monadic
 import Test.Hspec.HUnit ()
+import Test.HUnit ((@?=))
 import qualified Data.ByteString.Char8 as S8
 -- import qualified Data.ByteString.Lazy.Char8 as L8
 import System.PosixCompat.Files (getFileStatus, modificationTime)
@@ -17,6 +18,7 @@ import Network.Wai
 import Network.Wai.Test
 
 import Control.Monad.IO.Class (liftIO)
+import WaiAppStatic.Types
 
 defRequest :: Request
 defRequest = defaultRequest
@@ -29,6 +31,14 @@ specs = do
   let etag = "1B2M2Y8AsgTpgAmY7PhCfg=="
   let file = "a/b"
   let statFile = setRawPathInfo defRequest file
+
+  describe "mime types" $ do
+    it "pieceExtensions" $
+        pieceExtensions (unsafeToPiece "foo.tar.gz") @?= ["tar.gz", "gz"]
+    it "handles multi-extensions" $
+        defaultMimeTypeByExt (unsafeToPiece "foo.tar.gz") @?= "application/x-tgz"
+    it "defaults correctly" $
+        defaultMimeTypeByExt (unsafeToPiece "foo.unknown") @?= "application/octet-stream"
 
   {-
   describe "Pieces: pathFromPieces" $ do

@@ -10,7 +10,7 @@ import           Text.Blaze                  ((!))
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Clock.POSIX
-import Types
+import WaiAppStatic.Types
 import System.Locale (defaultTimeLocale)
 import Data.List (sortBy)
 import Util

@@ -55,9 +55,9 @@ library
                      blaze-html                >= 0.4      && < 0.5
 
     exposed-modules: Network.Wai.Application.Static
+                     WaiAppStatic.Types
     other-modules:   Listing
                      Mime
-                     Types
                      Util
                      Backend.Filesystem
     ghc-options:     -Wall

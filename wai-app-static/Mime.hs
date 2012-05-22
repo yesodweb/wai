@@ -7,8 +7,7 @@ module Mime
     ) where
 
 import qualified Data.Map as Map
-import qualified Data.Text as T
-import Types
+import WaiAppStatic.Types
 
 defaultMimeType :: MimeType
 defaultMimeType = "application/octet-stream"
@@ -89,12 +88,9 @@ mimeTypeByExt mm def =
   where
     go [] = def
     go (e:es) =
-        case Map.lookup (T.intercalate "." (e:es)) mm of
+        case Map.lookup e mm of
             Nothing -> go es
             Just mt -> mt
-
-pieceExtensions :: Piece -> [Extension]
-pieceExtensions = error "pieceExtensions"
 
 defaultMimeTypeByExt :: Piece -> MimeType
 defaultMimeTypeByExt = mimeTypeByExt defaultMimeTypes defaultMimeType

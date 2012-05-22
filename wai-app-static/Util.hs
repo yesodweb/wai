@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Util where
 
-import Types
+import WaiAppStatic.Types
 import qualified Data.Text as T
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
