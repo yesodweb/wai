@@ -166,6 +166,6 @@ data StaticSettings = StaticSettings
       -- content immediately.
     , ssRedirectToIndex :: Bool
 
-      -- FIXME Need clarity on what exactly is going on here.
+      -- | Prefer usage of etag caching to last-modified caching.
     , ssUseHash :: Bool
     }

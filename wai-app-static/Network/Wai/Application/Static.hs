@@ -39,7 +39,6 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Data.Either (rights)
-import Data.Maybe (isJust, fromJust)
 import Network.HTTP.Date (parseHTTPDate, epochTimeToHTTPDate, formatHTTPDate)
 import Data.Monoid (First (First, getFirst), mconcat)
 
@@ -116,95 +115,77 @@ checkPieces ss@StaticSettings {..} pieces req = do
     res <- ssLookupFile pieces
     case res of
         LRNotFound -> return NotFound
-        LRFile file -> serveFile ss pieces req file
+        LRFile file -> serveFile ss req file
         LRFolder folder -> serveFolder ss pieces req folder
 
-serveFile :: StaticSettings -> Pieces -> W.Request -> File -> IO StaticResponse
-serveFile StaticSettings {..} pieces req file =
-    handleCache
+serveFile :: StaticSettings -> W.Request -> File -> IO StaticResponse
+serveFile StaticSettings {..} req file
+    -- First check etag values, if turned on
+    | ssUseHash = do
+        mHash <- fileGetHash file
+        case (mHash, lookup "if-none-match" $ W.requestHeaders req) of
+            -- if-none-match matches the actual hash, return a 304
+            (Just hash, Just lastHash) | hash == lastHash -> return NotModified
+
+            -- Didn't match, but we have a hash value. Send the file contents
+            -- with an ETag header.
+            --
+            -- Note: It would be arguably better to next check
+            -- if-modified-since and return a 304 if that indicates a match as
+            -- well. However, the circumstances under which such a situation
+            -- could arise would be very anomolous, and should likely warrant a
+            -- new file being sent anyway.
+            (Just hash, _) -> respond [("ETag", hash)]
+
+            -- No hash value available, fall back to last modified support.
+            (Nothing, _) -> lastMod
+    -- etag turned off, so jump straight to last modified
+    | otherwise = lastMod
   where
-    headers = W.requestHeaders req
-    queryString = W.queryString req
+    mLastSent = lookup "if-modified-since" (W.requestHeaders req) >>= parseHTTPDate
+    lastMod =
+        case (fmap epochTimeToHTTPDate $ fileGetModified file, mLastSent) of
+            -- File modified time is equal to the if-modified-since header,
+            -- return a 304.
+            --
+            -- Question: should the comparison be, date <= lastSent?
+            (Just mdate, Just lastSent)
+                | mdate == lastSent -> return NotModified
 
-    -- FIXME This whole thing seems like a mess.
+            -- Did not match, but we have a new last-modified header
+            (Just mdate, _) -> respond [("last-modified", formatHTTPDate mdate)]
 
-    -- HTTP caching has a cache control header that you can set an expire time for a resource.
-    --   Max-Age is easiest because it is a simple number
-    --   a cache-control asset will only be downloaded once (if the browser maintains its cache)
-    --   and the server will never be contacted for the resource again (until it expires)
-    --
-    -- A second caching mechanism is ETag and last-modified
-    --   this form of caching is not as good as the static- the browser can avoid downloading the file, but it always need to send a request with the etag value or the last-modified value to the server to see if its copy is up to date
-    --
-    -- We should set a cache control and one of ETag or last-modifed whenever possible
-    --
-    -- In a Yesod web application we can append an etag parameter to static assets.
-    -- This signals that both a max-age and ETag header should be set
-    -- if there is no etag parameter
-    -- * don't set the max-age
-    -- * set ETag or last-modified
-    --   * ETag must be calculated ahead of time.
-    --   * last-modified is just the file mtime.
-    handleCache =
-      if not ssUseHash then lastModifiedCache
-        else do
-          let etagParam = lookup "etag" queryString
+            -- No modification time available
+            (Nothing, _) -> respond []
 
-          case etagParam of
-            Nothing -> do -- no query parameter. Set appropriate ETag headers
-                mHash <- fileGetHash file
-                case mHash of
-                    Nothing -> lastModifiedCache
-                    Just hash ->
-                        case lookup "if-none-match" headers of
-                            Just lastHash ->
-                              if hash == lastHash
-                                  then return NotModified
-                                  else return $ FileResponse file $ [("ETag", hash)]
-                            Nothing -> return $ FileResponse file $ [("ETag", hash)]
+    -- Send a file response with the additional weak headers provided.
+    respond headers = return $ FileResponse file $ cacheControl ssMaxAge headers
 
-            Just mEtag -> do
-                mHash <- fileGetHash file
-                case mHash of
-                  -- a file used to have an etag parameter, but no longer does
-                  Nothing -> return $ Redirect pieces Nothing
-                  Just hash ->
-                    if isJust mEtag && hash == fromJust mEtag
-                      then return $ FileResponse file $ ("ETag", hash):cacheControl
-                      else return $ Redirect pieces (Just hash)
+-- | Return a difference list of headers based on the specified MaxAge.
+--
+-- This function will return both Cache-Control and Expires headers, as
+-- relevant.
+cacheControl :: MaxAge -> (H.ResponseHeaders -> H.ResponseHeaders)
+cacheControl maxage =
+    headerCacheControl . headerExpires
+  where
+    ccInt =
+        case maxage of
+            NoMaxAge -> Nothing
+            MaxAgeSeconds i -> Just i
+            MaxAgeForever -> Just oneYear
+    oneYear :: Int
+    oneYear = 60 * 60 * 24 * 365
 
-
-    lastModifiedCache =
-      case (lookup "if-modified-since" headers >>= parseHTTPDate, fileGetModified file) of
-          (mLastSent, Just modified) -> do
-            let mdate = epochTimeToHTTPDate modified in
-              case mLastSent of
-                Just lastSent ->
-                  if lastSent == mdate
-                      then return NotModified
-                      else return $ FileResponse file $ [("last-modified", formatHTTPDate mdate)]
-                Nothing -> return $ FileResponse file $ [("last-modified", formatHTTPDate mdate)]
-          _ -> return $ FileResponse file []
-
-    cacheControl = headerCacheControl $ headerExpires []
-      where
-        ccInt =
-            case ssMaxAge of
-                NoMaxAge -> Nothing
-                MaxAgeSeconds i -> Just i
-                MaxAgeForever -> Just oneYear
-        oneYear :: Int
-        oneYear = 60 * 60 * 24 * 365
-
-        headerCacheControl =
-          case ccInt of
-            Nothing -> id
-            Just i  -> (:) ("Cache-Control", S8.append "public, max-age=" $ S8.pack $ show i)
-        headerExpires =
-          case ssMaxAge of
-            NoMaxAge        -> id
-            MaxAgeSeconds _ -> id -- FIXME
-            MaxAgeForever   -> (:) ("Expires", "Thu, 31 Dec 2037 23:55:55 GMT")
+    headerCacheControl =
+      case ccInt of
+        Nothing -> id
+        Just i  -> (:) ("Cache-Control", S8.append "public, max-age=" $ S8.pack $ show i)
+    headerExpires =
+      case maxage of
+        NoMaxAge        -> id
+        MaxAgeSeconds _ -> id -- FIXME
+        MaxAgeForever   -> (:) ("Expires", "Thu, 31 Dec 2037 23:55:55 GMT")
 
 -- | Turn a @StaticSettings@ into a WAI application.
 staticApp :: StaticSettings -> W.Application

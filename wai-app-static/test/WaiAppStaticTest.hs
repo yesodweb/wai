@@ -74,17 +74,8 @@ specs = do
     it "200 and etag when no etag query parameters" $ webApp $ do
       req <- request statFile
       assertStatus 200 req
-      assertNoHeader "Cache-Control" req
       assertHeader "ETag" etag req
       assertNoHeader "Last-Modified" req
-
-    it "200 when no cache headers and bad cache query string" $ webApp $ do
-      flip mapM_ [Just "cached", Nothing] $ \badETag -> do
-        req <- request statFile { queryString = [("etag", badETag)] }
-        assertStatus 301 req
-        assertHeader "Location" "../a/b?etag=1B2M2Y8AsgTpgAmY7PhCfg%3D%3D" req
-        assertNoHeader "Cache-Control" req
-        assertNoHeader "Last-Modified" req
 
     it "Cache-Control set when etag parameter is correct" $ webApp $ do
       req <- request statFile { queryString = [("etag", Just etag)] }
@@ -124,7 +115,6 @@ specs = do
           requestHeaders = [("If-Modified-Since", badDate)]
         }
         assertStatus 200 req
-        assertNoHeader "Cache-Control" req
         fdate <- fileDate
         assertHeader "Last-Modified" fdate req
 
