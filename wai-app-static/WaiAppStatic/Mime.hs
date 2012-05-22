@@ -1,20 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Mime
+module WaiAppStatic.Mime
     ( defaultMimeType
-    , defaultMimeTypes
-    , mimeTypeByExt
-    , defaultMimeTypeByExt
+    , defaultMimeMap
+    , mimeByExt
+    , defaultMimeLookup
     ) where
 
 import qualified Data.Map as Map
 import WaiAppStatic.Types
 
+-- | The default fallback mime type \"application/octet-stream\".
 defaultMimeType :: MimeType
 defaultMimeType = "application/octet-stream"
 
+-- | A default mapping from filename extension to mime type.
+--
 -- taken from snap-core Snap.Util.FileServer
-defaultMimeTypes :: MimeMap
-defaultMimeTypes = Map.fromList [
+defaultMimeMap :: MimeMap
+defaultMimeMap = Map.fromList [
   ( "apk"     , "application/vnd.android.package-archive" ),
   ( "asc"     , "text/plain"                        ),
   ( "asf"     , "video/x-ms-asf"                    ),
@@ -79,11 +82,12 @@ defaultMimeTypes = Map.fromList [
   ( "xwd"     , "image/x-xwindowdump"               ),
   ( "zip"     , "application/zip"                   )]
 
-mimeTypeByExt :: MimeMap
-              -> MimeType -- ^ default mime type
-              -> Piece
-              -> MimeType
-mimeTypeByExt mm def =
+-- | Look up a mime type from the given mime map and default mime type.
+mimeByExt :: MimeMap
+          -> MimeType -- ^ default mime type
+          -> Piece
+          -> MimeType
+mimeByExt mm def =
     go . pieceExtensions
   where
     go [] = def
@@ -92,5 +96,6 @@ mimeTypeByExt mm def =
             Nothing -> go es
             Just mt -> mt
 
-defaultMimeTypeByExt :: Piece -> MimeType
-defaultMimeTypeByExt = mimeTypeByExt defaultMimeTypes defaultMimeType
+-- | @mimeTypeByExt@ applied to @defaultMimeType@ and @defaultMimeMap@.
+defaultMimeLookup :: Piece -> MimeType
+defaultMimeLookup = mimeByExt defaultMimeMap defaultMimeType

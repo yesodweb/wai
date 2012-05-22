@@ -19,14 +19,15 @@ import Network.Wai.Test
 
 import Control.Monad.IO.Class (liftIO)
 import WaiAppStatic.Types
+import WaiAppStatic.Mime
 
 defRequest :: Request
 defRequest = defaultRequest
 
 specs :: Specs
 specs = do
-  let webApp = flip runSession $ staticApp defaultWebAppSettings  {ssLookupFile = fileSystemLookup "test"}
-  let fileServerApp = flip runSession $ staticApp defaultFileServerSettings  {ssLookupFile = fileSystemLookup "test"}
+  let webApp = flip runSession $ staticApp $ defaultWebAppSettings "test"
+  let fileServerApp = flip runSession $ staticApp $ defaultFileServerSettings "test"
 
   let etag = "1B2M2Y8AsgTpgAmY7PhCfg=="
   let file = "a/b"
@@ -36,19 +37,9 @@ specs = do
     it "pieceExtensions" $
         pieceExtensions (unsafeToPiece "foo.tar.gz") @?= ["tar.gz", "gz"]
     it "handles multi-extensions" $
-        defaultMimeTypeByExt (unsafeToPiece "foo.tar.gz") @?= "application/x-tgz"
+        defaultMimeLookup (unsafeToPiece "foo.tar.gz") @?= "application/x-tgz"
     it "defaults correctly" $
-        defaultMimeTypeByExt (unsafeToPiece "foo.unknown") @?= "application/octet-stream"
-
-  {-
-  describe "Pieces: pathFromPieces" $ do
-    it "converts to a file path" $
-      (pathFromPieces "prefix" ["a", "bc"]) @?= "prefix/a/bc"
-
-    prop "each piece is in file path" $ \piecesS ->
-      let pieces = map (FilePath . T.pack) piecesS
-      in  all (\p -> ("/" ++ p) `isInfixOf` (T.unpack $ unFilePath $ pathFromPieces "root" $ pieces)) piecesS
-  -}
+        defaultMimeLookup (unsafeToPiece "foo.unknown") @?= "application/octet-stream"
 
   describe "webApp" $ do
     it "403 for unsafe paths" $ webApp $
@@ -70,8 +61,8 @@ specs = do
       assertStatus 301 req
       assertHeader "Location" "../../a/b/c" req
 
-    let absoluteApp = flip runSession $ staticApp $ defaultWebAppSettings {
-          ssLookupFile = fileSystemLookup "test", ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
+    let absoluteApp = flip runSession $ staticApp $ (defaultWebAppSettings "test") {
+          ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
         }
     it "301 redirect when multiple slashes" $ absoluteApp $
       flip mapM_ ["/a//b/c", "a//b/c"] $ \path -> do

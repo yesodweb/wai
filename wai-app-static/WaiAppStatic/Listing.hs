@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Listing
+module WaiAppStatic.Listing
     ( defaultListing
     ) where
 

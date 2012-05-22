@@ -8,6 +8,9 @@ module WaiAppStatic.Storage.Filesystem
     , defaultWebAppSettings
     , defaultFileServerSettings
     , webAppSettingsWithLookup
+      -- * Misc for testing
+    , hashFile
+    , fileSystemLookup
     ) where
 
 import WaiAppStatic.Types
@@ -21,13 +24,14 @@ import Util
 import Data.ByteString (ByteString)
 import Control.Exception (SomeException, try)
 import qualified Network.Wai as W
-import Listing
-import Mime
+import WaiAppStatic.Listing
+import WaiAppStatic.Mime
 import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime)
 import Data.Maybe (catMaybes)
 import qualified Crypto.Conduit
 import Data.Serialize (encode)
 import Crypto.Hash.MD5 (MD5)
+import qualified Data.ByteString.Base64 as B64
 
 -- | Construct a new path from a root and some @Pieces@.
 pathFromPieces :: FilePath -> Pieces -> FilePath
@@ -40,7 +44,7 @@ defaultWebAppSettings :: FilePath -- ^ root folder to serve from
 defaultWebAppSettings root = StaticSettings
     { ssLookupFile = webAppLookup hashFileIfExists root
     , ssMkRedirect  = defaultMkRedirect
-    , ssGetMimeType = return . defaultMimeTypeByExt . fileName
+    , ssGetMimeType = return . defaultMimeLookup . fileName
     , ssMaxAge  = MaxAgeForever
     , ssListing = Nothing
     , ssIndices = []
@@ -55,7 +59,7 @@ defaultFileServerSettings :: FilePath -- ^ root folder to serve from
 defaultFileServerSettings root = StaticSettings
     { ssLookupFile = fileSystemLookup (fmap Just . hashFile) root
     , ssMkRedirect = defaultMkRedirect
-    , ssGetMimeType = return . defaultMimeTypeByExt . fileName
+    , ssGetMimeType = return . defaultMimeLookup . fileName
     , ssMaxAge = MaxAgeSeconds $ 60 * 60
     , ssListing = Just defaultListing
     , ssIndices = map unsafeToPiece ["index.html", "index.htm"]
@@ -103,25 +107,27 @@ type ETagLookup = FilePath -> IO (Maybe ByteString)
 -- | More efficient than @fileSystemLookup@ as it only concerns itself with
 -- finding files, not folders.
 webAppLookup :: ETagLookup -> FilePath -> Pieces -> IO LookupResult
-webAppLookup cachedLookupHash prefix pieces =
-    fileHelperLR cachedLookupHash fp lastPiece
+webAppLookup hashFunc prefix pieces =
+    fileHelperLR hashFunc fp lastPiece
   where
     fp = pathFromPieces prefix pieces
     lastPiece
         | null pieces = unsafeToPiece ""
         | otherwise = last pieces
 
-hashFile :: FilePath -> IO ByteString -- FIXME use crypto-conduit
+-- | MD5 hash and base64-encode the file contents. Does not check if the file
+-- exists.
+hashFile :: FilePath -> IO ByteString
 hashFile fp = do
     h <- Crypto.Conduit.hashFile (F.encodeString fp)
-    return $ encode (h :: MD5)
+    return $ B64.encode $ encode (h :: MD5)
 
 hashFileIfExists :: ETagLookup
 hashFileIfExists fp = do
-    fe <- F.isFile fp
-    if fe
-      then return Nothing
-      else fmap Just $ hashFile fp
+    res <- try $ hashFile fp
+    return $ case res of
+        Left (_ :: SomeException) -> Nothing
+        Right x -> Just x
 
 isVisible :: FilePath -> Bool
 isVisible =

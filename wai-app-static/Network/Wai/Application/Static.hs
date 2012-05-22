@@ -19,35 +19,6 @@ module Network.Wai.Application.Static
     , ssIndices
     , ssMaxAge
     , ssRedirectToIndex
-      -- * Generic, non-WAI code
-      -- ** Mime types
-    , MimeType
-    , defaultMimeType
-      -- ** Mime type by file extension
-    , Extension
-    , MimeMap
-    , defaultMimeTypes
-    , mimeTypeByExt
-    , defaultMimeTypeByExt
-    {-
-      -- ** Finding files
-    , Pieces
-    -}
-      -- ** Directory listings
-    , Listing
-    , defaultListing
-    {-
-      -- ** Embedded
-    , Embedded
-    , EmbeddedEntry (..)
-    , toEmbedded
-      -- ** Redirecting
-    , defaultMkRedirect
-    -}
-      -- * Other data types
-    , File (..)
-    , MaxAge (..)
-    , ETagLookup
     ) where
 
 import Prelude hiding (FilePath)
@@ -72,8 +43,6 @@ import Network.HTTP.Date (parseHTTPDate, epochTimeToHTTPDate, formatHTTPDate)
 import Data.Monoid (First (First, getFirst), mconcat)
 
 import WaiAppStatic.Types
-import Mime
-import Listing
 import Util
 import WaiAppStatic.Storage.Filesystem
 

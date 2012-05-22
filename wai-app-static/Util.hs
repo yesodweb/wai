@@ -1,12 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Util where
+module Util
+    ( relativeDirFromPieces
+    , defaultMkRedirect
+    , replace
+    , remove
+    ) where
 
 import WaiAppStatic.Types
 import qualified Data.Text as T
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as L
-import qualified Crypto.Hash.MD5 as MD5
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.Text.Encoding as TE
 
@@ -21,15 +23,11 @@ remove _ [] = []
 remove k (x:xs) | fst x == k = xs
                   | otherwise  = x:remove k xs
 
+-- | Turn a list of pieces into a relative path to the root folder.
 relativeDirFromPieces :: Pieces -> T.Text
 relativeDirFromPieces pieces = T.concat $ map (const "../") (drop 1 pieces) -- last piece is not a dir
 
-runHash :: ByteString -> ByteString -- FIXME get rid of this, use crypto-conduit
-runHash = B64.encode . MD5.hash
-
-runHashL :: L.ByteString -> ByteString -- FIXME get rid of this, use crypto-conduit
-runHashL = B64.encode . MD5.hashlazy
-
+-- | Construct redirects with relative paths.
 defaultMkRedirect :: Pieces -> ByteString -> S8.ByteString
 defaultMkRedirect pieces newPath
     | S8.null newPath || S8.null relDir ||

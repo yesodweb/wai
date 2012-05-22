@@ -47,11 +47,11 @@ library
                    , cereal                    >= 0.3.5    && < 0.4
 
     exposed-modules: Network.Wai.Application.Static
-                     WaiAppStatic.Types
                      WaiAppStatic.Storage.Filesystem
-    other-modules:   Listing
-                     Mime
-                     Util
+                     WaiAppStatic.Listing
+                     WaiAppStatic.Mime
+                     WaiAppStatic.Types
+    other-modules:   Util
     ghc-options:     -Wall -Werror
     extensions:     CPP
 
