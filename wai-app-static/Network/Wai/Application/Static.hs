@@ -117,10 +117,10 @@ serveFolder ss@StaticSettings {..} pieces req folder@Folder {..} =
             case ssListing of
                 Just listing -> do
                     -- directory listings turned on, display it
-                    lbs <- listing pieces folder
-                    return $ WaiResponse $ W.responseLBS H.status200
+                    builder <- listing pieces folder
+                    return $ WaiResponse $ W.ResponseBuilder H.status200
                         [ ("Content-Type", "text/html; charset=utf-8")
-                        ] lbs
+                        ] builder
                 Nothing -> return $ WaiResponse $ W.responseLBS H.status403
                     [ ("Content-Type", "text/plain")
                     ] "Directory listings disabled"

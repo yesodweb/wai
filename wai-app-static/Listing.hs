@@ -27,7 +27,7 @@ defaultListing pieces (Folder _ contents) = do
     let isTop = null pieces || map Just pieces == [toPiece ""]
     let fps'' :: [Either Folder File]
         fps'' = (if isTop then id else (Left emptyParentFolder :)) contents -- FIXME emptyParentFolder feels like a bit of a hack
-    return $ HU.renderHtml
+    return $ HU.renderHtmlBuilder
            $ H.html $ do
              H.head $ do
                  let title = T.intercalate "/" $ map fromPiece pieces

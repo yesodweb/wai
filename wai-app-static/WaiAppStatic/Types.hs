@@ -26,7 +26,7 @@ import Data.ByteString (ByteString)
 import System.Posix.Types (EpochTime)
 import qualified Data.Text as T
 import qualified Data.Map as Map
-import qualified Data.ByteString.Lazy as L
+import Blaze.ByteString.Builder (Builder)
 
 -- | An individual component of a path, or of a filepath.
 newtype Piece = Piece { fromPiece :: Text }
@@ -88,7 +88,7 @@ data LookupResult = LRFile File
                   | LRFolder Folder
                   | LRNotFound
 
-type Listing = Pieces -> Folder -> IO L.ByteString
+type Listing = Pieces -> Folder -> IO Builder
 
 data StaticSettings = StaticSettings
     { -- | Lookup a single file or folder.
