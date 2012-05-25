@@ -190,7 +190,7 @@ theapp modu func =
     runInterpreter $ do
         loadModules [modu]
         mods <- getLoadedModules
-        setImports ["Prelude", "Network.Wai", "Data.Enumerator", "Data.ByteString.Internal", modu]
+        setImports ["Prelude", "Network.Wai", "Data.Enumerator", "Data.ByteString.Internal", "Control.Monad.Trans.Resource", modu]
         app <- interpret func infer
         return (app, map toFile mods)
   where
