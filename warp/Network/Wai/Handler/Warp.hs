@@ -58,6 +58,7 @@ module Network.Wai.Handler.Warp
     , T.initialize
 #if TEST
     , takeHeaders
+    , parseFirst
     , readInt
 #endif
     ) where
@@ -487,7 +488,7 @@ takeUntil c bs =
 parseFirst :: ByteString
            -> ResourceT IO (ByteString, ByteString, ByteString, H.HttpVersion)
 parseFirst s =
-    case S.split 32 s of  -- ' '
+    case filter (not . S.null) $ S.split 32 s of  -- ' '
         [method, query, http'] -> do
             let (hfirst, hsecond) = B.splitAt 5 http'
             if hfirst == "HTTP/"
@@ -649,11 +650,7 @@ fmap2 _ (C.Done i x) = C.Done i x
 parseHeaderNoAttr :: ByteString -> H.Header
 parseHeaderNoAttr s =
     let (k, rest) = S.breakByte 58 s -- ':'
-        restLen = S.length rest
-        -- FIXME check for colon without following space?
-        rest' = if restLen > 1 && SU.unsafeTake 2 rest == ": "
-                   then SU.unsafeDrop 2 rest
-                   else rest
+        rest' = S.dropWhile (\c -> c == 32 || c == 9) $ S.drop 1 rest
      in (CI.mk k, rest')
 
 connSource :: Connection -> T.Handle -> C.Source (ResourceT IO) ByteString
@@ -756,8 +753,15 @@ takeHeaders =
                         prepend' = prepend . S.append bs
                         status = THStatus len' lines prepend'
                      in C.NeedInput (push status) close
+                -- Found a newline, but next line continues as a multiline header
+                Just (end, True) ->
+                    let rest = S.drop (end + 1) bs
+                        prepend' = prepend . S.append (SU.unsafeTake (checkCR bs end) bs)
+                        len' = len + end
+                        status = THStatus len' lines prepend'
+                     in push status rest
                 -- Found a newline at position end.
-                Just end ->
+                Just (end, False) ->
                     let start = end + 1 -- start of next chunk
                         line
                             -- There were some bytes before the newline, get them
@@ -786,7 +790,15 @@ takeHeaders =
                                         else C.NeedInput (push status) close
       where
         bsLen = S.length bs
-        mnl = S.elemIndex 10 bs
+        mnl = do
+            nl <- S.elemIndex 10 bs
+            -- check if there are two more bytes in the bs
+            -- if so, see if the second of those is a horizontal space
+            if bsLen > nl + 1
+                then
+                    let c = S.index bs (nl + 1)
+                     in Just (nl, c == 32 || c == 9)
+                else Just (nl, False)
 {-# INLINE takeHeaders #-}
 
 checkCR :: ByteString -> Int -> Int
