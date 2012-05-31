@@ -147,6 +147,68 @@ main = hspecX $ do
         it "ConnectionClosedByPeer" $ runTerminateTest ConnectionClosedByPeer "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello"
         it "IncompleteHeaders" $ runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r\n"
 
+    describe "special input" $ do
+        it "multiline headers" $ do
+            iheaders <- I.newIORef []
+            port <- getPort
+            tid <- forkIO $ run port $ \req -> do
+                liftIO $ I.writeIORef iheaders $ requestHeaders req
+                return $ responseLBS status200 [] ""
+            threadDelay 1000
+            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+            let input = S.concat
+                    [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
+                    ]
+            hPutStr handle input
+            hFlush handle
+            hClose handle
+            threadDelay 1000
+            killThread tid
+            headers <- I.readIORef iheaders
+            headers @?=
+                [ ("foo", "bar baz\tbin")
+                ]
+        it "no space between colon and value" $ do
+            iheaders <- I.newIORef []
+            port <- getPort
+            tid <- forkIO $ run port $ \req -> do
+                liftIO $ I.writeIORef iheaders $ requestHeaders req
+                return $ responseLBS status200 [] ""
+            threadDelay 1000
+            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+            let input = S.concat
+                    [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
+                    ]
+            hPutStr handle input
+            hFlush handle
+            hClose handle
+            threadDelay 1000
+            killThread tid
+            headers <- I.readIORef iheaders
+            headers @?=
+                [ ("foo", "bar")
+                ]
+        it "extra spaces in first line" $ do
+            iheaders <- I.newIORef []
+            port <- getPort
+            tid <- forkIO $ run port $ \req -> do
+                liftIO $ I.writeIORef iheaders $ requestHeaders req
+                return $ responseLBS status200 [] ""
+            threadDelay 1000
+            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+            let input = S.concat
+                    [ "GET    /    HTTP/1.1\r\nfoo: bar\r\n\r\n"
+                    ]
+            hPutStr handle input
+            hFlush handle
+            hClose handle
+            threadDelay 1000
+            killThread tid
+            headers <- I.readIORef iheaders
+            headers @?=
+                [ ("foo", "bar")
+                ]
+
     describe "chunked bodies" $ do
         it "works" $ do
             ifront <- I.newIORef id
