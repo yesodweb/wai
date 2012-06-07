@@ -95,8 +95,8 @@ import Data.Word (Word)
 
 import Data.Typeable (Typeable)
 
-import Data.Conduit (ResourceT, runResourceT)
-import qualified Data.Conduit as C
+import Data.Conduit
+import Data.Conduit.Internal (ResumableSource (..))
 import qualified Data.Conduit.List as CL
 import qualified Data.Conduit.Binary as CB
 import Data.Conduit.Blaze (builderToByteString)
@@ -237,62 +237,60 @@ runSettingsConnection set getConn app = do
                          ) `onException` (T.cancel th >> connClose conn >> onClose)
 
 -- | Contains a @Source@ and a byte count that is still to be read in.
-newtype IsolatedBSSource = IsolatedBSSource (I.IORef (Int, C.Source (ResourceT IO) ByteString))
+newtype IsolatedBSSource = IsolatedBSSource (I.IORef (Int, ResumableSource (ResourceT IO) ByteString))
 
 -- | Given an @IsolatedBSSource@ provide a @Source@ that only allows up to the
 -- specified number of bytes to be passed downstream. All leftovers should be
 -- retained within the @Source@. If there are not enough bytes available,
 -- throws a @ConnectionClosedByPeer@ exception.
-ibsIsolate :: IsolatedBSSource -> C.Source (ResourceT IO) ByteString
-ibsIsolate ibs@(IsolatedBSSource ref) =
-    C.PipeM pull (return ())
-  where
-    pull = do
-        (count, src) <- liftIO $ I.readIORef ref
-        if count == 0
-            -- No more bytes wanted downstream, so we're done.
-            then return $ C.Done Nothing ()
-            else do
-                -- Get the next chunk (if available) and the updated source
-                (src', mbs) <- src C.$$+ CL.head
+ibsIsolate :: IsolatedBSSource -> Source (ResourceT IO) ByteString
+ibsIsolate ibs@(IsolatedBSSource ref) = do
+    (count, src) <- liftIO $ I.readIORef ref
+    if count == 0
+        -- No more bytes wanted downstream, so we're done.
+        then return ()
+        else do
+            -- Get the next chunk (if available) and the updated source
+            (src', mbs) <- lift $ src $$++ CL.head
 
-                -- If no chunk available, then there aren't enough bytes in the
-                -- stream. Throw a ConnectionClosedByPeer
-                bs <- maybe (liftIO $ throwIO ConnectionClosedByPeer) return mbs
+            -- If no chunk available, then there aren't enough bytes in the
+            -- stream. Throw a ConnectionClosedByPeer
+            bs <- maybe (liftIO $ throwIO ConnectionClosedByPeer) return mbs
 
-                let -- How many of the bytes in this chunk to send downstream
-                    toSend = min count (S.length bs)
-                    -- How many bytes will still remain to be sent downstream
-                    count' = count - toSend
-                case () of
-                    ()
-                        -- The expected count is greater than the size of the
-                        -- chunk we just read. Send the entire chunk
-                        -- downstream, and then loop on this function for the
-                        -- next chunk.
-                        | count' > 0 -> do
-                            liftIO $ I.writeIORef ref (count', src')
-                            return $ C.HaveOutput (ibsIsolate ibs) (return ()) bs
+            let -- How many of the bytes in this chunk to send downstream
+                toSend = min count (S.length bs)
+                -- How many bytes will still remain to be sent downstream
+                count' = count - toSend
+            case () of
+                ()
+                    -- The expected count is greater than the size of the
+                    -- chunk we just read. Send the entire chunk
+                    -- downstream, and then loop on this function for the
+                    -- next chunk.
+                    | count' > 0 -> do
+                        liftIO $ I.writeIORef ref (count', src')
+                        yield bs
+                        ibsIsolate ibs
 
-                        -- The expected count is the total size of the chunk we
-                        -- just read. Send this chunk downstream, and then
-                        -- terminate the stream.
-                        | count == S.length bs -> do
-                            liftIO $ I.writeIORef ref (count', src')
-                            return $ C.HaveOutput (C.Done Nothing ()) (return ()) bs
+                    -- The expected count is the total size of the chunk we
+                    -- just read. Send this chunk downstream, and then
+                    -- terminate the stream.
+                    | count == S.length bs -> do
+                        liftIO $ I.writeIORef ref (count', src')
+                        yield bs
 
-                        -- Some of the bytes in this chunk should not be sent
-                        -- downstream. Split up the chunk into the sent and
-                        -- not-sent parts, add the not-sent parts onto the new
-                        -- source, and send the rest of the chunk downstream.
-                        | otherwise -> do
-                            let (x, y) = S.splitAt toSend bs
-                            liftIO $ I.writeIORef ref (count', C.HaveOutput src' (return ()) y)
-                            return $ C.HaveOutput (C.Done Nothing ()) (return ()) x
+                    -- Some of the bytes in this chunk should not be sent
+                    -- downstream. Split up the chunk into the sent and
+                    -- not-sent parts, add the not-sent parts onto the new
+                    -- source, and send the rest of the chunk downstream.
+                    | otherwise -> do
+                        let (x, y) = S.splitAt toSend bs
+                        liftIO $ I.writeIORef ref (count', fmapResume (yield y >>) src')
+                        yield x
 
 -- | Extract the underlying @Source@ from an @IsolatedBSSource@, which will not
 -- perform any more isolation.
-ibsDone :: IsolatedBSSource -> IO (C.Source (ResourceT IO) ByteString)
+ibsDone :: IsolatedBSSource -> IO (ResumableSource (ResourceT IO) ByteString)
 ibsDone (IsolatedBSSource ref) = fmap snd $ I.readIORef ref
 
 serveConnection :: Settings
@@ -315,22 +313,22 @@ serveConnection settings th port app conn remoteHost' =
                 res <- app env
 
                 -- flush the rest of the request body
-                requestBody env C.$$ CL.sinkNull
-                fromClient' <- liftIO getSource
+                requestBody env $$ CL.sinkNull
+                ResumableSource fromClient' _ <- liftIO getSource
 
                 liftIO $ T.resume th
                 keepAlive <- sendResponse th env conn res
                 when keepAlive $ serveConnection'' fromClient'
             Just intercept -> do
                 liftIO $ T.pause th
-                fromClient' <- liftIO getSource
+                ResumableSource fromClient' _ <- liftIO getSource
                 intercept fromClient' conn
 
 parseRequest :: Connection -> Port -> SockAddr
-             -> C.Source (ResourceT IO) S.ByteString
-             -> ResourceT IO (Request, IO (C.Source (ResourceT IO) ByteString))
+             -> Source (ResourceT IO) S.ByteString
+             -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))
 parseRequest conn port remoteHost' src1 = do
-    (src2, headers') <- src1 C.$$+ takeHeaders
+    (src2, headers') <- src1 $$+ takeHeaders
     parseRequest' conn port headers' remoteHost' src2
 
 -- FIXME come up with good values here
@@ -367,8 +365,8 @@ parseRequest' :: Connection
               -> Port
               -> [ByteString]
               -> SockAddr
-              -> C.Source (ResourceT IO) S.ByteString -- FIXME was buffered
-              -> ResourceT IO (Request, IO (C.Source (ResourceT IO) ByteString))
+              -> ResumableSource (ResourceT IO) S.ByteString -- FIXME was buffered
+              -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))
 parseRequest' _ _ [] _ _ = throwIO $ NotEnoughLines []
 parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
@@ -417,24 +415,24 @@ data ChunkState = NeedLen
                 | HaveLen Word
 
 chunkedSource :: MonadIO m
-              => I.IORef (C.Source m ByteString, ChunkState)
-              -> C.Source m ByteString
+              => I.IORef (ResumableSource m ByteString, ChunkState)
+              -> Source m ByteString
 chunkedSource ipair = do
     (src, mlen) <- liftIO $ I.readIORef ipair
     go src mlen
   where
     go' src front = do
-        (src', (len, bs)) <- lift $ src C.$$+ front getLen
+        (src', (len, bs)) <- lift $ src $$++ front getLen
         let src''
                 | S.null bs = src'
-                | otherwise = C.yield bs >> src'
+                | otherwise = fmapResume (yield bs >>) src'
         go src'' $ HaveLen len
 
     go src NeedLen = go' src id
     go src NeedLenNewline = go' src (CB.take 2 >>)
     go src (HaveLen 0) = liftIO $ I.writeIORef ipair (src, HaveLen 0)
     go src (HaveLen len) = do
-        (src', mbs) <- lift $ src C.$$+ CL.head
+        (src', mbs) <- lift $ src $$++ CL.head
         case mbs of
             Nothing -> liftIO $ I.writeIORef ipair (src', HaveLen 0)
             Just bs ->
@@ -445,15 +443,15 @@ chunkedSource ipair = do
                         yield' src' mlen bs
                     GT -> do
                         let (x, y) = S.splitAt (fromIntegral len) bs
-                        let src'' = C.yield y >> src'
+                        let src'' = fmapResume (yield y >>) src'
                         yield' src'' NeedLenNewline x
 
     yield' src mlen bs = do
         liftIO $ I.writeIORef ipair (src, mlen)
-        C.yield bs
+        yield bs
         go src mlen
 
-    getLen :: Monad m => C.Sink ByteString m (Word, ByteString)
+    getLen :: Monad m => Sink ByteString m (Word, ByteString)
     getLen = do
         mbs <- CL.head
         case mbs of
@@ -621,31 +619,23 @@ sendResponse th req conn r = sendResponse' r
     sendResponse' (ResponseSource s hs bodyFlush)
         | hasBody s req = do
             let src = CL.sourceList [headers' needsChunked'] `mappend`
-                      (if needsChunked' then body C.$= chunk else body)
-            src C.$$ builderToByteString C.=$ connSink conn th
+                      (if needsChunked' then body $= chunk else body)
+            src $$ builderToByteString =$ connSink conn th
             return $ isKeepAlive hs
         | otherwise = liftIO $ do
             sendHeader $ headers' False
             T.tickle th
             return isPersist
       where
-        body = fmap2 (\x -> case x of
-                        C.Flush -> flush
-                        C.Chunk builder -> builder) bodyFlush
+        body = mapOutput (\x -> case x of
+                        Flush -> flush
+                        Chunk builder -> builder) bodyFlush
         headers' = headers version s hs
         -- FIXME perhaps alloca a buffer per thread and reuse that in all
         -- functions below. Should lessen greatly the GC burden (I hope)
         needsChunked' = needsChunked hs
-        chunk :: C.Conduit Builder (ResourceT IO) Builder
-        chunk = C.NeedInput push close
-        push x = C.HaveOutput chunk (return ()) (chunkedTransferEncoding x)
-        close = C.HaveOutput (C.Done Nothing ()) (return ()) chunkedTransferTerminator
-
-fmap2 :: Functor m => (o1 -> o2) -> C.Pipe i o1 m r -> C.Pipe i o2 m r
-fmap2 f (C.HaveOutput p c o) = C.HaveOutput (fmap2 f p) c (f o)
-fmap2 f (C.NeedInput p c) = C.NeedInput (fmap2 f . p) (fmap2 f c)
-fmap2 f (C.PipeM mp c) = C.PipeM (fmap (fmap2 f) mp) c
-fmap2 _ (C.Done i x) = C.Done i x
+        chunk :: Conduit Builder (ResourceT IO) Builder
+        chunk = await >>= maybe (yield chunkedTransferTerminator) (\x -> yield (chunkedTransferEncoding x) >> chunk)
 
 parseHeaderNoAttr :: ByteString -> H.Header
 parseHeaderNoAttr s =
@@ -653,31 +643,31 @@ parseHeaderNoAttr s =
         rest' = S.dropWhile (\c -> c == 32 || c == 9) $ S.drop 1 rest
      in (CI.mk k, rest')
 
-connSource :: Connection -> T.Handle -> C.Source (ResourceT IO) ByteString
+connSource :: Connection -> T.Handle -> Source (ResourceT IO) ByteString
 connSource Connection { connRecv = recv } th =
     src
   where
-    src = C.PipeM (do
+    src = do
         bs <- liftIO recv
         if S.null bs
-            then return $ C.Done Nothing ()
+            then return ()
             else do
                 when (S.length bs >= 2048) $ liftIO $ T.tickle th
-                return (C.HaveOutput src (return ()) bs))
-        (return ())
+                yield bs
+                src
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
-connSink :: Connection -> T.Handle -> C.Sink B.ByteString (ResourceT IO) ()
+connSink :: Connection -> T.Handle -> Sink B.ByteString (ResourceT IO) ()
 connSink Connection { connSendAll = send } th =
     sink
   where
-    sink = C.NeedInput push close
+    sink = await >>= maybe close push
     close = liftIO (T.resume th)
-    push x = C.PipeM (liftIO $ do
-        T.resume th
-        send x
-        T.pause th
-        return sink) (liftIO $ T.resume th)
+    push x = do
+        liftIO $ T.resume th
+        liftIO $ send x
+        liftIO $ T.pause th
+        sink
     -- We pause timeouts before passing control back to user code. This ensures
     -- that a timeout will only ever be executed when Warp is in control. We
     -- also make sure to resume the timeout after the completion of user code
@@ -699,7 +689,7 @@ data Settings = Settings
     , settingsOnOpen :: IO () -- ^ What to do when a connection is open. Default: do nothing.
     , settingsOnClose :: IO ()  -- ^ What to do when a connection is close. Default: do nothing.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
-    , settingsIntercept :: Request -> Maybe (C.Source (ResourceT IO) S.ByteString -> Connection -> ResourceT IO ())
+    , settingsIntercept :: Request -> Maybe (Source (ResourceT IO) S.ByteString -> Connection -> ResourceT IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     }
 
@@ -735,10 +725,11 @@ data THStatus = THStatus
     BSEndoList -- previously parsed lines
     BSEndo -- bytestrings to be prepended
 
-takeHeaders :: C.Sink ByteString (ResourceT IO) [ByteString]
+takeHeaders :: Sink ByteString (ResourceT IO) [ByteString]
 takeHeaders =
-    C.NeedInput (push (THStatus 0 id id)) close
+    await >>= maybe close (push (THStatus 0 id id))
   where
+    close :: Sink ByteString (ResourceT IO) a
     close = throwIO IncompleteHeaders
 
     push (THStatus len lines prepend) bs
@@ -752,7 +743,7 @@ takeHeaders =
                     let len' = len + bsLen
                         prepend' = prepend . S.append bs
                         status = THStatus len' lines prepend'
-                     in C.NeedInput (push status) close
+                     in await >>= maybe close (push status)
                 -- Found a newline, but next line continues as a multiline header
                 Just (end, True) ->
                     let rest = S.drop (end + 1) bs
@@ -776,7 +767,7 @@ takeHeaders =
                                     rest = if start < bsLen
                                                then Just (SU.unsafeDrop start bs)
                                                else Nothing
-                                 in C.Done rest lines'
+                                 in maybe (return ()) leftover rest >> return lines'
                             -- more headers
                             else
                                 let len' = len + start
@@ -787,7 +778,7 @@ takeHeaders =
                                         then let bs' = SU.unsafeDrop start bs
                                               in push status bs'
                                         -- no more bytes in this chunk, ask for more
-                                        else C.NeedInput (push status) close
+                                        else await >>= maybe close (push status)
       where
         bsLen = S.length bs
         mnl = do
@@ -831,3 +822,6 @@ serverHeader hdrs = case lookup key hdrs of
     key = "Server"
     ver = B.pack $ "Warp/" ++ warpVersion
     server = (key, ver)
+
+fmapResume :: (Source m o1 -> Source m o2) -> ResumableSource m o1 -> ResumableSource m o2
+fmapResume f (ResumableSource src m) = ResumableSource (f src) m
