@@ -208,6 +208,24 @@ main = hspecX $ do
             headers @?=
                 [ ("foo", "bar")
                 ]
+        it "spaces in http version" $ do
+            iversion <- I.newIORef $ error "Version not parsed"
+            port <- getPort
+            tid <- forkIO $ run port $ \req -> do
+                liftIO $ I.writeIORef iversion $ httpVersion req
+                return $ responseLBS status200 [] ""
+            threadDelay 1000
+            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+            let input = S.concat
+                    [ "GET    /    HTTP\t/  1 .   1  \r\nfoo: bar\r\n\r\n"
+                    ]
+            hPutStr handle input
+            hFlush handle
+            hClose handle
+            threadDelay 1000
+            killThread tid
+            version <- I.readIORef iversion
+            version @?= http11
 
     describe "chunked bodies" $ do
         it "works" $ do

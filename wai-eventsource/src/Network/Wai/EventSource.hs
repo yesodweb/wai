@@ -3,7 +3,8 @@ module Network.Wai.EventSource (
     ServerEvent(..),
     eventSourceAppChan,
     eventSourceAppSource,
-    eventSourceAppIO
+    eventSourceAppIO,
+    sourceToSource
     ) where
 
 import           Blaze.ByteString.Builder (Builder)
@@ -59,6 +60,8 @@ ioToSource act =
             Just y -> C.StateOpen (Just C.Flush) (C.Chunk y)
     pull (Just x) = return $ C.StateOpen Nothing x
 
+-- | Convert a ServerEvent source into a Builder source of serialized
+-- events.
 sourceToSource :: Monad m => C.Source m ServerEvent -> C.Source m (C.Flush Builder)
 sourceToSource src = src $= CL.concatMap eventToFlushBuilder
   where

@@ -7,8 +7,8 @@ This module defines a generic web application interface. It is a common
 protocol between web servers and web applications.
 
 The overriding design principles here are performance and generality . To
-address performance, this library is built on top of the enumerator and
-blaze-builder packages.  The advantages of enumerators over lazy IO have been
+address performance, this library is built on top of the conduit and
+blaze-builder packages.  The advantages of conduits over lazy IO have been
 debated elsewhere and so will not be addressed here.  However, helper functions
 like 'responseLBS' allow you to continue using lazy IO if you so desire.
 

@@ -486,9 +486,10 @@ takeUntil c bs =
 parseFirst :: ByteString
            -> ResourceT IO (ByteString, ByteString, ByteString, H.HttpVersion)
 parseFirst s =
-    case filter (not . S.null) $ S.split 32 s of  -- ' '
-        [method, query, http'] -> do
-            let (hfirst, hsecond) = B.splitAt 5 http'
+    case filter (not . S.null) $ S.splitWith (\c -> c == 32 || c == 9) s of  -- ' '
+        (method:query:http'') -> do
+            let http' = S.concat http''
+                (hfirst, hsecond) = B.splitAt 5 http'
             if hfirst == "HTTP/"
                then let (rpath, qstring) = S.breakByte 63 query  -- '?'
                         hv =
