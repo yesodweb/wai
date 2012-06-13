@@ -29,8 +29,8 @@
 module Network.Wai.Search
     (
       index
-    , checkNeg
-    , checkFound
+    --, checkNeg
+    --, checkFound
     ) where
 
 import qualified Data.ByteString.Unsafe as SU
