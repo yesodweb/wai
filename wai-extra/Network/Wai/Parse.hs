@@ -32,6 +32,7 @@ module Network.Wai.Parse
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
+import qualified Network.Wai.Search as Search
 import Data.Word (Word8)
 import Data.Bits
 import Data.Maybe (fromMaybe)
@@ -280,7 +281,11 @@ data Bound = FoundBound S.ByteString S.ByteString
     deriving (Eq, Show)
 
 findBound :: S.ByteString -> S.ByteString -> Bound
-findBound b bs = go [0..S.length bs - 1]
+findBound b bs =
+  case Search.index b bs of
+    Nothing -> go [S.length bs - S.length b..S.length bs - 1]
+    Just idx -> let (h, t) = S.splitAt idx bs in
+      FoundBound h $ S.drop (S.length b) t
   where
     go [] = NoBound
     go (i:is)
