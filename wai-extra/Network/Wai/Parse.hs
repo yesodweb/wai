@@ -10,15 +10,11 @@ module Network.Wai.Parse
     , getRequestBodyType
     , sinkRequestBody
     , conduitRequestBody
-    , lbsBackEnd
-    , tempFileBackEnd
-    , BackEnd (..)
+    , lbsSink
+    , tempFileSink
     , Param
     , File
     , FileInfo (..)
-    -- ** Deprecated
-    , lbsSink
-    , tempFileSink
 #if TEST
     , Bound (..)
     , findBound
@@ -42,9 +38,13 @@ import System.IO (hClose, openBinaryTempFile)
 import Network.Wai
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
+import qualified Data.Conduit.Binary as CB
 import Control.Monad.IO.Class (liftIO)
 import qualified Network.HTTP.Types as H
 import Data.Either (partitionEithers)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Resource (allocate, release, register)
+import Data.Void (absurd)
 
 uncons :: S.ByteString -> Maybe (Word8, S.ByteString)
 uncons s
@@ -96,47 +96,20 @@ parseHttpAccept = map fst
                 _ -> 1.0
     trimWhite = S.dropWhile (== 32) -- space
 
--- | A destination for file data, with concrete implemtations
--- provided by 'lbsBackEnd' and 'tempFileBackEnd'
-data BackEnd y = forall x . BackEnd
-    { initialize :: IO x
-    , append :: x -> S.ByteString -> IO x
-    , close :: x -> IO y
-    , finalize :: y -> IO ()
-    }
-
 -- | Store uploaded files in memory
-lbsBackEnd :: BackEnd L.ByteString
-lbsBackEnd = BackEnd
-    { initialize = return id
-    , append = \front bs -> return $ front . (:) bs
-    , close = \front -> return $ L.fromChunks $ front []
-    , finalize = \_ -> return ()
-    }
+lbsSink :: Monad m => C.Sink S.ByteString m L.ByteString
+lbsSink = fmap L.fromChunks CL.consume
 
 -- | Save uploaded files on disk as temporary files
-tempFileBackEnd :: BackEnd FilePath
-tempFileBackEnd = BackEnd
-    { initialize = do
+tempFileSink :: C.MonadResource m => C.Sink S.ByteString m FilePath
+tempFileSink = do
+    (key, (fp, h)) <- lift $ allocate (do
         tempDir <- getTemporaryDirectory
-        openBinaryTempFile tempDir "webenc.buf"
-    , append = \(fp, h) bs -> S.hPut h bs >> return (fp, h)
-    , close = \(fp, h) -> do
-        hClose h
-        return fp
-    , finalize = \fp -> removeFile fp
-    }
-
--- | This function has been renamed to 'lbsBackEnd'
-lbsSink :: BackEnd L.ByteString
-lbsSink = lbsBackEnd
-
--- | This function has been renamed to  'tempFileBackEnd'
-tempFileSink :: BackEnd FilePath
-tempFileSink = tempFileBackEnd
-
-{-# DEPRECATED lbsSink "Please use 'lbsBackEnd'" #-}
-{-# DEPRECATED tempFileSink "Please use 'tempFileBackEnd'" #-}
+        openBinaryTempFile tempDir "webenc.buf") (\(_, h) -> hClose h)
+    _ <- lift $ register $ removeFile fp
+    CB.sinkHandle h
+    lift $ release key
+    return fp
 
 -- | Information on an uploaded file.
 data FileInfo c = FileInfo
@@ -172,7 +145,7 @@ getRequestBodyType req = do
                         else Nothing
             else Nothing
 
-parseRequestBody :: BackEnd y
+parseRequestBody :: C.Sink S.ByteString (C.ResourceT IO) y
                  -> Request
                  -> C.ResourceT IO ([Param], [File y])
 parseRequestBody s r =
@@ -180,12 +153,12 @@ parseRequestBody s r =
         Nothing -> return ([], [])
         Just rbt -> fmap partitionEithers $ requestBody r C.$$ conduitRequestBody s rbt C.=$ CL.consume
 
-sinkRequestBody :: BackEnd y
+sinkRequestBody :: C.Sink S.ByteString (C.ResourceT IO) y
                 -> RequestBodyType
                 -> C.Sink S.ByteString (C.ResourceT IO) ([Param], [File y])
 sinkRequestBody s r = fmap partitionEithers $ conduitRequestBody s r C.=$ CL.consume
 
-conduitRequestBody :: BackEnd y
+conduitRequestBody :: C.Sink S.ByteString (C.ResourceT IO) y
                    -> RequestBodyType
                    -> C.Conduit S.ByteString (C.ResourceT IO) (Either Param (File y))
 conduitRequestBody _ UrlEncoded = C.sequenceSink () $ \() -> do -- url-encoded
@@ -221,16 +194,15 @@ takeLines = do
                 ls <- takeLines
                 return $ l : ls
 
-parsePieces :: BackEnd y -> S.ByteString
+parsePieces :: C.Sink S.ByteString (C.ResourceT IO) y -> S.ByteString
             -> C.Conduit S.ByteString (C.ResourceT IO) (Either Param (File y))
 parsePieces sink bound = C.sequenceSink True (parsePiecesSink sink bound)
 
-parsePiecesSink :: BackEnd y
+parsePiecesSink :: C.Sink S.ByteString (C.ResourceT IO) y
                 -> S.ByteString
                 -> C.SequencedSink Bool S.ByteString (C.ResourceT IO) (Either Param (File y))
 parsePiecesSink _ _ False = return C.Stop
-parsePiecesSink BackEnd{initialize=initialize',append=append',close=close'}
-                bound True = do
+parsePiecesSink sink bound True = do
     _boundLine <- takeLine
     res' <- takeLines
     case res' of
@@ -246,10 +218,7 @@ parsePiecesSink BackEnd{initialize=initialize',append=append',close=close'}
             case x of
                 Just (mct, name, Just filename) -> do
                     let ct = fromMaybe "application/octet-stream" mct
-                    seed <- liftIO initialize'
-                    (seed', wasFound) <-
-                        sinkTillBound bound append' seed
-                    y <- liftIO $ close' seed'
+                    (y, wasFound) <- sinkTillBound' Nothing bound sink
                     let fi = FileInfo filename ct y
                     let y' = (name, fi)
                     return $ C.Emit wasFound [Right y']
@@ -295,6 +264,31 @@ findBound b bs = go [0..S.length bs - 1]
     mismatch (x:xs) (y:ys)
         | S.index b x == S.index bs y = mismatch xs ys
         | otherwise = True
+
+sinkTillBound' :: Maybe S.ByteString -> S.ByteString -> C.Sink S.ByteString (C.ResourceT IO) y -> C.Sink S.ByteString (C.ResourceT IO) (y, Bool)
+sinkTillBound' mfront _ (C.Done _ y) = C.Done mfront (y, False)
+sinkTillBound' _ _ (C.HaveOutput _ _ o) = absurd o
+sinkTillBound' mfront bound (C.PipeM mp mc) = C.PipeM (fmap (sinkTillBound' mfront bound) mp) (fmap (\y -> (y, False)) mc)
+sinkTillBound' mfront bound (C.NeedInput pushI closeI) =
+    C.NeedInput push close
+  where
+    push bs' = do
+        let bs = maybe id S.append mfront $ bs'
+        case findBound bound bs of
+            FoundBound before after -> do
+                let before' = killCRLF before
+                res <- lift $ return () C.$$ pushI before'
+                C.Done (Just after) (res, True)
+            NoBound -> do
+                -- don't emit newlines, in case it's part of a bound
+                let (toEmit, front') =
+                        if not (S8.null bs) && S8.last bs `elem` "\r\n"
+                            then let (x, y) = S.splitAt (S.length bs - 2) bs
+                                  in (x, Just y)
+                            else (bs, Nothing)
+                sinkTillBound' front' bound (pushI toEmit)
+            PartialBound -> sinkTillBound' (Just bs) bound (C.NeedInput pushI closeI)
+    close = fmap (\y -> (y, False)) closeI
 
 sinkTillBound :: S.ByteString
               -> (x -> S.ByteString -> IO x)
