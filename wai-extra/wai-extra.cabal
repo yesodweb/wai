@@ -54,7 +54,7 @@ Library
                      Network.Wai.Middleware.Vhost
                      Network.Wai.Parse
                      Network.Wai.Search
-  ghc-options:       -Wall -O2
+  ghc-options:       -Wall
 
 
 test-suite tests
