@@ -73,7 +73,7 @@ test-suite tests
                    , zlib
                    , text
                    , bytestring
-                   , directory 
+                   , directory
                    , zlib-bindings
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , data-default
