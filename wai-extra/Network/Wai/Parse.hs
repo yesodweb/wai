@@ -33,7 +33,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
 import Data.Word (Word8)
-import Data.Bits
 import Data.Maybe (fromMaybe)
 import Data.List (sortBy)
 import Data.Function (on)
@@ -46,37 +45,10 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Network.HTTP.Types as H
 import Data.Either (partitionEithers)
 
-uncons :: S.ByteString -> Maybe (Word8, S.ByteString)
-uncons s
-    | S.null s = Nothing
-    | otherwise = Just (S.head s, S.tail s)
-
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
     let (x, y) = S.break (== w) s
      in (x, S.drop 1 y)
-
-qsDecode :: S.ByteString -> S.ByteString
-qsDecode z = fst $ S.unfoldrN (S.length z) go z
-  where
-    go bs =
-        case uncons bs of
-            Nothing -> Nothing
-            Just (43, ws) -> Just (32, ws) -- plus to space
-            Just (37, ws) -> Just $ fromMaybe (37, ws) $ do -- percent
-                (x, xs) <- uncons ws
-                x' <- hexVal x
-                (y, ys) <- uncons xs
-                y' <- hexVal y
-                Just $ (combine x' y', ys)
-            Just (w, ws) -> Just (w, ws)
-    hexVal w
-        | 48 <= w && w <= 57  = Just $ w - 48 -- 0 - 9
-        | 65 <= w && w <= 70  = Just $ w - 55 -- A - F
-        | 97 <= w && w <= 102 = Just $ w - 87 -- a - f
-        | otherwise = Nothing
-    combine :: Word8 -> Word8 -> Word8
-    combine a b = shiftL a 4 .|. b
 
 -- | Parse the HTTP accept string to determine supported content types.
 parseHttpAccept :: S.ByteString -> [S.ByteString]
@@ -259,7 +231,7 @@ parsePiecesSink BackEnd{initialize=initialize',append=append',close=close'}
                     (front, wasFound) <-
                         sinkTillBound bound iter seed
                     let bs = S.concat $ front []
-                    let x' = (name, qsDecode bs)
+                    let x' = (name, bs)
                     return $ C.Emit wasFound [Left x']
                 _ -> do
                     -- ignore this part
