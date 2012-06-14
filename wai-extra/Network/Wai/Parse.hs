@@ -284,8 +284,10 @@ findBound :: S.ByteString -> S.ByteString -> Bound
 findBound b bs = handleBreak $ Search.breakOn b bs
   where
     handleBreak (h, t)
-        | S.null t = go [S.length bs - S.length b..S.length bs - 1]
+        | S.null t = go [lowBound..S.length bs - 1]
         | otherwise = FoundBound h $ S.drop (S.length b) t
+
+    lowBound = max 0 $ S.length bs - S.length b
 
     go [] = NoBound
     go (i:is)
