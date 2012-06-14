@@ -39,6 +39,7 @@ Library
                    , blaze-builder-conduit     >= 0.4      && < 0.5
                    , ansi-terminal
                    , resourcet                 >= 0.3      && < 0.4
+                   , stringsearch
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
