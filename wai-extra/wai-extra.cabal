@@ -53,7 +53,6 @@ Library
                      Network.Wai.Middleware.Rewrite
                      Network.Wai.Middleware.Vhost
                      Network.Wai.Parse
-                     Network.Wai.Search
   ghc-options:       -Wall
 
 
