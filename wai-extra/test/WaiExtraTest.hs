@@ -33,13 +33,15 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (parseSimpleQuery, status200)
 
-specs :: Specs
+specs :: Spec
 specs = do
   describe "Network.Wai.Parse" $ do
     it "parseQueryString" caseParseQueryString
     it "parseQueryString with question mark" caseParseQueryStringQM
     it "parseHttpAccept" caseParseHttpAccept
     it "parseRequestBody" caseParseRequestBody
+    it "multipart with plus" caseMultipartPlus
+    it "urlencoded with plus" caseUrlEncPlus
     {-
     , it "findBound" caseFindBound
     , it "sinkTillBound" caseSinkTillBound
@@ -168,6 +170,27 @@ caseParseRequestBody =
         liftIO $ assertEqual "parsing actual post multipart/form-data 2"
                     expected3
                     result3'
+
+caseMultipartPlus :: Assertion
+caseMultipartPlus = do
+    result <- C.runResourceT $ parseRequestBody' lbsSink $ toRequest ctype content
+    liftIO $ result @?= ([("email", "has+plus")], [])
+  where
+    content = S8.pack $
+        "--AaB03x\n" ++
+        "Content-Disposition: form-data; name=\"email\"\n" ++
+        "Content-Type: text/plain; charset=iso-8859-1\n\n" ++
+        "has+plus\n" ++
+        "--AaB03x--"
+    ctype = "multipart/form-data; boundary=AaB03x"
+
+caseUrlEncPlus :: Assertion
+caseUrlEncPlus = do
+    result <- C.runResourceT $ parseRequestBody' lbsSink $ toRequest ctype content
+    liftIO $ result @?= ([("email", "has+plus")], [])
+  where
+    content = S8.pack $ "email=has%2Bplus"
+    ctype = "application/x-www-form-urlencoded"
 
 toRequest :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest ctype content = SRequest defaultRequest

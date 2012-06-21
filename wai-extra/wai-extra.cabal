@@ -40,6 +40,7 @@ Library
                    , ansi-terminal
                    , resourcet                 >= 0.3      && < 0.4
                    , void                      >= 0.5      && < 0.6
+                   , stringsearch              >= 0.3      && < 0.4
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
@@ -73,7 +74,7 @@ test-suite tests
                    , zlib
                    , text
                    , bytestring
-                   , directory 
+                   , directory
                    , zlib-bindings
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , data-default
