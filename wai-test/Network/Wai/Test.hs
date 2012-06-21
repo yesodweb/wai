@@ -99,18 +99,12 @@ srequest (SRequest req bod) = do
 
 runResponse :: Response -> C.ResourceT IO SResponse
 runResponse res = do
-    bss <- fmap2 toBuilder body C.$= builderToByteString C.$$ CL.consume
+    bss <- C.mapOutput toBuilder body C.$= builderToByteString C.$$ CL.consume
     return $ SResponse s h $ L.fromChunks bss
   where
     (s, h, body) = responseSource res
     toBuilder (C.Chunk builder) = builder
     toBuilder C.Flush = flush
-
-fmap2 :: Functor m => (a -> b) -> C.Source m a -> C.Source m b
-fmap2 f (C.HaveOutput p c o) = C.HaveOutput (fmap2 f p) c (f o)
-fmap2 f (C.NeedInput p c) = C.NeedInput (fmap2 f . p) (fmap2 f c)
-fmap2 _ (C.Done i r) = C.Done i r
-fmap2 f (C.PipeM mp c) = C.PipeM (fmap (fmap2 f) mp) c
 
 assertBool :: String -> Bool -> Session ()
 assertBool s b = liftIO $ H.assertBool s b

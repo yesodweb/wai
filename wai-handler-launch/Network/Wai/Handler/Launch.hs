@@ -11,19 +11,19 @@ import Network.Wai
 import Network.HTTP.Types
 import qualified Network.Wai.Handler.Warp as Warp
 import Data.IORef
-import Control.Concurrent
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as S
 import Blaze.ByteString.Builder (fromByteString)
 #if WINDOWS
 import Foreign
-import Foreign.C.String
+import Foreign.String
 #else
 import System.Cmd (rawSystem)
 #endif
 import Data.Conduit.Zlib (decompressFlush, WindowBits (WindowBits))
 import Data.Conduit.Blaze (builderToByteStringFlush)
-import qualified Data.Conduit as C
+import Data.Conduit
 import qualified Data.Conduit.List as CL
 
 ping :: IORef Bool -> Middleware
@@ -50,42 +50,45 @@ ping  var app req
                 let headers'' = filter (\(x, _) -> x /= "content-length") headers'
                 let fixEnc src =
                         if isEnc then
-                            src C.$= decompressFlush (WindowBits 31)
+                            src $= decompressFlush (WindowBits 31)
                             else src
                 return $ ResponseSource s headers''
-                    $ fixEnc (body C.$= builderToByteStringFlush)
-                    C.$= insideHead
-                    C.$= CL.map (fmap fromByteString)
+                    $ fixEnc (body $= builderToByteStringFlush)
+                    $= insideHead
+                    $= CL.map (fmap fromByteString)
 
 toInsert :: S.ByteString
 toInsert = "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping\",false);x.send();},60000)</script>"
 
-insideHead :: C.Conduit (C.Flush S.ByteString) (C.ResourceT IO) (C.Flush S.ByteString)
+insideHead :: Pipe l (Flush S.ByteString) (Flush S.ByteString) r (ResourceT IO) r
 insideHead =
-    C.conduitState (Just (S.empty, whole)) push' close
+    loop' (S.empty, whole)
   where
+    loop' state = awaitE >>= either (close state) (push' state)
     whole = "<head>"
-    push' state (C.Chunk x) = (fmap . fmap) C.Chunk (push state x)
-    push' state C.Flush = return $ C.StateProducing state [C.Flush]
-    push (Just (held, atFront)) x
+    push' state (Chunk x) = push state x
+    push' state Flush = yield Flush >> loop' state
+
+    push (held, atFront) x
         | atFront `S.isPrefixOf` x = do
             let y = S.drop (S.length atFront) x
-            return $ C.StateProducing Nothing [held, atFront, toInsert, y]
+            mapM_ (yield . Chunk) [held, atFront, toInsert, y]
+            CL.map id
         | whole `S.isInfixOf` x = do
             let (before, rest) = S.breakSubstring whole x
             let after = S.drop (S.length whole) rest
-            return $ C.StateProducing Nothing [held, before, whole, toInsert, after]
+            mapM_ (yield . Chunk) [held, before, whole, toInsert, after]
+            CL.map id
         | x `S.isPrefixOf` atFront = do
             let held' = held `S.append` x
                 atFront' = S.drop (S.length x) atFront
-            return $ C.StateProducing (Just (held', atFront')) []
+            loop' (held', atFront')
         | otherwise = do
             let (held', atFront', x') = getOverlap whole x
-            return $ C.StateProducing (Just (held', atFront')) [held, x']
-    push Nothing x = return $ C.StateProducing Nothing [x]
+            mapM_ (yield . Chunk) [held, x']
+            loop' (held', atFront')
 
-    close (Just (held, _)) = return [C.Chunk held, C.Chunk toInsert]
-    close Nothing = return []
+    close (held, _) r = mapM_ yield [Chunk held, Chunk toInsert] >> return r
 
 getOverlap :: S.ByteString -> S.ByteString -> (S.ByteString, S.ByteString, S.ByteString)
 getOverlap whole x =

@@ -1,11 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
-import Network.Wai.Application.Static
-    ( StaticSettings (..), staticApp, defaultMimeType, defaultListing
-    , defaultMimeTypes, mimeTypeByExt
-    , defaultFileServerSettings, fileSystemLookup
-    , fileName, toFilePath
-    , ssRedirectToIndex
-    )
+import Network.Wai.Application.Static (staticApp, defaultFileServerSettings)
 import Network.Wai.Handler.Warp
     ( runSettings, defaultSettings, settingsHost, settingsPort
     )
@@ -21,6 +15,9 @@ import qualified Data.ByteString.Char8 as S8
 import Control.Arrow ((***))
 import Data.Text (pack)
 import Data.String (fromString)
+import WaiAppStatic.Mime (defaultMimeMap, mimeByExt, defaultMimeType)
+import WaiAppStatic.Types (ssIndices, toPiece, ssGetMimeType, fileName)
+import Data.Maybe (mapMaybe)
 
 data Args = Args
     { docroot :: FilePath
@@ -40,8 +37,8 @@ defaultArgs = Args "." ["index.html", "index.htm"] 3000 False False False [] "*"
 main :: IO ()
 main = do
     Args {..} <- cmdArgs defaultArgs
-    let mime' = map (toFilePath *** S8.pack) mime
-    let mimeMap = Map.fromList mime' `Map.union` defaultMimeTypes
+    let mime' = map (pack *** S8.pack) mime
+    let mimeMap = Map.fromList mime' `Map.union` defaultMimeMap
     docroot' <- canonicalizePath docroot
     unless quiet $ printf "Serving directory %s on port %d with %s index files.\n" docroot' port (if noindex then "no" else show index)
     let middle = gzip def
@@ -50,10 +47,7 @@ main = do
     runSettings defaultSettings
         { settingsPort = port
         , settingsHost = fromString host
-        } $ middle $ staticApp defaultFileServerSettings
-        { ssFolder = fileSystemLookup $ toFilePath docroot
-        , ssIndices = if noindex then [] else map pack index
-        , ssRedirectToIndex = False
-        , ssListing = Just defaultListing
-        , ssGetMimeType = return . mimeTypeByExt mimeMap defaultMimeType . fileName
+        } $ middle $ staticApp (defaultFileServerSettings $ fromString docroot)
+        { ssIndices = if noindex then [] else mapMaybe (toPiece . pack) index
+        , ssGetMimeType = return . mimeByExt mimeMap defaultMimeType . fileName
         }

@@ -30,7 +30,7 @@ import Network.HTTP.Types (Status (..))
 import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import Data.Monoid (mappend)
-import qualified Data.Conduit as C
+import Data.Conduit
 import qualified Data.Conduit.List as CL
 
 safeRead :: Read a => a -> String -> a
@@ -66,7 +66,7 @@ runSendfile sf app = do
 -- stick with 'run' or 'runSendfile'.
 runGeneric
      :: [(String, String)] -- ^ all variables
-     -> (Int -> C.Source (C.ResourceT IO) B.ByteString) -- ^ responseBody of input
+     -> (Int -> Source (ResourceT IO) B.ByteString) -- ^ responseBody of input
      -> (B.ByteString -> IO ()) -- ^ destination for output
      -> Maybe B.ByteString -- ^ does the server support the X-Sendfile header?
      -> Application
@@ -94,7 +94,7 @@ runGeneric vars inputH outputH xsendfile app = do
             case addrs of
                 a:_ -> addrAddress a
                 [] -> error $ "Invalid REMOTE_ADDR or REMOTE_HOST: " ++ remoteHost'
-    C.runResourceT $ do
+    runResourceT $ do
         let env = Request
                 { requestMethod = rmethod
                 , rawPathInfo = B.pack pinfo
@@ -117,9 +117,9 @@ runGeneric vars inputH outputH xsendfile app = do
                 liftIO $ mapM_ outputH $ L.toChunks $ toLazyByteString $ sfBuilder s hs sf fp
             _ -> do
                 let (s, hs, b) = responseSource res
-                    src = CL.sourceList [C.Chunk $ headers s hs `mappend` fromChar '\n']
+                    src = CL.sourceList [Chunk $ headers s hs `mappend` fromChar '\n']
                           `mappend` b
-                src C.$$ builderSink
+                src $$ builderSink
   where
     headers s hs = mconcat (map header $ status s : map header' (fixHeaders hs))
     status (Status i m) = (fromByteString "Status", mconcat
@@ -141,13 +141,13 @@ runGeneric vars inputH outputH xsendfile app = do
         , fromByteString sf
         , fromByteString " not supported"
         ]
-    bsSink = C.NeedInput push (return ())
-    push (C.Chunk bs) = C.PipeM (do
+    bsSink = awaitE >>= either return push
+    push (Chunk bs) = do
         liftIO $ outputH bs
-        return bsSink) (return ())
+        bsSink
     -- FIXME actually flush?
-    push C.Flush = bsSink
-    builderSink = builderToByteStringFlush C.=$ bsSink
+    push Flush = bsSink
+    builderSink = builderToByteStringFlush =$ bsSink
     fixHeaders h =
         case lookup "content-type" h of
             Nothing -> ("Content-Type", "text/html; charset=utf-8") : h
@@ -166,19 +166,19 @@ cleanupVarName s =
     helper' (x:rest) = toLower x : helper' rest
     helper' [] = []
 
-requestBodyHandle :: Handle -> Int -> C.Source (C.ResourceT IO) B.ByteString
+requestBodyHandle :: Handle -> Int -> Source (ResourceT IO) B.ByteString
 requestBodyHandle h = requestBodyFunc $ \i -> do
     bs <- B.hGet h i
     return $ if B.null bs then Nothing else Just bs
 
-requestBodyFunc :: (Int -> IO (Maybe B.ByteString)) -> Int -> C.Source (C.ResourceT IO) B.ByteString
-requestBodyFunc get count0 =
-    C.sourceState count0 pull
+requestBodyFunc :: (Int -> IO (Maybe B.ByteString)) -> Int -> Source (ResourceT IO) B.ByteString
+requestBodyFunc get =
+    loop
   where
-    pull 0 = return C.StateClosed
-    pull count = do
+    loop 0 = return ()
+    loop count = do
         mbs <- liftIO $ get $ min count defaultChunkSize
         let count' = count - maybe 0 B.length mbs
-        return $ case mbs of
-            Nothing -> C.StateClosed
-            Just bs -> C.StateOpen count' bs
+        case mbs of
+            Nothing -> return ()
+            Just bs -> yield bs >> loop count'

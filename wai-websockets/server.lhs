@@ -87,9 +87,7 @@ actual server. For this purpose, we use the simple server provided by
 >       } staticApp
 
 > staticApp :: Network.Wai.Application
-> staticApp = Static.staticApp Static.defaultFileServerSettings
->   { Static.ssFolder = Static.embeddedLookup $ Static.toEmbedded $(embedDir "static")
->   }
+> staticApp = Static.staticApp $ Static.embeddedSettings $(embedDir "static")
 
 When a client connects, we accept the connection, regardless of the path.
 

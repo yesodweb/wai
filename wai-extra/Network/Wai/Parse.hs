@@ -36,15 +36,15 @@ import Data.Function (on)
 import System.Directory (removeFile, getTemporaryDirectory)
 import System.IO (hClose, openBinaryTempFile)
 import Network.Wai
-import qualified Data.Conduit as C
+import Data.Conduit
 import qualified Data.Conduit.List as CL
 import qualified Data.Conduit.Binary as CB
 import Control.Monad.IO.Class (liftIO)
 import qualified Network.HTTP.Types as H
 import Data.Either (partitionEithers)
+import Control.Monad (when, unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Resource (allocate, release, register)
-import Data.Void (absurd)
 
 uncons :: S.ByteString -> Maybe (Word8, S.ByteString)
 uncons s
@@ -97,11 +97,11 @@ parseHttpAccept = map fst
     trimWhite = S.dropWhile (== 32) -- space
 
 -- | Store uploaded files in memory
-lbsSink :: Monad m => C.Sink S.ByteString m L.ByteString
+lbsSink :: Monad m => Sink S.ByteString m L.ByteString
 lbsSink = fmap L.fromChunks CL.consume
 
 -- | Save uploaded files on disk as temporary files
-tempFileSink :: C.MonadResource m => C.Sink S.ByteString m FilePath
+tempFileSink :: MonadResource m => Sink S.ByteString m FilePath
 tempFileSink = do
     (key, (fp, h)) <- lift $ allocate (do
         tempDir <- getTemporaryDirectory
@@ -145,45 +145,47 @@ getRequestBodyType req = do
                         else Nothing
             else Nothing
 
-parseRequestBody :: C.Sink S.ByteString (C.ResourceT IO) y
+parseRequestBody :: Sink S.ByteString (ResourceT IO) y
                  -> Request
-                 -> C.ResourceT IO ([Param], [File y])
+                 -> ResourceT IO ([Param], [File y])
 parseRequestBody s r =
     case getRequestBodyType r of
         Nothing -> return ([], [])
-        Just rbt -> fmap partitionEithers $ requestBody r C.$$ conduitRequestBody s rbt C.=$ CL.consume
+        Just rbt -> fmap partitionEithers $ requestBody r $$ conduitRequestBody s rbt =$ CL.consume
 
-sinkRequestBody :: C.Sink S.ByteString (C.ResourceT IO) y
+sinkRequestBody :: Sink S.ByteString (ResourceT IO) y
                 -> RequestBodyType
-                -> C.Sink S.ByteString (C.ResourceT IO) ([Param], [File y])
-sinkRequestBody s r = fmap partitionEithers $ conduitRequestBody s r C.=$ CL.consume
+                -> Sink S.ByteString (ResourceT IO) ([Param], [File y])
+sinkRequestBody s r = fmap partitionEithers $ conduitRequestBody s r =$ CL.consume
 
-conduitRequestBody :: C.Sink S.ByteString (C.ResourceT IO) y
+conduitRequestBody :: Sink S.ByteString (ResourceT IO) y
                    -> RequestBodyType
-                   -> C.Conduit S.ByteString (C.ResourceT IO) (Either Param (File y))
-conduitRequestBody _ UrlEncoded = C.sequenceSink () $ \() -> do -- url-encoded
+                   -> Conduit S.ByteString (ResourceT IO) (Either Param (File y))
+conduitRequestBody _ UrlEncoded = do
     -- NOTE: in general, url-encoded data will be in a single chunk.
     -- Therefore, I'm optimizing for the usual case by sticking with
     -- strict byte strings here.
     bs <- CL.consume
-    return $ C.Emit () $ map Left $ H.parseSimpleQuery $ S.concat bs
+    mapM_ yield $ map Left $ H.parseSimpleQuery $ S.concat bs
 conduitRequestBody backend (Multipart bound) =
     parsePieces backend $ S8.pack "--" `S.append` bound
 
-takeLine :: C.Sink S.ByteString (C.ResourceT IO) (Maybe S.ByteString)
+takeLine :: Monad m => Pipe S.ByteString S.ByteString o u m (Maybe S.ByteString)
 takeLine =
-    C.sinkState id push close'
+    go id
   where
-    close' _ = return Nothing
+    go front = await >>= maybe (close front) (push front)
+
+    close front = leftover (front S.empty) >> return Nothing
     push front bs = do
         let (x, y) = S.break (== 10) $ front bs -- LF
          in if S.null y
-                then return $ C.StateProcessing $ S.append x
+                then go $ S.append x
                 else do
-                    let lo = if S.length y > 1 then Just (S.drop 1 y) else Nothing
-                    return $ C.StateDone lo $ Just $ killCR x
+                    when (S.length y > 1) $ leftover $ S.drop 1 y
+                    return $ Just $ killCR x
 
-takeLines :: C.Sink S.ByteString (C.ResourceT IO) [S.ByteString]
+takeLines :: Pipe S.ByteString S.ByteString o u (ResourceT IO) [S.ByteString]
 takeLines = do
     res <- takeLine
     case res of
@@ -194,20 +196,16 @@ takeLines = do
                 ls <- takeLines
                 return $ l : ls
 
-parsePieces :: C.Sink S.ByteString (C.ResourceT IO) y -> S.ByteString
-            -> C.Conduit S.ByteString (C.ResourceT IO) (Either Param (File y))
-parsePieces sink bound = C.sequenceSink True (parsePiecesSink sink bound)
-
-parsePiecesSink :: C.Sink S.ByteString (C.ResourceT IO) y
-                -> S.ByteString
-                -> C.SequencedSink Bool S.ByteString (C.ResourceT IO) (Either Param (File y))
-parsePiecesSink _ _ False = return C.Stop
-parsePiecesSink sink bound True = do
-    _boundLine <- takeLine
-    res' <- takeLines
-    case res' of
-        [] -> return C.Stop
-        _ -> do
+parsePieces :: Sink S.ByteString (ResourceT IO) y
+            -> S.ByteString
+            -> Pipe S.ByteString S.ByteString (Either Param (File y)) u (ResourceT IO) ()
+parsePieces sink bound =
+    loop
+  where
+    loop = do
+        _boundLine <- takeLine
+        res' <- takeLines
+        unless (null res') $ do
             let ls' = map parsePair res'
             let x = do
                     cd <- lookup contDisp ls'
@@ -218,30 +216,31 @@ parsePiecesSink sink bound True = do
             case x of
                 Just (mct, name, Just filename) -> do
                     let ct = fromMaybe "application/octet-stream" mct
-                    (y, wasFound) <- sinkTillBound' Nothing bound sink
+                    (wasFound, y) <- sinkTillBound' bound sink
                     let fi = FileInfo filename ct y
                     let y' = (name, fi)
-                    return $ C.Emit wasFound [Right y']
+                    yield $ Right y'
+                    when wasFound loop
                 Just (_ct, name, Nothing) -> do
                     let seed = id
                     let iter front bs = return $ front . (:) bs
-                    (front, wasFound) <-
-                        sinkTillBound bound iter seed
+                    (wasFound, front) <- sinkTillBound bound iter seed
                     let bs = S.concat $ front []
                     let x' = (name, qsDecode bs)
-                    return $ C.Emit wasFound [Left x']
+                    yield $ Left x'
+                    when wasFound loop
                 _ -> do
                     -- ignore this part
                     let seed = ()
                         iter () _ = return ()
-                    ((), wasFound) <- sinkTillBound bound iter seed
-                    return $ C.Emit wasFound []
-  where
-    contDisp = S8.pack "Content-Disposition"
-    contType = S8.pack "Content-Type"
-    parsePair s =
-        let (x, y) = breakDiscard 58 s -- colon
-         in (x, S.dropWhile (== 32) y) -- space
+                    (wasFound, ()) <- sinkTillBound bound iter seed
+                    when wasFound loop
+      where
+        contDisp = S8.pack "Content-Disposition"
+        contType = S8.pack "Content-Type"
+        parsePair s =
+            let (x, y) = breakDiscard 58 s -- colon
+             in (x, S.dropWhile (== 32) y) -- space
 
 data Bound = FoundBound S.ByteString S.ByteString
            | NoBound
@@ -265,50 +264,30 @@ findBound b bs = go [0..S.length bs - 1]
         | S.index b x == S.index bs y = mismatch xs ys
         | otherwise = True
 
-sinkTillBound' :: Maybe S.ByteString -> S.ByteString -> C.Sink S.ByteString (C.ResourceT IO) y -> C.Sink S.ByteString (C.ResourceT IO) (y, Bool)
-sinkTillBound' mfront _ (C.Done _ y) = C.Done mfront (y, False)
-sinkTillBound' _ _ (C.HaveOutput _ _ o) = absurd o
-sinkTillBound' mfront bound (C.PipeM mp mc) = C.PipeM (fmap (sinkTillBound' mfront bound) mp) (fmap (\y -> (y, False)) mc)
-sinkTillBound' mfront bound (C.NeedInput pushI closeI) =
-    C.NeedInput push close
-  where
-    push bs' = do
-        let bs = maybe id S.append mfront $ bs'
-        case findBound bound bs of
-            FoundBound before after -> do
-                let before' = killCRLF before
-                res <- lift $ return () C.$$ pushI before'
-                C.Done (Just after) (res, True)
-            NoBound -> do
-                -- don't emit newlines, in case it's part of a bound
-                let (toEmit, front') =
-                        if not (S8.null bs) && S8.last bs `elem` "\r\n"
-                            then let (x, y) = S.splitAt (S.length bs - 2) bs
-                                  in (x, Just y)
-                            else (bs, Nothing)
-                sinkTillBound' front' bound (pushI toEmit)
-            PartialBound -> sinkTillBound' (Just bs) bound (C.NeedInput pushI closeI)
-    close = fmap (\y -> (y, False)) closeI
+sinkTillBound' :: S.ByteString
+               -> Sink S.ByteString (ResourceT IO) y
+               -> Pipe S.ByteString S.ByteString o u (ResourceT IO) (Bool, y)
+sinkTillBound' bound sink = conduitTillBound bound >+> withUpstream (sinkToPipe sink)
 
-sinkTillBound :: S.ByteString
-              -> (x -> S.ByteString -> IO x)
-              -> x
-              -> C.Sink S.ByteString (C.ResourceT IO) (x, Bool)
-sinkTillBound bound iter seed0 = C.sinkState
-    (id, seed0)
-    push
-    close'
+conduitTillBound :: Monad m
+                 => S.ByteString -- bound
+                 -> Pipe S.ByteString S.ByteString S.ByteString u m Bool
+conduitTillBound bound =
+    go id
   where
-    close' (front, seed) = do
-        seed' <- liftIO $ iter seed $ front S.empty
-        return (seed', False)
-    push (front, seed) bs' = do
+    go front = await >>= maybe (close front) (push front)
+    close front = do
+        let bs = front S.empty
+        unless (S.null bs) $ yield bs
+        return False
+    push front bs' = do
         let bs = front bs'
         case findBound bound bs of
             FoundBound before after -> do
                 let before' = killCRLF before
-                seed' <- liftIO $ iter seed before'
-                return $ C.StateDone (Just after) (seed', True)
+                yield before'
+                leftover after
+                return True
             NoBound -> do
                 -- don't emit newlines, in case it's part of a bound
                 let (toEmit, front') =
@@ -316,9 +295,18 @@ sinkTillBound bound iter seed0 = C.sinkState
                             then let (x, y) = S.splitAt (S.length bs - 2) bs
                                   in (x, S.append y)
                             else (bs, id)
-                seed' <- liftIO $ iter seed toEmit
-                return $ C.StateProcessing (front', seed')
-            PartialBound -> return $ C.StateProcessing (S.append bs, seed)
+                yield toEmit
+                go front'
+            PartialBound -> go $ S.append bs
+
+sinkTillBound :: S.ByteString
+              -> (x -> S.ByteString -> IO x)
+              -> x
+              -> Pipe S.ByteString S.ByteString o u (ResourceT IO) (Bool, x)
+sinkTillBound bound iter seed0 =
+    conduitTillBound bound >+> withUpstream (CL.foldM iter' seed0)
+  where
+    iter' a b = liftIO $ iter a b
 
 parseAttrs :: S.ByteString -> [(S.ByteString, S.ByteString)]
 parseAttrs = map go . S.split 59 -- semicolon
