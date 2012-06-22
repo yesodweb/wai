@@ -162,7 +162,7 @@ allowInterrupt = unblock $ return ()
 data Connection = Connection
     { connSendMany :: [B.ByteString] -> IO ()
     , connSendAll  :: B.ByteString -> IO ()
-    , connSendFile :: FilePath -> Integer -> Integer -> IO () -> IO () -- ^ offset, length
+    , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> IO () -- ^ offset, length
     , connClose    :: IO ()
     , connRecv     :: IO B.ByteString
     }
@@ -171,7 +171,7 @@ socketConnection :: Socket -> Connection
 socketConnection s = Connection
     { connSendMany = Sock.sendMany s
     , connSendAll = Sock.sendAll s
-    , connSendFile = \fp off len act -> sendfile s fp (PartOfFile off len) act
+    , connSendFile = \fp off len act hdr -> sendfileWithHeader s fp (PartOfFile off len) act hdr
     , connClose = sClose s
     , connRecv = Sock.recv s bytesPerRead
     }
@@ -584,13 +584,12 @@ sendResponse th req conn r = sendResponse' r
                 [("Content-Type", "text/plain")]
                 "File not found"
             Right (lengthyHeaders, cl) -> liftIO $ do
-                let headers' = headers version s lengthyHeaders
-                sendHeader $ headers' False
+                let headers' = L.toChunks . toLazyByteString $ headers version s lengthyHeaders False
                 T.tickle th
                 if hasBody s req then do
                     case mpart of
-                        Nothing   -> connSendFile conn fp 0 cl (T.tickle th)
-                        Just part -> connSendFile conn fp (filePartOffset part) (filePartByteCount part) (T.tickle th)
+                        Nothing   -> connSendFile conn fp 0 cl (T.tickle th) headers'
+                        Just part -> connSendFile conn fp (filePartOffset part) (filePartByteCount part) (T.tickle th) headers'
                     T.tickle th
                     return isPersist
                   else
