@@ -116,7 +116,7 @@ singlePostHello :: ByteString
 singlePostHello = "POST /hello HTTP/1.1\r\nHost: localhost\r\nContent-length: 5\r\n\r\nHello"
 
 main :: IO ()
-main = hspecX $ do
+main = hspec $ do
     describe "non-pipelining" $ do
         it "no body, read" $ runTest 5 readBody $ replicate 5 singleGet
         it "no body, ignore" $ runTest 5 ignoreBody $ replicate 5 singleGet
