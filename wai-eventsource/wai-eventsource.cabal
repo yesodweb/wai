@@ -1,5 +1,5 @@
 Name:                wai-eventsource
-Version:             1.2.0.2
+Version:             1.2.0.3
 Synopsis:            WAI support for server-sent events
 Description:         WAI support for server-sent events
 License:             MIT
