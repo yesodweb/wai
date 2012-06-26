@@ -32,7 +32,7 @@ Library
                    , http-types                >= 0.6      && < 0.7
                    , text                      >= 0.7      && < 0.12
                    , case-insensitive          >= 0.2
-                   , data-default              >= 0.3      && < 0.5
+                   , data-default
                    , fast-logger               >= 0.0.2
                    , conduit                   >= 0.5      && < 0.6
                    , zlib-conduit              >= 0.5      && < 0.6
