@@ -312,12 +312,13 @@ serveConnection settings th port app conn remoteHost' =
                 liftIO $ T.pause th
                 res <- app env
 
+                liftIO $ T.resume th
+                keepAlive <- sendResponse th env conn res
+
                 -- flush the rest of the request body
                 requestBody env $$ CL.sinkNull
                 ResumableSource fromClient' _ <- liftIO getSource
 
-                liftIO $ T.resume th
-                keepAlive <- sendResponse th env conn res
                 when keepAlive $ serveConnection'' fromClient'
             Just intercept -> do
                 liftIO $ T.pause th
