@@ -37,6 +37,7 @@ import System.Directory (removeFile, getTemporaryDirectory)
 import System.IO (hClose, openBinaryTempFile)
 import Network.Wai
 import Data.Conduit
+import Data.Conduit.Internal (sinkToPipe)
 import qualified Data.Conduit.List as CL
 import qualified Data.Conduit.Binary as CB
 import Control.Monad.IO.Class (liftIO)
