@@ -12,6 +12,7 @@ module Network.Wai.Parse
     , conduitRequestBody
     , lbsSink
     , tempFileSink
+    , tempFileSinkOpts
     , Param
     , File
     , FileInfo (..)
@@ -76,10 +77,17 @@ lbsSink = fmap L.fromChunks CL.consume
 
 -- | Save uploaded files on disk as temporary files
 tempFileSink :: MonadResource m => Sink S.ByteString m FilePath
-tempFileSink = do
+tempFileSink = tempFileSinkOpts getTemporaryDirectory "webenc.buf"
+
+-- | Same as 'tempFileSink', but use configurable temp folders and patterns.
+tempFileSinkOpts :: MonadResource m
+                 => IO FilePath -- ^ get temporary directory
+                 -> String -- ^ filename pattern
+                 -> Sink S.ByteString m FilePath
+tempFileSinkOpts getTmpDir pattern = do
     (key, (fp, h)) <- lift $ allocate (do
-        tempDir <- getTemporaryDirectory
-        openBinaryTempFile tempDir "webenc.buf") (\(_, h) -> hClose h)
+        tempDir <- getTmpDir
+        openBinaryTempFile tempDir pattern) (\(_, h) -> hClose h)
     _ <- lift $ register $ removeFile fp
     CB.sinkHandle h
     lift $ release key
