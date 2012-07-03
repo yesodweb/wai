@@ -61,13 +61,8 @@ runTLS tset set app = do
                     (fromClient'', bs) <- fromClient' C.$$++ sink
                     I.writeIORef ifromClient fromClient''
                     return bs
-            if maybe False (B.all (\w -> w < 127 && w > 8) . B.take 5) firstBS
+            if maybe False ((== 0x16) . fst) (firstBS >>= B.uncons)
                 then do
-                    let conn = (socketConnection s)
-                            { connRecv = getNext $ fmap (fromMaybe B.empty) C.await
-                            }
-                    return (conn, sa)
-                else do
                     gen <- newGenIO
                     ctx <- TLS.serverWith
                         params
@@ -87,6 +82,11 @@ runTLS tset set app = do
                                 TLS.bye ctx
                                 sClose s
                             , connRecv = TLS.recvData ctx
+                            }
+                    return (conn, sa)
+                else do
+                    let conn = (socketConnection s)
+                            { connRecv = getNext $ fmap (fromMaybe B.empty) C.await
                             }
                     return (conn, sa)
 
