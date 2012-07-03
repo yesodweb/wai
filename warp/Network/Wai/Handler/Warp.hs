@@ -56,6 +56,7 @@ module Network.Wai.Handler.Warp
     , T.cancel
     , T.register
     , T.initialize
+    , socketConnection
 #if TEST
     , takeHeaders
     , parseFirst

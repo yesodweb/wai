@@ -8,7 +8,6 @@ import qualified Network.TLS as TLS
 import Network.Wai.Handler.Warp
 import Network.Wai
 import Network.Socket
-import System.IO
 import Crypto.Random
 import qualified Data.ByteString.Lazy as L
 import Data.Conduit.Binary (sourceFileRange)
@@ -23,6 +22,10 @@ import Data.Conduit.Network (bindPort)
 import Data.Either (rights)
 import Control.Applicative ((<$>))
 import qualified Data.PEM as PEM
+import Data.Conduit.Network (sourceSocket, sinkSocket)
+import Data.Maybe (fromMaybe)
+import qualified Data.IORef as I
+import Control.Monad (unless)
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -44,29 +47,48 @@ runTLS tset set app = do
         sClose
         (\sock -> runSettingsConnection set (getter params sock) app)
   where
-    retry :: TLS.TLSParams -> Socket -> SomeException -> IO (Connection, SockAddr)
-    retry a b _ = getter a b
+    retry :: Socket -> TLS.TLSParams -> Socket -> SomeException -> IO (Connection, SockAddr)
+    retry s a b _ = sClose s >> getter a b
 
     getter params sock = do
         (s, sa) <- accept sock
-        handle (retry params sock) $ do
-            h <- socketToHandle s ReadWriteMode
-            hSetBuffering h NoBuffering
-            gen <- newGenIO
-            ctx <- TLS.server params (gen :: SystemRandom) h
-            TLS.handshake ctx
-            let conn = Connection
-                    { connSendMany = TLS.sendData ctx . L.fromChunks
-                    , connSendAll = TLS.sendData ctx . L.fromChunks . return
-                    , connSendFile = \fp offset len _th headers -> do
-                        TLS.sendData ctx $ L.fromChunks headers
-                        C.runResourceT $ sourceFileRange fp (Just offset) (Just len) C.$$ CL.mapM_ (TLS.sendData ctx . L.fromChunks . return)
-                    , connClose = do
-                        TLS.bye ctx
-                        hClose h
-                    , connRecv = TLS.recvData ctx
-                    }
-            return (conn, sa)
+        handle (retry s params sock) $ do
+            (fromClient, firstBS) <- sourceSocket s C.$$+ CL.peek
+            let toClient = sinkSocket s
+            ifromClient <- I.newIORef fromClient
+            let getNext sink = do
+                    fromClient' <- I.readIORef ifromClient
+                    (fromClient'', bs) <- fromClient' C.$$++ sink
+                    I.writeIORef ifromClient fromClient''
+                    return bs
+            if maybe False (B.all (\w -> w < 127 && w > 8) . B.take 5) firstBS
+                then do
+                    let conn = (socketConnection s)
+                            { connRecv = getNext $ fmap (fromMaybe B.empty) C.await
+                            }
+                    return (conn, sa)
+                else do
+                    gen <- newGenIO
+                    ctx <- TLS.serverWith
+                        params
+                        (gen :: SystemRandom)
+                        s
+                        (return ()) -- flush
+                        (\bs -> C.yield bs C.$$ toClient)
+                        (getNext . takeMost)
+                    TLS.handshake ctx
+                    let conn = Connection
+                            { connSendMany = TLS.sendData ctx . L.fromChunks
+                            , connSendAll = TLS.sendData ctx . L.fromChunks . return
+                            , connSendFile = \fp offset len _th headers -> do
+                                TLS.sendData ctx $ L.fromChunks headers
+                                C.runResourceT $ sourceFileRange fp (Just offset) (Just len) C.$$ CL.mapM_ (TLS.sendData ctx . L.fromChunks . return)
+                            , connClose = do
+                                TLS.bye ctx
+                                sClose s
+                            , connRecv = TLS.recvData ctx
+                            }
+                    return (conn, sa)
 
 -- taken from stunnel example in tls-extra
 ciphers :: [TLS.Cipher]
@@ -97,3 +119,13 @@ readPrivateKey filepath = do
     where parseKey (Right pems) = map (fmap (TLS.PrivRSA . snd) . KeyRSA.decodePrivate . L.fromChunks . (:[]) . PEM.pemContent)
                                 $ filter ((== "RSA PRIVATE KEY") . PEM.pemName) pems
           parseKey (Left err) = error $ "Cannot parse PEM file: " ++ err
+
+takeMost :: Monad m => Int -> C.GLSink B.ByteString m B.ByteString
+takeMost i =
+    C.await >>= maybe (return B.empty) go
+  where
+    go bs = do
+        unless (B.null y) $ C.leftover y
+        return x
+      where
+        (x, y) = B.splitAt i bs

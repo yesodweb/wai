@@ -24,7 +24,7 @@ Library
                    , pem                           >= 0.1      && < 0.2
                    , cryptocipher                  >= 0.3      && < 0.4
                    , tls-extra                     >= 0.4.5    && < 0.5
-                   , tls                           >= 0.9.3    && < 0.10
+                   , tls                           >= 0.9.6    && < 0.10
                    , crypto-api                    >= 0.8      && < 0.11
                    , network                       >= 2.2.1    && < 2.4
   Exposed-modules:   Network.Wai.Handler.WarpTLS
