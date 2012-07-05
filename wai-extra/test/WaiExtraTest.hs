@@ -23,7 +23,7 @@ import Network.Wai.Middleware.Autohead
 import Network.Wai.Middleware.MethodOverride
 import Network.Wai.Middleware.MethodOverridePost
 import Network.Wai.Middleware.AcceptOverride
-import Network.Wai.Middleware.RequestLogger (logCallback)
+import Network.Wai.Middleware.RequestLogger
 import Codec.Compression.GZip (decompress)
 
 import qualified Data.Conduit as C
@@ -32,6 +32,9 @@ import Data.Conduit.Binary (sourceFile)
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (parseSimpleQuery, status200)
+import System.Log.FastLogger
+
+import qualified Data.IORef as I
 
 specs :: Spec
 specs = do
@@ -469,7 +472,7 @@ caseDebugRequestBody = do
         assertStatus 200 res
 
     let qs = "?foo=bar&baz=bin"
-    flip runSession (debugApp $ getOutput qs) $ do
+    flip runSession (debugApp $ getOutput params) $ do
         assertStatus 200 =<< request defaultRequest
                 { requestMethod = "GET"
                 , queryString = map (\(k,v) -> (k, Just v)) params
@@ -480,13 +483,25 @@ caseDebugRequestBody = do
   where
     params = [("foo", "bar"), ("baz", "bin")]
     -- FIXME change back once we include post parameter output in logging postOutput = T.pack $ "POST \nAccept: \nPOST " ++ (show params)
-    postOutput = T.pack $ "POST / Accept: \nStatus: 200 OK"
-    -- FIXME getOutput _qs = T.pack $ "GET /location" ++ "\nAccept: \nGET " ++ (show params) -- \nAccept: \n" ++ (show params)
-    getOutput _qs = T.pack $ "GET /location?foo=bar&baz=bin Accept: \nStatus: 200 OK"
+    postOutput = T.pack $ "POST /\nAccept: \nStatus: 200 OK. /\n"
+    getOutput params = T.pack $ "GET /location\nAccept: \nGET " ++ show params ++ "\nStatus: 200 OK. /location\n"
 
-    debugApp output' = logCallback (\t -> liftIO $ assertEqual "debug" output t) $ \_req -> do
-        return $ responseLBS status200 [ ] ""
+    debugApp output' req = do
+        iactual <- liftIO $ I.newIORef []
+        middleware <- liftIO $ mkRequestLogger def
+            { destination = Callback $ \strs -> I.modifyIORef iactual $ (++ strs)
+            , outputFormat = Detailed False
+            }
+        res <- middleware (\_req -> return $ responseLBS status200 [ ] "") req
+        actual <- liftIO $ I.readIORef iactual
+        liftIO $ assertEqual "debug" output $ logsToBs actual
+        return res
       where
         output = TE.encodeUtf8 $ T.toStrict output'
+        logsToBs = S.concat . map logToBs
+
+        logToBs (LB bs) = bs
+        logToBs (LS s) = S8.pack s
+
     {-debugApp = debug $ \req -> do-}
         {-return $ responseLBS status200 [ ] ""-}

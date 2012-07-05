@@ -1,15 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 module Network.Wai.Middleware.RequestLogger
-    ( logStdout
-    , logCallback
+    ( -- * Basic stdout logging
+      logStdout
     , logStdoutDev
-    , logCallbackDev
-    -- * Deprecated
-    , logHandle
-    , logHandleDev
+      -- * Create more versions
+    , mkRequestLogger
+    , RequestLoggerSettings
+    , outputFormat
+    , autoFlush
+    , destination
+    , OutputFormat (..)
+    , Destination (..)
+    , Callback
+    , IPAddrSource (..)
     ) where
 
-import System.IO (stdout, hFlush)
+import System.IO (Handle, stdout)
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack, unpack)
 import Control.Monad.IO.Class (liftIO)
@@ -28,17 +35,66 @@ import System.Console.ANSI
 import Data.IORef
 import System.IO.Unsafe
 
-logHandle :: (BS.ByteString -> IO ()) -> Middleware
-logHandle = logCallback
-{-# DEPRECATED logHandle "Please use logCallback instead." #-}
-logHandleDev :: (BS.ByteString -> IO ()) -> Middleware
-logHandleDev = logCallbackDev
-{-# DEPRECATED logHandleDev "Please use logCallbackDev instead." #-}
+import Data.Default (Default (def))
+import Network.Wai.Logger.Format (apacheFormat, IPAddrSource (..))
+import System.Log.FastLogger.Date (DateRef, getDate, dateInit)
+
+data OutputFormat = Apache IPAddrSource
+                  | Detailed Bool -- ^ use colors?
+
+data Destination = Handle Handle
+                 | Logger Logger
+                 | Callback Callback
+
+type Callback = [LogStr] -> IO ()
+
+data RequestLoggerSettings = RequestLoggerSettings
+    {
+      -- | Default value: @Detailed@ @True@.
+      outputFormat :: OutputFormat
+      -- | Only applies when using the @Handle@ constructor for @destination@.
+      --
+      -- Default value: @True@.
+    , autoFlush :: Bool
+      -- | Default: @Handle@ @stdout@.
+    , destination :: Destination
+    }
+
+instance Default RequestLoggerSettings where
+    def = RequestLoggerSettings
+        { outputFormat = Detailed True
+        , autoFlush = True
+        , destination = Handle stdout
+        }
+
+mkRequestLogger :: RequestLoggerSettings -> IO Middleware
+mkRequestLogger RequestLoggerSettings{..} = do
+    (callback, dateref) <-
+        case destination of
+            Handle h -> fmap fromLogger $ mkLogger autoFlush h
+            Logger l -> return $ fromLogger l
+            Callback c -> do
+                dateref <- dateInit
+                return (c, dateref)
+    case outputFormat of
+        Apache ipsrc -> return $ apacheMiddleware callback ipsrc dateref
+        Detailed useColors -> detailedMiddleware callback useColors
+  where
+    fromLogger :: Logger -> (Callback, DateRef)
+    fromLogger l = (loggerPutStr l, loggerDateRef l)
+
+apacheMiddleware :: Callback -> IPAddrSource -> DateRef -> Middleware
+apacheMiddleware cb ipsrc dateref app req = do
+    res <- app req
+    date <- liftIO $ getDate dateref
+    -- We use Nothing for the response size since we generally don't know it
+    liftIO $ cb $ apacheFormat ipsrc date req (responseStatus res) Nothing
+    return res
 
 -- | Production request logger middleware.
 -- Implemented on top of "logCallback", but prints to 'stdout'
 logStdout :: Middleware
-logStdout = logCallback $ \bs -> hPutLogStr stdout [LB bs]
+logStdout = unsafePerformIO $ mkRequestLogger def { outputFormat = Apache FromSocket }
 
 -- | Development request logger middleware.
 -- Implemented on top of "logCallbackDev", but prints to 'stdout'
@@ -46,39 +102,11 @@ logStdout = logCallback $ \bs -> hPutLogStr stdout [LB bs]
 -- Flushes 'stdout' on each request, which would be inefficient in production use.
 -- Use "logStdout" in production.
 logStdoutDev :: Middleware
-logStdoutDev = logCallbackDev $ \bs -> hPutLogStr stdout [LB bs] >> hFlush stdout
-
--- | Prints a message using the given callback function for each request.
--- Designed for fast production use at the expense of convenience.
--- In particular, no POST parameter information is currently given
---
--- This is lower-level - use "logStdout" unless you need this greater control
-logCallback :: (BS.ByteString -> IO ()) -- ^ A function that logs the ByteString log message.
-            -> Middleware
-logCallback cb app req = do
-    rsp <- app req
-    liftIO $ cb $ BS.concat
-        [ requestMethod req
-        , " "
-        , rawPathInfo req
-        , rawQueryString req
-        , " "
-        , "Accept: "
-        , maybe "" toBS $ lookup "Accept" $ requestHeaders req
-        , "\n"
-        , "Status: "
-        , statusBS rsp
-        , " "
-        , msgBS rsp
-        ]
-    return rsp
-
-toBS :: H.Ascii -> BS.ByteString
-toBS = id
+logStdoutDev = unsafePerformIO $ mkRequestLogger def
 
 -- no black or white which are expected to be existing terminal colors.
-colors :: IORef [Color]
-colors = unsafePerformIO $ newIORef [
+colors0 :: [Color]
+colors0 = [
     Red 
   , Green 
   , Yellow 
@@ -115,9 +143,29 @@ rotateColors (c:cs) = (cs ++ [c], c)
 -- > GET [("LXwioiBG","")]
 -- >
 -- > Status: 304 Not Modified. static/css/normalize.css
-logCallbackDev :: (BS.ByteString -> IO ()) -- ^ A function that logs the ByteString log message.
-               -> Middleware
-logCallbackDev cb app req = do
+
+detailedMiddleware :: Callback -> Bool -> IO Middleware
+detailedMiddleware cb useColors = do
+    getAddColor <-
+        if useColors
+            then do
+                icolors <- newIORef colors0
+                return $ do
+                    color <- liftIO $ atomicModifyIORef icolors rotateColors
+                    return $ ansiColor color
+            else return (return return)
+    return $ detailedMiddleware' cb getAddColor
+  where
+    ansiColor color bs = [
+        pack $ setSGRCode [SetColor Foreground Vivid color]
+      , bs
+      , pack $ setSGRCode [Reset]
+      ]
+
+detailedMiddleware' :: Callback
+                    -> (C.ResourceT IO (BS.ByteString -> [BS.ByteString]))
+                    -> Middleware
+detailedMiddleware' cb getAddColor app req = do
     let mlen = lookup "content-length" (requestHeaders req) >>= readInt
     (req', body) <-
         case mlen of
@@ -137,10 +185,10 @@ logCallbackDev cb app req = do
 
     let getParams = map emptyGetParam $ queryString req
 
-    color <- liftIO $ atomicModifyIORef colors rotateColors
+    addColor <- getAddColor
 
     -- log the request immediately.
-    liftIO $ cb $ BS.concat $ ansiColor color (requestMethod req) ++
+    liftIO $ cb $ map LB $ addColor (requestMethod req) ++
         [ " "
         , rawPathInfo req
         , "\n"
@@ -156,7 +204,7 @@ logCallbackDev cb app req = do
     -- log the status of the response
     -- this is color coordinated with the request logging
     -- also includes the request path to connect it to the request
-    liftIO $ cb $ BS.concat $ ansiColor color "Status: " ++ [
+    liftIO $ cb $ map LB $ addColor "Status: " ++ [
           statusBS rsp
         , " "
         , msgBS rsp
@@ -166,12 +214,6 @@ logCallbackDev cb app req = do
       ]
     return rsp
   where
-    ansiColor color bs = [
-        pack $ setSGRCode [SetColor Foreground Vivid color]
-      , bs
-      , pack $ setSGRCode [Reset]
-      ]
-
     paramsToBS prefix params =
       if null params then ""
         else BS.concat ["\n", prefix, pack (show params)]

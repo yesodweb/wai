@@ -33,7 +33,8 @@ Library
                    , text                      >= 0.7      && < 0.12
                    , case-insensitive          >= 0.2
                    , data-default
-                   , fast-logger               >= 0.0.2
+                   , fast-logger               >= 0.1      && < 0.2
+                   , wai-logger                >= 0.2      && < 0.3
                    , conduit                   >= 0.5      && < 0.6
                    , zlib-conduit              >= 0.5      && < 0.6
                    , blaze-builder-conduit     >= 0.5      && < 0.6
@@ -79,6 +80,8 @@ test-suite tests
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , data-default
                    , conduit
+                   , fast-logger
+    ghc-options:       -Wall
 
 source-repository head
   type:     git
