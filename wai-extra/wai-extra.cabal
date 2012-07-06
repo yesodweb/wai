@@ -29,7 +29,7 @@ Library
                    , directory                 >= 1.0.1    && < 1.2
                    , transformers              >= 0.2.2    && < 0.4
                    , blaze-builder             >= 0.2.1.4  && < 0.4
-                   , http-types                >= 0.6      && < 0.7
+                   , http-types                >= 0.7      && < 0.8
                    , text                      >= 0.7      && < 0.12
                    , case-insensitive          >= 0.2
                    , data-default
