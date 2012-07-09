@@ -729,7 +729,7 @@ data THStatus = THStatus
 
 takeHeaders :: Sink ByteString (ResourceT IO) [ByteString]
 takeHeaders =
-    await >>= maybe close (push (THStatus 0 id id))
+    await >>= maybe (throwIO ConnectionClosedByPeer) (push (THStatus 0 id id))
   where
     close :: Sink ByteString (ResourceT IO) a
     close = throwIO IncompleteHeaders
