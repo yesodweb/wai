@@ -37,7 +37,7 @@ import System.IO.Unsafe
 
 import Data.Default (Default (def))
 import Network.Wai.Logger.Format (apacheFormat, IPAddrSource (..))
-import System.Log.FastLogger.Date (DateRef, getDate, dateInit)
+import System.Log.FastLogger.Date (getDate, dateInit, ZonedDate)
 
 data OutputFormat = Apache IPAddrSource
                   | Detailed Bool -- ^ use colors?
@@ -69,24 +69,26 @@ instance Default RequestLoggerSettings where
 
 mkRequestLogger :: RequestLoggerSettings -> IO Middleware
 mkRequestLogger RequestLoggerSettings{..} = do
-    (callback, dateref) <-
+    (callback, mgetdate) <-
         case destination of
             Handle h -> fmap fromLogger $ mkLogger autoFlush h
             Logger l -> return $ fromLogger l
-            Callback c -> do
-                dateref <- dateInit
-                return (c, dateref)
+            Callback c -> return (c, Nothing)
     case outputFormat of
-        Apache ipsrc -> return $ apacheMiddleware callback ipsrc dateref
+        Apache ipsrc -> do
+            getdate <-
+                case mgetdate of
+                    Just x -> return x
+                    Nothing -> fmap getDate dateInit
+            return $ apacheMiddleware callback ipsrc getdate
         Detailed useColors -> detailedMiddleware callback useColors
   where
-    fromLogger :: Logger -> (Callback, DateRef)
-    fromLogger l = (loggerPutStr l, loggerDateRef l)
+    fromLogger l = (loggerPutStr l, Just $ loggerDate l)
 
-apacheMiddleware :: Callback -> IPAddrSource -> DateRef -> Middleware
-apacheMiddleware cb ipsrc dateref app req = do
+apacheMiddleware :: Callback -> IPAddrSource -> IO ZonedDate -> Middleware
+apacheMiddleware cb ipsrc getdate app req = do
     res <- app req
-    date <- liftIO $ getDate dateref
+    date <- liftIO getdate
     -- We use Nothing for the response size since we generally don't know it
     liftIO $ cb $ apacheFormat ipsrc date req (responseStatus res) Nothing
     return res
