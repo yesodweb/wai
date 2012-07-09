@@ -11,3 +11,6 @@
 ./warp-static
 ./wai-websockets
 ./wai-eventsource
+./logger/fast-logger
+./logger/wai-logger
+./logger/monad-logger
