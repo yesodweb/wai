@@ -23,6 +23,7 @@ Executable warp
                , containers      >= 0.2
                , bytestring      >= 0.9.1.4
                , text            >= 0.7                && < 0.12
+               , mime-types      >= 0.1                && < 0.2
 
 source-repository head
   type:     git

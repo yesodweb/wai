@@ -15,8 +15,8 @@ import qualified Data.ByteString.Char8 as S8
 import Control.Arrow ((***))
 import Data.Text (pack)
 import Data.String (fromString)
-import WaiAppStatic.Mime (defaultMimeMap, mimeByExt, defaultMimeType)
-import WaiAppStatic.Types (ssIndices, toPiece, ssGetMimeType, fileName)
+import Network.Mime (defaultMimeMap, mimeByExt, defaultMimeType)
+import WaiAppStatic.Types (ssIndices, toPiece, ssGetMimeType, fileName, fromPiece)
 import Data.Maybe (mapMaybe)
 
 data Args = Args
@@ -49,5 +49,5 @@ main = do
         , settingsHost = fromString host
         } $ middle $ staticApp (defaultFileServerSettings $ fromString docroot)
         { ssIndices = if noindex then [] else mapMaybe (toPiece . pack) index
-        , ssGetMimeType = return . mimeByExt mimeMap defaultMimeType . fileName
+        , ssGetMimeType = return . mimeByExt mimeMap defaultMimeType . fromPiece . fileName
         }
