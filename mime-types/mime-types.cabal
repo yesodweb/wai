@@ -1,0 +1,23 @@
+name:                mime-types
+version:             0.1.0.0
+synopsis:            Basic mime-type handling types and functions
+description:         Basic mime-type handling types and functions
+homepage:            https://github.com/yesodweb/wai
+license:             MIT
+license-file:        LICENSE
+author:              Michael Snoyman
+maintainer:          michael@snoyman.com
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.8
+
+library
+  exposed-modules:     Network.Mime
+  build-depends:       base           >= 4      && < 5
+                     , containers
+                     , text
+                     , bytestring
+
+source-repository head
+  type:     git
+  location: git://github.com/yesodweb/wai.git

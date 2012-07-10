@@ -1,13 +1,35 @@
 {-# LANGUAGE OverloadedStrings #-}
-module WaiAppStatic.Mime
-    ( defaultMimeType
-    , defaultMimeMap
-    , mimeByExt
+module Network.Mime
+    ( -- * Lookups
+      mimeByExt
     , defaultMimeLookup
+      -- * Defaults
+    , defaultMimeType
+    , defaultMimeMap
+      -- * Utilities
+    , fileNameExtensions
+      -- * Types
+    , FileName
+    , MimeType
+    , MimeMap
+    , Extension
     ) where
 
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.ByteString (ByteString)
+import Data.ByteString.Char8 ()
 import qualified Data.Map as Map
-import WaiAppStatic.Types
+
+-- | Maps extensions to mime types.
+type MimeMap = Map.Map Extension MimeType
+
+-- | The filename component of a filepath, leaving off the directory but
+-- keeping all extensions.
+type FileName = Text
+
+-- | Individual mime type for be served over the wire.
+type MimeType = ByteString
 
 -- | The default fallback mime type \"application/octet-stream\".
 defaultMimeType :: MimeType
@@ -85,10 +107,10 @@ defaultMimeMap = Map.fromList [
 -- | Look up a mime type from the given mime map and default mime type.
 mimeByExt :: MimeMap
           -> MimeType -- ^ default mime type
-          -> Piece
+          -> FileName
           -> MimeType
 mimeByExt mm def =
-    go . pieceExtensions
+    go . fileNameExtensions
   where
     go [] = def
     go (e:es) =
@@ -97,5 +119,21 @@ mimeByExt mm def =
             Just mt -> mt
 
 -- | @mimeByExt@ applied to @defaultMimeType@ and @defaultMimeMap@.
-defaultMimeLookup :: Piece -> MimeType
+defaultMimeLookup :: FileName -> MimeType
 defaultMimeLookup = mimeByExt defaultMimeMap defaultMimeType
+
+-- | Get a list of all of the file name extensions from a piece.
+--
+-- > pieceExtensions "foo.tar.gz" == ["tar.gz", "gz"]
+fileNameExtensions :: FileName -> [Extension]
+fileNameExtensions =
+    go
+  where
+    go t
+        | T.null e = []
+        | otherwise = e : go e
+      where
+        e = T.drop 1 $ T.dropWhile (/= '.') t
+
+-- | Path extension. May include multiple components, e.g. tar.gz
+type Extension = Text

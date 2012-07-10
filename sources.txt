@@ -11,4 +11,5 @@
 ./warp-static
 ./wai-websockets
 ./wai-eventsource
+./mime-types
 wai-logger

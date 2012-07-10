@@ -46,6 +46,7 @@ import WaiAppStatic.Types
 import Util
 import WaiAppStatic.Storage.Filesystem
 import WaiAppStatic.Storage.Embedded
+import Network.Mime (MimeType)
 
 data StaticResponse =
       -- | Just the etag hash or Nothing for no etag hash

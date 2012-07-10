@@ -45,12 +45,12 @@ library
                    , blaze-markup              >= 0.5.1    && < 0.6
                    , crypto-conduit            >= 0.4      && < 0.5
                    , cereal                    >= 0.3.5    && < 0.4
+                   , mime-types                >= 0.1      && < 0.2
 
     exposed-modules: Network.Wai.Application.Static
                      WaiAppStatic.Storage.Filesystem
                      WaiAppStatic.Storage.Embedded
                      WaiAppStatic.Listing
-                     WaiAppStatic.Mime
                      WaiAppStatic.Types
     other-modules:   Util
     ghc-options:     -Wall
@@ -79,6 +79,7 @@ test-suite runtests
                    , bytestring
                    , text
                    , transformers
+                   , mime-types
                    -- , containers
   ghc-options:   -Wall
 

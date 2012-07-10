@@ -22,7 +22,7 @@ import Data.ByteString (ByteString)
 import Control.Exception (SomeException, try)
 import qualified Network.Wai as W
 import WaiAppStatic.Listing
-import WaiAppStatic.Mime
+import Network.Mime
 import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime)
 import Data.Maybe (catMaybes)
 import qualified Crypto.Conduit
@@ -41,7 +41,7 @@ defaultWebAppSettings :: FilePath -- ^ root folder to serve from
 defaultWebAppSettings root = StaticSettings
     { ssLookupFile = webAppLookup hashFileIfExists root
     , ssMkRedirect  = defaultMkRedirect
-    , ssGetMimeType = return . defaultMimeLookup . fileName
+    , ssGetMimeType = return . defaultMimeLookup . fromPiece . fileName
     , ssMaxAge  = MaxAgeForever
     , ssListing = Nothing
     , ssIndices = []
@@ -56,7 +56,7 @@ defaultFileServerSettings :: FilePath -- ^ root folder to serve from
 defaultFileServerSettings root = StaticSettings
     { ssLookupFile = fileSystemLookup (fmap Just . hashFile) root
     , ssMkRedirect = defaultMkRedirect
-    , ssGetMimeType = return . defaultMimeLookup . fileName
+    , ssGetMimeType = return . defaultMimeLookup . fromPiece . fileName
     , ssMaxAge = MaxAgeSeconds $ 60 * 60
     , ssListing = Just defaultListing
     , ssIndices = map unsafeToPiece ["index.html", "index.htm"]

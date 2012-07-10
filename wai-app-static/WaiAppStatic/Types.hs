@@ -7,11 +7,6 @@ module WaiAppStatic.Types
     , unsafeToPiece
     , Pieces
     , toPieces
-    , pieceExtensions
-      -- * Mime
-    , MimeType
-    , Extension
-    , MimeMap
       -- * Caching
     , MaxAge (..)
       -- * File\/folder serving
@@ -30,8 +25,8 @@ import qualified Network.Wai as W
 import Data.ByteString (ByteString)
 import System.Posix.Types (EpochTime)
 import qualified Data.Text as T
-import qualified Data.Map as Map
 import Blaze.ByteString.Builder (Builder)
+import Network.Mime (MimeType)
 
 -- | An individual component of a path, or of a filepath.
 --
@@ -66,19 +61,6 @@ toPieces = mapM toPiece
 
 -- | Request coming from a user. Corresponds to @pathInfo@.
 type Pieces = [Piece]
-
--- | Get a list of all of the file name extensions from a piece.
---
--- > pieceExtensions (unsafeToPiece "foo.tar.gz") == ["tar.gz", "gz"]
-pieceExtensions :: Piece -> [Extension]
-pieceExtensions =
-    go . fromPiece
-  where
-    go t
-        | T.null e = []
-        | otherwise = e : go e
-      where
-        e = T.drop 1 $ T.dropWhile (/= '.') t
 
 -- | Values for the max-age component of the cache-control response header.
 data MaxAge = NoMaxAge -- ^ no cache-control set
@@ -120,15 +102,6 @@ data LookupResult = LRFile File
 -- | How to construct a directory listing page for the given request path and
 -- the resulting folder.
 type Listing = Pieces -> Folder -> IO Builder
-
--- | Individual mime type for be served over the wire.
-type MimeType = ByteString
-
--- | Path extension. May include multiple components, e.g. tar.gz
-type Extension = Text
-
--- | Maps extensions to mime types.
-type MimeMap = Map.Map Extension MimeType
 
 -- | All of the settings available to users for tweaking wai-app-static.
 --

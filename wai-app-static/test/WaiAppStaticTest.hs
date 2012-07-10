@@ -18,8 +18,7 @@ import Network.Wai
 import Network.Wai.Test
 
 import Control.Monad.IO.Class (liftIO)
-import WaiAppStatic.Types
-import WaiAppStatic.Mime
+import Network.Mime
 
 defRequest :: Request
 defRequest = defaultRequest
@@ -34,12 +33,12 @@ specs = do
   let statFile = setRawPathInfo defRequest file
 
   describe "mime types" $ do
-    it "pieceExtensions" $
-        pieceExtensions (unsafeToPiece "foo.tar.gz") @?= ["tar.gz", "gz"]
+    it "fileNameExtensions" $
+        fileNameExtensions "foo.tar.gz" @?= ["tar.gz", "gz"]
     it "handles multi-extensions" $
-        defaultMimeLookup (unsafeToPiece "foo.tar.gz") @?= "application/x-tgz"
+        defaultMimeLookup "foo.tar.gz" @?= "application/x-tgz"
     it "defaults correctly" $
-        defaultMimeLookup (unsafeToPiece "foo.unknown") @?= "application/octet-stream"
+        defaultMimeLookup "foo.unknown" @?= "application/octet-stream"
 
   describe "webApp" $ do
     it "403 for unsafe paths" $ webApp $
