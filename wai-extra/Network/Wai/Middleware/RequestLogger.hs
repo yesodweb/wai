@@ -25,7 +25,7 @@ import System.Log.FastLogger
 import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe)
 
-import Network.Wai.Parse (sinkRequestBody, lbsSink, fileName, Param, File, getRequestBodyType)
+import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, getRequestBodyType)
 import qualified Data.ByteString.Lazy as LBS
 
 import qualified Data.Conduit as C
@@ -223,7 +223,7 @@ detailedMiddleware' cb getAddColor app req = do
     allPostParams body =
         case getRequestBodyType req of
             Nothing -> return ([], [])
-            Just rbt -> C.runResourceT $ CL.sourceList body C.$$ sinkRequestBody lbsSink rbt
+            Just rbt -> C.runResourceT $ CL.sourceList body C.$$ sinkRequestBody lbsBackEnd rbt
 
     emptyGetParam :: (BS.ByteString, Maybe BS.ByteString) -> (BS.ByteString, BS.ByteString)
     emptyGetParam (k, Just v) = (k,v)

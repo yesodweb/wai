@@ -10,9 +10,10 @@ module Network.Wai.Parse
     , getRequestBodyType
     , sinkRequestBody
     , conduitRequestBody
-    , lbsSink
-    , tempFileSink
-    , tempFileSinkOpts
+    , BackEnd
+    , lbsBackEnd
+    , tempFileBackEnd
+    , tempFileBackEndOpts
     , Param
     , File
     , FileInfo (..)
@@ -72,19 +73,21 @@ parseHttpAccept = map fst
     trimWhite = S.dropWhile (== 32) -- space
 
 -- | Store uploaded files in memory
-lbsSink :: Monad m => Sink S.ByteString m L.ByteString
-lbsSink = fmap L.fromChunks CL.consume
+lbsBackEnd :: Monad m => ignored1 -> ignored2 -> Sink S.ByteString m L.ByteString
+lbsBackEnd _ _ = fmap L.fromChunks CL.consume
 
 -- | Save uploaded files on disk as temporary files
-tempFileSink :: MonadResource m => Sink S.ByteString m FilePath
-tempFileSink = tempFileSinkOpts getTemporaryDirectory "webenc.buf"
+tempFileBackEnd :: MonadResource m => ignored1 -> ignored2 -> Sink S.ByteString m FilePath
+tempFileBackEnd = tempFileBackEndOpts getTemporaryDirectory "webenc.buf"
 
 -- | Same as 'tempFileSink', but use configurable temp folders and patterns.
-tempFileSinkOpts :: MonadResource m
-                 => IO FilePath -- ^ get temporary directory
-                 -> String -- ^ filename pattern
-                 -> Sink S.ByteString m FilePath
-tempFileSinkOpts getTmpDir pattern = do
+tempFileBackEndOpts :: MonadResource m
+                    => IO FilePath -- ^ get temporary directory
+                    -> String -- ^ filename pattern
+                    -> ignored1
+                    -> ignored2
+                    -> Sink S.ByteString m FilePath
+tempFileBackEndOpts getTmpDir pattern _ _ = do
     (key, (fp, h)) <- lift $ allocate (do
         tempDir <- getTmpDir
         openBinaryTempFile tempDir pattern) (\(_, h) -> hClose h)
@@ -103,6 +106,12 @@ data FileInfo c = FileInfo
 
 type Param = (S.ByteString, S.ByteString)
 type File y = (S.ByteString, FileInfo y)
+
+-- | A file uploading backend. Takes the parameter name, file name, and content
+-- type, and returns a `Sink` for storing the contents.
+type BackEnd a = S.ByteString -- ^ parameter name
+              -> FileInfo ()
+              -> Sink S.ByteString (ResourceT IO) a
 
 data RequestBodyType = UrlEncoded | Multipart S.ByteString
 
@@ -127,7 +136,7 @@ getRequestBodyType req = do
                         else Nothing
             else Nothing
 
-parseRequestBody :: Sink S.ByteString (ResourceT IO) y
+parseRequestBody :: BackEnd y
                  -> Request
                  -> ResourceT IO ([Param], [File y])
 parseRequestBody s r =
@@ -135,12 +144,12 @@ parseRequestBody s r =
         Nothing -> return ([], [])
         Just rbt -> fmap partitionEithers $ requestBody r $$ conduitRequestBody s rbt =$ CL.consume
 
-sinkRequestBody :: Sink S.ByteString (ResourceT IO) y
+sinkRequestBody :: BackEnd y
                 -> RequestBodyType
                 -> Sink S.ByteString (ResourceT IO) ([Param], [File y])
 sinkRequestBody s r = fmap partitionEithers $ conduitRequestBody s r =$ CL.consume
 
-conduitRequestBody :: Sink S.ByteString (ResourceT IO) y
+conduitRequestBody :: BackEnd y
                    -> RequestBodyType
                    -> Conduit S.ByteString (ResourceT IO) (Either Param (File y))
 conduitRequestBody _ UrlEncoded = do
@@ -178,7 +187,7 @@ takeLines = do
                 ls <- takeLines
                 return $ l : ls
 
-parsePieces :: Sink S.ByteString (ResourceT IO) y
+parsePieces :: BackEnd y
             -> S.ByteString
             -> Pipe S.ByteString S.ByteString (Either Param (File y)) u (ResourceT IO) ()
 parsePieces sink bound =
@@ -198,10 +207,9 @@ parsePieces sink bound =
             case x of
                 Just (mct, name, Just filename) -> do
                     let ct = fromMaybe "application/octet-stream" mct
-                    (wasFound, y) <- sinkTillBound' bound sink
-                    let fi = FileInfo filename ct y
-                    let y' = (name, fi)
-                    yield $ Right y'
+                        fi0 = FileInfo filename ct ()
+                    (wasFound, y) <- sinkTillBound' bound name fi0 sink
+                    yield $ Right (name, fi0 { fileContent = y })
                     when wasFound loop
                 Just (_ct, name, Nothing) -> do
                     let seed = id
@@ -253,9 +261,11 @@ findBound b bs = handleBreak $ Search.breakOn b bs
         | otherwise = True
 
 sinkTillBound' :: S.ByteString
-               -> Sink S.ByteString (ResourceT IO) y
+               -> S.ByteString
+               -> FileInfo ()
+               -> BackEnd y
                -> Pipe S.ByteString S.ByteString o u (ResourceT IO) (Bool, y)
-sinkTillBound' bound sink = conduitTillBound bound >+> withUpstream (sinkToPipe sink)
+sinkTillBound' bound name fi sink = conduitTillBound bound >+> withUpstream (sinkToPipe $ sink name fi)
 
 conduitTillBound :: Monad m
                  => S.ByteString -- bound
