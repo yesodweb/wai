@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             1.2.0.5
+Version:             1.2.0.6
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             MIT
@@ -33,7 +33,7 @@ Library
                    , text                      >= 0.7      && < 0.12
                    , case-insensitive          >= 0.2
                    , data-default              >= 0.3      && < 0.5
-                   , fast-logger               >= 0.0.2
+                   , fast-logger               >= 0.0.2    && < 0.1
                    , conduit                   >= 0.4      && < 0.5
                    , zlib-conduit              >= 0.4      && < 0.5
                    , blaze-builder-conduit     >= 0.4      && < 0.5
