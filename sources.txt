@@ -12,5 +12,4 @@
 ./wai-websockets
 ./wai-eventsource
 ./mime-types
-./wai-handler-devel
-./wai-handler-webkit
+wai-logger
