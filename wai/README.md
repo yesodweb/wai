@@ -1,4 +1,3 @@
-<!-- Generated from README.lhs, do not modify! -->
 WAI: Web Application Interface
 ==============================
 
@@ -7,25 +6,27 @@ Getting started
 
 You want a minimal example? Here it is!
 
-    {-# LANGUAGE OverloadedStrings #-}
-    import Network.Wai
-    import Network.HTTP.Types
-    import Network.Wai.Handler.Warp (run)
-    import Data.ByteString.Lazy.Char8 () -- Just for an orphan instance
-    import Control.Monad.IO.Class (liftIO)
+~~~ {.haskell .literate}
+{-# LANGUAGE OverloadedStrings #-}
+import Network.Wai
+import Network.HTTP.Types
+import Network.Wai.Handler.Warp (run)
+import Data.ByteString.Lazy.Char8 () -- Just for an orphan instance
+import Control.Monad.IO.Class (liftIO)
 
-    app :: Application
-    app _ = do
-      liftIO $ putStrLn "I've done some IO here"
-      return $ responseLBS
-        status200
-        [("Content-Type", "text/plain")]
-        "Hello, Web!"
+app :: Application
+app _ = do
+  liftIO $ putStrLn "I've done some IO here"
+  return $ responseLBS
+    status200
+    [("Content-Type", "text/plain")]
+    "Hello, Web!"
 
-    main :: IO ()
-    main = do
-        putStrLn $ "http://localhost:8080/"
-        run 8080 app
+main :: IO ()
+main = do
+    putStrLn $ "http://localhost:8080/"
+    run 8080 app
+~~~
 
 Put that code into a file named _hello.hs_ and install [wai] and [warp] from Hackage:
 
@@ -49,14 +50,16 @@ We can modify our previous example to serve static content. For this create a fi
 
 Now we redefine `responseBody` to refer to that file:
 
-    app2 :: Application
-    app2 _ = return index
+~~~ {.haskell .literate}
+app2 :: Application
+app2 _ = return index
 
-    index = ResponseFile
-        status200
-        [("Content-Type", "text/html")]
-        "index.html"
-        Nothing
+index = ResponseFile
+    status200
+    [("Content-Type", "text/html")]
+    "index.html"
+    Nothing
+~~~
 
 
 Basic dispatching
@@ -69,22 +72,24 @@ An `Application` maps `Request`s to `Response`s:
 
 Depending on the path info provided with each `Request` we can serve different `Response`s:
 
-    app3 :: Application
-    app3 request = case rawPathInfo request of
-        "/"     -> return index
-        "/raw/" -> return plainIndex
-        _       -> return notFound
+~~~ {.haskell .literate}
+app3 :: Application
+app3 request = case rawPathInfo request of
+    "/"     -> return index
+    "/raw/" -> return plainIndex
+    _       -> return notFound
 
-    plainIndex = ResponseFile
-        status200
-        [("Content-Type", "text/plain")]
-        "index.html"
-        Nothing
+plainIndex = ResponseFile
+    status200
+    [("Content-Type", "text/plain")]
+    "index.html"
+    Nothing
 
-    notFound = responseLBS
-        status404
-        [("Content-Type", "text/plain")]
-        "404 - Not Found"
+notFound = responseLBS
+    status404
+    [("Content-Type", "text/plain")]
+    "404 - Not Found"
+~~~
 
 
 Doing without overloaded strings
@@ -92,14 +97,16 @@ Doing without overloaded strings
 
 For the sake of efficiency, WAI uses the [bytestring] package.  We used GHCs [overloaded strings] to almost hide this fact. But we can easily do without.  What follows is a more verbose definition of `notFound`, that works without GHC extensions:
 
-    import qualified Data.ByteString.Char8 as B8
-    import qualified Data.ByteString.Lazy.Char8 as LB8
-    import           Data.CaseInsensitive (mk)
+~~~ {.haskell}
+import qualified Data.ByteString.Char8 as B8
+import qualified Data.ByteString.Lazy.Char8 as LB8
+import           Data.CaseInsensitive (mk)
 
-    notFound = responseLBS
-        status404
-        [(mk $ B8.pack "Content-Type", B8.pack "text/plain")]
-        (LB8.pack "404 - Not Found")
+notFound = responseLBS
+    status404
+    [(mk $ B8.pack "Content-Type", B8.pack "text/plain")]
+    (LB8.pack "404 - Not Found")
+~~~
 
 
  [wai]: http://hackage.haskell.org/package/wai
