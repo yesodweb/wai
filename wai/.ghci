@@ -1,0 +1,1 @@
+:set -i../warp -i../warp/dist/build/autogen/ -pgmL pandoc-unlit
