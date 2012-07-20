@@ -64,7 +64,7 @@ module Network.Wai.Handler.Warp
 #endif
     ) where
 
-import Prelude hiding (lines)
+import Prelude hiding (lines, catch)
 import Network.Wai
 
 import Data.ByteString (ByteString)
@@ -76,8 +76,8 @@ import Network (sClose, Socket)
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Control.Exception
-    ( mask, handle, onException, bracket
-    , Exception, SomeException
+    ( mask, catch, handle, onException, bracket
+    , Exception, SomeException, IOException
     , fromException, AsyncException (ThreadKilled)
     , try
 #if __GLASGOW_HASKELL__ >= 702
@@ -89,7 +89,9 @@ import Control.Exception
     , finally
 #endif
     )
-import Control.Concurrent (forkIO)
+import GHC.IO.Exception (IOErrorType(ResourceExhausted))
+import System.IO.Error (ioeGetErrorType)
+import Control.Concurrent (forkIO, threadDelay)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Char (toLower, isHexDigit)
 import Data.Word (Word)
@@ -127,7 +129,6 @@ import qualified Data.IORef as I
 import Data.Conduit.Network (bindPort, HostPreference (HostIPv4))
 
 #if WINDOWS
-import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
 #endif
@@ -216,8 +217,16 @@ runSettingsSocket set socket app =
     runSettingsConnection set getter app
   where
     getter = do
-        (conn, sa) <- accept socket
+        (conn, sa) <- acceptLoop
         return (socketConnection conn, sa)
+    acceptLoop = accept socket `catch` \(e :: IOException) ->
+        if ioeGetErrorType e == ResourceExhausted then do
+            -- "resource exhausted (Too many open files)" may happen.
+            -- Wait a second hoping that resource will be available
+            threadDelay 1000000
+            acceptLoop
+          else
+            throwIO e
 
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
 runSettingsConnection set getConn app = do
