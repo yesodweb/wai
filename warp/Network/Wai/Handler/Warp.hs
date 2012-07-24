@@ -64,7 +64,7 @@ module Network.Wai.Handler.Warp
 #endif
     ) where
 
-import Prelude hiding (lines)
+import Prelude hiding (lines, catch)
 import Network.Wai
 
 import Data.ByteString (ByteString)
@@ -76,9 +76,9 @@ import Network (sClose, Socket)
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Control.Exception
-    ( mask, handle, onException, bracket
-    , Exception, SomeException
-    , fromException, AsyncException (ThreadKilled)
+    ( mask, catch, handle, onException, bracket
+    , Exception, SomeException, IOException, AsyncException (ThreadKilled)
+    , fromException, toException
     , try
 #if __GLASGOW_HASKELL__ >= 702
     , allowInterrupt
@@ -89,7 +89,7 @@ import Control.Exception
     , finally
 #endif
     )
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, threadDelay)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Char (toLower, isHexDigit)
 import Data.Word (Word)
@@ -127,7 +127,6 @@ import qualified Data.IORef as I
 import Data.Conduit.Network (bindPort, HostPreference (HostIPv4))
 
 #if WINDOWS
-import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
 #endif
@@ -221,21 +220,29 @@ runSettingsSocket set socket app =
 
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
 runSettingsConnection set getConn app = do
-    let onE = settingsOnException set
-        port = settingsPort set
-        onOpen = settingsOnOpen set
-        onClose = settingsOnClose set
     tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
         $ settingsManager set
     mask $ \restore -> forever $ do
         allowInterrupt
-        (conn, addr) <- getConn
+        (conn, addr) <- getConnLoop
         void $ forkIO $ do
             th <- T.registerKillThread tm
             handle onE $ (do onOpen
                              restore $ serveConnection set th port app conn addr
                              connClose conn >> T.cancel th >> onClose
                          ) `onException` (T.cancel th >> connClose conn >> onClose)
+  where
+    -- FIXME: only IOEception is caught. What about other exceptions?
+    getConnLoop = getConn `catch` \(e :: IOException) -> do
+        onE (toException e)
+        -- "resource exhausted (Too many open files)" may happen by accept().
+        -- Wait a second hoping that resource will be available.
+        threadDelay 1000000
+        getConnLoop
+    onE = settingsOnException set
+    port = settingsPort set
+    onOpen = settingsOnOpen set
+    onClose = settingsOnClose set
 
 -- | Contains a @Source@ and a byte count that is still to be read in.
 newtype IsolatedBSSource = IsolatedBSSource (I.IORef (Int, ResumableSource (ResourceT IO) ByteString))
