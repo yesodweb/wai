@@ -25,8 +25,9 @@ Library
 
   ghc-options:     -Wall
   hs-source-dirs:  src
-  exposed-modules: Network.Wai.EventSource
-  other-modules:   Network.Wai.EventSource.EventStream
+  exposed-modules:
+    Network.Wai.EventSource
+    Network.Wai.EventSource.EventStream
 
 source-repository head
   type:     git
