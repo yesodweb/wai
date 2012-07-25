@@ -1,4 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-|
+    A WAI adapter to the HTML5 Server-Sent Events API.
+-}
 module Network.Wai.EventSource (
     ServerEvent(..),
     eventSourceAppChan,
