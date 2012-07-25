@@ -2,8 +2,7 @@
 {- code adapted by Mathias Billman originaly from Chris Smith https://github.com/cdsmith/gloss-web -}
 
 {-|
-    A WAI adapter to the HTML5 Server-Sent Events API.  Push-mode and
-    pull-mode interfaces are both available.
+    Internal module, usually you don't need to use it.
 -}
 module Network.Wai.EventSource.EventStream (
     ServerEvent(..),
