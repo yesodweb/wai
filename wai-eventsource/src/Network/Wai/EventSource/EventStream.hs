@@ -59,21 +59,14 @@ field l b = l `mappend` b `mappend` nl
 
 
 {-|
-    Appends a buffer flush to the end of a Builder.
--}
-flushAfter :: Builder -> Builder
-flushAfter b = b `mappend` flush
-
-
-{-|
     Converts a 'ServerEvent' to its wire representation as specified by the
     @text/event-stream@ content type.
 -}
 eventToBuilder :: ServerEvent -> Maybe Builder
-eventToBuilder (CommentEvent txt) = Just $ flushAfter $ field commentField txt
-eventToBuilder (RetryEvent   n)   = Just $ flushAfter $ field retryField (fromShow n)
+eventToBuilder (CommentEvent txt) = Just $ field commentField txt
+eventToBuilder (RetryEvent   n)   = Just $ field retryField (fromShow n)
 eventToBuilder (CloseEvent)       = Nothing
-eventToBuilder (ServerEvent n i d)= Just $ flushAfter $
+eventToBuilder (ServerEvent n i d)= Just $
     (name n $ evid i $ mconcat (map (field dataField) d)) `mappend` nl
   where
     name Nothing  = id
