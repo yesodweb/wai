@@ -34,13 +34,13 @@ sendResponse th req conn r = sendResponse' r
     isChunked' = isChunked version
     needsChunked hs = isChunked' && not (hasLength hs)
     isKeepAlive hs = isPersist && (isChunked' || hasLength hs)
-    hasLength hs = isJust $ lookup "content-length" hs
+    hasLength hs = isJust $ lookup H.hContentLength hs
     sendHeader = connSendMany conn . L.toChunks . toLazyByteString
 
     sendResponse' :: Response -> ResourceT IO Bool
     sendResponse' (ResponseFile s hs fp mpart) = do
         eres <-
-            case (readInt `fmap` lookup "content-length" hs, mpart) of
+            case (readInt `fmap` lookup H.hContentLength hs, mpart) of
                 (Just cl, _) -> return $ Right (hs, cl)
                 (Nothing, Nothing) -> liftIO $ try $ do
                     cl <- P.fileSize `fmap` P.getFileStatus fp
@@ -51,7 +51,7 @@ sendResponse th req conn r = sendResponse' r
         case eres of
             Left (_ :: SomeException) -> sendResponse' $ responseLBS
                 H.status404
-                [("Content-Type", "text/plain")]
+                [(H.hContentType, "text/plain")]
                 "File not found"
             Right (lengthyHeaders, cl) -> liftIO $ do
                 let headers' = L.toChunks . toLazyByteString $ headers version s lengthyHeaders False
@@ -65,7 +65,7 @@ sendResponse th req conn r = sendResponse' r
                   else
                     return isPersist
       where
-        addClToHeaders cl = (("Content-Length", B.pack $ show cl):hs, fromIntegral cl)
+        addClToHeaders cl = ((H.hContentLength, B.pack $ show cl):hs, fromIntegral cl)
 
     sendResponse' (ResponseBuilder s hs b)
         | hasBody s req = liftIO $ do
@@ -113,7 +113,7 @@ checkPersist req
     | otherwise       = checkPersist10 conn
   where
     ver = httpVersion req
-    conn = lookup "connection" $ requestHeaders req
+    conn = lookup H.hConnection $ requestHeaders req
     checkPersist11 (Just x)
         | CI.foldCase x == "close"      = False
     checkPersist11 _                    = True

@@ -63,12 +63,12 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
              (map parseHeaderNoAttr otherLines)
     let host = fromMaybe host' $ lookup "host" heads
     let len0 =
-            case lookup "content-length" heads of
+            case lookup H.hContentLength heads of
                 Nothing -> 0
                 Just bs -> readInt bs
     let serverName' = takeUntil 58 host -- ':'
     let chunked = maybe False ((== "chunked") . CI.foldCase)
-                  $ lookup "transfer-encoding" heads
+                  $ lookup H.hContentEncoding heads
     (rbody, getSource) <- liftIO $
         if chunked
           then do
