@@ -21,7 +21,10 @@ import qualified Data.IORef as I
 
 -- | A timeout manager
 newtype Manager = Manager (I.IORef [Handle])
+
+-- | A handle used by 'Manager'
 data Handle = Handle (IO ()) (I.IORef State)
+
 data State = Active | Inactive | Paused | Canceled
 
 initialize :: Int -> IO Manager

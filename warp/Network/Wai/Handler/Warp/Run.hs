@@ -34,6 +34,7 @@ import Network.Socket (withSocketsDo)
 bytesPerRead :: Int
 bytesPerRead = 4096
 
+-- | Default action value for 'Connection'
 socketConnection :: Socket -> Connection
 socketConnection s = Connection
     { connSendMany = Sock.sendMany s

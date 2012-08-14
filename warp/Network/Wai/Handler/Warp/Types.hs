@@ -12,6 +12,7 @@ import qualified Paths_warp
 warpVersion :: String
 warpVersion = showVersion Paths_warp.version
 
+-- | TCP port number
 type Port = Int
 
 data InvalidRequest =

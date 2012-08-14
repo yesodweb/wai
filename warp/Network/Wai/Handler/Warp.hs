@@ -39,18 +39,19 @@ module Network.Wai.Handler.Warp (
     -- * Datatypes
   , Port
   , InvalidRequest (..)
-    -- * Internal
+    -- * Internal (Manager)
   , Manager
-  , withManager
   , Handle
-  , parseRequest
-  , sendResponse
+  , initialize
+  , withManager
+  , register
   , registerKillThread
   , pause
   , resume
   , cancel
-  , register
-  , initialize
+    -- * Internal
+  , parseRequest
+  , sendResponse
   , socketConnection
 #if TEST
   , takeHeaders
