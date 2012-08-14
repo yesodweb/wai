@@ -81,11 +81,12 @@ sendResponse th req conn r = sendResponse' r
       where
         headers' = headers version s hs
         needsChunked' = needsChunked hs
-        body = if needsChunked'
-                  then headers' needsChunked'
-                       `mappend` chunkedTransferEncoding b
-                       `mappend` chunkedTransferTerminator
-                  else headers' False `mappend` b
+        body = if needsChunked' then
+                   headers' needsChunked'
+                     `mappend` chunkedTransferEncoding b
+                     `mappend` chunkedTransferTerminator
+                 else
+                   headers' False `mappend` b
 
     sendResponse' (ResponseSource s hs bodyFlush)
         | hasBody s req = do
@@ -150,9 +151,7 @@ headers !httpversion !status !responseHeaders !isChunked' = {-# SCC "headers" #-
                 `mappend` copyByteString (H.statusMessage status)
                 `mappend` newlineBuilder
         !start' = foldl' responseHeaderToBuilder start (serverHeader responseHeaders)
-        !end = if isChunked'
-                 then transferEncodingBuilder
-                 else newlineBuilder
+        !end = if isChunked' then transferEncodingBuilder else newlineBuilder
     in start' `mappend` end
 
 responseHeaderToBuilder :: Builder -> H.Header -> Builder

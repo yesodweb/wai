@@ -199,16 +199,14 @@ takeHeaders =
             nl <- S.elemIndex 10 bs
             -- check if there are two more bytes in the bs
             -- if so, see if the second of those is a horizontal space
-            if bsLen > nl + 1
-                then
-                    let c = S.index bs (nl + 1)
-                     in Just (nl, c == 32 || c == 9)
-                else Just (nl, False)
+            if bsLen > nl + 1 then
+                let c = S.index bs (nl + 1)
+                in Just (nl, c == 32 || c == 9)
+              else
+                Just (nl, False)
 
 {-# INLINE checkCR #-}
 checkCR :: ByteString -> Int -> Int
-checkCR bs pos =
-  let !p = pos - 1
-  in if '\r' == B.index bs p
-        then p
-        else pos
+checkCR bs pos = if '\r' == B.index bs p then p else pos
+  where
+    !p = pos - 1
