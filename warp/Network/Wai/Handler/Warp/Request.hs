@@ -10,7 +10,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
-import Data.Char (toLower)
 import Data.Conduit
 import qualified Data.IORef as I
 import Data.Maybe (fromMaybe)
@@ -68,7 +67,7 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
                 Nothing -> 0
                 Just bs -> readInt bs
     let serverName' = takeUntil 58 host -- ':'
-    let chunked = maybe False ((== "chunked") . B.map toLower)
+    let chunked = maybe False ((== "chunked") . CI.foldCase)
                   $ lookup "transfer-encoding" heads
     (rbody, getSource) <- liftIO $
         if chunked
