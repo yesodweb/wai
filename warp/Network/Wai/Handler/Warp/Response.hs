@@ -4,11 +4,10 @@
 
 module Network.Wai.Handler.Warp.Response where
 
-import Data.List (foldl')
-import qualified Data.Conduit.List as CL
 import Blaze.ByteString.Builder (copyByteString, Builder, toLazyByteString, toByteStringIO, flush)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
+import Control.Applicative
 import Control.Exception
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString.Char8 as B
@@ -16,6 +15,8 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import Data.Conduit.Blaze (builderToByteString)
+import qualified Data.Conduit.List as CL
+import Data.List (foldl')
 import Data.Maybe (isJust)
 import Data.Monoid (mappend)
 import qualified Network.HTTP.Types as H
@@ -40,10 +41,10 @@ sendResponse th req conn r = sendResponse' r
     sendResponse' :: Response -> ResourceT IO Bool
     sendResponse' (ResponseFile s hs fp mpart) = do
         eres <-
-            case (readInt `fmap` lookup H.hContentLength hs, mpart) of
+            case (readInt <$> lookup H.hContentLength hs, mpart) of
                 (Just cl, _) -> return $ Right (hs, cl)
                 (Nothing, Nothing) -> liftIO $ try $ do
-                    cl <- P.fileSize `fmap` P.getFileStatus fp
+                    cl <- P.fileSize <$> P.getFileStatus fp
                     return $ addClToHeaders cl
                 (Nothing, Just part) -> do
                     let cl = filePartByteCount part

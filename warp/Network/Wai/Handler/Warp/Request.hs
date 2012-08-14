@@ -3,6 +3,7 @@
 
 module Network.Wai.Handler.Warp.Request where
 
+import Control.Applicative
 import Control.Exception.Lifted (throwIO)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
@@ -77,9 +78,9 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
         if chunked
           then do
             ref <- I.newIORef (src, NeedLen)
-            return (chunkedSource ref, fmap fst $ I.readIORef ref)
+            return (chunkedSource ref, fst <$> I.readIORef ref)
           else do
-            ibs <- fmap IsolatedBSSource $ I.newIORef (len0, src)
+            ibs <- IsolatedBSSource <$> I.newIORef (len0, src)
             return (ibsIsolate ibs, ibsDone ibs)
 
     return (Request

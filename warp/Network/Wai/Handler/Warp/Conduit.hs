@@ -1,5 +1,6 @@
 module Network.Wai.Handler.Warp.Conduit where
 
+import Control.Applicative
 import Control.Exception
 import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -70,7 +71,7 @@ ibsIsolate ibs@(IsolatedBSSource ref) = do
 -- | Extract the underlying @Source@ from an @IsolatedBSSource@, which will not
 -- perform any more isolation.
 ibsDone :: IsolatedBSSource -> IO (ResumableSource (ResourceT IO) ByteString)
-ibsDone (IsolatedBSSource ref) = fmap snd $ I.readIORef ref
+ibsDone (IsolatedBSSource ref) = snd <$> I.readIORef ref
 
 ----------------------------------------------------------------
 
