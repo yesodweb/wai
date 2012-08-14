@@ -5,7 +5,7 @@ module Network.Wai.Handler.Warp.Run where
 
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Exception
-import Control.Monad (forever, when, void)
+import Control.Monad (forever, when, unless, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
@@ -137,9 +137,7 @@ connSource Connection { connRecv = recv } th =
   where
     src = do
         bs <- liftIO recv
-        if S.null bs
-            then return ()
-            else do
-                when (S.length bs >= 2048) $ liftIO $ T.tickle th
-                yield bs
-                src
+        unless (S.null bs) $ do
+            when (S.length bs >= 2048) $ liftIO $ T.tickle th
+            yield bs
+            src

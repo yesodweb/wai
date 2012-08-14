@@ -1,6 +1,7 @@
 module Network.Wai.Handler.Warp.Conduit where
 
 import Control.Exception
+import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Data.ByteString (ByteString)
@@ -27,47 +28,44 @@ newtype IsolatedBSSource = IsolatedBSSource (I.IORef (Int, ResumableSource (Reso
 ibsIsolate :: IsolatedBSSource -> Source (ResourceT IO) ByteString
 ibsIsolate ibs@(IsolatedBSSource ref) = do
     (count, src) <- liftIO $ I.readIORef ref
-    if count == 0
-        -- No more bytes wanted downstream, so we're done.
-        then return ()
-        else do
-            -- Get the next chunk (if available) and the updated source
-            (src', mbs) <- lift $ src $$++ CL.head
+    unless (count == 0) $ do
+        -- Get the next chunk (if available) and the updated source
+        (src', mbs) <- lift $ src $$++ CL.head
 
-            -- If no chunk available, then there aren't enough bytes in the
-            -- stream. Throw a ConnectionClosedByPeer
-            bs <- maybe (liftIO $ throwIO ConnectionClosedByPeer) return mbs
+        -- If no chunk available, then there aren't enough bytes in the
+        -- stream. Throw a ConnectionClosedByPeer
+        bs <- maybe (liftIO $ throwIO ConnectionClosedByPeer) return mbs
 
-            let -- How many of the bytes in this chunk to send downstream
-                toSend = min count (S.length bs)
-                -- How many bytes will still remain to be sent downstream
-                count' = count - toSend
-            case () of
-                ()
-                    -- The expected count is greater than the size of the
-                    -- chunk we just read. Send the entire chunk
-                    -- downstream, and then loop on this function for the
-                    -- next chunk.
-                    | count' > 0 -> do
-                        liftIO $ I.writeIORef ref (count', src')
-                        yield bs
-                        ibsIsolate ibs
+        let -- How many of the bytes in this chunk to send downstream
+            toSend = min count (S.length bs)
+            -- How many bytes will still remain to be sent downstream
+            count' = count - toSend
+        case () of
+            ()
+                -- The expected count is greater than the size of the
+                -- chunk we just read. Send the entire chunk
+                -- downstream, and then loop on this function for the
+                -- next chunk.
+                | count' > 0 -> do
+                    liftIO $ I.writeIORef ref (count', src')
+                    yield bs
+                    ibsIsolate ibs
 
-                    -- The expected count is the total size of the chunk we
-                    -- just read. Send this chunk downstream, and then
-                    -- terminate the stream.
-                    | count == S.length bs -> do
-                        liftIO $ I.writeIORef ref (count', src')
-                        yield bs
+                -- The expected count is the total size of the chunk we
+                -- just read. Send this chunk downstream, and then
+                -- terminate the stream.
+                | count == S.length bs -> do
+                    liftIO $ I.writeIORef ref (count', src')
+                    yield bs
 
-                    -- Some of the bytes in this chunk should not be sent
-                    -- downstream. Split up the chunk into the sent and
-                    -- not-sent parts, add the not-sent parts onto the new
-                    -- source, and send the rest of the chunk downstream.
-                    | otherwise -> do
-                        let (x, y) = S.splitAt toSend bs
-                        liftIO $ I.writeIORef ref (count', fmapResume (yield y >>) src')
-                        yield x
+                -- Some of the bytes in this chunk should not be sent
+                -- downstream. Split up the chunk into the sent and
+                -- not-sent parts, add the not-sent parts onto the new
+                -- source, and send the rest of the chunk downstream.
+                | otherwise -> do
+                    let (x, y) = S.splitAt toSend bs
+                    liftIO $ I.writeIORef ref (count', fmapResume (yield y >>) src')
+                    yield x
 
 -- | Extract the underlying @Source@ from an @IsolatedBSSource@, which will not
 -- perform any more isolation.
