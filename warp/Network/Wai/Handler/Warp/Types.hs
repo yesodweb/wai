@@ -14,11 +14,6 @@ warpVersion = showVersion Paths_warp.version
 
 type Port = Int
 
--- FIXME come up with good values here
-bytesPerRead, maxTotalHeaderLength :: Int
-bytesPerRead = 4096
-maxTotalHeaderLength = 50 * 1024
-
 data InvalidRequest =
     NotEnoughLines [String]
     | BadFirstLine String

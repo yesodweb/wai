@@ -23,6 +23,10 @@ import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Types
 import Prelude hiding (lines)
 
+-- FIXME come up with good values here
+maxTotalHeaderLength :: Int
+maxTotalHeaderLength = 50 * 1024
+
 parseRequest :: Connection -> Port -> SockAddr
              -> Source (ResourceT IO) S.ByteString
              -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))

@@ -30,6 +30,10 @@ import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
 #endif
 
+-- FIXME come up with good values here
+bytesPerRead :: Int
+bytesPerRead = 4096
+
 socketConnection :: Socket -> Connection
 socketConnection s = Connection
     { connSendMany = Sock.sendMany s
