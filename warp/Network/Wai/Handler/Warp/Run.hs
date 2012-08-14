@@ -44,7 +44,7 @@ runSettings :: Settings -> Application -> IO ()
 runSettings set app = withSocketsDo $ do
     var <- MV.newMVar Nothing
     let clean = MV.modifyMVar_ var $ \s -> maybe (return ()) sClose s >> return Nothing
-    _ <- forkIO $ bracket
+    void . forkIO $ bracket
         (bindPort (settingsPort set) (settingsHost set))
         (const clean)
         (\s -> do

@@ -14,6 +14,7 @@ module Network.Wai.Handler.Warp.Timeout (
 import Control.Concurrent (forkIO, threadDelay, myThreadId, killThread)
 import qualified Control.Exception as E
 import Control.Monad (forever)
+import Control.Monad (void)
 import qualified Data.IORef as I
 
 -- FIXME implement stopManager
@@ -26,7 +27,7 @@ data State = Active | Inactive | Paused | Canceled
 initialize :: Int -> IO Manager
 initialize timeout = do
     ref <- I.newIORef []
-    _ <- forkIO $ forever $ do
+    void . forkIO $ forever $ do
         threadDelay timeout
         ms <- I.atomicModifyIORef ref (\x -> ([], x))
         ms' <- go ms id
