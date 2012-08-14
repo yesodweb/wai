@@ -7,9 +7,6 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Typeable (Typeable)
 import Data.Version (showVersion)
-import Network (sClose, Socket)
-import Network.Sendfile
-import qualified Network.Socket.ByteString as Sock
 import qualified Paths_warp
 
 warpVersion :: String
@@ -57,13 +54,3 @@ data Connection = Connection
     , connClose    :: IO ()
     , connRecv     :: IO B.ByteString
     }
-
-socketConnection :: Socket -> Connection
-socketConnection s = Connection
-    { connSendMany = Sock.sendMany s
-    , connSendAll = Sock.sendAll s
-    , connSendFile = \fp off len act hdr -> sendfileWithHeader s fp (PartOfFile off len) act hdr
-    , connClose = sClose s
-    , connRecv = Sock.recv s bytesPerRead
-    }
-

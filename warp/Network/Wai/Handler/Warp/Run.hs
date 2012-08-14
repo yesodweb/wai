@@ -14,7 +14,9 @@ import Data.Conduit.Internal (ResumableSource (..))
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network (bindPort)
 import Network (sClose, Socket)
+import Network.Sendfile
 import Network.Socket (accept, SockAddr)
+import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
@@ -27,6 +29,15 @@ import Prelude hiding (catch)
 import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
 #endif
+
+socketConnection :: Socket -> Connection
+socketConnection s = Connection
+    { connSendMany = Sock.sendMany s
+    , connSendAll = Sock.sendAll s
+    , connSendFile = \fp off len act hdr -> sendfileWithHeader s fp (PartOfFile off len) act hdr
+    , connClose = sClose s
+    , connRecv = Sock.recv s bytesPerRead
+    }
 
 #if __GLASGOW_HASKELL__ < 702
 allowInterrupt :: IO ()
