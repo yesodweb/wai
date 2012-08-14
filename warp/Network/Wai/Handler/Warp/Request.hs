@@ -94,14 +94,14 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
             , vault = mempty
             }, getSource)
 
-
+{-# INLINE takeUntil #-}
 takeUntil :: Word8 -> ByteString -> ByteString
 takeUntil c bs =
     case S.elemIndex c bs of
        Just !idx -> SU.unsafeTake idx bs
        Nothing -> bs
-{-# INLINE takeUntil #-}
 
+{-# INLINE parseFirst #-} -- FIXME is this inline necessary? the function is only called from one place and not exported
 parseFirst :: ByteString
            -> ResourceT IO (ByteString, ByteString, ByteString, H.HttpVersion)
 parseFirst s =
@@ -118,7 +118,6 @@ parseFirst s =
                     in return (method, rpath, qstring, hv)
                else throwIO NonHttp
         _ -> throwIO $ BadFirstLine $ B.unpack s
-{-# INLINE parseFirst #-} -- FIXME is this inline necessary? the function is only called from one place and not exported
 
 parseHeaderNoAttr :: ByteString -> H.Header
 parseHeaderNoAttr s =
@@ -134,6 +133,7 @@ data THStatus = THStatus
     BSEndoList -- previously parsed lines
     BSEndo -- bytestrings to be prepended
 
+{-# INLINE takeHeaders #-}
 takeHeaders :: Sink ByteString (ResourceT IO) [ByteString]
 takeHeaders =
     await >>= maybe (throwIO ConnectionClosedByPeer) (push (THStatus 0 id id))
@@ -199,12 +199,11 @@ takeHeaders =
                     let c = S.index bs (nl + 1)
                      in Just (nl, c == 32 || c == 9)
                 else Just (nl, False)
-{-# INLINE takeHeaders #-}
 
+{-# INLINE checkCR #-}
 checkCR :: ByteString -> Int -> Int
 checkCR bs pos =
   let !p = pos - 1
   in if '\r' == B.index bs p
         then p
         else pos
-{-# INLINE checkCR #-}
