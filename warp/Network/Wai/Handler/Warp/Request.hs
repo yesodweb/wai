@@ -74,7 +74,7 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
                 Just bs -> readInt bs
     let serverName' = takeUntil 58 host -- ':'
     let chunked = maybe False ((== "chunked") . CI.foldCase)
-                  $ lookup H.hContentEncoding heads
+                  $ lookup "transfer-encoding" heads
     (rbody, getSource) <- liftIO $
         if chunked
           then do
