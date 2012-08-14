@@ -15,6 +15,7 @@ import Data.Conduit
 import qualified Data.IORef as I
 import Data.Maybe (fromMaybe)
 import Data.Monoid (mempty)
+import Data.Void (Void)
 import Data.Word (Word8)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
@@ -142,68 +143,69 @@ data THStatus = THStatus
 takeHeaders :: Sink ByteString (ResourceT IO) [ByteString]
 takeHeaders =
     await >>= maybe (throwIO ConnectionClosedByPeer) (push (THStatus 0 id id))
-  where
-    close :: Sink ByteString (ResourceT IO) a
-    close = throwIO IncompleteHeaders
 
-    push (THStatus len lines prepend) bs
+close :: Sink ByteString (ResourceT IO) a
+close = throwIO IncompleteHeaders
+
+push :: THStatus -> ByteString -> Pipe ByteString ByteString Void () (ResourceT IO) [ByteString]
+push (THStatus len lines prepend) bs
         -- Too many bytes
         | len > maxTotalHeaderLength = throwIO OverLargeHeader
-        | otherwise =
-            case mnl of
-                -- No newline find in this chunk.  Add it to the prepend,
-                -- update the length, and continue processing.
-                Nothing ->
-                    let len' = len + bsLen
-                        prepend' = prepend . S.append bs
-                        status = THStatus len' lines prepend'
-                     in await >>= maybe close (push status)
-                -- Found a newline, but next line continues as a multiline header
-                Just (end, True) ->
-                    let rest = S.drop (end + 1) bs
-                        prepend' = prepend . S.append (SU.unsafeTake (checkCR bs end) bs)
-                        len' = len + end
-                        status = THStatus len' lines prepend'
-                     in push status rest
-                -- Found a newline at position end.
-                Just (end, False) ->
-                    let start = end + 1 -- start of next chunk
-                        line
-                            -- There were some bytes before the newline, get them
-                            | end > 0 = prepend $ SU.unsafeTake (checkCR bs end) bs
-                            -- No bytes before the newline
-                            | otherwise = prepend S.empty
-                     in if S.null line
-                            -- no more headers
-                            then
-                                let lines' = lines []
-                                    -- leftover
-                                    rest = if start < bsLen
-                                               then Just (SU.unsafeDrop start bs)
-                                               else Nothing
-                                 in maybe (return ()) leftover rest >> return lines'
-                            -- more headers
-                            else
-                                let len' = len + start
-                                    lines' = lines . (line:)
-                                    status = THStatus len' lines' id
-                                 in if start < bsLen
-                                        -- more bytes in this chunk, push again
-                                        then let bs' = SU.unsafeDrop start bs
-                                              in push status bs'
-                                        -- no more bytes in this chunk, ask for more
-                                        else await >>= maybe close (push status)
+        | otherwise = push' mnl
+  where
+    bsLen = S.length bs
+    mnl = do
+        nl <- S.elemIndex 10 bs
+        -- check if there are two more bytes in the bs
+        -- if so, see if the second of those is a horizontal space
+        if bsLen > nl + 1 then
+            let c = S.index bs (nl + 1)
+            in Just (nl, c == 32 || c == 9)
+            else
+            Just (nl, False)
+
+    {-# INLINE push' #-}
+    -- No newline find in this chunk.  Add it to the prepend,
+    -- update the length, and continue processing.
+    push' Nothing = await >>= maybe close (push status)
       where
-        bsLen = S.length bs
-        mnl = do
-            nl <- S.elemIndex 10 bs
-            -- check if there are two more bytes in the bs
-            -- if so, see if the second of those is a horizontal space
-            if bsLen > nl + 1 then
-                let c = S.index bs (nl + 1)
-                in Just (nl, c == 32 || c == 9)
-              else
-                Just (nl, False)
+        len' = len + bsLen
+        prepend' = prepend . S.append bs
+        status = THStatus len' lines prepend'
+    -- Found a newline, but next line continues as a multiline header
+    push' (Just (end, True)) = push status rest
+      where
+        rest = S.drop (end + 1) bs
+        prepend' = prepend . S.append (SU.unsafeTake (checkCR bs end) bs)
+        len' = len + end
+        status = THStatus len' lines prepend'
+    -- Found a newline at position end.
+    push' (Just (end, False))
+      -- leftover
+      | S.null line = let lines' = lines []
+                          rest = if start < bsLen then
+                                     Just (SU.unsafeDrop start bs)
+                                   else
+                                     Nothing
+                       in maybe (return ()) leftover rest >> return lines'
+      -- more headers
+      | otherwise   = let len' = len + start
+                          lines' = lines . (line:)
+                          status = THStatus len' lines' id
+                      in if start < bsLen then
+                             -- more bytes in this chunk, push again
+                             let bs' = SU.unsafeDrop start bs
+                              in push status bs'
+                           else
+                             -- no more bytes in this chunk, ask for more
+                             await >>= maybe close (push status)
+      where
+        start = end + 1 -- start of next chunk
+        line
+          -- There were some bytes before the newline, get them
+          | end > 0 = prepend $ SU.unsafeTake (checkCR bs end) bs
+          -- No bytes before the newline
+          | otherwise = prepend S.empty
 
 {-# INLINE checkCR #-}
 checkCR :: ByteString -> Int -> Int
