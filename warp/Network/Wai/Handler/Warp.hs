@@ -42,6 +42,7 @@ module Network.Wai.Handler.Warp (
     -- * Internal
   , Manager
   , withManager
+  , Handle
   , parseRequest
   , sendResponse
   , registerKillThread
