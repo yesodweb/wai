@@ -3,18 +3,21 @@
 -- Copyright     : Erik de Castro Lopo <erikd@mega-nerd.com>
 -- License       : BSD3
 
-module ReadInt (readInt64) where
+module Network.Wai.Handler.Warp.ReadInt (readInt) where
 
 -- This function lives in its own file because the MagicHash pragma interacts
 -- poorly with the CPP pragma.
 
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as B
+import qualified Data.Char as C
 import Data.Int (Int64)
 import GHC.Prim
 import GHC.Types
 
-import qualified Data.ByteString.Char8 as B
-import qualified Data.Char as C
+{-# INLINE readInt #-}
+readInt :: Integral a => ByteString -> a
+readInt bs = fromIntegral $ readInt64 bs
 
 -- This function is used to parse the Content-Length field of HTTP headers and
 -- is a performance hot spot. It should only be replaced with something

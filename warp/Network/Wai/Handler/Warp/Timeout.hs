@@ -1,19 +1,20 @@
-module Timeout
-    ( Manager
-    , Handle
-    , initialize
-    , register
-    , registerKillThread
-    , tickle
-    , pause
-    , resume
-    , cancel
-    ) where
+module Network.Wai.Handler.Warp.Timeout (
+    Manager
+  , Handle
+  , initialize
+  , register
+  , registerKillThread
+  , tickle
+  , pause
+  , resume
+  , cancel
+  , withManager
+  ) where
 
-import qualified Data.IORef as I
 import Control.Concurrent (forkIO, threadDelay, myThreadId, killThread)
-import Control.Monad (forever)
 import qualified Control.Exception as E
+import Control.Monad (forever)
+import qualified Data.IORef as I
 
 -- FIXME implement stopManager
 
@@ -64,3 +65,12 @@ tickle (Handle _ iactive) = I.writeIORef iactive Active
 pause (Handle _ iactive) = I.writeIORef iactive Paused
 resume = tickle
 cancel (Handle _ iactive) = I.writeIORef iactive Canceled
+
+-- | Call the inner function with a timeout manager.
+withManager :: Int -- ^ timeout in microseconds
+            -> (Manager -> IO a)
+            -> IO a
+withManager timeout f = do
+    -- FIXME when stopManager is available, use it
+    man <- initialize timeout
+    f man
