@@ -80,12 +80,14 @@ runSettingsConnection set getConn app = do
     mask $ \restore -> forever $ do
         allowInterrupt
         (conn, addr) <- getConnLoop
-        void $ forkIO $ do
+        void . forkIO $ do
             th <- T.registerKillThread tm
-            handle onE $ (do onOpen
-                             restore $ serveConnection set th port app conn addr
-                             connClose conn >> T.cancel th >> onClose
-                         ) `onException` (T.cancel th >> connClose conn >> onClose)
+            let serve = do
+                    onOpen
+                    restore $ serveConnection set th port app conn addr
+                    cleanup
+                cleanup = connClose conn >> T.cancel th >> onClose
+            handle onE $ (serve `onException` cleanup)
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
     getConnLoop = getConn `catch` \(e :: IOException) -> do
@@ -106,9 +108,7 @@ serveConnection settings th port app conn remoteHost' =
     runResourceT serveConnection'
   where
     serveConnection' :: ResourceT IO ()
-    serveConnection' = do
-        let fromClient = connSource conn th
-        serveConnection'' fromClient
+    serveConnection' = serveConnection'' $ connSource conn th
 
     serveConnection'' fromClient = do
         (env, getSource) <- parseRequest conn port remoteHost' fromClient
@@ -132,8 +132,7 @@ serveConnection settings th port app conn remoteHost' =
                 intercept fromClient' conn
 
 connSource :: Connection -> T.Handle -> Source (ResourceT IO) ByteString
-connSource Connection { connRecv = recv } th =
-    src
+connSource Connection { connRecv = recv } th = src
   where
     src = do
         bs <- liftIO recv
