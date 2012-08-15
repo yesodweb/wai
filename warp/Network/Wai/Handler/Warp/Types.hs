@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wai.Handler.Warp.Types where
 
@@ -7,13 +8,28 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Typeable (Typeable)
 import Data.Version (showVersion)
+import Network.HTTP.Types.Header
 import qualified Paths_warp
+
+----------------------------------------------------------------
 
 warpVersion :: String
 warpVersion = showVersion Paths_warp.version
 
+----------------------------------------------------------------
+
 -- | TCP port number
 type Port = Int
+
+----------------------------------------------------------------
+
+hTransferEncoding :: HeaderName
+hTransferEncoding = "Transfer-Encoding"
+
+hHost :: HeaderName
+hHost = "Host"
+
+----------------------------------------------------------------
 
 data InvalidRequest =
     NotEnoughLines [String]
@@ -25,6 +41,8 @@ data InvalidRequest =
     deriving (Eq, Show, Typeable)
 
 instance Exception InvalidRequest
+
+----------------------------------------------------------------
 
 -- |
 --
