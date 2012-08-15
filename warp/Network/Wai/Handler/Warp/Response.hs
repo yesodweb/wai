@@ -167,6 +167,8 @@ responseHeaderToBuilder b (x, y) = b
   `mappend` copyByteString y
   `mappend` newlineBuilder
 
+----------------------------------------------------------------
+
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
 connSink :: Connection -> T.Handle -> Sink B.ByteString (ResourceT IO) ()
 connSink Connection { connSendAll = send } th =
@@ -184,11 +186,14 @@ connSink Connection { connSendAll = send } th =
     -- also make sure to resume the timeout after the completion of user code
     -- so that we can kill idle connections.
 
+----------------------------------------------------------------
+
 serverHeader :: H.RequestHeaders -> H.RequestHeaders
-serverHeader hdrs = case lookup key hdrs of
-    Nothing  -> server : hdrs
-    Just _ -> hdrs
- where
-    key = "Server"
+serverHeader hdrs = case lookup hServer hdrs of
+    Nothing -> warpVersionHeader : hdrs
+    Just _  -> hdrs
+
+warpVersionHeader :: H.Header
+warpVersionHeader = (hServer, ver)
+  where
     ver = B.pack $ "Warp/" ++ warpVersion
-    server = (key, ver)

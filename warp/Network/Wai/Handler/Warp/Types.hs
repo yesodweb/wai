@@ -29,6 +29,9 @@ hTransferEncoding = "Transfer-Encoding"
 hHost :: HeaderName
 hHost = "Host"
 
+hServer :: HeaderName
+hServer = "Server"
+
 ----------------------------------------------------------------
 
 data InvalidRequest =
