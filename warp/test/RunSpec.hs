@@ -1,4 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+
+module RunSpec where
+
 import Network.Wai
 import Network.Wai.Handler.Warp
 import qualified Data.IORef as I
@@ -115,8 +118,8 @@ singleGet = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
 singlePostHello :: ByteString
 singlePostHello = "POST /hello HTTP/1.1\r\nHost: localhost\r\nContent-length: 5\r\n\r\nHello"
 
-main :: IO ()
-main = hspec $ do
+spec :: Spec
+spec = do
     describe "non-pipelining" $ do
         it "no body, read" $ runTest 5 readBody $ replicate 5 singleGet
         it "no body, ignore" $ runTest 5 ignoreBody $ replicate 5 singleGet
