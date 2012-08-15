@@ -2,26 +2,26 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
 
-module Network.Wai.Handler.Warp.Response where
+module Network.Wai.Handler.Warp.Response (
+    sendResponse
+  ) where
 
-import Blaze.ByteString.Builder (copyByteString, Builder, toLazyByteString, toByteStringIO, flush)
-import Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
+import Blaze.ByteString.Builder (fromByteString, Builder, toByteStringIO, flush)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 import Control.Applicative
 import Control.Exception
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString.Char8 as B
-import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import Data.Conduit.Blaze (builderToByteString)
 import qualified Data.Conduit.List as CL
-import Data.List (foldl')
 import Data.Maybe (isJust)
 import Data.Monoid (mappend)
 import qualified Network.HTTP.Types as H
 import Network.Wai
 import Network.Wai.Handler.Warp.ReadInt
+import qualified Network.Wai.Handler.Warp.ResponseHeader as RH
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import qualified System.PosixCompat.Files as P
@@ -41,27 +41,27 @@ sendResponse th req conn (ResponseFile s hs fp mpart) =
         (Just cl, _)         -> return $ Right (hs, cl)
         (Nothing, Nothing)   -> liftIO . try $ do
             cl <- fromIntegral . P.fileSize <$> P.getFileStatus fp
-            return $ (addLength cl hs, cl)
+            return (addLength cl hs, cl)
         (Nothing, Just part) -> do
             let cl = fromIntegral $ filePartByteCount part
-            return $ Right $ (addLength cl hs, cl)
+            return $ Right (addLength cl hs, cl)
 
     sendResponse' (Right (lengthyHeaders, cl))
       | hasBody s req = liftIO $ do
-          let (beg,end) = case mpart of
-                  Nothing  -> (0,cl)
-                  Just prt -> (filePartOffset prt, filePartByteCount prt)
-          connSendFile conn fp beg end (T.tickle th) headers'
+          connSendFile conn fp beg end (T.tickle th) [lheader]
           T.tickle th
           return isPersist
       | otherwise = liftIO $ do
-          sendHeader conn $ headers version s hs False -- FIXME
+          connSendAll conn $ composeHeader version s hs
           T.tickle th
           return isPersist -- FIXME isKeepAlive?
       where
+        (beg,end) = case mpart of
+            Nothing  -> (0,cl)
+            Just prt -> (filePartOffset prt, filePartByteCount prt)
+        lheader = composeHeader version s lengthyHeaders
         version = httpVersion req
         (isPersist,_) = infoFromRequest req
-        headers' = L.toChunks . toLazyByteString $ headers version s lengthyHeaders False
 
     sendResponse' (Left (_ :: SomeException)) =
         sendResponse th req conn notFound
@@ -77,17 +77,15 @@ sendResponse th req conn (ResponseBuilder s hs b)
           T.tickle th
       return isKeepAlive
   | otherwise = liftIO $ do
-      sendHeader conn $ headers' False
+      connSendAll conn $ composeHeader version s hs
       T.tickle th
       return isPersist
   where
-    headers' = headers version s hs
-    body = if needsChunked then
-               headers' needsChunked
-                 `mappend` chunkedTransferEncoding b
-                 `mappend` chunkedTransferTerminator
-             else
-               headers' False `mappend` b
+    header = composeHeaderBuilder version s hs needsChunked
+    body
+      | needsChunked = header `mappend` chunkedTransferEncoding b
+                              `mappend` chunkedTransferTerminator
+      | otherwise    = header `mappend` b
     version = httpVersion req
     reqinfo@(isPersist,_) = infoFromRequest req
     (isKeepAlive, needsChunked) = infoFromResponse hs reqinfo
@@ -96,24 +94,23 @@ sendResponse th req conn (ResponseBuilder s hs b)
 
 sendResponse th req conn (ResponseSource s hs bodyFlush)
   | hasBody s req = do
-      let src = CL.sourceList [headers' needsChunked] `mappend`
-                (if needsChunked then body $= chunk else body)
+      let src = CL.sourceList [header] `mappend` cbody
       src $$ builderToByteString =$ connSink conn th
-      return $ isKeepAlive
+      return isKeepAlive
   | otherwise = liftIO $ do
-      sendHeader conn $ headers' False
+      connSendAll conn $ composeHeader version s hs
       T.tickle th
       return isPersist
   where
+    header = composeHeaderBuilder version s hs needsChunked
     body = mapOutput (\x -> case x of
                     Flush -> flush
                     Chunk builder -> builder) bodyFlush
-    headers' = headers version s hs
+    cbody = if needsChunked then body $= chunk else body
     -- FIXME perhaps alloca a buffer per thread and reuse that in all
     -- functions below. Should lessen greatly the GC burden (I hope)
     chunk :: Conduit Builder (ResourceT IO) Builder
     chunk = await >>= maybe (yield chunkedTransferTerminator) (\x -> yield (chunkedTransferEncoding x) >> chunk)
-
     version = httpVersion req
     reqinfo@(isPersist,_) = infoFromRequest req
     (isKeepAlive, needsChunked) = infoFromResponse hs reqinfo
@@ -137,9 +134,6 @@ connSink Connection { connSendAll = send } th =
     -- that a timeout will only ever be executed when Warp is in control. We
     -- also make sure to resume the timeout after the completion of user code
     -- so that we can kill idle connections.
-
-sendHeader :: Connection -> Builder -> IO ()
-sendHeader conn = connSendMany conn . L.toChunks . toLazyByteString
 
 ----------------------------------------------------------------
 
@@ -185,39 +179,6 @@ hasBody s req = s /= H.Status 204 ""
 
 ----------------------------------------------------------------
 
-httpBuilder, spaceBuilder, newlineBuilder, transferEncodingBuilder
-           , colonSpaceBuilder :: Builder
-httpBuilder = copyByteString "HTTP/"
-spaceBuilder = fromChar ' '
-newlineBuilder = copyByteString "\r\n"
-transferEncodingBuilder = copyByteString "Transfer-Encoding: chunked\r\n\r\n"
-colonSpaceBuilder = copyByteString ": "
-
-headers :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> Builder
-headers !httpversion !status !responseHeaders !isChunked = {-# SCC "headers" #-}
-    let !start = httpBuilder
-                `mappend` copyByteString
-                            (case httpversion of
-                                H.HttpVersion 1 1 -> "1.1"
-                                _ -> "1.0")
-                `mappend` spaceBuilder
-                `mappend` fromShow (H.statusCode status)
-                `mappend` spaceBuilder
-                `mappend` copyByteString (H.statusMessage status)
-                `mappend` newlineBuilder
-        !start' = foldl' responseHeaderToBuilder start (addServerHeader responseHeaders)
-        !end = if isChunked then transferEncodingBuilder else newlineBuilder
-    in start' `mappend` end
-
-responseHeaderToBuilder :: Builder -> H.Header -> Builder
-responseHeaderToBuilder b (x, y) = b
-  `mappend` copyByteString (CI.original x)
-  `mappend` colonSpaceBuilder
-  `mappend` copyByteString y
-  `mappend` newlineBuilder
-
-----------------------------------------------------------------
-
 addLength :: Integer -> H.ResponseHeaders -> H.ResponseHeaders
 addLength cl hdrs = (H.hContentLength, B.pack $ show cl) : hdrs
 
@@ -233,3 +194,14 @@ warpVersionHeader :: H.Header
 warpVersionHeader = (hServer, ver)
   where
     ver = B.pack $ "Warp/" ++ warpVersion
+
+----------------------------------------------------------------
+
+composeHeader :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> B.ByteString
+composeHeader version s hs = RH.composeHeader version s (addServerHeader hs)
+
+composeHeaderBuilder :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> Builder
+composeHeaderBuilder ver s hs True =
+    fromByteString $ composeHeader ver s (addEncodingHeader hs)
+composeHeaderBuilder ver s hs False =
+    fromByteString $ composeHeader ver s hs
