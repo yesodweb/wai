@@ -26,6 +26,8 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import qualified System.PosixCompat.Files as P
 
+----------------------------------------------------------------
+
 sendResponse :: T.Handle
              -> Request -> Connection -> Response -> ResourceT IO Bool
 sendResponse th req conn r = sendResponse' r
@@ -109,6 +111,8 @@ sendResponse th req conn r = sendResponse' r
         chunk :: Conduit Builder (ResourceT IO) Builder
         chunk = await >>= maybe (yield chunkedTransferTerminator) (\x -> yield (chunkedTransferEncoding x) >> chunk)
 
+----------------------------------------------------------------
+
 checkPersist :: Request -> Bool
 checkPersist req
     | ver == H.http11 = checkPersist11 conn
@@ -129,6 +133,8 @@ isChunked = (==) H.http11
 hasBody :: H.Status -> Request -> Bool
 hasBody s req = s /= H.Status 204 "" && s /= H.status304 &&
                 H.statusCode s >= 200 && requestMethod req /= "HEAD"
+
+----------------------------------------------------------------
 
 httpBuilder, spaceBuilder, newlineBuilder, transferEncodingBuilder
            , colonSpaceBuilder :: Builder
