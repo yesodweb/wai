@@ -51,16 +51,18 @@ Library
   if os(windows)
       Cpp-options:   -DWINDOWS
 
-Test-Suite test
-    Main-Is:         main.hs
-    Hs-Source-Dirs:  test
+Test-Suite spec
+    Main-Is:         Spec.hs
+    Hs-Source-Dirs:  test, .
     Type:            exitcode-stdio-1.0
 
     Ghc-Options:     -Wall
     Build-Depends:   base >= 4 && < 5
                    , HUnit
+                   , QuickCheck
                    , bytestring
                    , conduit
+                   , ghc-prim
                    , hspec
                    , http-types
                    , network

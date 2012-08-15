@@ -3,7 +3,10 @@
 -- Copyright     : Erik de Castro Lopo <erikd@mega-nerd.com>
 -- License       : BSD3
 
-module Network.Wai.Handler.Warp.ReadInt (readInt) where
+module Network.Wai.Handler.Warp.ReadInt (
+    readInt
+  , readInt64
+  ) where
 
 -- This function lives in its own file because the MagicHash pragma interacts
 -- poorly with the CPP pragma.
