@@ -2,27 +2,22 @@
 
 module RunSpec where
 
-import Network.Wai
-import Network.Wai.Handler.Warp
-import qualified Data.IORef as I
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Network.HTTP.Types
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Monad (forM_)
-
-import System.IO (hFlush, hClose)
-import System.IO.Unsafe (unsafePerformIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString, hPutStr, hGetSome)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import Network (connectTo, PortID (PortNumber))
-
-import Test.Hspec.Monadic
-import Test.Hspec.HUnit ()
-import Test.HUnit
-
 import Data.Conduit (($$))
 import qualified Data.Conduit.List
+import qualified Data.IORef as I
+import Network (connectTo, PortID (PortNumber))
+import Network.HTTP.Types
+import Network.Wai
+import Network.Wai.Handler.Warp
+import System.IO (hFlush, hClose)
+import System.IO.Unsafe (unsafePerformIO)
+import Test.Hspec
 
 type Counter = I.IORef (Either String Int)
 type CounterApplication = Counter -> Application
@@ -87,7 +82,7 @@ runTest expected app chunks = do
     res <- I.readIORef ref
     case res of
         Left s -> error s
-        Right i -> i @?= expected
+        Right i -> i `shouldBe` expected
 
 dummyApp :: Application
 dummyApp _ = return $ responseLBS status200 [] "foo"
@@ -110,7 +105,7 @@ runTerminateTest expected input = do
     threadDelay 1000
     killThread tid
     res <- I.readIORef ref
-    show res @?= show (Just expected)
+    show res `shouldBe` show (Just expected)
 
 singleGet :: ByteString
 singleGet = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
@@ -168,7 +163,7 @@ spec = do
             threadDelay 1000
             killThread tid
             headers <- I.readIORef iheaders
-            headers @?=
+            headers `shouldBe`
                 [ ("foo", "bar baz\tbin")
                 ]
         it "no space between colon and value" $ do
@@ -188,7 +183,7 @@ spec = do
             threadDelay 1000
             killThread tid
             headers <- I.readIORef iheaders
-            headers @?=
+            headers `shouldBe`
                 [ ("foo", "bar")
                 ]
         it "extra spaces in first line" $ do
@@ -208,7 +203,7 @@ spec = do
             threadDelay 1000
             killThread tid
             headers <- I.readIORef iheaders
-            headers @?=
+            headers `shouldBe`
                 [ ("foo", "bar")
                 ]
         it "spaces in http version" $ do
@@ -228,7 +223,7 @@ spec = do
             threadDelay 1000
             killThread tid
             version <- I.readIORef iversion
-            version @?= http11
+            version `shouldBe` http11
 
     describe "chunked bodies" $ do
         it "works" $ do
@@ -252,7 +247,7 @@ spec = do
             threadDelay 1000
             killThread tid
             front <- I.readIORef ifront
-            front [] @?=
+            front [] `shouldBe`
                 [ "Hello World\nBye"
                 , "Hello World"
                 ]
@@ -274,7 +269,7 @@ spec = do
             threadDelay 1000
             killThread tid
             front <- I.readIORef ifront
-            front [] @?= replicate 2 (S.concat $ replicate 50 "12345")
+            front [] `shouldBe` replicate 2 (S.concat $ replicate 50 "12345")
         it "in chunks" $ do
             ifront <- I.newIORef id
             port <- getPort
@@ -295,7 +290,7 @@ spec = do
             threadDelay 1000
             killThread tid
             front <- I.readIORef ifront
-            front [] @?=
+            front [] `shouldBe`
                 [ "Hello World\nBye"
                 , "Hello World"
                 ]
