@@ -1,4 +1,6 @@
-{-# LANGUAGE OverloadedStrings, MagicHash, BangPatterns  #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE BangPatterns #-}
 
 -- Copyright     : Erik de Castro Lopo <erikd@mega-nerd.com>
 -- License       : BSD3
@@ -12,11 +14,11 @@ module Network.Wai.Handler.Warp.ReadInt (
 -- poorly with the CPP pragma.
 
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as B
-import qualified Data.Char as C
+import qualified Data.ByteString as S
 import Data.Int (Int64)
 import GHC.Prim
 import GHC.Types
+import GHC.Word
 
 {-# INLINE readInt #-}
 readInt :: Integral a => ByteString -> a
@@ -32,15 +34,14 @@ readInt bs = fromIntegral $ readInt64 bs
 
 {- NOINLINE readInt64MH #-}
 readInt64 :: ByteString -> Int64
-readInt64 bs =
-        B.foldl' (\i c -> i * 10 + fromIntegral (mhDigitToInt c)) 0
-             $ B.takeWhile C.isDigit bs
+readInt64 bs = S.foldl' (\ !i !c -> i * 10 + fromIntegral (mhDigitToInt c)) 0
+             $ S.takeWhile isDigit bs
 
 data Table = Table !Addr#
 
 {- NOINLINE mhDigitToInt #-}
-mhDigitToInt :: Char -> Int
-mhDigitToInt (C# i) = I# (word2Int# (indexWord8OffAddr# addr (ord# i)))
+mhDigitToInt :: Word8 -> Int
+mhDigitToInt (W8# i) = I# (word2Int# (indexWord8OffAddr# addr (word2Int# i)))
   where
     !(Table addr) = table
     table :: Table
@@ -62,3 +63,5 @@ mhDigitToInt (C# i) = I# (word2Int# (indexWord8OffAddr# addr (ord# i)))
         \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
         \\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"#
 
+isDigit :: Word8 -> Bool
+isDigit w = w >= 48 && w <= 57
