@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Run where
 
@@ -25,6 +26,17 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Prelude hiding (catch)
 
+-- Sock.recv first tries to call recvfrom() optimistically.
+-- If EAGAIN returns, it polls incoming data with epoll/kqueue.
+-- This code first polls incoming data with epoll/kqueue.
+#define PESSIMISTIC_RECV 1
+
+#ifdef PESSIMISTIC_RECV
+import System.Posix.Types (Fd(..))
+import Control.Concurrent (threadWaitRead)
+import Network.Socket (Socket(..))
+#endif
+
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
@@ -36,12 +48,20 @@ bytesPerRead = 4096
 
 -- | Default action value for 'Connection'
 socketConnection :: Socket -> Connection
+#ifdef PESSIMISTIC_RECV
+socketConnection s@(MkSocket fd _ _ _ _) = Connection
+#else
 socketConnection s = Connection
+#endif
     { connSendMany = Sock.sendMany s
     , connSendAll = Sock.sendAll s
     , connSendFile = \fp off len act hdr -> sendfileWithHeader s fp (PartOfFile off len) act hdr
     , connClose = sClose s
+#ifdef PESSIMISTIC_RECV
+    , connRecv = threadWaitRead (Fd fd) >> Sock.recv s bytesPerRead
+#else
     , connRecv = Sock.recv s bytesPerRead
+#endif
     }
 
 #if __GLASGOW_HASKELL__ < 702
