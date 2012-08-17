@@ -173,10 +173,13 @@ checkLength = lookup H.hContentLength
 ----------------------------------------------------------------
 
 hasBody :: H.Status -> Request -> Bool
-hasBody s req = s /= H.Status 204 ""
-             && s /= H.status304
-             && H.statusCode s >= 200
-             && requestMethod req /= H.methodHead
+hasBody s req = sc /= 204
+             && sc /= 304
+             && sc >= 200
+             && method /= H.methodHead
+  where
+    sc = H.statusCode s
+    method = requestMethod req
 
 ----------------------------------------------------------------
 
