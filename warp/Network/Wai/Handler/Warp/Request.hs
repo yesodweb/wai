@@ -8,7 +8,7 @@ import Control.Exception.Lifted (throwIO)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Char8 as B (unpack)
 import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
@@ -30,7 +30,7 @@ maxTotalHeaderLength :: Int
 maxTotalHeaderLength = 50 * 1024
 
 parseRequest :: Connection -> Port -> SockAddr
-             -> Source (ResourceT IO) S.ByteString
+             -> Source (ResourceT IO) ByteString
              -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))
 parseRequest conn port remoteHost' src1 = do
     (src2, headers') <- src1 $$+ takeHeaders
@@ -55,7 +55,7 @@ parseRequest' :: Connection
               -> Port
               -> [ByteString]
               -> SockAddr
-              -> ResumableSource (ResourceT IO) S.ByteString -- FIXME was buffered
+              -> ResumableSource (ResourceT IO) ByteString -- FIXME was buffered
               -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))
 parseRequest' _ _ [] _ _ = throwIO $ NotEnoughLines []
 parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
@@ -114,7 +114,7 @@ parseFirst s =
     case filter (not . S.null) $ S.splitWith (\c -> c == 32 || c == 9) s of  -- ' '
         (method:query:http'') -> do
             let http' = S.concat http''
-                (hfirst, hsecond) = B.splitAt 5 http'
+                (hfirst, hsecond) = S.splitAt 5 http'
             if hfirst == "HTTP/"
                then let (rpath, qstring) = S.breakByte 63 query  -- '?'
                         hv =
@@ -209,6 +209,6 @@ push (THStatus len lines prepend) bs
 
 {-# INLINE checkCR #-}
 checkCR :: ByteString -> Int -> Int
-checkCR bs pos = if '\r' == B.index bs p then p else pos
+checkCR bs pos = if 13 == S.index bs p then p else pos -- 13 is CR
   where
     !p = pos - 1
