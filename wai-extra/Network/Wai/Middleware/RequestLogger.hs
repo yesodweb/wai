@@ -37,7 +37,7 @@ import System.IO.Unsafe
 
 import Data.Default (Default (def))
 import Network.Wai.Logger.Format (apacheFormat, IPAddrSource (..))
-import System.Log.FastLogger.Date (getDate, dateInit, ZonedDate)
+import System.Date.Cache (ondemandDateCacher)
 
 data OutputFormat = Apache IPAddrSource
                   | Detailed Bool -- ^ use colors?
@@ -79,7 +79,9 @@ mkRequestLogger RequestLoggerSettings{..} = do
             getdate <-
                 case mgetdate of
                     Just x -> return x
-                    Nothing -> fmap getDate dateInit
+                    Nothing -> do
+                        (getter,_) <- ondemandDateCacher zonedDateCacheConf
+                        return getter
             return $ apacheMiddleware callback ipsrc getdate
         Detailed useColors -> detailedMiddleware callback useColors
   where
