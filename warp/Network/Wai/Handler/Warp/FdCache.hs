@@ -3,6 +3,7 @@
 module Network.Wai.Handler.Warp.FdCache (
     initialize
   , getFd
+  , MutableFdCache
   ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -89,7 +90,7 @@ initialize = do
         old <- swapWithNew mfc
         new <- pruneWith old prune
         update mfc (merge new)
-        threadDelay 30000000 -- FIXME
+        threadDelay 10000000 -- FIXME
         loop mfc
 
 prune :: t -> Some FdEntry -> IO [(t, Some FdEntry)]

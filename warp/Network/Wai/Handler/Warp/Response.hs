@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Response (
     sendResponse
@@ -30,18 +31,19 @@ import qualified System.PosixCompat.Files as P
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-sendResponse :: T.Handle
-             -> Request -> Connection -> Response -> ResourceT IO Bool
+sendResponse :: Cleaner -> Request -> Connection -> Response
+             -> ResourceT IO Bool
 
 ----------------------------------------------------------------
 
-sendResponse th req conn (ResponseFile s hs fp mpart) =
+sendResponse cleaner req conn (ResponseFile s hs path mpart) =
     headerAndLength >>= sendResponse'
   where
+    th = threadHandle cleaner
     headerAndLength = case (readInt <$> checkLength hs, mpart) of
         (Just cl, _)         -> return $ Right (hs, cl)
         (Nothing, Nothing)   -> liftIO . try $ do
-            cl <- fromIntegral . P.fileSize <$> P.getFileStatus fp
+            cl <- fromIntegral . P.fileSize <$> P.getFileStatus path
             return (addLength cl hs, cl)
         (Nothing, Just part) -> do
             let cl = fromIntegral $ filePartByteCount part
@@ -49,7 +51,7 @@ sendResponse th req conn (ResponseFile s hs fp mpart) =
 
     sendResponse' (Right (lengthyHeaders, cl))
       | hasBody s req = liftIO $ do
-          connSendFile conn fp beg end (T.tickle th) [lheader]
+          connSendFile conn path beg end (T.tickle th) [lheader] cleaner
           T.tickle th
           return isPersist
       | otherwise = liftIO $ do
@@ -65,13 +67,13 @@ sendResponse th req conn (ResponseFile s hs fp mpart) =
         (isPersist,_) = infoFromRequest req
 
     sendResponse' (Left (_ :: SomeException)) =
-        sendResponse th req conn notFound
+        sendResponse cleaner req conn notFound
       where
         notFound = responseLBS H.status404 [(H.hContentType, "text/plain")] "File not found"
 
 ----------------------------------------------------------------
 
-sendResponse th req conn (ResponseBuilder s hs b)
+sendResponse cleaner req conn (ResponseBuilder s hs b)
   | hasBody s req = liftIO $ do
       flip toByteStringIO body $ \bs -> do
           connSendAll conn bs
@@ -82,6 +84,7 @@ sendResponse th req conn (ResponseBuilder s hs b)
       T.tickle th
       return isPersist
   where
+    th = threadHandle cleaner
     header = composeHeaderBuilder version s hs needsChunked
     body
       | needsChunked = header `mappend` chunkedTransferEncoding b
@@ -93,7 +96,7 @@ sendResponse th req conn (ResponseBuilder s hs b)
 
 ----------------------------------------------------------------
 
-sendResponse th req conn (ResponseSource s hs bodyFlush)
+sendResponse cleaner req conn (ResponseSource s hs bodyFlush)
   | hasBody s req = do
       let src = CL.sourceList [header] `mappend` cbody
       src $$ builderToByteString =$ connSink conn th
@@ -103,6 +106,7 @@ sendResponse th req conn (ResponseSource s hs bodyFlush)
       T.tickle th
       return isPersist
   where
+    th = threadHandle cleaner
     header = composeHeaderBuilder version s hs needsChunked
     body = mapOutput (\x -> case x of
                     Flush -> flush
