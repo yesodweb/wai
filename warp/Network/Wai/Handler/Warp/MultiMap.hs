@@ -190,7 +190,7 @@ pruneWith t run = fromSortedList <$> inorder t []
 
 ----------------------------------------------------------------
 
--- O(N) where N is the size of the second argument
+-- O(N log N) where N is the size of the second argument
 merge :: Ord k => MMap k v -> MMap k v -> MMap k v
 merge base m = foldl' ins base xs
   where
