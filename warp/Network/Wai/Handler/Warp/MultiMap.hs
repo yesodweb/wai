@@ -1,15 +1,19 @@
 module Network.Wai.Handler.Warp.MultiMap (
     MMap
+  , Some(..)
   , empty
   , singleton
   , insert
   , search
+  , searchWith
   , isEmpty
   , valid
-  , purgeWith
+  , pruneWith
   , fromList
+  , toList
   , fromSortedList
   , toSortedList
+  , merge
   ) where
 
 import Control.Applicative ((<$>))
@@ -56,6 +60,14 @@ search xk (Node _ l k v r) = case compare xk k of
     LT -> search xk l
     GT -> search xk r
     EQ -> Just $ top v
+
+-- | O(log N)
+searchWith :: Ord k => k -> (Some v -> Maybe v) -> MMap k v -> Maybe v
+searchWith _ _ Leaf = Nothing
+searchWith xk f (Node _ l k v r) = case compare xk k of
+    LT -> searchWith xk f l
+    GT -> searchWith xk f r
+    EQ -> f v
 
 ----------------------------------------------------------------
 
@@ -115,6 +127,15 @@ turnB (Node _ l k v r) = Node B l k v r
 fromList :: Ord k => [(k,v)] -> MMap k v
 fromList = foldl' (\t (k,v) -> insert k v t) empty
 
+-- | O(N)
+toList :: MMap k v -> [(k,v)]
+toList t = inorder t []
+  where
+    inorder Leaf xs = xs
+    inorder (Node _ l k v r) xs = inorder l (pairs k v ++ inorder r xs)
+    pairs k (One v) = [(k,v)]
+    pairs k (Tom v vs) = (k,v) : pairs k vs
+
 ----------------------------------------------------------------
 
 -- | O(N)
@@ -155,15 +176,26 @@ toSortedList t = inorder t []
 ----------------------------------------------------------------
 
 -- | O(N)
-purgeWith :: Ord k => (k -> Some v -> IO [(k, Some v)])
-           -> MMap k v -> IO (MMap k v)
-purgeWith run t = fromSortedList <$> inorder t []
+pruneWith :: Ord k =>
+             MMap k v
+          -> (k -> Some v -> IO [(k, Some v)])
+          -> IO (MMap k v)
+pruneWith t run = fromSortedList <$> inorder t []
   where
     inorder Leaf xs = return xs
     inorder (Node _ l k v r) xs = do
         ys <- run k v
         zs <- inorder r xs
         inorder l (ys ++ zs)
+
+----------------------------------------------------------------
+
+-- O(N) where N is the size of the second argument
+merge :: Ord k => MMap k v -> MMap k v -> MMap k v
+merge base m = foldl' ins base xs
+  where
+    ins t (k,v) = insert k v t
+    xs = toList m
 
 ----------------------------------------------------------------
 -- for testing
