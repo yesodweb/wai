@@ -17,7 +17,7 @@ import qualified Data.ByteString as S
 import Blaze.ByteString.Builder (fromByteString)
 #if WINDOWS
 import Foreign
-import Foreign.String
+import Foreign.C.String
 #else
 import System.Cmd (rawSystem)
 #endif
