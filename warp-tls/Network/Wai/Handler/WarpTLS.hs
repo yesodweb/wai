@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 module Network.Wai.Handler.WarpTLS
     ( TLSSettings (..)
     , runTLS
