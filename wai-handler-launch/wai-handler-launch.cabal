@@ -1,5 +1,5 @@
 Name:                wai-handler-launch
-Version:             1.3.0
+Version:             1.3.1
 Synopsis:            Launch a web app in the default browser.
 Description:         This handles cross-platform launching and inserts Javascript code to ping the server. When the server no longer receives pings, it shuts down.
 License:             MIT
