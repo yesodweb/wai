@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module RunSpec where
+module RunSpec (main, spec) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Monad (forM_)
@@ -18,6 +18,9 @@ import Network.Wai.Handler.Warp
 import System.IO (hFlush, hClose)
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
+
+main :: IO ()
+main = hspec spec
 
 type Counter = I.IORef (Either String Int)
 type CounterApplication = Counter -> Application

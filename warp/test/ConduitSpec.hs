@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module ConduitSpec where
+module ConduitSpec (main, spec) where
 
 import Network.Wai.Handler.Warp.Conduit
 import Data.Conduit
@@ -8,6 +8,9 @@ import Test.Hspec
 import qualified Data.IORef as I
 import qualified Data.ByteString as S
 import Control.Monad.Trans.Class (lift)
+
+main :: IO ()
+main = hspec spec
 
 spec :: Spec
 spec = describe "conduit" $ do
