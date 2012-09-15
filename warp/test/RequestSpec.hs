@@ -1,12 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module RequestSpec where
+module RequestSpec (main, spec) where
 
 import Data.Conduit
 import Data.Conduit.List
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Types
 import Test.Hspec
+
+main :: IO ()
+main = hspec spec
 
 spec :: Spec
 spec = describe "takeHeaders" $ do

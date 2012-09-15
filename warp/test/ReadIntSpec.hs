@@ -1,10 +1,13 @@
-module ReadIntSpec where
+module ReadIntSpec (main, spec) where
 
 import Data.ByteString (ByteString)
 import Test.Hspec
 import Network.Wai.Handler.Warp.ReadInt
 import qualified Data.ByteString.Char8 as B
 import qualified Test.QuickCheck as QC
+
+main :: IO ()
+main = hspec spec
 
 spec :: Spec
 spec = describe "readInt64" $ do
