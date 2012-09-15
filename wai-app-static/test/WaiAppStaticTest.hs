@@ -1,11 +1,9 @@
 {-# LANGUAGE OverloadedStrings, NoMonomorphismRestriction #-}
-module WaiAppStaticTest (specs) where 
+module WaiAppStaticTest (spec) where
 
 import Network.Wai.Application.Static
 
-import Test.Hspec.Monadic
-import Test.Hspec.HUnit ()
-import Test.HUnit ((@?=))
+import Test.Hspec
 import qualified Data.ByteString.Char8 as S8
 -- import qualified Data.ByteString.Lazy.Char8 as L8
 import System.PosixCompat.Files (getFileStatus, modificationTime)
@@ -23,8 +21,8 @@ import Network.Mime
 defRequest :: Request
 defRequest = defaultRequest
 
-specs :: Specs
-specs = do
+spec :: Spec
+spec = do
   let webApp = flip runSession $ staticApp $ defaultWebAppSettings "test"
   let fileServerApp = flip runSession $ staticApp $ defaultFileServerSettings "test"
 
@@ -34,11 +32,11 @@ specs = do
 
   describe "mime types" $ do
     it "fileNameExtensions" $
-        fileNameExtensions "foo.tar.gz" @?= ["tar.gz", "gz"]
+        fileNameExtensions "foo.tar.gz" `shouldBe` ["tar.gz", "gz"]
     it "handles multi-extensions" $
-        defaultMimeLookup "foo.tar.gz" @?= "application/x-tgz"
+        defaultMimeLookup "foo.tar.gz" `shouldBe` "application/x-tgz"
     it "defaults correctly" $
-        defaultMimeLookup "foo.unknown" @?= "application/octet-stream"
+        defaultMimeLookup "foo.unknown" `shouldBe` "application/octet-stream"
 
   describe "webApp" $ do
     it "403 for unsafe paths" $ webApp $

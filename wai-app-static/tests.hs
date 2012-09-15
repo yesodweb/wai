@@ -1,5 +1,5 @@
-import WaiAppStaticTest (specs)
+import WaiAppStaticTest (spec)
 import Test.Hspec.Monadic
 
-main :: IO a
-main = hspecX specs
+main :: IO ()
+main = hspec spec

@@ -1,11 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ResponseHeaderSpec where
+module ResponseHeaderSpec (main, spec) where
 
 import Data.ByteString
 import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.ResponseHeader
 import Test.Hspec
+
+main :: IO ()
+main = hspec spec
 
 spec :: Spec
 spec = describe "composeHeader" $ do
