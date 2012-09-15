@@ -1,10 +1,9 @@
 {-# LANGUAGE OverloadedStrings, NoMonomorphismRestriction #-}
-module WaiAppStaticTest (specs) where 
+module WaiAppStaticTest (spec) where
 
 import Network.Wai.Application.Static
 
-import Test.Hspec.Monadic
-import Test.Hspec.HUnit ()
+import Test.Hspec
 import Test.HUnit ((@?=))
 import qualified Data.ByteString.Char8 as S8
 -- import qualified Data.ByteString.Lazy.Char8 as L8
@@ -23,8 +22,8 @@ import Network.Mime
 defRequest :: Request
 defRequest = defaultRequest
 
-specs :: Specs
-specs = do
+spec :: Spec
+spec = do
   let webApp = flip runSession $ staticApp $ defaultWebAppSettings "test"
   let fileServerApp = flip runSession $ staticApp $ defaultFileServerSettings "test"
 
