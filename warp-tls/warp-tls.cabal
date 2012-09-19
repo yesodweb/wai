@@ -1,5 +1,5 @@
 Name:                warp-tls
-Version:             1.3.0.1
+Version:             1.3.0.2
 Synopsis:            SSL support for Warp via the TLS package
 License:             MIT
 License-file:        LICENSE
@@ -26,7 +26,7 @@ Library
                    , tls-extra                     >= 0.4.5    && < 0.5
                    , tls                           >= 0.9.6    && < 0.10
                    , crypto-api                    >= 0.8      && < 0.11
-                   , network                       >= 2.2.1    && < 2.4
+                   , network                       >= 2.2.1
   Exposed-modules:   Network.Wai.Handler.WarpTLS
   ghc-options:       -Wall
 
