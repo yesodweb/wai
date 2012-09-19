@@ -159,10 +159,10 @@ add (k,v) ps = incr (Uno k v Leaf) ps
 linkAll :: [Digit k v] -> MMap k v
 linkAll = foldl' link Leaf
 
--- FIXME: shallow depth
 link :: MMap k v -> Digit k v -> MMap k v
 link l (Uno k v t) = Node B l k v t
-link l (Due k1 v1 t1 k2 v2 t2) = Node B (Node R l k1 v1 t1) k2 v2 t2
+--link l (Due k1 v1 t1 k2 v2 t2) = Node B (Node R l k1 v1 t1) k2 v2 t2
+link l (Due k1 v1 t1 k2 v2 t2) = Node B l k1 v1 (Node R t1 k2 v2 t2)
 
 ----------------------------------------------------------------
 
