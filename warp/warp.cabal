@@ -81,6 +81,11 @@ Test-Suite spec
                    , HUnit
                    , QuickCheck
                    , hspec                    == 1.3.*
+  if os(windows)
+      Cpp-options:   -DWINDOWS
+  else
+      Build-Depends: unix
+                   , hashable
 
 Source-Repository head
   Type:     git
