@@ -5,7 +5,6 @@ module Network.Wai.Handler.Warp.Types where
 
 import Control.Exception
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as B
 import Data.Typeable (Typeable)
 import Data.Version (showVersion)
 import Network.HTTP.Types.Header
@@ -65,9 +64,9 @@ instance Exception InvalidRequest
 --
 -- * Every time data is successfully sent to the client, the timeout is tickled.
 data Connection = Connection
-    { connSendMany :: [B.ByteString] -> IO ()
-    , connSendAll  :: B.ByteString -> IO ()
+    { connSendMany :: [ByteString] -> IO ()
+    , connSendAll  :: ByteString -> IO ()
     , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> IO () -- ^ offset, length
     , connClose    :: IO ()
-    , connRecv     :: IO B.ByteString
+    , connRecv     :: IO ByteString
     }
