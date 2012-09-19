@@ -14,16 +14,12 @@ import Data.IORef
 import Network.Wai.Handler.Warp.MultiMap
 import System.Posix.IO
 import System.Posix.Types
-import System.IO.Unsafe -- FIXME should remove at releasing
 
 ----------------------------------------------------------------
 
-data Status = Active | Inactive deriving Show
+data Status = Active | Inactive
 
-newtype MutableStatus = MutableStatus (IORef Status) deriving Show
-
-instance Show (IORef Status) where
-    show ref = show (unsafePerformIO (readIORef ref))
+newtype MutableStatus = MutableStatus (IORef Status)
 
 type Refresh = IO ()
 
@@ -41,7 +37,7 @@ inactive (MutableStatus ref) = writeIORef ref Inactive
 
 ----------------------------------------------------------------
 
-data FdEntry = FdEntry !FilePath !Fd !MutableStatus deriving Show
+data FdEntry = FdEntry !FilePath !Fd !MutableStatus
 
 newFdEntry :: FilePath -> IO FdEntry
 newFdEntry path = FdEntry path
