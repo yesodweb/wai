@@ -11,7 +11,8 @@ import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTe
 import Control.Applicative
 import Control.Exception
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Data.ByteString.Char8 as B
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import Data.Conduit.Blaze (builderToByteString)
@@ -119,7 +120,7 @@ sendResponse th req conn (ResponseSource s hs bodyFlush)
 ----------------------------------------------------------------
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
-connSink :: Connection -> T.Handle -> Sink B.ByteString (ResourceT IO) ()
+connSink :: Connection -> T.Handle -> Sink ByteString (ResourceT IO) ()
 connSink Connection { connSendAll = send } th =
     sink
   where
@@ -166,16 +167,19 @@ infoFromResponse hs (isPersist,isChunked) = (isKeepAlive, needsChunked)
     isKeepAlive = isPersist && (isChunked || hasLength)
     hasLength = isJust $ checkLength hs
 
-checkLength :: H.ResponseHeaders -> Maybe B.ByteString
+checkLength :: H.ResponseHeaders -> Maybe ByteString
 checkLength = lookup H.hContentLength
 
 ----------------------------------------------------------------
 
 hasBody :: H.Status -> Request -> Bool
-hasBody s req = s /= H.Status 204 ""
-             && s /= H.status304
-             && H.statusCode s >= 200
-             && requestMethod req /= H.methodHead
+hasBody s req = sc /= 204
+             && sc /= 304
+             && sc >= 200
+             && method /= H.methodHead
+  where
+    sc = H.statusCode s
+    method = requestMethod req
 
 ----------------------------------------------------------------
 
@@ -197,7 +201,7 @@ warpVersionHeader = (hServer, ver)
 
 ----------------------------------------------------------------
 
-composeHeader :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> B.ByteString
+composeHeader :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> ByteString
 composeHeader version s hs = RH.composeHeader version s (addServerHeader hs)
 
 composeHeaderBuilder :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> Builder

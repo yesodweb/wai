@@ -7,14 +7,12 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as B
-import Data.Char (isHexDigit)
 import Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import Data.Conduit.Internal (ResumableSource (..))
 import qualified Data.Conduit.List as CL
 import qualified Data.IORef as I
-import Data.Word (Word)
+import Data.Word (Word, Word8)
 import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
@@ -133,13 +131,18 @@ chunkedSource ipair = do
                             | otherwise -> return (x, y)
                 let w =
                         S.foldl' (\i c -> i * 16 + fromIntegral (hexToWord c)) 0
-                        $ B.takeWhile isHexDigit x
+                        $ S.takeWhile isHexDigit x
                 return (w, S.drop 1 y)
 
     hexToWord w
         | w < 58 = w - 48
         | w < 71 = w - 55
         | otherwise = w - 87
+
+isHexDigit :: Word8 -> Bool
+isHexDigit w = w >= 48 && w <= 57
+            || w >= 65 && w <= 70
+            || w >= 97 && w <= 102
 
 ----------------------------------------------------------------
 
