@@ -40,6 +40,8 @@ import Network.Socket (Socket(..))
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
+#else
+import qualified Network.Wai.Handler.Warp.FdCache as F
 #endif
 
 -- FIXME come up with good values here
@@ -55,7 +57,7 @@ socketConnection s = Connection
 #endif
     { connSendMany = Sock.sendMany s
     , connSendAll = Sock.sendAll s
-    , connSendFile = \fp off len act hdr -> sendfileWithHeader s fp (PartOfFile off len) act hdr
+    , connSendFile = sendFile s
     , connClose = sClose s
 #ifdef PESSIMISTIC_RECV
     , connRecv = threadWaitRead (Fd fd) >> Sock.recv s bytesPerRead
@@ -63,6 +65,16 @@ socketConnection s = Connection
     , connRecv = Sock.recv s bytesPerRead
 #endif
     }
+
+sendFile :: Socket -> FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO ()
+#if WINDOWS
+sendFile s path off len act hdr _ =
+    sendfileWithHeader s path (PartOfFile off len) act hdr
+#else
+sendFile s path off len act hdr cleaner = do
+    (fd, fresher) <- F.getFd (fdCacher cleaner) path
+    sendfileFdWithHeader s fd (PartOfFile off len) (act>>fresher) hdr
+#endif
 
 #if __GLASGOW_HASKELL__ < 702
 allowInterrupt :: IO ()
@@ -113,14 +125,22 @@ runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application ->
 runSettingsConnection set getConn app = do
     tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
         $ settingsManager set
+#if !WINDOWS
+    fc <- F.initialize
+#endif
     mask $ \restore -> forever $ do
         allowInterrupt
         (conn, addr) <- getConnLoop
         void . forkIO $ do
             th <- T.registerKillThread tm
+#if WINDOWS
+            let cleaner = Cleaner th
+#else
+            let cleaner = Cleaner th fc
+#endif
             let serve = do
                     onOpen
-                    restore $ serveConnection set th port app conn addr
+                    restore $ serveConnection set cleaner port app conn addr
                     cleanup
                 cleanup = connClose conn >> T.cancel th >> onClose
             handle onE $ (serve `onException` cleanup)
@@ -138,11 +158,13 @@ runSettingsConnection set getConn app = do
     onClose = settingsOnClose set
 
 serveConnection :: Settings
-                -> T.Handle
+                -> Cleaner
                 -> Port -> Application -> Connection -> SockAddr-> IO ()
-serveConnection settings th port app conn remoteHost' =
+serveConnection settings cleaner port app conn remoteHost' =
     runResourceT serveConnection'
   where
+    th = threadHandle cleaner
+
     serveConnection' :: ResourceT IO ()
     serveConnection' = serveConnection'' $ connSource conn th
 
@@ -155,7 +177,7 @@ serveConnection settings th port app conn remoteHost' =
                 res <- app env
 
                 liftIO $ T.resume th
-                keepAlive <- sendResponse th env conn res
+                keepAlive <- sendResponse cleaner env conn res
 
                 -- flush the rest of the request body
                 requestBody env $$ CL.sinkNull
