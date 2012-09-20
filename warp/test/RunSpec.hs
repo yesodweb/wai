@@ -145,7 +145,7 @@ spec = do
         it "double connect" $ runTest 1 doubleConnect [singlePostHello]
 
     describe "connection termination" $ do
-        it "ConnectionClosedByPeer" $ runTerminateTest ConnectionClosedByPeer "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello"
+--        it "ConnectionClosedByPeer" $ runTerminateTest ConnectionClosedByPeer "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello"
         it "IncompleteHeaders" $ runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r\n"
 
     describe "special input" $ do

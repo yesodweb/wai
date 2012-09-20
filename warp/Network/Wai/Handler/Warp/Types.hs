@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Types where
 
@@ -9,6 +10,10 @@ import Data.Typeable (Typeable)
 import Data.Version (showVersion)
 import Network.HTTP.Types.Header
 import qualified Paths_warp
+import qualified Network.Wai.Handler.Warp.Timeout as T
+#if !WINDOWS
+import qualified Network.Wai.Handler.Warp.FdCache as F
+#endif
 
 ----------------------------------------------------------------
 
@@ -66,7 +71,18 @@ instance Exception InvalidRequest
 data Connection = Connection
     { connSendMany :: [ByteString] -> IO ()
     , connSendAll  :: ByteString -> IO ()
-    , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> IO () -- ^ offset, length
+    , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO () -- ^ offset, length
     , connClose    :: IO ()
     , connRecv     :: IO ByteString
     }
+
+----------------------------------------------------------------
+
+#if WINDOWS
+newtype Cleaner = Cleaner { threadHandle :: T.Handle }
+#else
+data Cleaner = Cleaner {
+    threadHandle :: T.Handle
+  , fdCacher :: F.MutableFdCache
+  }
+#endif
