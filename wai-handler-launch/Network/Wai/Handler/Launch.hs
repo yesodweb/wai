@@ -140,7 +140,7 @@ runUrlPort port url app = do
     _ <- forkIO $ Warp.runSettings Warp.defaultSettings
         { Warp.settingsPort = port
         , Warp.settingsOnException = const $ return ()
-        , Warp.settingsHost = "127.0.0.1"
+        , Warp.settingsHost = "*4"
         } $ ping x app
     launch port url
     loop x
