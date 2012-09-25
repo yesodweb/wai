@@ -76,8 +76,8 @@ look mfc path key = searchWith key check <$> fdCache mfc
 
 ----------------------------------------------------------------
 
-initialize :: IO MutableFdCache
-initialize = do
+initialize :: Int -> IO MutableFdCache
+initialize duration = do
     mfc <- newMutableFdCache
     void . forkIO $ loop mfc
     return mfc
@@ -86,7 +86,7 @@ initialize = do
         old <- swapWithNew mfc
         new <- pruneWith old prune
         update mfc (merge new)
-        threadDelay 10000000 -- FIXME
+        threadDelay duration
         loop mfc
 
 prune :: t -> Some FdEntry -> IO [(t, Some FdEntry)]

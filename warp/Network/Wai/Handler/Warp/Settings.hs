@@ -25,6 +25,7 @@ data Settings = Settings
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
     , settingsIntercept :: Request -> Maybe (Source (ResourceT IO) S.ByteString -> Connection -> ResourceT IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
+    , settingsFdCacheDuration :: Int -- ^ Cache duratoin time of file descriptors in seconds. Default value: 10
     }
 
 -- | The default settings for the Warp server. See the individual settings for
@@ -44,6 +45,7 @@ defaultSettings = Settings
     , settingsTimeout = 30
     , settingsIntercept = const Nothing
     , settingsManager = Nothing
+    , settingsFdCacheDuration = 10
     }
   where
     go :: InvalidRequest -> IO ()
