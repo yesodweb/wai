@@ -31,6 +31,7 @@ module Network.Wai.Handler.Warp (
   , settingsTimeout
   , settingsIntercept
   , settingsManager
+  , settingsFdCacheDuration
     -- ** Data types
   , HostPreference (..)
     -- * Connection

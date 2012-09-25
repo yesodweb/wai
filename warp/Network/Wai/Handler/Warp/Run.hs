@@ -126,7 +126,7 @@ runSettingsConnection set getConn app = do
     tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
         $ settingsManager set
 #if !WINDOWS
-    fc <- F.initialize
+    fc <- F.initialize (settingsFdCacheDuration set * 1000000)
 #endif
     mask $ \restore -> forever $ do
         allowInterrupt
