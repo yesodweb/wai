@@ -93,7 +93,10 @@ chunkedSource ipair = do
 
     go src NeedLen = go' src id
     go src NeedLenNewline = go' src (CB.take 2 >>)
-    go src (HaveLen 0) = liftIO $ I.writeIORef ipair (src, HaveLen 0)
+    go src (HaveLen 0) = do
+        -- Drop the final CRLF
+        (src', ()) <- lift $ src $$++ CB.drop 2
+        liftIO $ I.writeIORef ipair (src', HaveLen 0)
     go src (HaveLen len) = do
         (src', mbs) <- lift $ src $$++ CL.head
         case mbs of
