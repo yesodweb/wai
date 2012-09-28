@@ -76,7 +76,7 @@ runTLS tset set app = do
                     let conn = Connection
                             { connSendMany = TLS.sendData ctx . L.fromChunks
                             , connSendAll = TLS.sendData ctx . L.fromChunks . return
-                            , connSendFile = \fp offset len _th headers -> do
+                            , connSendFile = \fp offset len _th headers _cleaner -> do
                                 TLS.sendData ctx $ L.fromChunks headers
                                 C.runResourceT $ sourceFileRange fp (Just offset) (Just len) C.$$ CL.mapM_ (TLS.sendData ctx . L.fromChunks . return)
                             , connClose = do
