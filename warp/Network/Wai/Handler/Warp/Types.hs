@@ -11,7 +11,7 @@ import Data.Version (showVersion)
 import Network.HTTP.Types.Header
 import qualified Paths_warp
 import qualified Network.Wai.Handler.Warp.Timeout as T
-#if !WINDOWS
+#if SENDFILEFD
 import qualified Network.Wai.Handler.Warp.FdCache as F
 #endif
 
@@ -78,11 +78,11 @@ data Connection = Connection
 
 ----------------------------------------------------------------
 
-#if WINDOWS
-newtype Cleaner = Cleaner { threadHandle :: T.Handle }
-#else
+#if SENDFILEFD
 data Cleaner = Cleaner {
     threadHandle :: T.Handle
   , fdCacher :: F.MutableFdCache
   }
+#else
+newtype Cleaner = Cleaner { threadHandle :: T.Handle }
 #endif

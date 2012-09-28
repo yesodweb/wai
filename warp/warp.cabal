@@ -48,13 +48,14 @@ Library
                      Network.Wai.Handler.Warp.Types
                      Paths_warp
   Ghc-Options:       -Wall
-  if os(windows)
-      Cpp-options:   -DWINDOWS
-  else
+  if os(linux) || os(freebsd) || os(darwin)
+      Cpp-Options:   -DSENDFILEFD
       Build-Depends: unix
                    , hashable
       Other-modules: Network.Wai.Handler.Warp.FdCache
                      Network.Wai.Handler.Warp.MultiMap
+  if os(windows)
+      Cpp-Options:   -DWINDOWS
 
 Test-Suite spec
     Main-Is:         Spec.hs
@@ -81,11 +82,12 @@ Test-Suite spec
                    , HUnit
                    , QuickCheck
                    , hspec                    == 1.3.*
-  if os(windows)
-      Cpp-options:   -DWINDOWS
-  else
+  if os(linux) || os(freebsd) || os(darwin)
+      Cpp-Options:   -DSENDFILEFD
       Build-Depends: unix
                    , hashable
+  if os(windows)
+      Cpp-Options:   -DWINDOWS
 
 Source-Repository head
   Type:     git

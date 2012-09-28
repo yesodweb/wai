@@ -40,7 +40,9 @@ import Network.Socket (Socket(..))
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
-#else
+#endif
+
+#if SENDFILEFD
 import qualified Network.Wai.Handler.Warp.FdCache as F
 #endif
 
@@ -67,13 +69,13 @@ socketConnection s = Connection
     }
 
 sendFile :: Socket -> FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO ()
-#if WINDOWS
-sendFile s path off len act hdr _ =
-    sendfileWithHeader s path (PartOfFile off len) act hdr
-#else
+#if SENDFILEFD
 sendFile s path off len act hdr cleaner = do
     (fd, fresher) <- F.getFd (fdCacher cleaner) path
     sendfileFdWithHeader s fd (PartOfFile off len) (act>>fresher) hdr
+#else
+sendFile s path off len act hdr _ =
+    sendfileWithHeader s path (PartOfFile off len) act hdr
 #endif
 
 #if __GLASGOW_HASKELL__ < 702
@@ -125,7 +127,7 @@ runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application ->
 runSettingsConnection set getConn app = do
     tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
         $ settingsManager set
-#if !WINDOWS
+#if SENDFILEFD
     fc <- F.initialize (settingsFdCacheDuration set * 1000000)
 #endif
     mask $ \restore -> forever $ do
@@ -133,10 +135,10 @@ runSettingsConnection set getConn app = do
         (conn, addr) <- getConnLoop
         void . forkIO $ do
             th <- T.registerKillThread tm
-#if WINDOWS
-            let cleaner = Cleaner th
-#else
+#if SENDFILEFD
             let cleaner = Cleaner th fc
+#else
+            let cleaner = Cleaner th
 #endif
             let serve = do
                     onOpen
