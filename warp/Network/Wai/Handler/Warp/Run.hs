@@ -8,6 +8,7 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Exception
 import Control.Monad (forever, when, unless, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Class (lift)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import Data.Conduit
@@ -176,7 +177,7 @@ serveConnection settings cleaner port app conn remoteHost' =
             Nothing -> do
                 -- Let the application run for as long as it wants
                 liftIO $ T.pause th
-                res <- app env
+                res <- lift $ runResourceT $ app env
 
                 liftIO $ T.resume th
                 keepAlive <- sendResponse cleaner env conn res
