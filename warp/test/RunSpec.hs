@@ -240,9 +240,9 @@ spec = do
             handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
             let input = S.concat
                     [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                    , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
+                    , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
                     , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                    , "b\r\nHello World\r\n0\r\n"
+                    , "b\r\nHello World\r\n0\r\n\r\n"
                     ]
             hPutStr handle input
             hFlush handle
@@ -266,7 +266,7 @@ spec = do
             let input = concat $ replicate 2 $
                     ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
                     (replicate 50 "5\r\n12345\r\n") ++
-                    ["0\r\n"]
+                    ["0\r\n\r\n"]
             mapM_ (\bs -> hPutStr handle bs >> hFlush handle) input
             hClose handle
             threadDelay 1000
@@ -286,7 +286,7 @@ spec = do
                     [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                     , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
                     , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                    , "b\r\nHello World\r\n0\r\n"
+                    , "b\r\nHello World\r\n0\r\n\r\n"
                     ]
             mapM_ (\bs -> hPutStr handle bs >> hFlush handle) $ map S.singleton $ S.unpack input
             hClose handle

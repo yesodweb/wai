@@ -6,7 +6,9 @@ import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Data.ByteString (ByteString)
+import Data.ByteString.Lazy.Char8 (pack)
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Lazy as L
 import Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import Data.Conduit.Internal (ResumableSource (..))
@@ -95,7 +97,9 @@ chunkedSource ipair = do
     go src NeedLenNewline = go' src (CB.take 2 >>)
     go src (HaveLen 0) = do
         -- Drop the final CRLF
-        (src', ()) <- lift $ src $$++ CB.drop 2
+        (src', ()) <- lift $ src $$++ do
+            crlf <- CB.take 2
+            unless (crlf == pack "\r\n") $ leftover $ S.concat $ L.toChunks crlf
         liftIO $ I.writeIORef ipair (src', HaveLen 0)
     go src (HaveLen len) = do
         (src', mbs) <- lift $ src $$++ CL.head
