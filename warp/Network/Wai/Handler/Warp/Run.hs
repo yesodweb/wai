@@ -177,10 +177,11 @@ serveConnection settings cleaner port app conn remoteHost' =
             Nothing -> do
                 -- Let the application run for as long as it wants
                 liftIO $ T.pause th
-                res <- lift $ runResourceT $ app env
+                keepAlive <- lift $ runResourceT $ do
+                    res <- app env
 
-                liftIO $ T.resume th
-                keepAlive <- sendResponse cleaner env conn res
+                    liftIO $ T.resume th
+                    sendResponse cleaner env conn res
 
                 -- flush the rest of the request body
                 requestBody env $$ CL.sinkNull
