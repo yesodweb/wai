@@ -35,13 +35,13 @@ data TLSSettings = TLSSettings
 
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
 runTLS tset set app = do
-    cert    <- readCertificate $ certFile tset
+    certs   <- readCertificates $ certFile tset
     pk      <- readPrivateKey $ keyFile tset
     let params = TLS.defaultParams
             { TLS.pWantClientCert = False
             , TLS.pAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
             , TLS.pCiphers         = ciphers
-            , TLS.pCertificates    = [(cert, Just pk)]
+            , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
             }
     bracket
         (bindPort (settingsPort set) (settingsHost set))
@@ -100,12 +100,12 @@ ciphers =
     , TLSExtra.cipher_RC4_128_SHA1
     ]
 
-readCertificate :: FilePath -> IO X509.X509
-readCertificate filepath = do
+readCertificates :: FilePath -> IO [X509.X509]
+readCertificates filepath = do
     certs <- rights . parseCerts . PEM.pemParseBS <$> B.readFile filepath
     case certs of
-        []    -> error "no valid certificate found"
-        (x:_) -> return x
+        []-> error "no valid certificate found"
+        x -> return x
     where parseCerts (Right pems) = map (X509.decodeCertificate . L.fromChunks . (:[]) . PEM.pemContent)
                                   $ filter (flip elem ["CERTIFICATE", "TRUSTED CERTIFICATE"] . PEM.pemName) pems
           parseCerts (Left err) = error $ "cannot parse PEM file: " ++ err
