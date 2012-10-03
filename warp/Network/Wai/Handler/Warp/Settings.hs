@@ -25,7 +25,7 @@ data Settings = Settings
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
     , settingsIntercept :: Request -> Maybe (Source (ResourceT IO) S.ByteString -> Connection -> ResourceT IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
-    , settingsFdCacheDuration :: Int -- ^ Cache duratoin time of file descriptors in seconds. Default value: 10
+    , settingsFdCacheDuration :: Int -- ^ Cache duratoin time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 10
     , settingsResourceTPerRequest :: Bool
       -- ^ If @True@, each request\/response pair will run in a separate
       -- @ResourceT@. This provides more intuitive behavior for dynamic code,

@@ -44,6 +44,7 @@ import Network.Socket (withSocketsDo)
 #endif
 
 #if SENDFILEFD
+import Control.Applicative
 import qualified Network.Wai.Handler.Warp.FdCache as F
 #endif
 
@@ -71,9 +72,11 @@ socketConnection s = Connection
 
 sendFile :: Socket -> FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO ()
 #if SENDFILEFD
-sendFile s path off len act hdr cleaner = do
-    (fd, fresher) <- F.getFd (fdCacher cleaner) path
-    sendfileFdWithHeader s fd (PartOfFile off len) (act>>fresher) hdr
+sendFile s path off len act hdr cleaner = case fdCacher cleaner of
+    Nothing  -> sendfileWithHeader s path (PartOfFile off len) act hdr
+    Just fdc -> do
+        (fd, fresher) <- F.getFd fdc path
+        sendfileFdWithHeader s fd (PartOfFile off len) (act>>fresher) hdr
 #else
 sendFile s path off len act hdr _ =
     sendfileWithHeader s path (PartOfFile off len) act hdr
@@ -129,7 +132,10 @@ runSettingsConnection set getConn app = do
     tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
         $ settingsManager set
 #if SENDFILEFD
-    fc <- F.initialize (settingsFdCacheDuration set * 1000000)
+    let duration = settingsFdCacheDuration set
+    fc <- case duration of
+        0 -> return Nothing
+        _ -> Just <$> F.initialize (duration * 1000000)
 #endif
     mask $ \restore -> forever $ do
         allowInterrupt

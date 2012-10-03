@@ -81,7 +81,7 @@ data Connection = Connection
 #if SENDFILEFD
 data Cleaner = Cleaner {
     threadHandle :: T.Handle
-  , fdCacher :: F.MutableFdCache
+  , fdCacher :: Maybe F.MutableFdCache
   }
 #else
 newtype Cleaner = Cleaner { threadHandle :: T.Handle }
