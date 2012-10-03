@@ -166,6 +166,9 @@ serveConnection :: Settings
 serveConnection settings cleaner port app conn remoteHost' =
     runResourceT serveConnection'
   where
+    innerRunResourceT
+        | settingsResourceTPerRequest settings = lift . runResourceT
+        | otherwise = id
     th = threadHandle cleaner
 
     serveConnection' :: ResourceT IO ()
@@ -177,7 +180,7 @@ serveConnection settings cleaner port app conn remoteHost' =
             Nothing -> do
                 -- Let the application run for as long as it wants
                 liftIO $ T.pause th
-                keepAlive <- lift $ runResourceT $ do
+                keepAlive <- innerRunResourceT $ do
                     res <- app env
 
                     liftIO $ T.resume th
