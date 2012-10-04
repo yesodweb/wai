@@ -79,6 +79,9 @@ data ChunkState = NeedLen
                 | NeedLenNewline
                 | HaveLen Word
 
+bsCRLF :: L.ByteString
+bsCRLF = pack "\r\n"
+
 chunkedSource :: MonadIO m
               => I.IORef (ResumableSource m ByteString, ChunkState)
               -> Source m ByteString
@@ -99,7 +102,7 @@ chunkedSource ipair = do
         -- Drop the final CRLF
         (src', ()) <- lift $ src $$++ do
             crlf <- CB.take 2
-            unless (crlf == pack "\r\n") $ leftover $ S.concat $ L.toChunks crlf
+            unless (crlf == bsCRLF) $ leftover $ S.concat $ L.toChunks crlf
         liftIO $ I.writeIORef ipair (src', HaveLen 0)
     go src (HaveLen len) = do
         (src', mbs) <- lift $ src $$++ CL.head
