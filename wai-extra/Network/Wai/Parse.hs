@@ -58,11 +58,16 @@ breakDiscard w s =
 parseHttpAccept :: S.ByteString -> [S.ByteString]
 parseHttpAccept = map fst
                 . sortBy (rcompare `on` snd)
-                . map grabQ
+                . map (addSpecificity . grabQ)
                 . S.split 44 -- comma
   where
-    rcompare :: Double -> Double -> Ordering
+    rcompare :: (Double,Int) -> (Double,Int) -> Ordering
     rcompare = flip compare
+    addSpecificity (s, q) =
+        -- Prefer higher-specificity types
+        let semicolons = S.count 0x3B s
+            stars = S.count 0x2A s
+        in (s, (q, semicolons - stars))
     grabQ s =
         -- Stripping all spaces may be too harsh.
         -- Maybe just strip either side of semicolon?
