@@ -64,13 +64,14 @@ parseHttpAccept = map fst
     rcompare :: Double -> Double -> Ordering
     rcompare = flip compare
     grabQ s =
-        let (s', q) = breakDiscard 59 s -- semicolon
-            (_, q') = breakDiscard 61 q -- equals sign
-         in (trimWhite s', readQ $ trimWhite q')
+        -- Stripping all spaces may be too harsh.
+        -- Maybe just strip either side of semicolon?
+        let (s', q) = S.breakSubstring ";q=" (S.filter (/=0x20) s) -- 0x20 is space
+            q' = S.takeWhile (/=0x3B) (S.drop 3 q) -- 0x3B is semicolon
+         in (s', readQ q')
     readQ s = case reads $ S8.unpack s of
                 (x, _):_ -> x
                 _ -> 1.0
-    trimWhite = S.dropWhile (== 32) -- space
 
 -- | Store uploaded files in memory
 lbsBackEnd :: Monad m => ignored1 -> ignored2 -> Sink S.ByteString m L.ByteString
