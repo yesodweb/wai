@@ -3,6 +3,7 @@
 module Network.Wai.Handler.WarpTLS
     ( TLSSettings (..)
     , runTLS
+    , runTLSSocket
     ) where
 
 import qualified Network.TLS as TLS
@@ -33,8 +34,8 @@ data TLSSettings = TLSSettings
     , keyFile :: FilePath
     }
 
-runTLS :: TLSSettings -> Settings -> Application -> IO ()
-runTLS tset set app = do
+runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
+runTLSSocket tset set sock app = do
     certs   <- readCertificates $ certFile tset
     pk      <- readPrivateKey $ keyFile tset
     let params = TLS.defaultParams
@@ -43,10 +44,7 @@ runTLS tset set app = do
             , TLS.pCiphers         = ciphers
             , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
             }
-    bracket
-        (bindPort (settingsPort set) (settingsHost set))
-        sClose
-        (\sock -> runSettingsConnection set (getter params sock) app)
+    runSettingsConnection set (getter params sock) app
   where
     retry :: Socket -> TLS.TLSParams -> Socket -> SomeException -> IO (Connection, SockAddr)
     retry s a b _ = sClose s >> getter a b
@@ -90,6 +88,13 @@ runTLS tset set app = do
                             { connRecv = getNext $ fmap (fromMaybe B.empty) C.await
                             }
                     return (conn, sa)
+
+runTLS :: TLSSettings -> Settings -> Application -> IO ()
+runTLS tset set app =
+    bracket
+        (bindPort (settingsPort set) (settingsHost set))
+        sClose
+        (\sock -> runTLSSocket tset set sock app)
 
 -- taken from stunnel example in tls-extra
 ciphers :: [TLS.Cipher]
