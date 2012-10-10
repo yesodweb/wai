@@ -97,8 +97,8 @@ caseParseQueryStringQM = do
 
 caseParseHttpAccept :: Assertion
 caseParseHttpAccept = do
-    let input = "text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c"
-        expected = ["text/html", "text/x-c", "text/x-dvi", "text/plain"]
+    let input = "text/plain; q=0.5, text/html;charset=utf-8, text/*;q=0.8;ext=blah, text/x-dvi; q=0.8, text/x-c"
+        expected = ["text/html;charset=utf-8", "text/x-c", "text/x-dvi", "text/*", "text/plain"]
     expected @=? parseHttpAccept input
 
 parseRequestBody' :: BackEnd L.ByteString
