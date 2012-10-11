@@ -30,7 +30,9 @@ import Prelude hiding (catch)
 -- Sock.recv first tries to call recvfrom() optimistically.
 -- If EAGAIN returns, it polls incoming data with epoll/kqueue.
 -- This code first polls incoming data with epoll/kqueue.
+#if !WINDOWS
 #define PESSIMISTIC_RECV 1
+#endif
 
 #ifdef PESSIMISTIC_RECV
 import System.Posix.Types (Fd(..))
