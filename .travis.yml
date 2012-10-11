@@ -1,7 +1,7 @@
 language: haskell
 
 install:
-    - cabal update
+    - cp sources-travis.txt sources.txt
     - cabal install mega-sdist hspec cabal-meta cabal-src
     - cabal-meta install
 
