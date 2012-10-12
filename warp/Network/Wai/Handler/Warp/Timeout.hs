@@ -9,6 +9,7 @@ module Network.Wai.Handler.Warp.Timeout (
   , resume
   , cancel
   , withManager
+  , dummyHandle
   ) where
 
 import Control.Concurrent (forkIO, threadDelay, myThreadId, killThread)
@@ -16,6 +17,7 @@ import qualified Control.Exception as E
 import Control.Monad (forever)
 import Control.Monad (void)
 import qualified Data.IORef as I
+import System.IO.Unsafe (unsafePerformIO)
 
 -- FIXME implement stopManager
 
@@ -23,7 +25,13 @@ import qualified Data.IORef as I
 newtype Manager = Manager (I.IORef [Handle])
 
 -- | A handle used by 'Manager'
+--
+-- First field is action to be performed on timeout.
 data Handle = Handle (IO ()) (I.IORef State)
+
+-- | A dummy @Handle@.
+dummyHandle :: Handle
+dummyHandle = Handle (return ()) (unsafePerformIO $ I.newIORef Active)
 
 data State = Active | Inactive | Paused | Canceled
 

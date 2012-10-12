@@ -78,11 +78,22 @@ data Connection = Connection
 
 ----------------------------------------------------------------
 
+-- | A dummy @Cleaner@, intended for applications making use of the low-level
+-- request parsing and rendering functions.
+--
+-- Since 1.3.4
+dummyCleaner :: Cleaner
+
 #if SENDFILEFD
+dummyCleaner = Cleaner T.dummyHandle Nothing
+
 data Cleaner = Cleaner {
     threadHandle :: T.Handle
   , fdCacher :: Maybe F.MutableFdCache
   }
+
 #else
+dummyCleaner = Cleaner T.dummyHandle
+
 newtype Cleaner = Cleaner { threadHandle :: T.Handle }
 #endif

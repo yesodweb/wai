@@ -54,6 +54,7 @@ module Network.Wai.Handler.Warp (
     -- * Internal
   , parseRequest
   , sendResponse
+  , dummyCleaner
   , socketConnection
 #if TEST
   , takeHeaders
