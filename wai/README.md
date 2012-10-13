@@ -6,7 +6,7 @@ Getting started
 
 You want a minimal example? Here it is!
 
-~~~ {.haskell .literate}
+~~~ {.haskell}
 {-# LANGUAGE OverloadedStrings #-}
 import Network.Wai
 import Network.HTTP.Types
@@ -50,7 +50,7 @@ We can modify our previous example to serve static content. For this create a fi
 
 Now we redefine `responseBody` to refer to that file:
 
-~~~ {.haskell .literate}
+~~~ {.haskell}
 app2 :: Application
 app2 _ = return index
 
@@ -72,7 +72,7 @@ An `Application` maps `Request`s to `Response`s:
 
 Depending on the path info provided with each `Request` we can serve different `Response`s:
 
-~~~ {.haskell .literate}
+~~~ {.haskell}
 app3 :: Application
 app3 request = case rawPathInfo request of
     "/"     -> return index
@@ -97,7 +97,7 @@ Doing without overloaded strings
 
 For the sake of efficiency, WAI uses the [bytestring] package.  We used GHCs [overloaded strings] to almost hide this fact. But we can easily do without.  What follows is a more verbose definition of `notFound`, that works without GHC extensions:
 
-~~~ {.haskell}
+~~~ {.haskell .ignore}
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy.Char8 as LB8
 import           Data.CaseInsensitive (mk)
