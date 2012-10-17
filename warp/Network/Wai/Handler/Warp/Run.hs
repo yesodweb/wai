@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Run where
 
@@ -154,7 +153,7 @@ runSettingsConnection set getConn app = do
                     restore $ serveConnection set cleaner port app conn addr
                     cleanup
                 cleanup = connClose conn >> T.cancel th >> onClose
-            handle onE $ (serve `onException` cleanup)
+            handle onE (serve `onException` cleanup)
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
     getConnLoop = getConn `catch` \(e :: IOException) -> do

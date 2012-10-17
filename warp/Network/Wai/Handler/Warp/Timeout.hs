@@ -14,8 +14,7 @@ module Network.Wai.Handler.Warp.Timeout (
 
 import Control.Concurrent (forkIO, threadDelay, myThreadId, killThread)
 import qualified Control.Exception as E
-import Control.Monad (forever)
-import Control.Monad (void)
+import Control.Monad (forever, void)
 import qualified Data.IORef as I
 import System.IO.Unsafe (unsafePerformIO)
 

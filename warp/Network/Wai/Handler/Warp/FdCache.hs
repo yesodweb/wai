@@ -114,7 +114,7 @@ getFd mfc path = look mfc path key >>= getFd'
     getFd' Nothing = do
         ent@(FdEntry _ fd mst) <- newFdEntry path
         update mfc (insert key ent)
-        return $ (fd, refresh mst)
+        return (fd, refresh mst)
     getFd' (Just (FdEntry _ fd mst)) = do
         refresh mst
-        return $ (fd, refresh mst)
+        return (fd, refresh mst)
