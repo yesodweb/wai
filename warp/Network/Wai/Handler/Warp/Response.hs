@@ -51,18 +51,18 @@ sendResponse cleaner req conn (ResponseFile s hs path mpart) =
 
     sendResponse' (Right (lengthyHeaders, cl))
       | hasBody s req = liftIO $ do
+          lheader <- composeHeader version s lengthyHeaders
           connSendFile conn path beg end (T.tickle th) [lheader] cleaner
           T.tickle th
           return isPersist
       | otherwise = liftIO $ do
-          connSendAll conn $ composeHeader version s hs
+          composeHeader version s hs >>= connSendAll conn
           T.tickle th
           return isPersist -- FIXME isKeepAlive?
       where
         (beg,end) = case mpart of
             Nothing  -> (0,cl)
             Just prt -> (filePartOffset prt, filePartByteCount prt)
-        lheader = composeHeader version s lengthyHeaders
         version = httpVersion req
         (isPersist,_) = infoFromRequest req
 
@@ -75,21 +75,21 @@ sendResponse cleaner req conn (ResponseFile s hs path mpart) =
 
 sendResponse cleaner req conn (ResponseBuilder s hs b)
   | hasBody s req = liftIO $ do
+      header <- composeHeaderBuilder version s hs needsChunked
+      let body
+            | needsChunked = header `mappend` chunkedTransferEncoding b
+                                    `mappend` chunkedTransferTerminator
+            | otherwise    = header `mappend` b
       flip toByteStringIO body $ \bs -> do
           connSendAll conn bs
           T.tickle th
       return isKeepAlive
   | otherwise = liftIO $ do
-      connSendAll conn $ composeHeader version s hs
+      composeHeader version s hs >>= connSendAll conn
       T.tickle th
       return isPersist
   where
     th = threadHandle cleaner
-    header = composeHeaderBuilder version s hs needsChunked
-    body
-      | needsChunked = header `mappend` chunkedTransferEncoding b
-                              `mappend` chunkedTransferTerminator
-      | otherwise    = header `mappend` b
     version = httpVersion req
     reqinfo@(isPersist,_) = infoFromRequest req
     (isKeepAlive, needsChunked) = infoFromResponse hs reqinfo
@@ -98,16 +98,16 @@ sendResponse cleaner req conn (ResponseBuilder s hs b)
 
 sendResponse cleaner req conn (ResponseSource s hs bodyFlush)
   | hasBody s req = do
+      header <- liftIO $ composeHeaderBuilder version s hs needsChunked
       let src = CL.sourceList [header] `mappend` cbody
       src $$ builderToByteString =$ connSink conn th
       return isKeepAlive
   | otherwise = liftIO $ do
-      connSendAll conn $ composeHeader version s hs
+      composeHeader version s hs >>= connSendAll conn
       T.tickle th
       return isPersist
   where
     th = threadHandle cleaner
-    header = composeHeaderBuilder version s hs needsChunked
     body = mapOutput (\x -> case x of
                     Flush -> flush
                     Chunk builder -> builder) bodyFlush
@@ -205,11 +205,11 @@ warpVersionHeader = (hServer, ver)
 
 ----------------------------------------------------------------
 
-composeHeader :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> ByteString
+composeHeader :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> IO ByteString
 composeHeader version s hs = RH.composeHeader version s (addServerHeader hs)
 
-composeHeaderBuilder :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> Builder
+composeHeaderBuilder :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> IO Builder
 composeHeaderBuilder ver s hs True =
-    fromByteString $ composeHeader ver s (addEncodingHeader hs)
+    fromByteString <$> composeHeader ver s (addEncodingHeader hs)
 composeHeaderBuilder ver s hs False =
-    fromByteString $ composeHeader ver s hs
+    fromByteString <$> composeHeader ver s hs

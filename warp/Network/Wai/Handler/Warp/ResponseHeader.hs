@@ -6,7 +6,7 @@ module Network.Wai.Handler.Warp.ResponseHeader (composeHeader) where
 import Control.Monad
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import Data.ByteString.Internal (ByteString(..), unsafeCreate, memcpy)
+import Data.ByteString.Internal (ByteString(..), create, memcpy)
 import qualified Data.CaseInsensitive as CI
 import Data.List (foldl')
 import Data.Word (Word8)
@@ -17,8 +17,8 @@ import qualified Network.HTTP.Types as H
 
 ----------------------------------------------------------------
 
-composeHeader :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> ByteString
-composeHeader !httpversion !status !responseHeaders = unsafeCreate len $ \ptr -> do
+composeHeader :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> IO ByteString
+composeHeader !httpversion !status !responseHeaders = create len $ \ptr -> do
     ptr1 <- copyStatus ptr httpversion status
     ptr2 <- copyHeaders ptr1 responseHeaders
     void $ copyCRLF ptr2

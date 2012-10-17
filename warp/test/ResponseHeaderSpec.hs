@@ -13,7 +13,7 @@ main = hspec spec
 spec :: Spec
 spec = describe "composeHeader" $ do
     it "composes a HTTP header" $
-        composeHeader H.http11 H.ok200 headers `shouldBe` composedHeader
+        composeHeader H.http11 H.ok200 headers `shouldReturn` composedHeader
 
 headers :: H.ResponseHeaders
 headers = [
