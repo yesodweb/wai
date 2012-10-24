@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE CPP #-}
 module Network.Wai.Handler.WarpTLS
     ( TLSSettings (..)
     , runTLS
@@ -38,12 +39,23 @@ runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket tset set sock app = do
     certs   <- readCertificates $ certFile tset
     pk      <- readPrivateKey $ keyFile tset
+#if MIN_VERSION_tls(1, 0, 0)
+    let params =
+            TLS.updateServerParams
+                (\sp -> sp { TLS.serverWantClientCert = False }) $
+            TLS.defaultParamsServer
+            { TLS.pAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
+            , TLS.pCiphers         = ciphers
+            , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
+            }
+#else
     let params = TLS.defaultParams
             { TLS.pWantClientCert = False
             , TLS.pAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
             , TLS.pCiphers         = ciphers
             , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
             }
+#endif
     runSettingsConnection set (getter params sock) app
   where
     retry :: Socket -> TLS.TLSParams -> Socket -> SomeException -> IO (Connection, SockAddr)
@@ -63,6 +75,17 @@ runTLSSocket tset set sock app = do
             if maybe False ((== 0x16) . fst) (firstBS >>= B.uncons)
                 then do
                     gen <- newGenIO
+#if MIN_VERSION_tls(1, 0, 0)
+                    ctx <- TLS.contextNew
+                        TLS.Backend
+                            { TLS.backendFlush = return ()
+                            , TLS.backendClose = return ()
+                            , TLS.backendSend = \bs -> C.yield bs C.$$ toClient
+                            , TLS.backendRecv = getNext . takeMost
+                            }
+                        params
+                        (gen :: SystemRandom)
+#else
                     ctx <- TLS.serverWith
                         params
                         (gen :: SystemRandom)
@@ -70,6 +93,7 @@ runTLSSocket tset set sock app = do
                         (return ()) -- flush
                         (\bs -> C.yield bs C.$$ toClient)
                         (getNext . takeMost)
+#endif
                     TLS.handshake ctx
                     let conn = Connection
                             { connSendMany = TLS.sendData ctx . L.fromChunks
