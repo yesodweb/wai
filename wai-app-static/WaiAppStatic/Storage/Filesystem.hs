@@ -23,7 +23,7 @@ import Control.Exception (SomeException, try)
 import qualified Network.Wai as W
 import WaiAppStatic.Listing
 import Network.Mime
-import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime)
+import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime, isRegularFile)
 import Data.Maybe (catMaybes)
 import qualified Crypto.Conduit
 import Data.Serialize (encode)
@@ -89,13 +89,14 @@ fileHelper hashFunc fp name = do
     efs <- try $ getFileStatus $ F.encodeString fp
     case efs of
         Left (_ :: SomeException) -> return Nothing
-        Right fs -> return $ Just File
+        Right fs | isRegularFile fs -> return $ Just File
             { fileGetSize = fromIntegral $ fileSize fs
             , fileToResponse = \s h -> W.ResponseFile s h (F.encodeString fp) Nothing
             , fileName = name
             , fileGetHash = hashFunc fp
             , fileGetModified = Just $ modificationTime fs
             }
+        Right _ -> return Nothing
 
 -- | How to calculate etags. Can perform filesystem reads on each call, or use
 -- some caching mechanism.
