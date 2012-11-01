@@ -82,12 +82,16 @@ Test-Suite spec
                    , HUnit
                    , QuickCheck
                    , hspec                    == 1.3.*
-  if os(linux) || os(freebsd) || os(darwin)
-      Cpp-Options:   -DSENDFILEFD
-      Build-Depends: unix
+
+    -- Yes, this means that the test suite will no longer work on Windows.
+    -- Unfortunately there is a bug in older versions of cabal, and this conditional
+    -- will therefore break older systems.
+  --if os(linux) || os(freebsd) || os(darwin)
+    Cpp-Options:   -DSENDFILEFD
+    Build-Depends: unix
                    , hashable
-  if os(windows)
-      Cpp-Options:   -DWINDOWS
+  --if os(windows)
+  --    Cpp-Options:   -DWINDOWS
 
 Source-Repository head
   Type:     git
