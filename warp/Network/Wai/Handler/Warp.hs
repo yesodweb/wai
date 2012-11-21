@@ -38,6 +38,7 @@ module Network.Wai.Handler.Warp (
     -- * Connection
   , Connection (..)
   , runSettingsConnection
+  , runSettingsConnectionMaker
     -- * Datatypes
   , Port
   , InvalidRequest (..)
