@@ -56,14 +56,11 @@ runTLSSocket tset set sock app = do
             , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
             }
 #endif
-    runSettingsConnection set (getter params sock) app
+    runSettingsConnectionMaker set (getter params sock) app
   where
-    retry :: Socket -> TLS.TLSParams -> Socket -> SomeException -> IO (Connection, SockAddr)
-    retry s a b _ = sClose s >> getter a b
-
     getter params sock = do
         (s, sa) <- accept sock
-        handle (retry s params sock) $ do
+        let mkConn = do
             (fromClient, firstBS) <- sourceSocket s C.$$+ CL.peek
             let toClient = sinkSocket s
             ifromClient <- I.newIORef fromClient
@@ -106,12 +103,13 @@ runTLSSocket tset set sock app = do
                                 sClose s
                             , connRecv = TLS.recvData ctx
                             }
-                    return (conn, sa)
+                    return conn
                 else do
                     let conn = (socketConnection s)
                             { connRecv = getNext $ fmap (fromMaybe B.empty) C.await
                             }
-                    return (conn, sa)
+                    return conn
+        return (mkConn, sa)
 
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
 runTLS tset set app =
