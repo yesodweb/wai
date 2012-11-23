@@ -25,7 +25,7 @@ import Data.Conduit.Network (bindPort)
 import Data.Either (rights)
 import Control.Applicative ((<$>))
 import qualified Data.PEM as PEM
-import Data.Conduit.Network (sourceSocket, sinkSocket)
+import Data.Conduit.Network (sourceSocket, sinkSocket, acceptSafe)
 import Data.Maybe (fromMaybe)
 import qualified Data.IORef as I
 import Control.Monad (unless)
@@ -59,7 +59,7 @@ runTLSSocket tset set sock app = do
     runSettingsConnectionMaker set (getter params sock) app
   where
     getter params sock = do
-        (s, sa) <- accept sock
+        (s, sa) <- acceptSafe sock
         let mkConn = do
             (fromClient, firstBS) <- sourceSocket s C.$$+ CL.peek
             let toClient = sinkSocket s
