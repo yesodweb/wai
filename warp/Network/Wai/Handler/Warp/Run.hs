@@ -135,6 +135,12 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
       (conn, sa) <- getConn
       return (return conn, sa)
 
+-- | Allows you to provide a function which will return a @Connection@. In
+-- cases where creating the @Connection@ can be expensive, this allows the
+-- expensive computations to be performed in a separate thread instead of the
+-- main server loop.
+--
+-- Since 1.3.5
 runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
 runSettingsConnectionMaker set getConn app = do
     tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
