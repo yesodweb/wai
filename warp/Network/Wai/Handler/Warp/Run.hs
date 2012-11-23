@@ -129,7 +129,14 @@ runSettingsSocket set socket app =
         return (socketConnection conn, sa)
 
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
-runSettingsConnection set getConn app = do
+runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
+  where
+    getConnMaker = do
+      (conn, sa) <- getConn
+      return (return conn, sa)
+
+runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
+runSettingsConnectionMaker set getConn app = do
     tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
         $ settingsManager set
 #if SENDFILEFD
@@ -140,9 +147,10 @@ runSettingsConnection set getConn app = do
 #endif
     mask $ \restore -> forever $ do
         allowInterrupt
-        (conn, addr) <- getConnLoop
+        (mkConn, addr) <- getConnLoop
         void . forkIO $ do
             th <- T.registerKillThread tm
+            conn <- mkConn
 #if SENDFILEFD
             let cleaner = Cleaner th fc
 #else
