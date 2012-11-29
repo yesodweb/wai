@@ -110,7 +110,10 @@ data FileInfo c = FileInfo
     }
     deriving (Eq, Show)
 
+-- | Post parameter name and value.
 type Param = (S.ByteString, S.ByteString)
+
+-- | Post parameter name and associated file information.
 type File y = (S.ByteString, FileInfo y)
 
 -- | A file uploading backend. Takes the parameter name, file name, and content
