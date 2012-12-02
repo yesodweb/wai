@@ -32,10 +32,12 @@ Library
                    , hint                  >= 0.3.2.3       && < 0.4
                    , text                  >= 0.7
                    , old-time
+                   , time
                    , transformers          >= 0.2.2
                    , attoparsec            >= 0.10
   Exposed-modules:   Network.Wai.Handler.DevelServer
                      Network.Wai.Application.Devel
+  Other-modules:     Network.Wai.Handler.DevelServer.Compat
   ghc-options:       -Wall
 
 Executable           wai-handler-devel
