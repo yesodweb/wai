@@ -12,7 +12,7 @@ import Database.Persist.Sqlite
 import System.Directory
 import Control.Monad (when)
 import Text.Hamlet
-import Text.Blaze.Html.Renderer.Text (renderHtml)
+import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import Data.Text.Lazy.Encoding (encodeUtf16LE)
 import Control.Monad.Trans.Resource (runResourceT)
 import Control.Monad.IO.Class (liftIO)
@@ -42,6 +42,6 @@ fullApp handler = do
                         count ([] :: [Filter Dummy])
                     return $ responseLBS status200
                         [("Content-Type", "text/html; charset=utf-8")] $
-                        encodeUtf16LE $ renderHtml
+                        renderHtml
                         $(shamletFile "hamlet/testapp.hamlet")
         putStrLn "handler completed, this should only happen at the beginning of a reload"
