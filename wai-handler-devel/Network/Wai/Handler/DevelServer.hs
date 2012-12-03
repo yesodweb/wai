@@ -25,13 +25,13 @@ import Data.Maybe
 import Control.Monad
 import Control.Concurrent.MVar
 
-import System.Directory (getModificationTime)
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai.Application.Devel
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 
 import Data.List (nub, group, sort)
-import System.Time (ClockTime)
+
+import Network.Wai.Handler.DevelServer.Compat
 
 type FunctionName = String
 
@@ -98,8 +98,8 @@ startApp queue withApp = do
     void x = x >> return ()
 -}
 
-getTimes :: [FilePath] -> IO [ClockTime]
-getTimes = E.handle (constSE $ return []) . mapM getModificationTime
+getTimes :: [FilePath] -> IO [TimeStamp]
+getTimes = E.handle (constSE $ return []) . mapM getTimeStamp
 
 constSE :: x -> SomeException -> x
 constSE = const
@@ -129,7 +129,7 @@ reload :: String -> String
        -> Maybe SomeException
        -> AppHolder
        -> [IO ()]
-       -> IO (Maybe SomeException, [(FilePath, ClockTime)])
+       -> IO (Maybe SomeException, [(FilePath, TimeStamp)])
 reload modu func extras prevError ah actions = do
     case prevError of
          Nothing -> putStrLn "Attempting to interpret your app..."
