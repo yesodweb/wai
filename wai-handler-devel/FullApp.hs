@@ -16,12 +16,14 @@ import Text.Hamlet
 import Text.Blaze.Html.Renderer.Text (renderHtml)
 import Data.Text.Lazy.Encoding (encodeUtf16LE)
 import Control.Monad.Trans.Resource (runResourceT)
+import Control.Monad.IO.Class (liftIO)
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persist|
 Dummy
     dummy String
 |]
 
+fullApp :: (Application -> IO ()) -> IO ()
 fullApp handler = do
     putStrLn "testApp called, this should happen only once per reload"
     -- Swap between the following two lines as necessary to generate errors
@@ -35,7 +37,7 @@ fullApp handler = do
                 then return $ responseLBS status301 [("Location", "http://www.yesodweb.com/favicon.ico")]
                             $ pack ""
                 else do
-                    print $ pathInfo req
+                    liftIO $ print (pathInfo req)
                     x <- runResourceT $ flip runSqlPool pool $ do
                         insert $ Dummy ""
                         count ([] :: [Filter Dummy])
