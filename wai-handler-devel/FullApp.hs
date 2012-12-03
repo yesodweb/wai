@@ -1,6 +1,7 @@
 {-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 module FullApp (fullApp) where
 
 import Network.Wai
@@ -12,33 +13,34 @@ import System.Directory
 import Control.Monad (when)
 import Helper
 import Text.Hamlet
-import Text.Blaze.Renderer.Text (renderHtml)
+import Text.Blaze.Html.Renderer.Text (renderHtml)
 import Data.Text.Lazy.Encoding (encodeUtf16LE)
+import Control.Monad.Trans.Resource (runResourceT)
 
-mkPersist sqlSettings [persist|
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persist|
 Dummy
     dummy String
 |]
 
-testApp handler = do
+fullApp handler = do
     putStrLn "testApp called, this should happen only once per reload"
     -- Swap between the following two lines as necessary to generate errors
     exi <- doesFileExist "db"
     --let exi = True
     when exi $ removeFile "db"
     withSqlitePool "db" 10 $ \pool -> do
-        flip runSqlPool pool $ runMigration $ migrate $ Dummy ""
+        flip runSqlPool pool $ runMigration migrateAll
         handler $ \req -> do
-            if pathInfo req == "/favicon.ico"
-                then return $ responseLBS status301 [("Location", "http://docs.yesodweb.com/favicon.ico")]
+            if pathInfo req == ["favicon.ico"]
+                then return $ responseLBS status301 [("Location", "http://www.yesodweb.com/favicon.ico")]
                             $ pack ""
                 else do
                     print $ pathInfo req
-                    x <- flip runSqlPool pool $ do
+                    x <- runResourceT $ flip runSqlPool pool $ do
                         insert $ Dummy ""
                         count ([] :: [Filter Dummy])
                     return $ responseLBS status200
                         [("Content-Type", "text/html; charset=utf-8")] $
                         encodeUtf16LE $ renderHtml
-                        $(htmlFile "hamlet/testapp.hamlet")
+                        $(shamletFile "hamlet/testapp.hamlet")
         putStrLn "handler completed, this should only happen at the beginning of a reload"
