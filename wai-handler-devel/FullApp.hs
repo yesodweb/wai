@@ -11,7 +11,6 @@ import Database.Persist.TH
 import Database.Persist.Sqlite
 import System.Directory
 import Control.Monad (when)
-import Helper
 import Text.Hamlet
 import Text.Blaze.Html.Renderer.Text (renderHtml)
 import Data.Text.Lazy.Encoding (encodeUtf16LE)
@@ -39,7 +38,7 @@ fullApp handler = do
                 else do
                     liftIO $ print (pathInfo req)
                     x <- runResourceT $ flip runSqlPool pool $ do
-                        insert $ Dummy ""
+                        _ <- insert (Dummy "")
                         count ([] :: [Filter Dummy])
                     return $ responseLBS status200
                         [("Content-Type", "text/html; charset=utf-8")] $

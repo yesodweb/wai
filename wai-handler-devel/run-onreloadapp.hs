@@ -3,8 +3,10 @@ import Network.Wai.Handler.DevelServer (runQuitWithReloadActions)
 import System.Directory(findExecutable)
 import System.Process(readProcess)
 
+main :: IO ()
 main = runQuitWithReloadActions 4000 "SmallApp" "smallApp" (const $ return []) [browserRefresh] 
 
+browserRefresh :: IO (IO ())
 browserRefresh = do
   exe <- findExecutable "xdotool"
   case exe of 
