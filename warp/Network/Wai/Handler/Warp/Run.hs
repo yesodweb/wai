@@ -29,15 +29,6 @@ import Prelude hiding (catch)
 -- Sock.recv first tries to call recvfrom() optimistically.
 -- If EAGAIN returns, it polls incoming data with epoll/kqueue.
 -- This code first polls incoming data with epoll/kqueue.
-#if !WINDOWS
-#define PESSIMISTIC_RECV 1
-#endif
-
-#ifdef PESSIMISTIC_RECV
-import System.Posix.Types (Fd(..))
-import Control.Concurrent (threadWaitRead)
-import Network.Socket (Socket(..))
-#endif
 
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
@@ -55,20 +46,12 @@ bytesPerRead = 4096
 
 -- | Default action value for 'Connection'
 socketConnection :: Socket -> Connection
-#ifdef PESSIMISTIC_RECV
-socketConnection s@(MkSocket fd _ _ _ _) = Connection
-#else
 socketConnection s = Connection
-#endif
     { connSendMany = Sock.sendMany s
     , connSendAll = Sock.sendAll s
     , connSendFile = sendFile s
     , connClose = sClose s
-#ifdef PESSIMISTIC_RECV
-    , connRecv = threadWaitRead (Fd fd) >> Sock.recv s bytesPerRead
-#else
     , connRecv = Sock.recv s bytesPerRead
-#endif
     }
 
 sendFile :: Socket -> FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO ()
