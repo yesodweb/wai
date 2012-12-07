@@ -18,6 +18,8 @@ import Network.Wai.Handler.Warp
 import System.IO (hFlush, hClose)
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
+import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
+import Control.Exception (bracket)
 
 main :: IO ()
 main = hspec spec
@@ -68,24 +70,33 @@ nextPort = unsafePerformIO $ I.newIORef 5000
 getPort :: IO Int
 getPort = I.atomicModifyIORef nextPort $ \p -> (p + 1, p)
 
+withApp :: Settings -> Application -> (Int -> IO a) -> IO a
+withApp settings app f = do
+    port <- getPort
+    baton <- newEmptyMVar
+    bracket
+        (forkIO $ runSettings settings
+            { settingsPort = port
+            , settingsBeforeMainLoop = putMVar baton ()
+            } app)
+        killThread
+        (const $ takeMVar baton >> f port)
+
 runTest :: Int -- ^ expected number of requests
         -> CounterApplication
         -> [ByteString] -- ^ chunks to send
         -> IO ()
 runTest expected app chunks = do
-    port <- getPort
     ref <- I.newIORef (Right 0)
-    tid <- forkIO $ run port $ app ref
-    threadDelay 1000
-    handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-    forM_ chunks $ \chunk -> hPutStr handle chunk >> hFlush handle
-    _ <- hGetSome handle 4096
-    threadDelay 1000
-    killThread tid
-    res <- I.readIORef ref
-    case res of
-        Left s -> error s
-        Right i -> i `shouldBe` expected
+    withApp defaultSettings (app ref) $ \port -> do
+        handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+        forM_ chunks $ \chunk -> hPutStr handle chunk >> hFlush handle
+        _ <- hGetSome handle 4096
+        threadDelay 1000
+        res <- I.readIORef ref
+        case res of
+            Left s -> error s
+            Right i -> i `shouldBe` expected
 
 dummyApp :: Application
 dummyApp _ = return $ responseLBS status200 [] "foo"
@@ -94,21 +105,17 @@ runTerminateTest :: InvalidRequest
                  -> ByteString
                  -> IO ()
 runTerminateTest expected input = do
-    port <- getPort
     ref <- I.newIORef Nothing
-    tid <- forkIO $ runSettings defaultSettings
-        { settingsOnException = \e -> I.writeIORef ref $ Just e
-        , settingsPort = port
-        } dummyApp
-    threadDelay 1000
-    handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-    hPutStr handle input
-    hFlush handle
-    hClose handle
-    threadDelay 1000
-    killThread tid
-    res <- I.readIORef ref
-    show res `shouldBe` show (Just expected)
+    withApp defaultSettings
+      { settingsOnException = \e -> I.writeIORef ref $ Just e
+      } dummyApp $ \port -> do
+        handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+        hPutStr handle input
+        hFlush handle
+        hClose handle
+        threadDelay 1000
+        res <- I.readIORef ref
+        show res `shouldBe` show (Just expected)
 
 singleGet :: ByteString
 singleGet = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
@@ -151,149 +158,135 @@ spec = do
     describe "special input" $ do
         it "multiline headers" $ do
             iheaders <- I.newIORef []
-            port <- getPort
-            tid <- forkIO $ run port $ \req -> do
-                liftIO $ I.writeIORef iheaders $ requestHeaders req
-                return $ responseLBS status200 [] ""
-            threadDelay 1000
-            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-            let input = S.concat
-                    [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
+            let app req = do
+                    liftIO $ I.writeIORef iheaders $ requestHeaders req
+                    return $ responseLBS status200 [] ""
+            withApp defaultSettings app $ \port -> do
+                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                let input = S.concat
+                        [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
+                        ]
+                hPutStr handle input
+                hFlush handle
+                hClose handle
+                threadDelay 1000
+                headers <- I.readIORef iheaders
+                headers `shouldBe`
+                    [ ("foo", "bar baz\tbin")
                     ]
-            hPutStr handle input
-            hFlush handle
-            hClose handle
-            threadDelay 1000
-            killThread tid
-            headers <- I.readIORef iheaders
-            headers `shouldBe`
-                [ ("foo", "bar baz\tbin")
-                ]
         it "no space between colon and value" $ do
             iheaders <- I.newIORef []
-            port <- getPort
-            tid <- forkIO $ run port $ \req -> do
-                liftIO $ I.writeIORef iheaders $ requestHeaders req
-                return $ responseLBS status200 [] ""
-            threadDelay 1000
-            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-            let input = S.concat
-                    [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
+            let app req = do
+                    liftIO $ I.writeIORef iheaders $ requestHeaders req
+                    return $ responseLBS status200 [] ""
+            withApp defaultSettings app $ \port -> do
+                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                let input = S.concat
+                        [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
+                        ]
+                hPutStr handle input
+                hFlush handle
+                hClose handle
+                threadDelay 1000
+                headers <- I.readIORef iheaders
+                headers `shouldBe`
+                    [ ("foo", "bar")
                     ]
-            hPutStr handle input
-            hFlush handle
-            hClose handle
-            threadDelay 1000
-            killThread tid
-            headers <- I.readIORef iheaders
-            headers `shouldBe`
-                [ ("foo", "bar")
-                ]
         it "extra spaces in first line" $ do
             iheaders <- I.newIORef []
-            port <- getPort
-            tid <- forkIO $ run port $ \req -> do
-                liftIO $ I.writeIORef iheaders $ requestHeaders req
-                return $ responseLBS status200 [] ""
-            threadDelay 1000
-            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-            let input = S.concat
-                    [ "GET    /    HTTP/1.1\r\nfoo: bar\r\n\r\n"
+            let app req = do
+                    liftIO $ I.writeIORef iheaders $ requestHeaders req
+                    return $ responseLBS status200 [] ""
+            withApp defaultSettings app $ \port -> do
+                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                let input = S.concat
+                        [ "GET    /    HTTP/1.1\r\nfoo: bar\r\n\r\n"
+                        ]
+                hPutStr handle input
+                hFlush handle
+                hClose handle
+                threadDelay 1000
+                headers <- I.readIORef iheaders
+                headers `shouldBe`
+                    [ ("foo", "bar")
                     ]
-            hPutStr handle input
-            hFlush handle
-            hClose handle
-            threadDelay 1000
-            killThread tid
-            headers <- I.readIORef iheaders
-            headers `shouldBe`
-                [ ("foo", "bar")
-                ]
         it "spaces in http version" $ do
             iversion <- I.newIORef $ error "Version not parsed"
-            port <- getPort
-            tid <- forkIO $ run port $ \req -> do
-                liftIO $ I.writeIORef iversion $ httpVersion req
-                return $ responseLBS status200 [] ""
-            threadDelay 1000
-            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-            let input = S.concat
-                    [ "GET    /    HTTP\t/  1 .   1  \r\nfoo: bar\r\n\r\n"
-                    ]
-            hPutStr handle input
-            hFlush handle
-            hClose handle
-            threadDelay 1000
-            killThread tid
-            version <- I.readIORef iversion
-            version `shouldBe` http11
+            let app req = do
+                    liftIO $ I.writeIORef iversion $ httpVersion req
+                    return $ responseLBS status200 [] ""
+            withApp defaultSettings app $ \port -> do
+                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                let input = S.concat
+                        [ "GET    /    HTTP\t/  1 .   1  \r\nfoo: bar\r\n\r\n"
+                        ]
+                hPutStr handle input
+                hFlush handle
+                hClose handle
+                threadDelay 1000
+                version <- I.readIORef iversion
+                version `shouldBe` http11
 
     describe "chunked bodies" $ do
         it "works" $ do
             ifront <- I.newIORef id
-            port <- getPort
-            tid <- forkIO $ run port $ \req -> do
-                bss <- requestBody req $$ Data.Conduit.List.consume
-                liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
-                return $ responseLBS status200 [] ""
-            threadDelay 1000
-            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-            let input = S.concat
-                    [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                    , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
-                    , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                    , "b\r\nHello World\r\n0\r\n\r\n"
+            let app req = do
+                    bss <- requestBody req $$ Data.Conduit.List.consume
+                    liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    return $ responseLBS status200 [] ""
+            withApp defaultSettings app $ \port -> do
+                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                let input = S.concat
+                        [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                        , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
+                        , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                        , "b\r\nHello World\r\n0\r\n\r\n"
+                        ]
+                hPutStr handle input
+                hFlush handle
+                hClose handle
+                threadDelay 1000
+                front <- I.readIORef ifront
+                front [] `shouldBe`
+                    [ "Hello World\nBye"
+                    , "Hello World"
                     ]
-            hPutStr handle input
-            hFlush handle
-            hClose handle
-            threadDelay 1000
-            killThread tid
-            front <- I.readIORef ifront
-            front [] `shouldBe`
-                [ "Hello World\nBye"
-                , "Hello World"
-                ]
         it "lots of chunks" $ do
             ifront <- I.newIORef id
-            port <- getPort
-            tid <- forkIO $ run port $ \req -> do
-                bss <- requestBody req $$ Data.Conduit.List.consume
-                liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
-                return $ responseLBS status200 [] ""
-            threadDelay 1000
-            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-            let input = concat $ replicate 2 $
-                    ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
-                    (replicate 50 "5\r\n12345\r\n") ++
-                    ["0\r\n\r\n"]
-            mapM_ (\bs -> hPutStr handle bs >> hFlush handle) input
-            hClose handle
-            threadDelay 1000
-            killThread tid
-            front <- I.readIORef ifront
-            front [] `shouldBe` replicate 2 (S.concat $ replicate 50 "12345")
+            let app req = do
+                    bss <- requestBody req $$ Data.Conduit.List.consume
+                    liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    return $ responseLBS status200 [] ""
+            withApp defaultSettings app $ \port -> do
+                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                let input = concat $ replicate 2 $
+                        ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
+                        (replicate 50 "5\r\n12345\r\n") ++
+                        ["0\r\n\r\n"]
+                mapM_ (\bs -> hPutStr handle bs >> hFlush handle) input
+                hClose handle
+                threadDelay 1000
+                front <- I.readIORef ifront
+                front [] `shouldBe` replicate 2 (S.concat $ replicate 50 "12345")
         it "in chunks" $ do
             ifront <- I.newIORef id
-            port <- getPort
-            tid <- forkIO $ run port $ \req -> do
-                bss <- requestBody req $$ Data.Conduit.List.consume
-                liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
-                return $ responseLBS status200 [] ""
-            threadDelay 1000
-            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-            let input = S.concat
-                    [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                    , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
-                    , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                    , "b\r\nHello World\r\n0\r\n\r\n"
+            let app req = do
+                    bss <- requestBody req $$ Data.Conduit.List.consume
+                    liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    return $ responseLBS status200 [] ""
+            withApp defaultSettings app $ \port -> do
+                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                let input = S.concat
+                        [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                        , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
+                        , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                        , "b\r\nHello World\r\n0\r\n\r\n"
+                        ]
+                mapM_ (\bs -> hPutStr handle bs >> hFlush handle) $ map S.singleton $ S.unpack input
+                hClose handle
+                threadDelay 1000
+                front <- I.readIORef ifront
+                front [] `shouldBe`
+                    [ "Hello World\nBye"
+                    , "Hello World"
                     ]
-            mapM_ (\bs -> hPutStr handle bs >> hFlush handle) $ map S.singleton $ S.unpack input
-            hClose handle
-            threadDelay 1000
-            killThread tid
-            front <- I.readIORef ifront
-            front [] `shouldBe`
-                [ "Hello World\nBye"
-                , "Hello World"
-                ]

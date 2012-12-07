@@ -134,6 +134,7 @@ runSettingsConnectionMaker set getConn app = do
         0 -> return Nothing
         _ -> Just <$> F.initialize (duration * 1000000)
 #endif
+    settingsBeforeMainLoop set
     mask $ \restore -> forever $ do
         allowInterrupt
         (mkConn, addr) <- getConnLoop

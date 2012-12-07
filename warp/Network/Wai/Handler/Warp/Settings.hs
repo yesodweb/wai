@@ -31,6 +31,14 @@ data Settings = Settings
       -- @ResourceT@. This provides more intuitive behavior for dynamic code,
       -- but can hinder performance in high-throughput cases. File servers can
       -- safely set to @False@ for increased performance. Default is @True@.
+    , settingsBeforeMainLoop :: IO ()
+      -- ^ Code to run after the listening socket is ready but before entering
+      -- the main event loop. Useful for signaling to tests that they can start
+      -- running, or to drop permissions after binding to a restricted port.
+      --
+      -- Default: do nothing.
+      --
+      -- Since 1.3.6
     }
 
 -- | The default settings for the Warp server. See the individual settings for
@@ -52,6 +60,7 @@ defaultSettings = Settings
     , settingsManager = Nothing
     , settingsFdCacheDuration = 10
     , settingsResourceTPerRequest = True
+    , settingsBeforeMainLoop = return ()
     }
   where
     go :: InvalidRequest -> IO ()

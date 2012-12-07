@@ -33,6 +33,7 @@ module Network.Wai.Handler.Warp (
   , settingsManager
   , settingsFdCacheDuration
   , settingsResourceTPerRequest
+  , settingsBeforeMainLoop
     -- ** Data types
   , HostPreference (..)
     -- * Connection
