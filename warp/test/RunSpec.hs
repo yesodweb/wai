@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module RunSpec (main, spec) where
 
@@ -19,7 +20,9 @@ import System.IO (hFlush, hClose)
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
-import Control.Exception (bracket)
+import Control.Exception (bracket, try, IOException, onException)
+import Data.Conduit.Network (bindPort)
+import Network.Socket (sClose)
 
 main :: IO ()
 main = hspec spec
@@ -68,7 +71,14 @@ nextPort :: I.IORef Int
 nextPort = unsafePerformIO $ I.newIORef 5000
 
 getPort :: IO Int
-getPort = I.atomicModifyIORef nextPort $ \p -> (p + 1, p)
+getPort = do
+    port <- I.atomicModifyIORef nextPort $ \p -> (p + 1, p)
+    esocket <- try $ bindPort port HostIPv4
+    case esocket of
+        Left (_ :: IOException) -> getPort
+        Right socket -> do
+            sClose socket
+            return port
 
 withApp :: Settings -> Application -> (Int -> IO a) -> IO a
 withApp settings app f = do
@@ -78,7 +88,7 @@ withApp settings app f = do
         (forkIO $ runSettings settings
             { settingsPort = port
             , settingsBeforeMainLoop = putMVar baton ()
-            } app)
+            } app `onException` putMVar baton ())
         killThread
         (const $ takeMVar baton >> f port)
 
