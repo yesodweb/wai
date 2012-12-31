@@ -12,6 +12,7 @@ module Network.Wai.Middleware.RequestLogger
     , autoFlush
     , destination
     , OutputFormat (..)
+    , OutputFormatter
     , Destination (..)
     , Callback
     , IPAddrSource (..)
@@ -46,6 +47,9 @@ import System.Log.FastLogger.Date (getDate, dateInit, ZonedDate)
 
 data OutputFormat = Apache IPAddrSource
                   | Detailed Bool -- ^ use colors?
+                  | CustomOutputFormat OutputFormatter
+
+type OutputFormatter = ZonedDate -> Request -> Status -> Maybe Integer -> [LogStr]
 
 data Destination = Handle Handle
                  | Logger Logger
@@ -81,27 +85,34 @@ mkRequestLogger RequestLoggerSettings{..} = do
             Callback c -> return (c, Nothing)
     case outputFormat of
         Apache ipsrc -> do
-            getdate <-
-                case mgetdate of
-                    Just x -> return x
-#if MIN_VERSION_fast_logger(0, 3, 0)
-                    Nothing -> do
-                        (getter,_) <- ondemandDateCacher zonedDateCacheConf
-                        return getter
-#else
-                    Nothing -> fmap getDate dateInit
-#endif
+            getdate <- dateHelper mgetdate
             return $ apacheMiddleware callback ipsrc getdate
         Detailed useColors -> detailedMiddleware callback useColors
+        CustomOutputFormat formatter -> do
+            getdate <- dateHelper mgetdate
+            return $ customMiddleware callback getdate formatter
   where
     fromLogger l = (loggerPutStr l, Just $ loggerDate l)
+    dateHelper mgetdate = do
+        case mgetdate of
+            Just x -> return x
+#if MIN_VERSION_fast_logger(0, 3, 0)
+            Nothing -> do
+                (getter,_) <- ondemandDateCacher zonedDateCacheConf
+                return getter
+#else
+            Nothing -> fmap getDate dateInit
+#endif
 
 apacheMiddleware :: Callback -> IPAddrSource -> IO ZonedDate -> Middleware
-apacheMiddleware cb ipsrc getdate app req = do
+apacheMiddleware cb ipsrc getdate = customMiddleware cb getdate $ apacheFormat ipsrc
+
+customMiddleware :: Callback -> IO ZonedDate -> OutputFormatter -> Middleware
+customMiddleware cb getdate formatter app req = do
     res <- app req
     date <- liftIO getdate
     -- We use Nothing for the response size since we generally don't know it
-    liftIO $ cb $ apacheFormat ipsrc date req (responseStatus res) Nothing
+    liftIO $ cb $ formatter date req (responseStatus res) Nothing
     return res
 
 -- | Production request logger middleware.
