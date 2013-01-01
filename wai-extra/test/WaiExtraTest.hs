@@ -59,7 +59,9 @@ specs = do
     it "method override" caseMethodOverride
     it "method override post" caseMethodOverridePost
     it "accept override" caseAcceptOverride
-    it "dalvik multipart" caseDalvikMultipart
+    describe "dalvik multipart" $ do
+        it "non-chunked" $ dalvikHelper True
+        it "chunked" $ dalvikHelper False
     it "debug request body" caseDebugRequestBody
 
 caseParseQueryString :: Assertion
@@ -430,11 +432,10 @@ caseAcceptOverride = flip runSession aoApp $ do
                 }
     assertHeader "Accept" "baz" sres3
 
-caseDalvikMultipart :: Assertion
-caseDalvikMultipart = do
-    let headers =
-            [ ("content-length", "12098")
-            , ("content-type", "multipart/form-data;boundary=*****")
+dalvikHelper :: Bool -> Assertion
+dalvikHelper includeLength = do
+    let headers' =
+            [ ("content-type", "multipart/form-data;boundary=*****")
             , ("GATEWAY_INTERFACE", "CGI/1.1")
             , ("PATH_INFO", "/")
             , ("QUERY_STRING", "")
@@ -450,6 +451,9 @@ caseDalvikMultipart = do
             , ("HTTP_VERSION", "HTTP/1.1")
             , ("REQUEST_PATH", "/")
             ]
+        headers
+            | includeLength = ("content-length", "12098") : headers'
+            | otherwise = headers'
     let request' = defaultRequest
             { requestHeaders = headers
             }
