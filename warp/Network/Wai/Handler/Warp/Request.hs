@@ -160,7 +160,11 @@ push (THStatus len lines prepend) bs
         -- if so, see if the second of those is a horizontal space
         if bsLen > nl + 1 then
             let c = S.index bs (nl + 1)
-            in Just (nl, c == 32 || c == 9)
+                b = case nl of
+                      0 -> True
+                      1 -> S.index bs 0 == 13
+                      _ -> False
+            in Just (nl, (not b) && (c == 32 || c == 9))
             else
             Just (nl, False)
 
