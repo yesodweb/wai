@@ -33,6 +33,9 @@ import Prelude hiding (catch)
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
+#else
+import System.Posix.IO (FdOption(CloseOnExec), setFdOption)
+import Network.Socket (fdSocket)
 #endif
 
 #if SENDFILEFD
@@ -90,11 +93,13 @@ runSettings set app = withSocketsDo $ do
             runSettingsSocket set s app)
     forever (threadDelay maxBound) `finally` clean
 #else
-runSettings set =
+runSettings set app =
     bracket
         (bindPort (settingsPort set) (settingsHost set))
-        sClose .
-        flip (runSettingsSocket set)
+        sClose
+        (\socket -> do
+            setSocketCloseOnExec socket
+            runSettingsSocket set socket app)
 #endif
 
 -- | Same as 'runSettings', but uses a user-supplied socket instead of opening
@@ -109,6 +114,7 @@ runSettingsSocket set socket app =
   where
     getter = do
         (conn, sa) <- accept socket
+        setSocketCloseOnExec socket
         return (socketConnection conn, sa)
 
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
@@ -210,3 +216,12 @@ connSource Connection { connRecv = recv } th = src
             when (S.length bs >= 2048) $ liftIO $ T.tickle th
             yield bs
             src
+
+-- Copied from: https://github.com/mzero/plush/blob/master/src/Plush/Server/Warp.hs
+setSocketCloseOnExec :: Socket -> IO ()
+#if WINDOWS
+setSocketCloseOnExec _ = return ()
+#else
+setSocketCloseOnExec socket =
+    setFdOption (fromIntegral $ fdSocket socket) CloseOnExec True
+#endif
