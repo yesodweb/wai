@@ -1,5 +1,5 @@
 Name:                warp
-Version:             1.3.6
+Version:             1.3.7
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -10,7 +10,12 @@ Category:            Web, Yesod
 Build-Type:          Simple
 Cabal-Version:       >=1.8
 Stability:           Stable
-Description:         The premier WAI handler. For more information, see <http://steve.vinoski.net/blog/2011/05/01/warp-a-haskell-web-server/>.
+Description:
+    The premier WAI handler. For more information, see <http://steve.vinoski.net/blog/2011/05/01/warp-a-haskell-web-server/>.
+    .
+    Changelog
+    .
+    [1.3.7] Sockets now have FD_CLOEXEC set on them. This behavior is more secure, and the change should not affect the vast majority of use cases.
 
 Flag network-bytestring
     Default: False
