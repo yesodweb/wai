@@ -12,6 +12,7 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text.Lazy as T
+import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
 import Control.Arrow
 
@@ -38,11 +39,19 @@ import qualified Data.IORef as I
 specs :: Spec
 specs = do
   describe "Network.Wai.Parse" $ do
+    describe "parseContentType" $ do
+        let go (x, y, z) = it (TS.unpack $ TE.decodeUtf8 x) $ parseContentType x `shouldBe` (y, z)
+        mapM_ go
+            [ ("text/plain", "text/plain", [])
+            , ("text/plain; charset=UTF-8 ", "text/plain", [("charset", "UTF-8")])
+            , ("text/plain; charset=UTF-8 ; boundary = foo", "text/plain", [("charset", "UTF-8"), ("boundary", "foo")])
+            ]
     it "parseQueryString" caseParseQueryString
     it "parseQueryString with question mark" caseParseQueryStringQM
     it "parseHttpAccept" caseParseHttpAccept
     it "parseRequestBody" caseParseRequestBody
     it "multipart with plus" caseMultipartPlus
+    it "multipart with multiple attributes" caseMultipartAttrs
     it "urlencoded with plus" caseUrlEncPlus
     {-
     , it "findBound" caseFindBound
@@ -187,6 +196,19 @@ caseMultipartPlus = do
         "has+plus\n" ++
         "--AaB03x--"
     ctype = "multipart/form-data; boundary=AaB03x"
+
+caseMultipartAttrs :: Assertion
+caseMultipartAttrs = do
+    result <- C.runResourceT $ parseRequestBody' lbsBackEnd $ toRequest ctype content
+    liftIO $ result @?= ([("email", "has+plus")], [])
+  where
+    content = S8.pack $
+        "--AaB03x\n" ++
+        "Content-Disposition: form-data; name=\"email\"\n" ++
+        "Content-Type: text/plain; charset=iso-8859-1\n\n" ++
+        "has+plus\n" ++
+        "--AaB03x--"
+    ctype = "multipart/form-data; charset=UTF-8; boundary=AaB03x"
 
 caseUrlEncPlus :: Assertion
 caseUrlEncPlus = do

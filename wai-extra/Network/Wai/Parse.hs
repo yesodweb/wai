@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE PatternGuards #-}
 -- | Some helpers for parsing data out of a raw WAI 'Request'.
 
 module Network.Wai.Parse
@@ -17,6 +18,7 @@ module Network.Wai.Parse
     , Param
     , File
     , FileInfo (..)
+    , parseContentType
 #if TEST
     , Bound (..)
     , findBound
@@ -126,24 +128,36 @@ data RequestBodyType = UrlEncoded | Multipart S.ByteString
 
 getRequestBodyType :: Request -> Maybe RequestBodyType
 getRequestBodyType req = do
-    ctype <- lookup "Content-Type" $ requestHeaders req
-    if urlenc `S.isPrefixOf` ctype
-        then Just UrlEncoded
-        else case boundary ctype of
-                Just x -> Just $ Multipart x
-                Nothing -> Nothing
+    ctype' <- lookup "Content-Type" $ requestHeaders req
+    let (ctype, attrs) = parseContentType ctype'
+    case ctype of
+        "application/x-www-form-urlencoded" -> return UrlEncoded
+        "multipart/form-data" | Just bound <- lookup "boundary" attrs -> return $ Multipart bound
+        _ -> Nothing
+
+-- | Parse a content type value, turning a single @ByteString@ into the actual
+-- content type and a list of pairs of attributes.
+--
+-- Since 1.3.2
+parseContentType :: S.ByteString -> (S.ByteString, [(S.ByteString, S.ByteString)])
+parseContentType a = do
+    let (ctype, b) = S.break (== semicolon) a
+        attrs = goAttrs id $ S.drop 1 b
+     in (ctype, attrs)
   where
-    urlenc = S8.pack "application/x-www-form-urlencoded"
-    formBound = S8.pack "multipart/form-data;"
-    bound' = "boundary="
-    boundary s =
-        if "multipart/form-data;" `S.isPrefixOf` s
-            then
-                let s' = S.dropWhile (== 32) $ S.drop (S.length formBound) s
-                 in if bound' `S.isPrefixOf` s'
-                        then Just $ S.drop (S.length bound') s'
-                        else Nothing
-            else Nothing
+    semicolon = 59
+    equals = 61
+    space = 32
+    goAttrs front bs
+        | S.null bs = front []
+        | otherwise =
+            let (x, rest) = S.break (== semicolon) bs
+             in goAttrs (front . (goAttr x:)) $ S.drop 1 rest
+    goAttr bs =
+        let (k, v') = S.break (== equals) bs
+            v = S.drop 1 v'
+         in (strip k, strip v)
+    strip = S.dropWhile (== space) . fst . S.breakEnd (/= space)
 
 parseRequestBody :: BackEnd y
                  -> Request
