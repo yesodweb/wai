@@ -55,12 +55,13 @@ Library
   Ghc-Options:       -Wall
   if os(linux) || os(freebsd) || os(darwin)
       Cpp-Options:   -DSENDFILEFD
-      Build-Depends: unix
-                   , hashable
+      Build-Depends: hashable
       Other-modules: Network.Wai.Handler.Warp.FdCache
                      Network.Wai.Handler.Warp.MultiMap
   if os(windows)
       Cpp-Options:   -DWINDOWS
+  else
+      Build-Depends: unix
 
 Test-Suite spec
     Main-Is:         Spec.hs
