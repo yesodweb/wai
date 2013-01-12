@@ -63,6 +63,7 @@ defaultMimeMap = Map.fromList [
   ( "ico"     , "image/vnd.microsoft.icon"          ),
   ( "jar"     , "application/x-java-archive"        ),
   ( "jpeg"    , "image/jpeg"                        ),
+  ( "jpe"    , "image/jpeg"                         ),
   ( "jpg"     , "image/jpeg"                        ),
   ( "js"      , "text/javascript"                   ),
   ( "json"    , "application/json"                  ),
