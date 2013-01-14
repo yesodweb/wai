@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE CPP #-}
 module Network.Wai.Handler.WarpTLS
     ( TLSSettings (..)
     , runTLS
@@ -11,12 +10,11 @@ import qualified Network.TLS as TLS
 import Network.Wai.Handler.Warp
 import Network.Wai
 import Network.Socket
-import Crypto.Random
 import qualified Data.ByteString.Lazy as L
 import Data.Conduit.Binary (sourceFileRange)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import Control.Exception (bracket, handle, SomeException)
+import Control.Exception (bracket)
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.Certificate.X509 as X509
 import qualified Data.ByteString as B
@@ -29,6 +27,7 @@ import Data.Conduit.Network (sourceSocket, sinkSocket, acceptSafe)
 import Data.Maybe (fromMaybe)
 import qualified Data.IORef as I
 import Control.Monad (unless)
+import Crypto.Random.API (getSystemRandomGen)
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -39,7 +38,6 @@ runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket tset set sock app = do
     certs   <- readCertificates $ certFile tset
     pk      <- readPrivateKey $ keyFile tset
-#if MIN_VERSION_tls(1, 0, 0)
     let params =
             TLS.updateServerParams
                 (\sp -> sp { TLS.serverWantClientCert = False }) $
@@ -48,17 +46,9 @@ runTLSSocket tset set sock app = do
             , TLS.pCiphers         = ciphers
             , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
             }
-#else
-    let params = TLS.defaultParams
-            { TLS.pWantClientCert = False
-            , TLS.pAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
-            , TLS.pCiphers         = ciphers
-            , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
-            }
-#endif
-    runSettingsConnectionMaker set (getter params sock) app
+    runSettingsConnectionMaker set (getter params) app
   where
-    getter params sock = do
+    getter params = do
         (s, sa) <- acceptSafe sock
         let mkConn = do
             (fromClient, firstBS) <- sourceSocket s C.$$+ CL.peek
@@ -71,8 +61,7 @@ runTLSSocket tset set sock app = do
                     return bs
             if maybe False ((== 0x16) . fst) (firstBS >>= B.uncons)
                 then do
-                    gen <- newGenIO
-#if MIN_VERSION_tls(1, 0, 0)
+                    gen <- getSystemRandomGen
                     ctx <- TLS.contextNew
                         TLS.Backend
                             { TLS.backendFlush = return ()
@@ -81,16 +70,7 @@ runTLSSocket tset set sock app = do
                             , TLS.backendRecv = getNext . takeMost
                             }
                         params
-                        (gen :: SystemRandom)
-#else
-                    ctx <- TLS.serverWith
-                        params
-                        (gen :: SystemRandom)
-                        s
-                        (return ()) -- flush
-                        (\bs -> C.yield bs C.$$ toClient)
-                        (getNext . takeMost)
-#endif
+                        gen
                     TLS.handshake ctx
                     let conn = Connection
                             { connSendMany = TLS.sendData ctx . L.fromChunks
