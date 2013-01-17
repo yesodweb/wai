@@ -54,9 +54,8 @@ defaultMimeLookup = mimeByExt defaultMimeMap defaultMimeType
 -- > pieceExtensions "foo.tar.gz" == ["tar.gz", "gz"]
 fileNameExtensions :: FileName -> [Extension]
 fileNameExtensions =
-    go . first
+    go . T.toLower . dropToExt
   where
-    first = T.toLower . dropToExt
     dropToExt = T.drop 1 . T.dropWhile (/= '.')
 
     go e
