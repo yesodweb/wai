@@ -1,5 +1,5 @@
 Name:                warp
-Version:             1.3.7.1
+Version:             1.3.7.2
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -28,7 +28,7 @@ Library
                    , case-insensitive          >= 0.2
                    , conduit                   >= 0.5      && < 0.6
                    , ghc-prim
-                   , http-types                >= 0.7      && < 0.8
+                   , http-types                >= 0.7
                    , lifted-base               >= 0.1
                    , network-conduit           >= 0.5      && < 0.7
                    , simple-sendfile           >= 0.2.7    && < 0.3
@@ -76,7 +76,7 @@ Test-Suite spec
                    , case-insensitive          >= 0.2
                    , conduit                   >= 0.5      && < 0.6
                    , ghc-prim
-                   , http-types                >= 0.7      && < 0.8
+                   , http-types                >= 0.7
                    , lifted-base               >= 0.1
                    , network-conduit
                    , simple-sendfile           >= 0.2.4    && < 0.3

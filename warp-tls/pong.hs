@@ -7,10 +7,17 @@ import Blaze.ByteString.Builder (copyByteString)
 import Data.Monoid
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
+import Network.HTTP.ReverseProxy
+import Network.HTTP.Conduit
 
 main = do
     putStrLn "https://localhost:3000/"
-    runTLS (TLSSettings "certificate.pem" "key.pem") defaultSettings app
+    manager <- newManager def
+    runTLS (TLSSettings "warp-tls/certificate.pem" "warp-tls/key.pem") defaultSettings $
+        waiProxyTo
+            (const $ return $ Right $ ProxyDest "localhost" 3001)
+            defaultOnExc
+            manager
 
 app req = return $
     case rawPathInfo req of
