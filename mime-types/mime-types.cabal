@@ -1,5 +1,5 @@
 name:                mime-types
-version:             0.1.0.2
+version:             0.1.0.3
 synopsis:            Basic mime-type handling types and functions
 description:         Basic mime-type handling types and functions
 homepage:            https://github.com/yesodweb/wai
