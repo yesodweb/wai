@@ -1,5 +1,5 @@
 Name:                wai-handler-devel
-Version:             1.3.0.3
+Version:             1.3.0.4
 Synopsis:            WAI server that automatically reloads code after modification.
 Description:         This handler automatically reloads your source code upon any changes. It works by using the hint package, essentially embedding GHC inside the handler. The handler (both the executable and library) takes three arguments: the port to listen on, the module name containing the application function, and the name of the function.
                      .
@@ -24,7 +24,7 @@ Library
   Build-Depends:     base                  >= 4             && < 5
                    , wai                   >= 1.3           && < 1.4
                    , wai-extra             >= 1.3           && < 1.4
-                   , http-types            >= 0.7           && < 0.8
+                   , http-types            >= 0.7
                    , warp                  >= 1.3           && < 1.4
                    , directory             >= 1.0.1
                    , network               >= 2.2.1.5
