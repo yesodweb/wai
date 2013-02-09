@@ -2,6 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 module Network.Wai.Handler.WarpTLS
     ( TLSSettings (..)
+    , defaultTLS
     , runTLS
     , runTLSSocket
     ) where
@@ -32,7 +33,11 @@ import Crypto.Random.API (getSystemRandomGen)
 data TLSSettings = TLSSettings
     { certFile :: FilePath
     , keyFile :: FilePath
+    , debug :: TLS.Logging
     }
+
+defaultTLS :: TLSSettings
+defaultTLS = TLSSettings "cert.pem" "key.pem" TLS.defaultLogging
 
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket tset set sock app = do
@@ -45,6 +50,7 @@ runTLSSocket tset set sock app = do
             { TLS.pAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
             , TLS.pCiphers         = ciphers
             , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
+            , TLS.pLogging         = debug tset
             }
     runSettingsConnectionMaker set (getter params) app
   where
