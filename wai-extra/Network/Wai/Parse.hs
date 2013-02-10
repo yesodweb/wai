@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE TypeFamilies #-}
 -- | Some helpers for parsing data out of a raw WAI 'Request'.
 
 module Network.Wai.Parse
@@ -50,6 +51,10 @@ import Data.Either (partitionEithers)
 import Control.Monad (when, unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Resource (allocate, release, register)
+#if MIN_VERSION_conduit(1, 0, 0)
+import Data.Conduit.Internal (Pipe (NeedInput, HaveOutput), (>+>), withUpstream, Sink (..), injectLeftovers, streamFromPipe, ConduitM)
+import Data.Void (Void)
+#endif
 
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
@@ -184,7 +189,11 @@ conduitRequestBody _ UrlEncoded = do
 conduitRequestBody backend (Multipart bound) =
     parsePieces backend $ S8.pack "--" `S.append` bound
 
+#if MIN_VERSION_conduit(1, 0, 0)
+takeLine :: MonadSink S.ByteString m (Maybe S.ByteString)
+#else
 takeLine :: Monad m => Pipe S.ByteString S.ByteString o u m (Maybe S.ByteString)
+#endif
 takeLine =
     go id
   where
@@ -199,7 +208,11 @@ takeLine =
                     when (S.length y > 1) $ leftover $ S.drop 1 y
                     return $ Just $ killCR x
 
+#if MIN_VERSION_conduit(1, 0, 0)
+takeLines :: MonadSink S.ByteString (ResourceT IO) [S.ByteString]
+#else
 takeLines :: Pipe S.ByteString S.ByteString o u (ResourceT IO) [S.ByteString]
+#endif
 takeLines = do
     res <- takeLine
     case res of
@@ -212,7 +225,11 @@ takeLines = do
 
 parsePieces :: BackEnd y
             -> S.ByteString
+#if MIN_VERSION_conduit(1, 0, 0)
+            -> ConduitM S.ByteString (Either Param (File y)) (ResourceT IO) ()
+#else
             -> Pipe S.ByteString S.ByteString (Either Param (File y)) u (ResourceT IO) ()
+#endif
 parsePieces sink bound =
     loop
   where
@@ -287,12 +304,37 @@ sinkTillBound' :: S.ByteString
                -> S.ByteString
                -> FileInfo ()
                -> BackEnd y
+#if MIN_VERSION_conduit(1, 0, 0)
+               -> ConduitM S.ByteString o (ResourceT IO) (Bool, y)
+#else
                -> Pipe S.ByteString S.ByteString o u (ResourceT IO) (Bool, y)
-sinkTillBound' bound name fi sink = conduitTillBound bound >+> withUpstream (sinkToPipe $ sink name fi)
+#endif
+sinkTillBound' bound name fi sink =
+#if MIN_VERSION_conduit(1, 0, 0)
+    streamFromPipe $ anyOutput $
+#endif
+    conduitTillBound bound >+> withUpstream (fix $ sink name fi)
+  where
+#if MIN_VERSION_conduit(1, 0, 0)
+    fix :: Sink S8.ByteString (ResourceT IO) y -> Pipe Void S8.ByteString Void Bool (ResourceT IO) y
+    fix (Sink p) = ignoreTerm >+> injectLeftovers p
+    ignoreTerm = await' >>= maybe (return ()) (\x -> yield' x >> ignoreTerm)
+    await' = NeedInput (return . Just) (const $ return Nothing)
+    yield' = HaveOutput (return ()) (return ())
+
+    anyOutput p = p >+> dropInput
+    dropInput = NeedInput (const dropInput) return
+#else
+    fix = sinkToPipe
+#endif
 
 conduitTillBound :: Monad m
                  => S.ByteString -- bound
+#if MIN_VERSION_conduit(1, 0, 0)
+                 -> Pipe S.ByteString S.ByteString S.ByteString () m Bool
+#else
                  -> Pipe S.ByteString S.ByteString S.ByteString u m Bool
+#endif
 conduitTillBound bound =
     go id
   where
@@ -323,11 +365,26 @@ conduitTillBound bound =
 sinkTillBound :: S.ByteString
               -> (x -> S.ByteString -> IO x)
               -> x
+#if MIN_VERSION_conduit(1, 0, 0)
+              -> MonadSink S.ByteString (ResourceT IO) (Bool, x)
+#else
               -> Pipe S.ByteString S.ByteString o u (ResourceT IO) (Bool, x)
+#endif
 sinkTillBound bound iter seed0 =
-    conduitTillBound bound >+> withUpstream (CL.foldM iter' seed0)
+#if MIN_VERSION_conduit(1, 0, 0)
+    streamFromPipe $
+#endif
+    (conduitTillBound bound >+> (withUpstream $ ij $ CL.foldM iter' seed0))
   where
     iter' a b = liftIO $ iter a b
+#if MIN_VERSION_conduit(1, 0, 0)
+    ij p = ignoreTerm >+> injectLeftovers p
+    ignoreTerm = await' >>= maybe (return ()) (\x -> yield' x >> ignoreTerm)
+    await' = NeedInput (return . Just) (const $ return Nothing)
+    yield' = HaveOutput (return ()) (return ())
+#else
+    ij = id
+#endif
 
 parseAttrs :: S.ByteString -> [(S.ByteString, S.ByteString)]
 parseAttrs = map go . S.split 59 -- semicolon

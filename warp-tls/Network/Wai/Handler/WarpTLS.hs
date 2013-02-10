@@ -128,7 +128,7 @@ readPrivateKey filepath = do
                                 $ filter ((== "RSA PRIVATE KEY") . PEM.pemName) pems
           parseKey (Left err) = error $ "Cannot parse PEM file: " ++ err
 
-takeMost :: Monad m => Int -> C.GLSink B.ByteString m B.ByteString
+takeMost :: Monad m => Int -> C.Sink B.ByteString m B.ByteString
 takeMost i =
     C.await >>= maybe (return B.empty) go
   where

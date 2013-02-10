@@ -60,11 +60,11 @@ ping  var app req
 toInsert :: S.ByteString
 toInsert = "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping\",false);x.send();},60000)</script>"
 
-insideHead :: Pipe l (Flush S.ByteString) (Flush S.ByteString) r (ResourceT IO) r
+insideHead :: Conduit (Flush S.ByteString) (ResourceT IO) (Flush S.ByteString)
 insideHead =
     loop' (S.empty, whole)
   where
-    loop' state = awaitE >>= either (close state) (push' state)
+    loop' state = await >>= maybe (close state) (push' state)
     whole = "<head>"
     push' state (Chunk x) = push state x
     push' state Flush = yield Flush >> loop' state
@@ -88,7 +88,7 @@ insideHead =
             mapM_ (yield . Chunk) [held, x']
             loop' (held', atFront')
 
-    close (held, _) r = mapM_ yield [Chunk held, Chunk toInsert] >> return r
+    close (held, _) = mapM_ yield [Chunk held, Chunk toInsert]
 
 getOverlap :: S.ByteString -> S.ByteString -> (S.ByteString, S.ByteString, S.ByteString)
 getOverlap whole x =

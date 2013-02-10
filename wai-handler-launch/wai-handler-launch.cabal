@@ -19,9 +19,9 @@ Library
                    , transformers            >= 0.2.2   && < 0.4
                    , bytestring              >= 0.9.1.4
                    , blaze-builder           >= 0.2.1.4 && < 0.4
-                   , conduit                 >= 0.5     && < 0.6
-                   , blaze-builder-conduit   >= 0.5     && < 0.6
-                   , zlib-conduit            >= 0.5     && < 0.6
+                   , conduit                 >= 0.5     && < 1.1
+                   , blaze-builder-conduit   >= 0.5     && < 1.1
+                   , zlib-conduit            >= 0.5     && < 1.1
 
     if os(windows)
         c-sources: windows.c

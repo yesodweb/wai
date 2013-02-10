@@ -99,7 +99,7 @@ srequest (SRequest req bod) = do
 
 runResponse :: Response -> C.ResourceT IO SResponse
 runResponse res = do
-    bss <- C.mapOutput toBuilder body C.$= builderToByteString C.$$ CL.consume
+    bss <- body C.$= CL.map toBuilder C.$= builderToByteString C.$$ CL.consume
     return $ SResponse s h $ L.fromChunks bss
   where
     (s, h, body) = responseSource res

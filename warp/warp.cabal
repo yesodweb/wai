@@ -23,14 +23,14 @@ Flag network-bytestring
 Library
   Build-Depends:     base                      >= 3        && < 5
                    , blaze-builder             >= 0.2.1.4  && < 0.4
-                   , blaze-builder-conduit     >= 0.5      && < 0.6
+                   , blaze-builder-conduit     >= 0.5      && < 1.1
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2
-                   , conduit                   >= 0.5      && < 0.6
+                   , conduit                   >= 0.5      && < 1.1
                    , ghc-prim
                    , http-types                >= 0.7
                    , lifted-base               >= 0.1
-                   , network-conduit           >= 0.5      && < 0.7
+                   , network-conduit           >= 0.5      && < 1.1
                    , simple-sendfile           >= 0.2.7    && < 0.3
                    , transformers              >= 0.2.2    && < 0.4
                    , unix-compat               >= 0.2
@@ -71,10 +71,10 @@ Test-Suite spec
     Ghc-Options:     -Wall
     Build-Depends:   base >= 4 && < 5
                    , blaze-builder             >= 0.2.1.4  && < 0.4
-                   , blaze-builder-conduit     >= 0.5      && < 0.6
+                   , blaze-builder-conduit     >= 0.5
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2
-                   , conduit                   >= 0.5      && < 0.6
+                   , conduit                   >= 0.5
                    , ghc-prim
                    , http-types                >= 0.7
                    , lifted-base               >= 0.1
