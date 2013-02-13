@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Response (
     sendResponse
@@ -15,9 +14,6 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
-#if MIN_VERSION_conduit(1, 0, 0)
-import Data.Conduit.Internal (mapOutput, SourceM (..))
-#endif
 import Data.Conduit.Blaze (builderToByteString)
 import qualified Data.Conduit.List as CL
 import Data.Maybe (isJust)
@@ -111,15 +107,9 @@ sendResponse cleaner req conn (ResponseSource s hs bodyFlush)
   where
     th = threadHandle cleaner
     body =
-#if MIN_VERSION_conduit(1, 0, 0)
-           SourceM $
-#endif
            mapOutput (\x -> case x of
                     Flush -> flush
                     Chunk builder -> builder)
-#if MIN_VERSION_conduit(1, 0, 0)
-         $ unSourceM
-#endif
            bodyFlush
     cbody = if needsChunked then body $= chunk else body
     -- FIXME perhaps alloca a buffer per thread and reuse that in all

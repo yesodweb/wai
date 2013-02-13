@@ -52,7 +52,7 @@ import Control.Monad (when, unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Resource (allocate, release, register)
 #if MIN_VERSION_conduit(1, 0, 0)
-import Data.Conduit.Internal (Pipe (NeedInput, HaveOutput), (>+>), withUpstream, Sink (..), injectLeftovers, streamFromPipe, ConduitM)
+import Data.Conduit.Internal (Pipe (NeedInput, HaveOutput), (>+>), withUpstream, Sink (..), injectLeftovers, ConduitM (..))
 import Data.Void (Void)
 #endif
 
@@ -190,7 +190,7 @@ conduitRequestBody backend (Multipart bound) =
     parsePieces backend $ S8.pack "--" `S.append` bound
 
 #if MIN_VERSION_conduit(1, 0, 0)
-takeLine :: MonadSink S.ByteString m (Maybe S.ByteString)
+takeLine :: Monad m => Consumer S.ByteString m (Maybe S.ByteString)
 #else
 takeLine :: Monad m => Pipe S.ByteString S.ByteString o u m (Maybe S.ByteString)
 #endif
@@ -209,7 +209,7 @@ takeLine =
                     return $ Just $ killCR x
 
 #if MIN_VERSION_conduit(1, 0, 0)
-takeLines :: MonadSink S.ByteString (ResourceT IO) [S.ByteString]
+takeLines :: Consumer S.ByteString (ResourceT IO) [S.ByteString]
 #else
 takeLines :: Pipe S.ByteString S.ByteString o u (ResourceT IO) [S.ByteString]
 #endif
@@ -311,13 +311,13 @@ sinkTillBound' :: S.ByteString
 #endif
 sinkTillBound' bound name fi sink =
 #if MIN_VERSION_conduit(1, 0, 0)
-    streamFromPipe $ anyOutput $
+    ConduitM $ anyOutput $
 #endif
     conduitTillBound bound >+> withUpstream (fix $ sink name fi)
   where
 #if MIN_VERSION_conduit(1, 0, 0)
     fix :: Sink S8.ByteString (ResourceT IO) y -> Pipe Void S8.ByteString Void Bool (ResourceT IO) y
-    fix (Sink p) = ignoreTerm >+> injectLeftovers p
+    fix (ConduitM p) = ignoreTerm >+> injectLeftovers p
     ignoreTerm = await' >>= maybe (return ()) (\x -> yield' x >> ignoreTerm)
     await' = NeedInput (return . Just) (const $ return Nothing)
     yield' = HaveOutput (return ()) (return ())
@@ -336,6 +336,9 @@ conduitTillBound :: Monad m
                  -> Pipe S.ByteString S.ByteString S.ByteString u m Bool
 #endif
 conduitTillBound bound =
+#if MIN_VERSION_conduit(1, 0, 0)
+    unConduitM $
+#endif
     go id
   where
     go front = await >>= maybe (close front) (push front)
@@ -366,19 +369,19 @@ sinkTillBound :: S.ByteString
               -> (x -> S.ByteString -> IO x)
               -> x
 #if MIN_VERSION_conduit(1, 0, 0)
-              -> MonadSink S.ByteString (ResourceT IO) (Bool, x)
+              -> Consumer S.ByteString (ResourceT IO) (Bool, x)
 #else
               -> Pipe S.ByteString S.ByteString o u (ResourceT IO) (Bool, x)
 #endif
 sinkTillBound bound iter seed0 =
 #if MIN_VERSION_conduit(1, 0, 0)
-    streamFromPipe $
+    ConduitM $
 #endif
     (conduitTillBound bound >+> (withUpstream $ ij $ CL.foldM iter' seed0))
   where
     iter' a b = liftIO $ iter a b
 #if MIN_VERSION_conduit(1, 0, 0)
-    ij p = ignoreTerm >+> injectLeftovers p
+    ij (ConduitM p) = ignoreTerm >+> injectLeftovers p
     ignoreTerm = await' >>= maybe (return ()) (\x -> yield' x >> ignoreTerm)
     await' = NeedInput (return . Just) (const $ return Nothing)
     yield' = HaveOutput (return ()) (return ())
