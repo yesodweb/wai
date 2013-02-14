@@ -9,7 +9,7 @@ category:        Web
 stability:       stable
 cabal-version:   >= 1.6
 build-type:      Simple
-homepage:        http://www.yesodweb.com/book/wai
+homepage:        http://www.yesodweb.com/book/web-application-interface
 description:     Wai handler to SCGI
 
 library
