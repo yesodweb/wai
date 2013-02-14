@@ -4,6 +4,6 @@ install:
     - cabal unpack wai-logger-0.3.0
     - cp sources-travis.txt sources.txt
     - cabal install mega-sdist hspec cabal-meta cabal-src
-    - cabal-meta install
+    - cabal-meta install --force-reinstalls
 
 script: mega-sdist --test
