@@ -10,7 +10,7 @@ category:        Web, Yesod
 stability:       Stable
 cabal-version:   >= 1.8
 build-type:      Simple
-homepage:        http://www.yesodweb.com/book/wai
+homepage:        http://www.yesodweb.com/book/web-application-interface
 Extra-source-files:
   images/folder.png
   images/haskell.png

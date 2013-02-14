@@ -10,7 +10,7 @@ stability:       stable
 cabal-version:   >= 1.6
 build-type:      Configure
 extra-source-files: configure fastcgi.buildinfo.in
-homepage:        http://www.yesodweb.com/book/wai
+homepage:        http://www.yesodweb.com/book/web-application-interface
 description:     Calls out to the libfcgi C library.
 
 library
