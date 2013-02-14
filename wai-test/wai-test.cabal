@@ -9,7 +9,7 @@ category:        Testing, Web, Yesod
 stability:       Stable
 cabal-version:   >= 1.6
 build-type:      Simple
-homepage:        http://www.yesodweb.com/book/wai
+homepage:        http://www.yesodweb.com/book/web-application-interface
 description:     Unit test framework (built on HUnit) for WAI applications.
 
 library

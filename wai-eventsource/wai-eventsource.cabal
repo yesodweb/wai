@@ -9,7 +9,7 @@ Stability:           Experimental
 Category:            Web
 Build-type:          Simple
 Cabal-version:       >=1.8
-homepage:            http://www.yesodweb.com/book/wai
+homepage:            http://www.yesodweb.com/book/web-application-interface
 license-file:        LICENSE
 
 Library
