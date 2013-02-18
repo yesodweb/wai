@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Response (
     sendResponse
@@ -107,9 +106,11 @@ sendResponse cleaner req conn (ResponseSource s hs bodyFlush)
       return isPersist
   where
     th = threadHandle cleaner
-    body = mapOutput (\x -> case x of
+    body =
+           mapOutput (\x -> case x of
                     Flush -> flush
-                    Chunk builder -> builder) bodyFlush
+                    Chunk builder -> builder)
+           bodyFlush
     cbody = if needsChunked then body $= chunk else body
     -- FIXME perhaps alloca a buffer per thread and reuse that in all
     -- functions below. Should lessen greatly the GC burden (I hope)

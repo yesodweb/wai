@@ -141,7 +141,7 @@ runGeneric vars inputH outputH xsendfile app = do
         , fromByteString sf
         , fromByteString " not supported"
         ]
-    bsSink = awaitE >>= either return push
+    bsSink = await >>= maybe (return ()) push
     push (Chunk bs) = do
         liftIO $ outputH bs
         bsSink

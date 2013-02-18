@@ -147,7 +147,7 @@ takeHeaders =
 close :: Sink ByteString (ResourceT IO) a
 close = throwIO IncompleteHeaders
 
-push :: THStatus -> ByteString -> Pipe ByteString ByteString Void () (ResourceT IO) [ByteString]
+push :: THStatus -> ByteString -> Sink ByteString (ResourceT IO) [ByteString]
 push (THStatus len lines prepend) bs
         -- Too many bytes
         | len > maxTotalHeaderLength = throwIO OverLargeHeader
