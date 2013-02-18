@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Network.Wai
-import Network.Wai.Handler.Warp (defaultSettings)
+import Network.Wai.Handler.Warp (defaultSettings, settingsPort)
 import Network.Wai.Handler.WarpTLS
 import Network.HTTP.Types (status200)
 import Blaze.ByteString.Builder (copyByteString)
@@ -11,13 +11,9 @@ import Network.HTTP.ReverseProxy
 import Network.HTTP.Conduit
 
 main = do
-    putStrLn "https://localhost:3000/"
+    putStrLn "https://localhost:3009/"
     manager <- newManager def
-    runTLS (TLSSettings "warp-tls/certificate.pem" "warp-tls/key.pem") defaultSettings $
-        waiProxyTo
-            (const $ return $ Right $ ProxyDest "localhost" 3001)
-            defaultOnExc
-            manager
+    runTLS (TLSSettings  "config/tls-cert" "config/tls-key") defaultSettings { settingsPort = 3009 } app
 
 app req = return $
     case rawPathInfo req of
