@@ -13,7 +13,7 @@ import Network.HTTP.Conduit
 main = do
     putStrLn "https://localhost:3009/"
     manager <- newManager def
-    runTLS (TLSSettings  "config/tls-cert" "config/tls-key") defaultSettings { settingsPort = 3009 } app
+    runTLS (tlsSettings  "config/tls-cert" "config/tls-key") defaultSettings { settingsPort = 3009 } app
 
 app req = return $
     case rawPathInfo req of

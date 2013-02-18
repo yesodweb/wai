@@ -1,9 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 module Network.Wai.Handler.WarpTLS
-    ( TLSSettings (..)
+    ( TLSSettings
+    , certFile
+    , keyFile
+    , onInsecure
+    , OnInsecure (..)
+    , tlsSettings
     , runTLS
     , runTLSSocket
+    , WarpTLSException (..)
     ) where
 
 import qualified Network.TLS as TLS
@@ -28,16 +36,37 @@ import Data.Maybe (fromMaybe)
 import qualified Data.IORef as I
 import Control.Monad (unless)
 import Crypto.Random.API (getSystemRandomGen)
+import Control.Exception (Exception, throwIO)
+import Data.Typeable (Typeable)
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
+      -- ^ File containing the certificate.
     , keyFile :: FilePath
+      -- ^ File containing the key
+    , onInsecure :: OnInsecure
+      -- ^ Do we allow insecure connections with this server as well? Default
+      -- is a simple text response stating that a secure connection is required.
+      --
+      -- Since 1.4.0
+    }
+
+data OnInsecure = DenyInsecure L.ByteString
+                | AllowInsecure
+
+tlsSettings :: FilePath -- ^ Certificate file
+            -> FilePath -- ^ key file
+            -> TLSSettings
+tlsSettings cert key = TLSSettings
+    { certFile = cert
+    , keyFile = key
+    , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
     }
 
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
-runTLSSocket tset set sock app = do
-    certs   <- readCertificates $ certFile tset
-    pk      <- readPrivateKey $ keyFile tset
+runTLSSocket TLSSettings {..} set sock app = do
+    certs   <- readCertificates certFile
+    pk      <- readPrivateKey keyFile
     let params =
             TLS.updateServerParams
                 (\sp -> sp { TLS.serverWantClientCert = False }) $
@@ -84,12 +113,25 @@ runTLSSocket tset set sock app = do
                             , connRecv = TLS.recvData ctx
                             }
                     return conn
-                else do
-                    let conn = (socketConnection s)
-                            { connRecv = getNext $ fmap (fromMaybe B.empty) C.await
-                            }
-                    return conn
+                else
+                    case onInsecure of
+                        AllowInsecure ->
+                            let conn = (socketConnection s)
+                                    { connRecv = getNext $ fmap (fromMaybe B.empty) C.await
+                                    }
+                             in return conn
+                        DenyInsecure lbs -> do
+                            let src = do
+                                    C.yield "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
+                                    mapM_ C.yield $ L.toChunks lbs
+                            src C.$$ sinkSocket s
+                            sClose s
+                            throwIO InsecureConnectionDenied
         return (mkConn, sa)
+
+data WarpTLSException = InsecureConnectionDenied
+    deriving (Show, Typeable)
+instance Exception WarpTLSException
 
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
 runTLS tset set app =
