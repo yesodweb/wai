@@ -43,6 +43,7 @@ module Network.Wai
     , Application
     , Middleware
     , FilePart (..)
+    , RequestBodyLength (..)
       -- * Response body smart constructors
     , responseLBS
     , responseStatus
@@ -61,6 +62,7 @@ import Data.Text (Text)
 import Data.ByteString.Lazy.Char8 () -- makes it easier to use responseLBS
 import Blaze.ByteString.Builder (fromByteString)
 import Data.Vault (Vault)
+import Data.Word (Word64)
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
@@ -98,6 +100,10 @@ data Request = Request
   ,  requestBody    :: C.Source (C.ResourceT IO) B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.
   , vault           :: Vault
+  -- | The size of the request body. In the case of a chunked request body, this may be unknown.
+  --
+  -- Since 1.4.0
+  , requestBodyLength :: RequestBodyLength
   }
   deriving (Typeable)
 
@@ -175,3 +181,9 @@ type Application = Request -> C.ResourceT IO Response
 -- Here, instead of taking a standard 'Application' as its first argument, the
 -- middleware takes a function which consumes the session information as well.
 type Middleware = Application -> Application
+
+-- | The size of the request body. In the case of chunked bodies, the size will
+-- not be known.
+--
+-- Since 1.4.0
+data RequestBodyLength = ChunkedBody | KnownLength Word64

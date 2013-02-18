@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Request where
 
@@ -98,6 +99,12 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
             , remoteHost = remoteHost'
             , requestBody = rbody
             , vault = mempty
+#if MIN_VERSION_wai(1, 4, 0)
+            , requestBodyLength =
+                if chunked
+                    then ChunkedBody
+                    else KnownLength $ fromIntegral len0
+#endif
             }, getSource)
 
 {-# INLINE takeUntil #-}

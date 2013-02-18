@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE CPP #-}
 -- | Backend for Common Gateway Interface. Almost all users should use the
 -- 'run' function.
 module Network.Wai.Handler.CGI
@@ -109,6 +110,9 @@ runGeneric vars inputH outputH xsendfile app = do
                 , httpVersion = H.http11 -- FIXME
                 , requestBody = inputH contentLength
                 , vault = mempty
+#if MIN_VERSION_wai(1, 4, 0)
+                , requestBodyLength = KnownLength $ fromIntegral contentLength
+#endif
                 }
         -- FIXME worry about exception?
         res <- app env
