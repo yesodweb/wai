@@ -80,6 +80,7 @@ defaultRequest = Request
     , queryString = []
     , requestBody = mempty
     , vault = mempty
+    , requestBodyLength = KnownLength 0
     }
 
 setRawPathInfo :: Request -> S8.ByteString -> Request
