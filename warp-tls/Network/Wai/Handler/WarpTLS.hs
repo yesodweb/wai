@@ -49,6 +49,12 @@ data TLSSettings = TLSSettings
       -- is a simple text response stating that a secure connection is required.
       --
       -- Since 1.4.0
+    , tlsLogging :: TLS.Logging
+      -- ^ The level of logging to turn on.
+      --
+      -- Default: 'TLS.defaultLogging'.
+      --
+      -- Since 1.4.0
     }
 
 data OnInsecure = DenyInsecure L.ByteString
@@ -61,6 +67,7 @@ tlsSettings cert key = TLSSettings
     { certFile = cert
     , keyFile = key
     , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
+    , tlsLogging = TLS.defaultLogging
     }
 
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
@@ -74,6 +81,7 @@ runTLSSocket TLSSettings {..} set sock app = do
             { TLS.pAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
             , TLS.pCiphers         = ciphers
             , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
+            , TLS.pLogging         = tlsLogging
             }
     runSettingsConnectionMaker set (getter params) app
   where
