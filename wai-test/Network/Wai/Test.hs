@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 module Network.Wai.Test
     ( -- * Session
       Session
@@ -80,7 +81,9 @@ defaultRequest = Request
     , queryString = []
     , requestBody = mempty
     , vault = mempty
+#if MIN_VERSION_wai(1, 4, 0)
     , requestBodyLength = KnownLength 0
+#endif
     }
 
 setRawPathInfo :: Request -> S8.ByteString -> Request
