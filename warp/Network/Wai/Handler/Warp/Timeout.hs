@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE UnboxedTuples, MagicHash #-}
 module Network.Wai.Handler.Warp.Timeout (
     Manager
   , Handle
@@ -12,6 +14,15 @@ module Network.Wai.Handler.Warp.Timeout (
   , dummyHandle
   ) where
 
+import System.Mem.Weak (deRefWeak)
+#if MIN_VERSION_base(4,6,0)
+import Control.Concurrent (mkWeakThreadId)
+#else
+import GHC.Weak (Weak (..))
+import GHC.Conc.Sync (ThreadId (..))
+import GHC.IO (IO (IO))
+import GHC.Exts (mkWeak#)
+#endif
 import Control.Concurrent (forkIO, threadDelay, myThreadId, killThread)
 import qualified Control.Exception as E
 import Control.Monad (forever, void)
@@ -68,8 +79,15 @@ register (Manager ref) onTimeout = do
 
 registerKillThread :: Manager -> IO Handle
 registerKillThread m = do
-    tid <- myThreadId
-    register m $ killThread tid
+    wtid <- myThreadId >>= mkWeakThreadId
+    register m $ deRefWeak wtid >>= maybe (return ()) killThread
+
+#if !MIN_VERSION_base(4,6,0)
+mkWeakThreadId :: ThreadId -> IO (Weak ThreadId)
+mkWeakThreadId t@(ThreadId t#) = IO $ \s ->
+   case mkWeak# t# t Nothing s of
+      (# s1, w #) -> (# s1, Weak w #)
+#endif
 
 tickle, pause, resume, cancel :: Handle -> IO ()
 tickle (Handle _ iactive) = I.writeIORef iactive Active
