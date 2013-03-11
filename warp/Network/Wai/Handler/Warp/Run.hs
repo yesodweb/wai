@@ -146,18 +146,18 @@ runSettingsConnectionMaker set getConn app = do
         (mkConn, addr) <- getConnLoop
         void . forkIO $ do
             th <- T.registerKillThread tm
-            conn <- mkConn
+            bracket mkConn connClose $ \conn -> do
 #if SENDFILEFD
-            let cleaner = Cleaner th fc
+                let cleaner = Cleaner th fc
 #else
-            let cleaner = Cleaner th
+                let cleaner = Cleaner th
 #endif
-            let serve = do
-                    onOpen
-                    restore $ serveConnection set cleaner port app conn addr
-                    cleanup
-                cleanup = connClose conn >> T.cancel th >> onClose
-            handle onE (serve `onException` cleanup)
+                let serve = do
+                        onOpen
+                        restore $ serveConnection set cleaner port app conn addr
+                        cleanup
+                    cleanup = T.cancel th >> onClose
+                handle onE (serve `onException` cleanup)
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
     getConnLoop = getConn `catch` \(e :: IOException) -> do
