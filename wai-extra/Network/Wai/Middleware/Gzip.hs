@@ -19,6 +19,7 @@ module Network.Wai.Middleware.Gzip
     , GzipSettings
     , gzipFiles
     , GzipFiles (..)
+    , gzipCheckMime
     , def
     , defaultCheckMime
     ) where
