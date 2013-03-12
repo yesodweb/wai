@@ -39,6 +39,7 @@ import qualified Data.Conduit.List as CL
 import Data.Conduit.Blaze (builderToByteStringFlush)
 import Blaze.ByteString.Builder (fromByteString)
 import Control.Exception (try, SomeException)
+import qualified Data.Set as Set
 
 data GzipSettings = GzipSettings
     { gzipFiles :: GzipFiles
@@ -52,7 +53,15 @@ instance Default GzipSettings where
     def = GzipSettings GzipIgnore defaultCheckMime
 
 defaultCheckMime :: S.ByteString -> Bool
-defaultCheckMime bs = S8.isPrefixOf "text/" bs || S8.isPrefixOf "application/json" bs
+defaultCheckMime bs =
+    S8.isPrefixOf "text/" bs || bs' `Set.member` toCompress
+  where
+    bs' = fst $ S.breakByte 59 bs -- semicolon
+    toCompress = Set.fromList
+        [ "application/json"
+        , "application/javascript"
+        , "application/ecmascript"
+        ]
 
 -- | Use gzip to compress the body of the response.
 --

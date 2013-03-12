@@ -43,6 +43,7 @@ Library
                    , resourcet                 >= 0.3      && < 0.5
                    , void                      >= 0.5      && < 0.6
                    , stringsearch              >= 0.3      && < 0.4
+                   , containers
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride

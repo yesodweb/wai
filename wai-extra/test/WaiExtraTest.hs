@@ -63,6 +63,7 @@ specs = do
     it "jsonp" caseJsonp
     it "gzip" caseGzip
     it "gzip not for MSIE" caseGzipMSIE
+    it "defaultCheckMime" caseDefaultCheckMime
     it "vhost" caseVhost
     it "autohead" caseAutohead
     it "method override" caseMethodOverride
@@ -330,6 +331,16 @@ caseGzip = flip runSession gzipApp $ do
                 }
     assertNoHeader "Content-Encoding" sres2
     assertBody "test" sres2
+
+caseDefaultCheckMime :: Assertion
+caseDefaultCheckMime = do
+    let go x y = (x, defaultCheckMime x) `shouldBe` (x, y)
+    go "application/json" True
+    go "application/javascript" True
+    go "application/something" False
+    go "text/something" True
+    go "foo/bar" False
+    go "application/json; charset=utf-8" True
 
 caseGzipMSIE :: Assertion
 caseGzipMSIE = flip runSession gzipApp $ do
