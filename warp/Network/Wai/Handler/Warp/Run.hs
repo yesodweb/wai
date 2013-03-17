@@ -3,7 +3,7 @@
 
 module Network.Wai.Handler.Warp.Run where
 
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent (threadDelay, forkIOWithUnmask)
 import Control.Exception
 import Control.Monad (forever, when, unless, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -33,6 +33,7 @@ import Prelude hiding (catch)
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
+import Control.Concurrent (forkIO)
 #else
 import System.Posix.IO (FdOption(CloseOnExec), setFdOption)
 import Network.Socket (fdSocket)
@@ -141,23 +142,71 @@ runSettingsConnectionMaker set getConn app = do
         _ -> Just <$> F.initialize (duration * 1000000)
 #endif
     settingsBeforeMainLoop set
-    mask $ \restore -> forever $ do
+
+    -- Note that there is a thorough discussion of the exception safety of the
+    -- following code at: https://github.com/yesodweb/wai/issues/146
+    --
+    -- We need to make sure of two things:
+    --
+    -- 1. Asynchronous exceptions are not blocked entirely in the main loop.
+    --    Doing so would make it impossible to kill the Warp thread.
+    --
+    -- 2. Once a connection maker is received via getConnLoop, the connection
+    --    is guaranteed to be closed, even in the presence of async exceptions.
+    --
+    -- Our approach is explained in the comments below.
+
+    -- First mask all exceptions in the main loop. This is necessary to ensure
+    -- that no async exception is throw between the call to getConnLoop and the
+    -- registering of connClose.
+    mask_ . forever $ do
+        -- Allow async exceptions before receiving the next connection maker.
         allowInterrupt
+
+        -- getConnLoop will try to receive the next incoming request. It
+        -- returns a /connection maker/, not a connection, since in some
+        -- circumstances creating a working connection from a raw socket may be
+        -- an expensive operation, and this expensive work should not be
+        -- performed in the main event loop. An example of something expensive
+        -- would be TLS negotiation.
         (mkConn, addr) <- getConnLoop
-        void . forkIO $ do
-            th <- T.registerKillThread tm
-            bracket mkConn connClose $ \conn -> do
+
+        -- Fork a new worker thread for this connection maker, and ask for a
+        -- function to unmask (i.e., allow async exceptions to be thrown).
+        void . forkIOWithUnmask $ \unmask ->
+            -- Run the connection maker to get a new connection, and ensure
+            -- that the connection is closed. If the mkConn call throws an
+            -- exception, we will leak the connection. If the mkConn call is
+            -- vulnerable to attacks (e.g., Slowloris), we do nothing to
+            -- protect the server. It is therefore vital that mkConn is well
+            -- vetted.
+            --
+            -- We grab the connection before registering timeouts since the
+            -- timeouts will be useless during connection creation, due to the
+            -- fact that async exceptions are still masked.
+            bracket mkConn connClose $ \conn ->
+
+            -- We need to register a timeout handler for this thread, and
+            -- cancel that handler as soon as we exit.
+            bracket (T.registerKillThread tm) T.cancel $ \th ->
 #if SENDFILEFD
                 let cleaner = Cleaner th fc
 #else
                 let cleaner = Cleaner th
 #endif
-                let serve = do
-                        onOpen
-                        restore $ serveConnection set cleaner port app conn addr
-                        cleanup
-                    cleanup = T.cancel th >> onClose
-                handle onE (serve `onException` cleanup)
+                    -- We now have fully registered a connection close handler
+                    -- in the case of all exceptions, so it is safe to one
+                    -- again allow async exceptions.
+                 in unmask .
+                    -- Call the user-supplied on exception code if any
+                    -- exceptions are thrown.
+                    handle onE .
+
+                    -- Call the user-supplied code for connection open and close events
+                    bracket_ onOpen onClose $
+
+                    -- Actually serve this connection.
+                    serveConnection set cleaner port app conn addr
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
     getConnLoop = getConn `catch` \(e :: IOException) -> do
