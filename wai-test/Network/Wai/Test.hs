@@ -40,6 +40,7 @@ import qualified Data.Text.Encoding as TE
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Data.Monoid (mempty)
+import Network.Socket.Internal (SockAddr (SockAddrInet))
 
 type Session = ReaderT Application (StateT ClientState IO)
 
@@ -76,7 +77,7 @@ defaultRequest = Request
     , serverPort = 80
     , requestHeaders = []
     , isSecure = False
-    , remoteHost = error "Network.Wai.Test.defaultRequest{remoteHost}"
+    , remoteHost = SockAddrInet 0 0
     , pathInfo = []
     , queryString = []
     , requestBody = mempty
