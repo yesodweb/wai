@@ -38,6 +38,7 @@ import Control.Monad (unless)
 import Crypto.Random.API (getSystemRandomGen)
 import Control.Exception (Exception, throwIO)
 import Data.Typeable (Typeable)
+import qualified Data.Conduit.Binary as CB
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -104,7 +105,7 @@ runTLSSocket TLSSettings {..} set sock app = do
                             { TLS.backendFlush = return ()
                             , TLS.backendClose = return ()
                             , TLS.backendSend = \bs -> C.yield bs C.$$ toClient
-                            , TLS.backendRecv = getNext . takeMost
+                            , TLS.backendRecv = getNext . fmap (B.concat . L.toChunks) . CB.take
                             }
                         params
                         gen
@@ -177,13 +178,3 @@ readPrivateKey filepath = do
     where parseKey (Right pems) = map (fmap (TLS.PrivRSA . snd) . KeyRSA.decodePrivate . L.fromChunks . (:[]) . PEM.pemContent)
                                 $ filter ((== "RSA PRIVATE KEY") . PEM.pemName) pems
           parseKey (Left err) = error $ "Cannot parse PEM file: " ++ err
-
-takeMost :: Monad m => Int -> C.Sink B.ByteString m B.ByteString
-takeMost i =
-    C.await >>= maybe (return B.empty) go
-  where
-    go bs = do
-        unless (B.null y) $ C.leftover y
-        return x
-      where
-        (x, y) = B.splitAt i bs
