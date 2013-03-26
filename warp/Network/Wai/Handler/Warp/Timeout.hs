@@ -74,7 +74,7 @@ stopManager (Manager ihandles) = E.mask_ $ do
     !handles <- I.atomicModifyIORef ihandles $ \h -> (error "Timeout manager stopped", h)
     mapM_ go handles
   where
-    go (Handle onTimeout _) = onTimeout
+    go (Handle onTimeout _) = onTimeout `E.catch` ignoreAll
 
 ignoreAll :: E.SomeException -> IO ()
 ignoreAll _ = return ()
