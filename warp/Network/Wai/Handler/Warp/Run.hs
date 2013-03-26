@@ -133,8 +133,6 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
 -- Since 1.3.5
 runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
 runSettingsConnectionMaker set getConn app = do
-    tm <- maybe (T.initialize $ settingsTimeout set * 1000000) return
-        $ settingsManager set
 #if SENDFILEFD
     let duration = settingsFdCacheDuration set
     fc <- case duration of
@@ -159,7 +157,7 @@ runSettingsConnectionMaker set getConn app = do
     -- First mask all exceptions in the main loop. This is necessary to ensure
     -- that no async exception is throw between the call to getConnLoop and the
     -- registering of connClose.
-    mask_ . forever $ do
+    withTimeoutManager $ \tm -> mask_ . forever $ do
         -- Allow async exceptions before receiving the next connection maker.
         allowInterrupt
 
@@ -219,6 +217,14 @@ runSettingsConnectionMaker set getConn app = do
     port = settingsPort set
     onOpen = settingsOnOpen set
     onClose = settingsOnClose set
+
+    withTimeoutManager f =
+        case settingsManager set of
+            Nothing -> bracket
+                (T.initialize $ settingsTimeout set * 1000000)
+                T.stopManager
+                f
+            Just tm -> f tm
 
 serveConnection :: Settings
                 -> Cleaner

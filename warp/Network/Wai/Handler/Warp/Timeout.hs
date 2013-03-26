@@ -1,9 +1,11 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE UnboxedTuples, MagicHash #-}
 module Network.Wai.Handler.Warp.Timeout (
     Manager
   , Handle
   , initialize
+  , stopManager
   , register
   , registerKillThread
   , tickle
@@ -28,8 +30,6 @@ import qualified Control.Exception as E
 import Control.Monad (forever, void)
 import qualified Data.IORef as I
 import System.IO.Unsafe (unsafePerformIO)
-
--- FIXME implement stopManager
 
 -- | A timeout manager
 newtype Manager = Manager (I.IORef [Handle])
@@ -66,6 +66,15 @@ initialize timeout = do
             _ -> go rest (front . (:) m)
     go' Active = Inactive
     go' x = x
+
+stopManager :: Manager -> IO ()
+stopManager (Manager ihandles) = E.mask_ $ do
+    -- Put an undefined value in the IORef to kill the worker thread (yes, it's
+    -- a bit of a hack)
+    !handles <- I.atomicModifyIORef ihandles $ \h -> (error "Timeout manager stopped", h)
+    mapM_ go handles
+  where
+    go (Handle onTimeout _) = onTimeout
 
 ignoreAll :: E.SomeException -> IO ()
 ignoreAll _ = return ()
