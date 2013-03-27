@@ -1,1 +1,1 @@
-:set -itest -idist/build/autogen
+:set -itest -idist/build/autogen -optP-include -optPdist/build/autogen/cabal_macros.h
