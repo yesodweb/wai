@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE UnboxedTuples, MagicHash #-}
 module Network.Wai.Handler.Warp.Timeout (
     Manager
@@ -30,6 +31,7 @@ import qualified Control.Exception as E
 import Control.Monad (forever, void)
 import qualified Data.IORef as I
 import System.IO.Unsafe (unsafePerformIO)
+import Data.Typeable (Typeable)
 
 -- | A timeout manager
 newtype Manager = Manager (I.IORef [Handle])
@@ -48,13 +50,15 @@ data State = Active | Inactive | Paused | Canceled
 initialize :: Int -> IO Manager
 initialize timeout = do
     ref <- I.newIORef []
-    void . forkIO $ forever $ do
+    void . forkIO $ E.handle ignoreStop $ forever $ do
         threadDelay timeout
         ms <- I.atomicModifyIORef ref (\x -> ([], x))
         ms' <- go ms id
         I.atomicModifyIORef ref (\x -> (ms' x, ()))
     return $ Manager ref
   where
+    ignoreStop TimeoutManagerStopped = return ()
+
     go [] front = return front
     go (m@(Handle onTimeout iactive):rest) front = do
         state <- I.atomicModifyIORef iactive (\x -> (go' x, x))
@@ -67,11 +71,15 @@ initialize timeout = do
     go' Active = Inactive
     go' x = x
 
+data TimeoutManagerStopped = TimeoutManagerStopped
+    deriving (Show, Typeable)
+instance E.Exception TimeoutManagerStopped
+
 stopManager :: Manager -> IO ()
 stopManager (Manager ihandles) = E.mask_ $ do
     -- Put an undefined value in the IORef to kill the worker thread (yes, it's
     -- a bit of a hack)
-    !handles <- I.atomicModifyIORef ihandles $ \h -> (error "Timeout manager stopped", h)
+    !handles <- I.atomicModifyIORef ihandles $ \h -> (E.throw TimeoutManagerStopped, h)
     mapM_ go handles
   where
     go (Handle onTimeout _) = onTimeout `E.catch` ignoreAll
