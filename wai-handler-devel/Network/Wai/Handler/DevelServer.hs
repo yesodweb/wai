@@ -17,9 +17,9 @@ import Network.HTTP.Types (status200)
 import Data.Text.Lazy (pack)
 import Data.Text.Lazy.Encoding (encodeUtf8)
 import qualified Data.ByteString.Lazy.Char8 as L8
-import Control.Exception (Exception, SomeException, toException, fromException)
+import Control.Exception (Exception, SomeException, toException, fromException, finally, mask)
 import qualified Control.Exception as E
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent (forkIO, threadDelay, killThread)
 
 import Data.Maybe
 import Control.Monad
@@ -50,8 +50,9 @@ runQuitWithReloadActions :: Int -> ModuleName -> FunctionName -> (FilePath -> IO
                          -> [IO (IO ())] -> IO ()
 runQuitWithReloadActions port modu func extras actions = do
     sig <- newEmptyMVar
-    _ <- forkIO $ runWithReloadActions port modu func extras (Just sig) actions
-    go sig
+    mask $ \unmask -> do
+      threadId <- forkIO $ runWithReloadActions port modu func extras (Just sig) actions
+      unmask (go sig) `finally` killThread threadId
   where
     go sig = do
         x <- getLine
@@ -68,9 +69,9 @@ runWithReloadActions :: Int -> ModuleName -> FunctionName -> (FilePath -> IO [Fi
 runWithReloadActions port modu func extras msig initActions = do
     actions <- mapM id initActions
     ah <- initAppHolder
-    _ <- forkIO $ fillApp modu func extras ah msig actions 
-    Warp.run port $ toApp ah
-    return ()
+    mask $ \unmask -> do
+      threadId <- forkIO $ fillApp modu func extras ah msig actions
+      unmask (Warp.run port $ toApp ah) `finally` killThread threadId
 
 run :: Int -> ModuleName -> FunctionName -> (FilePath -> IO [FilePath]) -> Maybe (MVar ())
     -> IO ()
