@@ -19,7 +19,8 @@ import Data.Text.Lazy.Encoding (encodeUtf8)
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Control.Exception (Exception, SomeException, toException, fromException, finally, mask)
 import qualified Control.Exception as E
-import Control.Concurrent (forkIO, threadDelay, killThread)
+import Control.Concurrent (ThreadId, myThreadId, threadDelay, killThread)
+import qualified Control.Concurrent as Concurrent
 
 import Data.Maybe
 import Control.Monad
@@ -45,6 +46,20 @@ runNoWatch port modu func extras = do
 runQuit :: Int -> ModuleName -> FunctionName -> (FilePath -> IO [FilePath])
         -> IO ()
 runQuit port modu func extras = runQuitWithReloadActions port modu func extras []
+
+-- |
+-- A version of `Concurrent.forkIO` that re-throws any uncaught
+-- `E.UserInterrupt` from the child thread in the parent thread.
+--
+-- We need this because using hint (or the GHC API) causes @UserInterrupt@ to
+-- occur in the thread that runs `runInterpreter` instead of the main thread.
+forkIO :: IO () -> IO ThreadId
+forkIO action = do
+  threadId <- myThreadId
+  Concurrent.forkIO (action `E.catch` \e -> case e of
+    E.UserInterrupt -> E.throwTo threadId e
+    _ -> E.throwIO e
+    )
 
 runQuitWithReloadActions :: Int -> ModuleName -> FunctionName -> (FilePath -> IO [FilePath])
                          -> [IO (IO ())] -> IO ()
