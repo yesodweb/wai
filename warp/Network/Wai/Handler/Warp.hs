@@ -34,6 +34,7 @@ module Network.Wai.Handler.Warp (
   , settingsFdCacheDuration
   , settingsResourceTPerRequest
   , settingsBeforeMainLoop
+  , settingsServerName
     -- ** Data types
   , HostPreference (..)
     -- * Connection
@@ -63,6 +64,8 @@ module Network.Wai.Handler.Warp (
   , parseFirst
   , readInt
 #endif
+    -- * Misc
+  , warpVersion
   ) where
 
 import Network.Wai.Handler.Warp.Request

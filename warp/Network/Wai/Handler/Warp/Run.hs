@@ -250,7 +250,7 @@ serveConnection settings cleaner port app conn remoteHost' =
                     res <- app env
 
                     liftIO $ T.resume th
-                    sendResponse cleaner env conn res
+                    sendResponse settings cleaner env conn res
 
                 -- flush the rest of the request body
                 requestBody env $$ CL.sinkNull
