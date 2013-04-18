@@ -41,7 +41,7 @@ main = do
     let mimeMap = Map.fromList mime' `Map.union` defaultMimeMap
     docroot' <- canonicalizePath docroot
     unless quiet $ printf "Serving directory %s on port %d with %s index files.\n" docroot' port (if noindex then "no" else show index)
-    let middle = gzip def
+    let middle = gzip def { gzipFiles = GzipCompress }
                . (if verbose then logStdout else id)
                . autohead
     runSettings defaultSettings
