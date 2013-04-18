@@ -1,5 +1,5 @@
 name:            wai-test
-version:         1.3.0.5
+version:         1.3.1
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -7,7 +7,7 @@ maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        Unit test framework (built on HUnit) for WAI applications.
 category:        Testing, Web, Yesod
 stability:       Stable
-cabal-version:   >= 1.6
+cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        http://www.yesodweb.com/book/web-application-interface
 description:     Unit test framework (built on HUnit) for WAI applications.
@@ -29,6 +29,17 @@ library
                    , network
     exposed-modules: Network.Wai.Test
     ghc-options:     -Wall
+
+test-suite spec
+    type:            exitcode-stdio-1.0
+    hs-source-dirs:  test
+    main-is:         Spec.hs
+    other-modules:   Network.Wai.TestSpec
+    build-depends:   base                      >= 4        && < 5
+                   , wai-test
+                   , wai
+                   , hspec >= 1.3
+    ghc-options:     -Wall -Werror
 
 source-repository head
   type:     git

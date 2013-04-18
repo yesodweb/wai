@@ -10,6 +10,7 @@ module Network.Wai.Test
     , SRequest (..)
     , SResponse (..)
     , defaultRequest
+    , setPath
     , setRawPathInfo
       -- * Assertions
     , assertStatus
@@ -30,6 +31,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
 import Data.Conduit.Blaze (builderToByteString)
 import Blaze.ByteString.Builder (flush)
+import qualified Blaze.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Network.HTTP.Types as H
@@ -86,6 +88,17 @@ defaultRequest = Request
     , requestBodyLength = KnownLength 0
 #endif
     }
+
+-- | Set whole path (request path + query string).
+setPath :: Request -> S8.ByteString -> Request
+setPath req path = req {
+    pathInfo = segments
+  , rawPathInfo = B.toByteString (H.encodePathSegments segments)
+  , queryString = query
+  , rawQueryString = (H.renderQuery True query)
+  }
+  where
+    (segments, query) = H.decodePath path
 
 setRawPathInfo :: Request -> S8.ByteString -> Request
 setRawPathInfo r rawPinfo =
