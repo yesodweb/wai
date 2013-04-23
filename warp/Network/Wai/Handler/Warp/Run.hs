@@ -171,7 +171,9 @@ runSettingsConnectionMaker set getConn app = do
 
         -- Fork a new worker thread for this connection maker, and ask for a
         -- function to unmask (i.e., allow async exceptions to be thrown).
-        void . forkIOWithUnmask $ \unmask ->
+        --
+        -- GHC 7.8 cannot infer the type of "void . forkIOWithUnmask"
+        void $ forkIOWithUnmask $ \unmask ->
             -- Run the connection maker to get a new connection, and ensure
             -- that the connection is closed. If the mkConn call throws an
             -- exception, we will leak the connection. If the mkConn call is
