@@ -43,7 +43,7 @@ import System.Directory (removeFile, getTemporaryDirectory)
 import System.IO (hClose, openBinaryTempFile)
 import Network.Wai
 import Data.Conduit
-import Data.Conduit.Internal (sinkToPipe)
+import Data.Conduit.Internal ()
 import qualified Data.Conduit.List as CL
 import qualified Data.Conduit.Binary as CB
 import Control.Monad.IO.Class (liftIO)
@@ -53,7 +53,7 @@ import Control.Monad (when, unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Resource (allocate, release, register)
 #if MIN_VERSION_conduit(1, 0, 0)
-import Data.Conduit.Internal (Pipe (NeedInput, HaveOutput), (>+>), withUpstream, Sink (..), injectLeftovers, ConduitM (..))
+import Data.Conduit.Internal (Pipe (NeedInput, HaveOutput), (>+>), withUpstream, injectLeftovers, ConduitM (..))
 import Data.Void (Void)
 #endif
 
