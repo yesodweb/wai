@@ -217,9 +217,7 @@ staticAppPieces ss rawPieces req = liftIO $ do
         return $ fileToResponse file H.status200 headers
 
     response NotModified =
-            return $ W.responseLBS H.status304
-                        [ ("Content-Type", "text/plain")
-                        ] "Not Modified"
+            return $ W.responseLBS H.status304 [] ""
 
     response (SendContent mt lbs) = do
             -- TODO: set caching headers
