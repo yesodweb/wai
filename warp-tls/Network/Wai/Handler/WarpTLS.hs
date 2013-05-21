@@ -5,17 +5,20 @@
 
 -- | HTTP over SSL/TLS support for Warp via the TLS package.
 
-module Network.Wai.Handler.WarpTLS
-    ( TLSSettings
+module Network.Wai.Handler.WarpTLS (
+    -- * Settings
+      TLSSettings
     , certFile
     , keyFile
     , onInsecure
     , tlsLogging
-    , OnInsecure (..)
     , defaultTlsSettings
     , tlsSettings
+    , OnInsecure (..)
+    -- * Runner
     , runTLS
     , runTLSSocket
+    -- * Exception
     , WarpTLSException (..)
     ) where
 
