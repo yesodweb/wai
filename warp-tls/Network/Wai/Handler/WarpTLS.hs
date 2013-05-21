@@ -38,7 +38,6 @@ import qualified Data.PEM as PEM
 import Data.Conduit.Network (sourceSocket, sinkSocket, acceptSafe)
 import Data.Maybe (fromMaybe)
 import qualified Data.IORef as I
-import Control.Monad (unless)
 import Crypto.Random.API (getSystemRandomGen)
 import Control.Exception (Exception, throwIO)
 import Data.Typeable (Typeable)
