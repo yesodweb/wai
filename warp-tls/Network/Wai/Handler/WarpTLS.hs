@@ -65,9 +65,11 @@ data TLSSettings = TLSSettings
       -- Since 1.4.0
     }
 
+-- | An action when a plain HTTP comes to HTTP over TLS/SSL port.
 data OnInsecure = DenyInsecure L.ByteString
                 | AllowInsecure
 
+-- | A smart constructor for 'TLSSettings'.
 tlsSettings :: FilePath -- ^ Certificate file
             -> FilePath -- ^ Key file
             -> TLSSettings
@@ -76,6 +78,7 @@ tlsSettings cert key = defaultTlsSettings
     , keyFile = key
     }
 
+-- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name.
 defaultTlsSettings :: TLSSettings
 defaultTlsSettings = TLSSettings
     { certFile = "certificate.pem"
@@ -84,6 +87,8 @@ defaultTlsSettings = TLSSettings
     , tlsLogging = TLS.defaultLogging
     }
 
+-- | Running 'Application' with 'TLSSettings' and 'Settings' using
+--   specified 'Socket'.
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket TLSSettings {..} set sock app = do
     certs   <- readCertificates certFile
@@ -155,6 +160,7 @@ data WarpTLSException = InsecureConnectionDenied
     deriving (Show, Typeable)
 instance Exception WarpTLSException
 
+-- | Running 'Application' with 'TLSSettings' and 'Settings'.
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
 runTLS tset set app =
     bracket
