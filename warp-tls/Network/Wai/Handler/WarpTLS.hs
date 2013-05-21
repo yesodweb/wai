@@ -12,6 +12,7 @@ module Network.Wai.Handler.WarpTLS
     , onInsecure
     , tlsLogging
     , OnInsecure (..)
+    , defaultTlsSettings
     , tlsSettings
     , runTLS
     , runTLSSocket
@@ -67,9 +68,14 @@ data OnInsecure = DenyInsecure L.ByteString
 tlsSettings :: FilePath -- ^ Certificate file
             -> FilePath -- ^ key file
             -> TLSSettings
-tlsSettings cert key = TLSSettings
+tlsSettings cert key = defaultTlsSettings
     { certFile = cert
     , keyFile = key
+    }
+
+defaultTlsSettings = TLSSettings
+    { certFile = "certificate.pem"
+    , keyFile = "key.pem"
     , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
     , tlsLogging = TLS.defaultLogging
     }
