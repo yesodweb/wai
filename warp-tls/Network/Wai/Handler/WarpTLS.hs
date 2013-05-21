@@ -66,7 +66,7 @@ data OnInsecure = DenyInsecure L.ByteString
                 | AllowInsecure
 
 tlsSettings :: FilePath -- ^ Certificate file
-            -> FilePath -- ^ key file
+            -> FilePath -- ^ Key file
             -> TLSSettings
 tlsSettings cert key = defaultTlsSettings
     { certFile = cert
