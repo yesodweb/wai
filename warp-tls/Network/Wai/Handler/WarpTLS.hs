@@ -76,6 +76,7 @@ tlsSettings cert key = defaultTlsSettings
     , keyFile = key
     }
 
+defaultTlsSettings :: TLSSettings
 defaultTlsSettings = TLSSettings
     { certFile = "certificate.pem"
     , keyFile = "key.pem"
