@@ -10,7 +10,7 @@ Category:            Web, Yesod
 Build-Type:          Simple
 Cabal-Version:       >=1.6
 Stability:           Stable
-Description:         HTTP over SSL/TLS support for Warp via the TLS package
+Description:         HTTP over SSL/TLS support for Warp via the TLS package.
 
 Library
   Build-Depends:     base                          >= 4        && < 5

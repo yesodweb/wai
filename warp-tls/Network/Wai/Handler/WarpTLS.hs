@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
--- | HTTP over SSL/TLS support for Warp via the TLS package
+-- | HTTP over SSL/TLS support for Warp via the TLS package.
 
 module Network.Wai.Handler.WarpTLS
     ( TLSSettings
