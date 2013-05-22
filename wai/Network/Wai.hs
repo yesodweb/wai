@@ -90,6 +90,11 @@ data Request = Request
   ,  serverPort     :: Int
   ,  requestHeaders :: H.RequestHeaders
   -- | Was this request made over an SSL connection?
+  --
+  -- This value should /not/ be used, and will be removed in future revisions
+  -- of WAI. There is no meaningful way that a backend can indicate whether the
+  -- request is actually over a secure channel, due to issues of reverse
+  -- proxying.
   ,  isSecure       :: Bool
   -- | The client\'s host information.
   ,  remoteHost     :: SockAddr
