@@ -1,15 +1,16 @@
 module Network.Wai.Handler.Warp.Settings where
 
 import Control.Exception
-import Control.Monad
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Data.Conduit
 import Data.Conduit.Network (HostPreference (HostIPv4))
+import GHC.IO.Exception (IOErrorType(..))
 import Network.Wai
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
 import System.IO (hPrint, stderr)
+import System.IO.Error (ioeGetErrorType)
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
 -- type so that new settings can be added without breaking backwards
@@ -54,12 +55,7 @@ defaultSettings :: Settings
 defaultSettings = Settings
     { settingsPort = 3000
     , settingsHost = HostIPv4
-    , settingsOnException = \e ->
-        case fromException e of
-            Just x -> go x
-            Nothing ->
-                when (go' $ fromException e) $
-                    hPrint stderr e
+    , settingsOnException = defaultExceptionHandler
     , settingsOnOpen = return ()
     , settingsOnClose = return ()
     , settingsTimeout = 30
@@ -70,8 +66,26 @@ defaultSettings = Settings
     , settingsBeforeMainLoop = return ()
     , settingsServerName = S8.pack $ "Warp/" ++ warpVersion
     }
+
+defaultExceptionHandler :: SomeException -> IO ()
+defaultExceptionHandler e = throwIO e `catches` handlers
   where
-    go :: InvalidRequest -> IO ()
-    go _ = return ()
-    go' (Just ThreadKilled) = False
-    go' _ = True
+    handlers = [Handler ah, Handler ih, Handler oh, Handler sh]
+
+    ah :: AsyncException -> IO ()
+    ah ThreadKilled = return ()
+    ah x            = hPrint stderr x
+
+    ih :: InvalidRequest -> IO ()
+    ih _ = return ()
+
+    oh :: IOException -> IO ()
+    oh x
+      | et `elem` ignEt = return ()
+      | otherwise         = hPrint stderr x
+      where
+        et = ioeGetErrorType x
+        ignEt = [ResourceVanished, InvalidArgument]
+
+    sh :: SomeException -> IO ()
+    sh x = hPrint stderr x
