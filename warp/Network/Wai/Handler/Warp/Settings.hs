@@ -81,11 +81,10 @@ defaultExceptionHandler e = throwIO e `catches` handlers
 
     oh :: IOException -> IO ()
     oh x
-      | et `elem` ignEt = return ()
+      | et == ResourceVanished || et == InvalidArgument = return ()
       | otherwise         = hPrint stderr x
       where
         et = ioeGetErrorType x
-        ignEt = [ResourceVanished, InvalidArgument]
 
     sh :: SomeException -> IO ()
     sh x = hPrint stderr x
