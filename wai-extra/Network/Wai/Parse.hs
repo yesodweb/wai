@@ -55,6 +55,8 @@ import Control.Monad.Trans.Resource (allocate, release, register)
 #if MIN_VERSION_conduit(1, 0, 0)
 import Data.Conduit.Internal (Pipe (NeedInput, HaveOutput), (>+>), withUpstream, injectLeftovers, ConduitM (..))
 import Data.Void (Void)
+#else
+import Data.Conduit.Internal (sinkToPipe)
 #endif
 
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
