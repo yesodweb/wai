@@ -27,6 +27,7 @@ Library
                    , tls                           >= 1.1
                    , crypto-random-api             >= 0.2
                    , network                       >= 2.2.1
+                   , cprng-aes                     >= 0.3.4
   Exposed-modules:   Network.Wai.Handler.WarpTLS
   ghc-options:       -Wall
 
