@@ -30,7 +30,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.Conduit.Binary (sourceFileRange)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import Control.Exception (bracket)
+import Control.Exception (bracket, finally)
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.Certificate.X509 as X509
 import qualified Data.ByteString as B
@@ -93,6 +93,7 @@ runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket TLSSettings {..} set sock app = do
     certs   <- readCertificates certFile
     pk      <- readPrivateKey keyFile
+    gen     <- getSystemRandomGen
     let params =
             TLS.updateServerParams
                 (\sp -> sp { TLS.serverWantClientCert = False }) $
@@ -102,9 +103,9 @@ runTLSSocket TLSSettings {..} set sock app = do
             , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
             , TLS.pLogging         = tlsLogging
             }
-    runSettingsConnectionMaker set (getter params) app
+    runSettingsConnectionMaker set (getter gen params) app
   where
-    getter params = do
+    getter gen params = do
         (s, sa) <- acceptSafe sock
         let mkConn = do
             (fromClient, firstBS) <- sourceSocket s C.$$+ CL.peek
@@ -117,11 +118,10 @@ runTLSSocket TLSSettings {..} set sock app = do
                     return bs
             if maybe False ((== 0x16) . fst) (firstBS >>= B.uncons)
                 then do
-                    gen <- getSystemRandomGen
                     ctx <- TLS.contextNew
                         TLS.Backend
                             { TLS.backendFlush = return ()
-                            , TLS.backendClose = return ()
+                            , TLS.backendClose = sClose s
                             , TLS.backendSend = \bs -> C.yield bs C.$$ toClient
                             , TLS.backendRecv = getNext . fmap (B.concat . L.toChunks) . CB.take
                             }
@@ -134,9 +134,9 @@ runTLSSocket TLSSettings {..} set sock app = do
                             , connSendFile = \fp offset len _th headers _cleaner -> do
                                 TLS.sendData ctx $ L.fromChunks headers
                                 C.runResourceT $ sourceFileRange fp (Just offset) (Just len) C.$$ CL.mapM_ (TLS.sendData ctx . L.fromChunks . return)
-                            , connClose = do
-                                TLS.bye ctx
-                                sClose s
+                            , connClose =
+                                TLS.bye ctx `finally`
+                                TLS.contextClose ctx
                             , connRecv = TLS.recvData ctx
                             }
                     return conn
