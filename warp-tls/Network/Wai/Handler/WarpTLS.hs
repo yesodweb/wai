@@ -93,7 +93,6 @@ runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket TLSSettings {..} set sock app = do
     certs   <- readCertificates certFile
     pk      <- readPrivateKey keyFile
-    gen     <- getSystemRandomGen
     let params =
             TLS.updateServerParams
                 (\sp -> sp { TLS.serverWantClientCert = False }) $
@@ -103,9 +102,9 @@ runTLSSocket TLSSettings {..} set sock app = do
             , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
             , TLS.pLogging         = tlsLogging
             }
-    runSettingsConnectionMaker set (getter gen params) app
+    runSettingsConnectionMaker set (getter params) app
   where
-    getter gen params = do
+    getter params = do
         (s, sa) <- acceptSafe sock
         let mkConn = do
             (fromClient, firstBS) <- sourceSocket s C.$$+ CL.peek
@@ -118,6 +117,7 @@ runTLSSocket TLSSettings {..} set sock app = do
                     return bs
             if maybe False ((== 0x16) . fst) (firstBS >>= B.uncons)
                 then do
+                    gen <- getSystemRandomGen
                     ctx <- TLS.contextNew
                         TLS.Backend
                             { TLS.backendFlush = return ()
