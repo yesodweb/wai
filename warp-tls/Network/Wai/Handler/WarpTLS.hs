@@ -42,7 +42,7 @@ import qualified Data.PEM as PEM
 import Data.Conduit.Network (sourceSocket, sinkSocket, acceptSafe)
 import Data.Maybe (fromMaybe)
 import qualified Data.IORef as I
-import Crypto.Random.API (getSystemRandomGen)
+import Crypto.Random.AESCtr (makeSystem)
 import Control.Exception (Exception, throwIO)
 import Data.Typeable (Typeable)
 import qualified Data.Conduit.Binary as CB
@@ -117,7 +117,7 @@ runTLSSocket TLSSettings {..} set sock app = do
                     return bs
             if maybe False ((== 0x16) . fst) (firstBS >>= B.uncons)
                 then do
-                    gen <- getSystemRandomGen
+                    gen <- makeSystem
                     ctx <- TLS.contextNew
                         TLS.Backend
                             { TLS.backendFlush = return ()
