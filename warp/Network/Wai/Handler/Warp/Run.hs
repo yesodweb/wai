@@ -244,7 +244,7 @@ serveConnection timeoutHandle settings cleaner port app conn remoteHost' =
     serveConnection' = serveConnection'' $ connSource conn th
 
     serveConnection'' fromClient = do
-        (env, getSource) <- parseRequest conn timeoutHandle port remoteHost' fromClient
+        (env, getSource) <- parseRequestInternal conn timeoutHandle port remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants

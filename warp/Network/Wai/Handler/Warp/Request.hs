@@ -32,11 +32,18 @@ maxTotalHeaderLength :: Int
 maxTotalHeaderLength = 50 * 1024
 
 parseRequest :: Connection
+             -> Port -> SockAddr
+             -> Source (ResourceT IO) ByteString
+             -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))
+parseRequest conn = parseRequestInternal conn Timeout.dummyHandle
+
+parseRequestInternal
+             :: Connection
              -> Timeout.Handle
              -> Port -> SockAddr
              -> Source (ResourceT IO) ByteString
              -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))
-parseRequest conn timeoutHandle port remoteHost' src1 = do
+parseRequestInternal conn timeoutHandle port remoteHost' src1 = do
     (src2, headers') <- src1 $$+ takeHeaders
     parseRequest' conn timeoutHandle port headers' remoteHost' src2
 
