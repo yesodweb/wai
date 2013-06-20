@@ -206,7 +206,7 @@ runSettingsConnectionMaker set getConn app = do
                     bracket_ onOpen onClose $
 
                     -- Actually serve this connection.
-                    serveConnection set cleaner port app conn addr
+                    serveConnection th set cleaner port app conn addr
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
     getConnLoop = getConn `catch` \(e :: IOException) -> do
@@ -228,10 +228,11 @@ runSettingsConnectionMaker set getConn app = do
                 f
             Just tm -> f tm
 
-serveConnection :: Settings
+serveConnection :: T.Handle
+                -> Settings
                 -> Cleaner
                 -> Port -> Application -> Connection -> SockAddr-> IO ()
-serveConnection settings cleaner port app conn remoteHost' =
+serveConnection timeoutHandle settings cleaner port app conn remoteHost' =
     runResourceT serveConnection'
   where
     innerRunResourceT
@@ -243,7 +244,7 @@ serveConnection settings cleaner port app conn remoteHost' =
     serveConnection' = serveConnection'' $ connSource conn th
 
     serveConnection'' fromClient = do
-        (env, getSource) <- parseRequest conn port remoteHost' fromClient
+        (env, getSource) <- parseRequest conn timeoutHandle port remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants

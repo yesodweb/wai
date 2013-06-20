@@ -25,17 +25,20 @@ import Network.Wai.Handler.Warp.Conduit
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Types
 import Prelude hiding (lines)
+import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 
 -- FIXME come up with good values here
 maxTotalHeaderLength :: Int
 maxTotalHeaderLength = 50 * 1024
 
-parseRequest :: Connection -> Port -> SockAddr
+parseRequest :: Connection
+             -> Timeout.Handle
+             -> Port -> SockAddr
              -> Source (ResourceT IO) ByteString
              -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))
-parseRequest conn port remoteHost' src1 = do
+parseRequest conn timeoutHandle port remoteHost' src1 = do
     (src2, headers') <- src1 $$+ takeHeaders
-    parseRequest' conn port headers' remoteHost' src2
+    parseRequest' conn timeoutHandle port headers' remoteHost' src2
 
 handleExpect :: Connection
              -> H.HttpVersion
@@ -53,13 +56,14 @@ handleExpect conn hv front (x:xs) = handleExpect conn hv (front . (x:)) xs
 
 -- | Parse a set of header lines and body into a 'Request'.
 parseRequest' :: Connection
+              -> Timeout.Handle
               -> Port
               -> [ByteString]
               -> SockAddr
               -> ResumableSource (ResourceT IO) ByteString -- FIXME was buffered
               -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))
-parseRequest' _ _ [] _ _ = throwIO $ NotEnoughLines []
-parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
+parseRequest' _ _ _ [] _ _ = throwIO $ NotEnoughLines []
+parseRequest' conn timeoutHandle port (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
     let (host',rpath)
             | S.null rpath' = ("", "/")
@@ -97,7 +101,16 @@ parseRequest' conn port (firstLine:otherLines) remoteHost' src = do
             , requestHeaders = heads
             , isSecure = False
             , remoteHost = remoteHost'
-            , requestBody = rbody
+            , requestBody = do
+                -- Timeout handling was paused after receiving the full request
+                -- headers. Now we need to resume it to avoid a slowloris
+                -- attack during request body sending.
+                liftIO $ Timeout.resume timeoutHandle
+                -- As soon as we finish receiving the request body, whether
+                -- because the application is not interested in more bytes, or
+                -- because there is no more data available, pause the timeout
+                -- handler again.
+                addCleanup (const $ liftIO $ Timeout.pause timeoutHandle) rbody
             , vault = mempty
 #if MIN_VERSION_wai(1, 4, 0)
             , requestBodyLength =

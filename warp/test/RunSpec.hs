@@ -8,6 +8,7 @@ import Control.Monad (forM_)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString, hPutStr, hGetSome)
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import Data.Conduit (($$))
 import qualified Data.Conduit.List
@@ -20,7 +21,7 @@ import System.IO (hFlush, hClose)
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
-import Control.Exception (bracket, try, IOException, onException)
+import Control.Exception.Lifted (bracket, try, IOException, onException)
 import Data.Conduit.Network (bindPort)
 import Network.Socket (sClose)
 
@@ -300,3 +301,29 @@ spec = do
                     [ "Hello World\nBye"
                     , "Hello World"
                     ]
+        it "timeout in request body" $ do
+            ifront <- I.newIORef id
+            let app req = do
+                    bss <- (requestBody req $$ Data.Conduit.List.consume) `onException`
+                        liftIO (I.atomicModifyIORef ifront (\front -> (front . ("consume interrupted":), ())))
+                    liftIO $ threadDelay 4000000 `onException`
+                        I.atomicModifyIORef ifront (\front -> (front . ("threadDelay interrupted":), ()))
+                    liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    return $ responseLBS status200 [] ""
+            withApp defaultSettings { settingsTimeout = 1 } app $ \port -> do
+                let bs1 = S.replicate 2048 88
+                    bs2 = "This is short"
+                    bs = S.append bs1 bs2
+                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                hPutStr handle "POST / HTTP/1.1\r\n"
+                hPutStr handle "content-length: "
+                hPutStr handle $ S8.pack $ show $ S.length bs
+                hPutStr handle "\r\n\r\n"
+                threadDelay 100000
+                hPutStr handle bs1
+                threadDelay 100000
+                hPutStr handle bs2
+                hClose handle
+                threadDelay 5000000
+                front <- I.readIORef ifront
+                S.concat (front []) `shouldBe` bs
