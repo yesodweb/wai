@@ -30,7 +30,7 @@ testRange range out crange = it title $ withApp defaultSettings app $ \port -> d
     S.hPutStr handle "Range: bytes="
     S.hPutStr handle range
     S.hPutStr handle "\r\n\r\n"
-    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ S.hGetContents handle
+    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ S.hGetSome handle 1024
     hClose handle
     out `shouldBe` last bss
     let hs = mapMaybe toHeader bss
@@ -51,7 +51,7 @@ testPartial :: Integer -- ^ offset
 testPartial offset count out = it title $ withApp defaultSettings app $ \port -> do
     handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
     S.hPutStr handle "GET / HTTP/1.0\r\n\r\n"
-    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ S.hGetContents handle
+    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ S.hGetSome handle 1024
     hClose handle
     out `shouldBe` last bss
     let hs = mapMaybe toHeader bss
