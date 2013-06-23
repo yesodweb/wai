@@ -1,5 +1,5 @@
 Name:                warp
-Version:             1.3.8.4
+Version:             1.3.9
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -14,6 +14,8 @@ Description:
     The premier WAI handler. For more information, see <http://steve.vinoski.net/blog/2011/05/01/warp-a-haskell-web-server/>.
     .
     Changelog
+    .
+    [1.3.9] Support for byte range requests.
     .
     [1.3.7] Sockets now have FD_CLOEXEC set on them. This behavior is more secure, and the change should not affect the vast majority of use cases.
 extra-source-files:  attic/hex
