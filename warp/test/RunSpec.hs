@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module RunSpec (main, spec) where
+module RunSpec (main, spec, withApp) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Monad (forM_)

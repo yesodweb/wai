@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 module Network.Wai.Handler.Warp.Response (
     sendResponse
@@ -16,7 +17,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import Data.Conduit.Blaze (builderToByteString)
 import qualified Data.Conduit.List as CL
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, listToMaybe)
 import Data.Monoid (mappend)
 import qualified Network.HTTP.Types as H
 import Network.Wai
@@ -26,6 +27,8 @@ import qualified Network.Wai.Handler.Warp.ResponseHeader as RH
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import qualified System.PosixCompat.Files as P
+import Network.HTTP.Attoparsec (parseByteRanges)
+import Numeric (showInt)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -36,20 +39,47 @@ sendResponse :: Settings
 
 ----------------------------------------------------------------
 
-sendResponse settings cleaner req conn (ResponseFile s hs path mpart) =
+sendResponse settings cleaner req conn (ResponseFile s0 hs0 path mpart0) =
     headerAndLength >>= sendResponse'
   where
+    hs = addAccept hs0
     th = threadHandle cleaner
-    headerAndLength = case (readInt <$> checkLength hs, mpart) of
-        (Just cl, _)         -> return $ Right (hs, cl)
-        (Nothing, Nothing)   -> liftIO . try $ do
-            cl <- fromIntegral . P.fileSize <$> P.getFileStatus path
-            return (addLength cl hs, cl)
-        (Nothing, Just part) -> do
-            let cl = fromIntegral $ filePartByteCount part
-            return $ Right (addLength cl hs, cl)
+    headerAndLength = liftIO . try $ do
+        (hadLength, cl) <-
+            case readInt <$> checkLength hs of
+                Just cl -> return (True, cl)
+                Nothing ->
+                    case mpart0 of
+                        Just part -> return (False, fromIntegral $ filePartByteCount part)
+                        Nothing -> (False, ) . fromIntegral . P.fileSize
+                               <$> P.getFileStatus path
+        let (s, addRange, beg, end) =
+                case mpart0 of
+                    Just part -> (s0, id, filePartOffset part, filePartByteCount part)
+                    Nothing ->
+                        case lookup H.hRange (requestHeaders req) >>= parseByteRanges >>= listToMaybe of
+                            Just range | s0 == H.status200 ->
+                                case range of
+                                    H.ByteRangeFrom from -> rangeRes cl from (cl - 1)
+                                    H.ByteRangeFromTo from to -> rangeRes cl from to
+                                    H.ByteRangeSuffix count -> rangeRes cl (cl - count) (cl - 1)
+                            _ -> (s0, id, 0, cl)
+            hs'
+                | hadLength = hs
+                | otherwise = addLength end hs
+        return (s, addRange hs', beg, end)
 
-    sendResponse' (Right (lengthyHeaders, cl))
+    rangeRes cl from to = (H.status206, (("Content-Range", rangeHeader cl from to):), from, to - from + 1)
+
+    rangeHeader total from to = B.pack
+      $ 'b' : 'y': 't' : 'e' : 's' : ' '
+      : showInt from
+      ( '-'
+      : showInt to
+      ( '/'
+      : showInt total ""))
+
+    sendResponse' (Right (s, lengthyHeaders, beg, end))
       | hasBody s req = liftIO $ do
           lheader <- composeHeader settings version s lengthyHeaders
           connSendFile conn path beg end (T.tickle th) [lheader] cleaner
@@ -60,9 +90,6 @@ sendResponse settings cleaner req conn (ResponseFile s hs path mpart) =
           T.tickle th
           return isPersist -- FIXME isKeepAlive?
       where
-        (beg,end) = case mpart of
-            Nothing  -> (0,cl)
-            Just prt -> (filePartOffset prt, filePartByteCount prt)
         version = httpVersion req
         (isPersist,_) = infoFromRequest req
 
@@ -191,6 +218,9 @@ hasBody s req = sc /= 204
 
 addLength :: Integer -> H.ResponseHeaders -> H.ResponseHeaders
 addLength cl hdrs = (H.hContentLength, B.pack $ show cl) : hdrs
+
+addAccept :: H.ResponseHeaders -> H.ResponseHeaders
+addAccept = (("Accept-Ranges", "bytes"):)
 
 addEncodingHeader :: H.ResponseHeaders -> H.ResponseHeaders
 addEncodingHeader hdrs = (hTransferEncoding, "chunked") : hdrs
