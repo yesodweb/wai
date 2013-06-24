@@ -102,8 +102,12 @@ setPath req path = req {
 
 setRawPathInfo :: Request -> S8.ByteString -> Request
 setRawPathInfo r rawPinfo =
-  let pInfo = T.split (== '/') $ TE.decodeUtf8 rawPinfo
-  in  r { rawPathInfo = rawPinfo, pathInfo = pInfo }
+    let pInfo = dropFrontSlash $ T.split (== '/') $ TE.decodeUtf8 rawPinfo
+    in  r { rawPathInfo = rawPinfo, pathInfo = pInfo }
+  where
+    dropFrontSlash ("":"":[]) = [] -- homepage, a single slash
+    dropFrontSlash ("":path) = path
+    dropFrontSlash path = path
 
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
