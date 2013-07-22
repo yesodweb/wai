@@ -26,26 +26,22 @@ import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Types
 import Prelude hiding (lines)
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout
+import qualified Control.Monad.Trans.Resource as Res
 
 -- FIXME come up with good values here
 maxTotalHeaderLength :: Int
 maxTotalHeaderLength = 50 * 1024
 
-parseRequest :: Connection
-             -> Port -> SockAddr
-             -> Source (ResourceT IO) ByteString
-             -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))
-parseRequest conn = parseRequestInternal conn Timeout.dummyHandle
-
-parseRequestInternal
+parseRequest
              :: Connection
              -> Timeout.Handle
+             -> Res.InternalState
              -> Port -> SockAddr
-             -> Source (ResourceT IO) ByteString
-             -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))
-parseRequestInternal conn timeoutHandle port remoteHost' src1 = do
+             -> Source IO ByteString
+             -> IO (Request, IO (ResumableSource IO ByteString))
+parseRequest conn timeoutHandle internalState port remoteHost' src1 = do
     (src2, headers') <- src1 $$+ takeHeaders
-    parseRequest' conn timeoutHandle port headers' remoteHost' src2
+    parseRequest' conn timeoutHandle internalState port headers' remoteHost' src2
 
 handleExpect :: Connection
              -> H.HttpVersion
@@ -64,13 +60,14 @@ handleExpect conn hv front (x:xs) = handleExpect conn hv (front . (x:)) xs
 -- | Parse a set of header lines and body into a 'Request'.
 parseRequest' :: Connection
               -> Timeout.Handle
+              -> Res.InternalState
               -> Port
               -> [ByteString]
               -> SockAddr
-              -> ResumableSource (ResourceT IO) ByteString -- FIXME was buffered
-              -> ResourceT IO (Request, IO (ResumableSource (ResourceT IO) ByteString))
-parseRequest' _ _ _ [] _ _ = throwIO $ NotEnoughLines []
-parseRequest' conn timeoutHandle port (firstLine:otherLines) remoteHost' src = do
+              -> ResumableSource IO ByteString -- FIXME was buffered
+              -> IO (Request, IO (ResumableSource IO ByteString))
+parseRequest' _ _ _ _ [] _ _ = throwIO $ NotEnoughLines []
+parseRequest' conn timeoutHandle internalState port (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
     let (host',rpath)
             | S.null rpath' = ("", "/")
@@ -87,7 +84,7 @@ parseRequest' conn timeoutHandle port (firstLine:otherLines) remoteHost' src = d
     let serverName' = takeUntil 58 host -- ':'
     let chunked = maybe False ((== "chunked") . CI.foldCase)
                   $ lookup hTransferEncoding heads
-    (rbody, getSource) <- liftIO $
+    (rbody, getSource) <-
         if chunked
           then do
             ref <- I.newIORef (src, NeedLen)
@@ -125,6 +122,7 @@ parseRequest' conn timeoutHandle port (firstLine:otherLines) remoteHost' src = d
                     then ChunkedBody
                     else KnownLength $ fromIntegral len0
 #endif
+            , resourceInternalState = internalState
             }, getSource)
 
 {-# INLINE takeUntil #-}
@@ -136,7 +134,7 @@ takeUntil c bs =
 
 {-# INLINE parseFirst #-} -- FIXME is this inline necessary? the function is only called from one place and not exported
 parseFirst :: ByteString
-           -> ResourceT IO (ByteString, ByteString, ByteString, H.HttpVersion)
+           -> IO (ByteString, ByteString, ByteString, H.HttpVersion)
 parseFirst s =
     case filter (not . S.null) $ S.splitWith (\c -> c == 32 || c == 9) s of  -- ' '
         (method:query:http'') -> do
@@ -167,14 +165,14 @@ data THStatus = THStatus
     BSEndo -- bytestrings to be prepended
 
 {-# INLINE takeHeaders #-}
-takeHeaders :: Sink ByteString (ResourceT IO) [ByteString]
+takeHeaders :: Sink ByteString IO [ByteString]
 takeHeaders =
     await >>= maybe (throwIO ConnectionClosedByPeer) (push (THStatus 0 id id))
 
-close :: Sink ByteString (ResourceT IO) a
+close :: Sink ByteString IO a
 close = throwIO IncompleteHeaders
 
-push :: THStatus -> ByteString -> Sink ByteString (ResourceT IO) [ByteString]
+push :: THStatus -> ByteString -> Sink ByteString IO [ByteString]
 push (THStatus len lines prepend) bs
         -- Too many bytes
         | len > maxTotalHeaderLength = throwIO OverLargeHeader

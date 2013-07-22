@@ -25,7 +25,7 @@ data Settings = Settings
     , settingsOnOpen :: IO () -- ^ What to do when a connection is open. Default: do nothing.
     , settingsOnClose :: IO ()  -- ^ What to do when a connection is close. Default: do nothing.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
-    , settingsIntercept :: Request -> Maybe (Source (ResourceT IO) S.ByteString -> Connection -> ResourceT IO ())
+    , settingsIntercept :: Request -> Maybe (Source IO S.ByteString -> Connection -> IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     , settingsFdCacheDuration :: Int -- ^ Cache duratoin time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 10
     , settingsResourceTPerRequest :: Bool

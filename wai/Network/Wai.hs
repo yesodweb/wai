@@ -63,6 +63,7 @@ import Data.ByteString.Lazy.Char8 () -- makes it easier to use responseLBS
 import Blaze.ByteString.Builder (fromByteString)
 import Data.Vault (Vault)
 import Data.Word (Word64)
+import qualified Control.Monad.Trans.Resource as Res
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
@@ -102,13 +103,18 @@ data Request = Request
   ,  pathInfo       :: [Text]
   -- | Parsed query string information
   ,  queryString    :: H.Query
-  ,  requestBody    :: C.Source (C.ResourceT IO) B.ByteString
+  ,  requestBody    :: C.Source IO B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.
   , vault           :: Vault
   -- | The size of the request body. In the case of a chunked request body, this may be unknown.
   --
   -- Since 1.4.0
   , requestBodyLength :: RequestBodyLength
+  -- | The internal @ResourceT@ state, used for allocating scarce resources
+  -- will in an application.
+  --
+  -- Since 1.5.0
+  , resourceInternalState :: Res.InternalState
   }
   deriving (Typeable)
 
@@ -138,7 +144,7 @@ data Request = Request
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
-    | ResponseSource H.Status H.ResponseHeaders (C.Source (C.ResourceT IO) (C.Flush Builder))
+    | ResponseSource H.Status H.ResponseHeaders (C.Source IO (C.Flush Builder))
   deriving Typeable
 
 responseStatus :: Response -> H.Status
@@ -153,13 +159,19 @@ data FilePart = FilePart
     , filePartByteCount :: Integer
     } deriving Show
 
-responseSource :: Response -> (H.Status, H.ResponseHeaders, C.Source (C.ResourceT IO) (C.Flush Builder))
-responseSource (ResponseSource s h b) = (s, h, b)
-responseSource (ResponseFile s h fp (Just part)) =
-    (s, h, sourceFilePart part fp C.$= CL.map (C.Chunk . fromByteString))
-responseSource (ResponseFile s h fp Nothing) =
-    (s, h, CB.sourceFile fp C.$= CL.map (C.Chunk . fromByteString))
-responseSource (ResponseBuilder s h b) =
+responseSource :: Request
+               -> Response
+               -> (H.Status, H.ResponseHeaders, C.Source IO (C.Flush Builder))
+responseSource _ (ResponseSource s h b) = (s, h, b)
+responseSource req (ResponseFile s h fp (Just part)) =
+    (s, h, transRes (sourceFilePart part fp) C.$= CL.map (C.Chunk . fromByteString))
+  where
+    transRes = C.transPipe (flip Res.runInternalState (resourceInternalState req))
+responseSource req (ResponseFile s h fp Nothing) =
+    (s, h, transRes (CB.sourceFile fp) C.$= CL.map (C.Chunk . fromByteString))
+  where
+    transRes = C.transPipe (flip Res.runInternalState (resourceInternalState req))
+responseSource _ (ResponseBuilder s h b) =
     (s, h, CL.sourceList [C.Chunk b])
 
 sourceFilePart :: C.MonadResource m => FilePart -> FilePath -> C.Source m B.ByteString
@@ -169,7 +181,7 @@ sourceFilePart (FilePart offset count) fp =
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString
 
-type Application = Request -> C.ResourceT IO Response
+type Application = Request -> IO Response
 
 -- | Middleware is a component that sits between the server and application. It
 -- can do such tasks as GZIP encoding or response caching. What follows is the

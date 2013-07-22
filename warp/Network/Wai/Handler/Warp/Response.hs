@@ -35,7 +35,7 @@ import Numeric (showInt)
 
 sendResponse :: Settings
              -> Cleaner -> Request -> Connection -> Response
-             -> ResourceT IO Bool
+             -> IO Bool
 
 ----------------------------------------------------------------
 
@@ -143,7 +143,7 @@ sendResponse settings cleaner req conn (ResponseSource s hs bodyFlush)
     cbody = if needsChunked then body $= chunk else body
     -- FIXME perhaps alloca a buffer per thread and reuse that in all
     -- functions below. Should lessen greatly the GC burden (I hope)
-    chunk :: Conduit Builder (ResourceT IO) Builder
+    chunk :: Conduit Builder IO Builder
     chunk = await >>= maybe (yield chunkedTransferTerminator) (\x -> yield (chunkedTransferEncoding x) >> chunk)
     version = httpVersion req
     reqinfo@(isPersist,_) = infoFromRequest req
@@ -153,7 +153,7 @@ sendResponse settings cleaner req conn (ResponseSource s hs bodyFlush)
 ----------------------------------------------------------------
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
-connSink :: Connection -> T.Handle -> Sink ByteString (ResourceT IO) ()
+connSink :: Connection -> T.Handle -> Sink ByteString IO ()
 connSink Connection { connSendAll = send } th =
     sink
   where

@@ -1,5 +1,5 @@
 Name:                wai
-Version:             1.4.0.1
+Version:             1.5.0
 Synopsis:            Web Application Interface.
 Description:         Provides a common protocol for communication between web applications and web servers.
 License:             MIT
@@ -26,5 +26,6 @@ Library
                    , text                      >= 0.7
                    , transformers              >= 0.2.2
                    , vault                     >= 0.1      && < 0.3
+                   , resourcet                 >= 0.4.7
   Exposed-modules:   Network.Wai
   ghc-options:       -Wall

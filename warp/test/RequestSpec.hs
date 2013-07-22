@@ -22,10 +22,10 @@ spec = describe "takeHeaders" $ do
     it "throws OverLargeHeader when too large" $
         tooLarge `shouldThrow` overLargeHeader
   where
-    blankSafe = runResourceT $ (sourceList ["f", "oo\n", "bar\nbaz\n\r\n"]) $$ takeHeaders
-    whiteSafe = runResourceT $ (sourceList ["foo\r\nbar\r\nbaz\r\n\r\n hi there"]) $$ takeHeaders
-    tooMany = runResourceT $ (sourceList $ repeat "f\n") $$ takeHeaders
-    tooLarge = runResourceT $ (sourceList $ repeat "f") $$ takeHeaders
+    blankSafe = (sourceList ["f", "oo\n", "bar\nbaz\n\r\n"]) $$ takeHeaders
+    whiteSafe = (sourceList ["foo\r\nbar\r\nbaz\r\n\r\n hi there"]) $$ takeHeaders
+    tooMany = (sourceList $ repeat "f\n") $$ takeHeaders
+    tooLarge = (sourceList $ repeat "f") $$ takeHeaders
 
 overLargeHeader :: Selector InvalidRequest
 overLargeHeader e = e == OverLargeHeader

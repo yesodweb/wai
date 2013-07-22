@@ -20,13 +20,13 @@ import Network.Wai.Handler.Warp.Types
 ----------------------------------------------------------------
 
 -- | Contains a @Source@ and a byte count that is still to be read in.
-newtype IsolatedBSSource = IsolatedBSSource (I.IORef (Int, ResumableSource (ResourceT IO) ByteString))
+newtype IsolatedBSSource = IsolatedBSSource (I.IORef (Int, ResumableSource IO ByteString))
 
 -- | Given an @IsolatedBSSource@ provide a @Source@ that only allows up to the
 -- specified number of bytes to be passed downstream. All leftovers should be
 -- retained within the @Source@. If there are not enough bytes available,
 -- throws a @ConnectionClosedByPeer@ exception.
-ibsIsolate :: IsolatedBSSource -> Source (ResourceT IO) ByteString
+ibsIsolate :: IsolatedBSSource -> Source IO ByteString
 ibsIsolate ibs@(IsolatedBSSource ref) = do
     (count, src) <- liftIO $ I.readIORef ref
     unless (count == 0) $ do
@@ -70,7 +70,7 @@ ibsIsolate ibs@(IsolatedBSSource ref) = do
 
 -- | Extract the underlying @Source@ from an @IsolatedBSSource@, which will not
 -- perform any more isolation.
-ibsDone :: IsolatedBSSource -> IO (ResumableSource (ResourceT IO) ByteString)
+ibsDone :: IsolatedBSSource -> IO (ResumableSource IO ByteString)
 ibsDone (IsolatedBSSource ref) = snd <$> I.readIORef ref
 
 ----------------------------------------------------------------
