@@ -8,10 +8,12 @@ module Network.Wai.Handler.Warp.FdCache (
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Concurrent
+import Control.Exception (mask_)
 import Control.Monad
 import Data.Hashable
 import Data.IORef
 import Network.Wai.Handler.Warp.MultiMap
+import System.Mem.Weak (addFinalizer)
 import System.Posix.IO
 import System.Posix.Types
 
@@ -79,15 +81,24 @@ look mfc path key = searchWith key check <$> fdCache mfc
 initialize :: Int -> IO MutableFdCache
 initialize duration = do
     mfc <- newMutableFdCache
-    void . forkIO $ loop mfc
+    tid <- forkIO $ loop mfc
+    addFinalizer mfc $ terminate mfc tid
     return mfc
   where
     loop mfc = do
-        old <- swapWithNew mfc
-        new <- pruneWith old prune
-        update mfc (merge new)
+        mask_ $ do
+            old <- swapWithNew mfc
+            new <- pruneWith old prune
+            update mfc (merge new)
         threadDelay duration
         loop mfc
+
+terminate :: MutableFdCache -> ThreadId -> IO ()
+terminate (MutableFdCache icache) tid = do
+    killThread tid
+    readIORef icache >>= mapM_ go . toList
+  where
+    go (_, FdEntry _ fd _) = closeFd fd
 
 prune :: t -> Some FdEntry -> IO [(t, Some FdEntry)]
 prune k v@(One (FdEntry _ fd mst)) = status mst >>= prune'
