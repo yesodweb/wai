@@ -31,7 +31,7 @@ import qualified Data.Conduit.List as CL
 --
 -- Basically, if the user requested a \"text\/javascript\" and supplied a
 -- \"callback\" GET parameter, ask the application for an
--- \"application/json\" response, then convern that into a JSONP response,
+-- \"application/json\" response, then convert that into a JSONP response,
 -- having a content type of \"text\/javascript\" and calling the specified
 -- callback function.
 jsonp :: Middleware
