@@ -1,25 +1,26 @@
-import Data.ByteString.Char8 (unpack, pack)
+{-# LANGUAGE OverloadedStrings #-}
+
+import Data.ByteString.Char8 (pack)
 import Data.ByteString.Lazy (fromChunks)
+import Data.Text ()
+import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Enumerator
 import Network.Wai.Middleware.Gzip
 import Network.Wai.Middleware.Jsonp
-import Network.Wai.Middleware.CleanPath
-import Network.Wai.Handler.SimpleServer
+import Network.Wai.Handler.Warp
 
-app :: [String] -> Application
-app [] _ = return $ Response Status200 [] $ Right $ fromLBS
-                  $ fromChunks $ flip map [1..10000] $ \i -> pack $
-                concat
+app :: Application
+app request = return $ case pathInfo request of
+    [] -> responseLBS status200 []
+            $ fromChunks $ flip map [1..10000] $ \i -> pack $ concat
                     [ "<p>Just this same paragraph again. "
-                    , show i
+                    , show (i :: Int)
                     , "</p>"
                     ]
-app ["test.html"] _ = return $ Response Status200 [] $ Left "test.html"
-app ["json"] _ =return $ Response Status200
-                         [(ContentType, pack "application/json")]
-                       $ Left "json"
-app _ _ = return $ Response Status404 [] $ Left "../LICENSE"
+    ["test.html"] -> ResponseFile status200 [] "test.html" Nothing
+    ["json"]      -> ResponseFile status200 [(hContentType, "application/json")]
+                                               "json" Nothing
+    _             -> ResponseFile status404 [] "../LICENSE" Nothing
 
 main :: IO ()
-main = run 3000 $ jsonp $ gzip $ cleanPath app
+main = run 3000 $ gzip def $ jsonp app
