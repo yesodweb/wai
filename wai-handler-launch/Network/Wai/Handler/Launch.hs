@@ -8,6 +8,7 @@ module Network.Wai.Handler.Launch
     ) where
 
 import Network.Wai
+import Network.Wai.Internal
 import Network.HTTP.Types
 import qualified Network.Wai.Handler.Warp as Warp
 import Data.IORef
@@ -45,7 +46,7 @@ ping  var app req
             ResponseSource _ hs _
                 | not $ isHtml hs -> return res
             _ -> do
-                let (s, hs, body) = responseSource res
+                let (s, hs, body) = responseToSource req res
                 let (isEnc, headers') = fixHeaders id hs
                 let headers'' = filter (\(x, _) -> x /= "content-length") headers'
                 let fixEnc src =
@@ -60,7 +61,7 @@ ping  var app req
 toInsert :: S.ByteString
 toInsert = "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping\",false);x.send();},60000)</script>"
 
-insideHead :: Conduit (Flush S.ByteString) (ResourceT IO) (Flush S.ByteString)
+insideHead :: Conduit (Flush S.ByteString) IO (Flush S.ByteString)
 insideHead =
     loop' (S.empty, whole)
   where

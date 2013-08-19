@@ -16,7 +16,7 @@ import           Control.Monad.IO.Class (liftIO)
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import           Network.HTTP.Types (status200)
-import           Network.Wai (Application, Response(..))
+import           Network.Wai (Application, Response, responseSource)
 
 import Network.Wai.EventSource.EventStream
 
@@ -29,7 +29,7 @@ eventSourceAppChan chan _ = do
 
 -- | Make a new WAI EventSource application reading events from
 -- the given source.
-eventSourceAppSource :: Source (ResourceT IO) ServerEvent -> Application
+eventSourceAppSource :: Source IO ServerEvent -> Application
 eventSourceAppSource src _ = return $ response sourceToSource src
 
 -- | Make a new WAI EventSource application reading events from
@@ -37,13 +37,13 @@ eventSourceAppSource src _ = return $ response sourceToSource src
 eventSourceAppIO :: IO ServerEvent -> Application
 eventSourceAppIO act _ = return $ response ioToSource act
 
-response :: (a -> Source (ResourceT IO) (Flush Builder)) -> a -> Response
-response f a = ResponseSource status200 [("Content-Type", "text/event-stream")] $ f a
+response :: (a -> Source IO (Flush Builder)) -> a -> Response
+response f a = responseSource status200 [("Content-Type", "text/event-stream")] $ f a
 
-chanToSource :: Chan ServerEvent -> Source (ResourceT IO) (Flush Builder)
+chanToSource :: Chan ServerEvent -> Source IO (Flush Builder)
 chanToSource = ioToSource . readChan
 
-ioToSource :: IO ServerEvent -> Source (ResourceT IO) (Flush Builder)
+ioToSource :: IO ServerEvent -> Source IO (Flush Builder)
 ioToSource act =
     loop
   where

@@ -130,7 +130,7 @@ type File y = (S.ByteString, FileInfo y)
 -- type, and returns a `Sink` for storing the contents.
 type BackEnd a = S.ByteString -- ^ parameter name
               -> FileInfo ()
-              -> Sink S.ByteString (ResourceT IO) a
+              -> Sink S.ByteString IO a
 
 data RequestBodyType = UrlEncoded | Multipart S.ByteString
 
@@ -169,7 +169,7 @@ parseContentType a = do
 
 parseRequestBody :: BackEnd y
                  -> Request
-                 -> ResourceT IO ([Param], [File y])
+                 -> IO ([Param], [File y])
 parseRequestBody s r =
     case getRequestBodyType r of
         Nothing -> return ([], [])
@@ -177,12 +177,12 @@ parseRequestBody s r =
 
 sinkRequestBody :: BackEnd y
                 -> RequestBodyType
-                -> Sink S.ByteString (ResourceT IO) ([Param], [File y])
+                -> Sink S.ByteString IO ([Param], [File y])
 sinkRequestBody s r = fmap partitionEithers $ conduitRequestBody s r =$ CL.consume
 
 conduitRequestBody :: BackEnd y
                    -> RequestBodyType
-                   -> Conduit S.ByteString (ResourceT IO) (Either Param (File y))
+                   -> Conduit S.ByteString IO (Either Param (File y))
 conduitRequestBody _ UrlEncoded = do
     -- NOTE: in general, url-encoded data will be in a single chunk.
     -- Therefore, I'm optimizing for the usual case by sticking with
@@ -212,9 +212,9 @@ takeLine =
                     return $ Just $ killCR x
 
 #if MIN_VERSION_conduit(1, 0, 0)
-takeLines :: Consumer S.ByteString (ResourceT IO) [S.ByteString]
+takeLines :: Consumer S.ByteString IO [S.ByteString]
 #else
-takeLines :: Pipe S.ByteString S.ByteString o u (ResourceT IO) [S.ByteString]
+takeLines :: Pipe S.ByteString S.ByteString o u IO [S.ByteString]
 #endif
 takeLines = do
     res <- takeLine
@@ -229,9 +229,9 @@ takeLines = do
 parsePieces :: BackEnd y
             -> S.ByteString
 #if MIN_VERSION_conduit(1, 0, 0)
-            -> ConduitM S.ByteString (Either Param (File y)) (ResourceT IO) ()
+            -> ConduitM S.ByteString (Either Param (File y)) IO ()
 #else
-            -> Pipe S.ByteString S.ByteString (Either Param (File y)) u (ResourceT IO) ()
+            -> Pipe S.ByteString S.ByteString (Either Param (File y)) u IO ()
 #endif
 parsePieces sink bound =
     loop
@@ -308,9 +308,9 @@ sinkTillBound' :: S.ByteString
                -> FileInfo ()
                -> BackEnd y
 #if MIN_VERSION_conduit(1, 0, 0)
-               -> ConduitM S.ByteString o (ResourceT IO) (Bool, y)
+               -> ConduitM S.ByteString o IO (Bool, y)
 #else
-               -> Pipe S.ByteString S.ByteString o u (ResourceT IO) (Bool, y)
+               -> Pipe S.ByteString S.ByteString o u IO (Bool, y)
 #endif
 sinkTillBound' bound name fi sink =
 #if MIN_VERSION_conduit(1, 0, 0)
@@ -319,7 +319,7 @@ sinkTillBound' bound name fi sink =
     conduitTillBound bound >+> withUpstream (fix $ sink name fi)
   where
 #if MIN_VERSION_conduit(1, 0, 0)
-    fix :: Sink S8.ByteString (ResourceT IO) y -> Pipe Void S8.ByteString Void Bool (ResourceT IO) y
+    fix :: Sink S8.ByteString IO y -> Pipe Void S8.ByteString Void Bool IO y
     fix (ConduitM p) = ignoreTerm >+> injectLeftovers p
     ignoreTerm = await' >>= maybe (return ()) (\x -> yield' x >> ignoreTerm)
     await' = NeedInput (return . Just) (const $ return Nothing)
@@ -372,9 +372,9 @@ sinkTillBound :: S.ByteString
               -> (x -> S.ByteString -> IO x)
               -> x
 #if MIN_VERSION_conduit(1, 0, 0)
-              -> Consumer S.ByteString (ResourceT IO) (Bool, x)
+              -> Consumer S.ByteString IO (Bool, x)
 #else
-              -> Pipe S.ByteString S.ByteString o u (ResourceT IO) (Bool, x)
+              -> Pipe S.ByteString S.ByteString o u IO (Bool, x)
 #endif
 sinkTillBound bound iter seed0 =
 #if MIN_VERSION_conduit(1, 0, 0)

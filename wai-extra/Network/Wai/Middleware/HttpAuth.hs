@@ -16,14 +16,13 @@ import Network.HTTP.Types (status401)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import Data.String (IsString (..))
-import Control.Monad.Trans.Resource (ResourceT)
 import Data.Word8 (isSpace, _colon, toLower)
 import Data.ByteString.Base64 (decodeLenient)
 
 -- | Check if a given username and password is valid.
 type CheckCreds = ByteString
                -> ByteString
-               -> ResourceT IO Bool
+               -> IO Bool
 
 -- | Perform basic authentication.
 --
@@ -73,7 +72,7 @@ data AuthSettings = AuthSettings
     -- authentication is not provided.
     --
     -- Since 1.3.4
-    , authIsProtected :: !(Request -> ResourceT IO Bool)
+    , authIsProtected :: !(Request -> IO Bool)
     -- ^ Determine if access to the requested resource is restricted.
     --
     -- Default: always returns @True@.

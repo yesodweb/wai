@@ -4,6 +4,7 @@
 module Network.Wai.Middleware.Autohead (autohead) where
 
 import Network.Wai
+import Network.Wai.Internal
 import Data.Monoid (mempty)
 
 autohead :: Middleware

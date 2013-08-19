@@ -11,6 +11,7 @@ module Network.Wai.Handler.CGI
     ) where
 
 import Network.Wai
+import Network.Wai.Internal
 import Network.Socket (getAddrInfo, addrAddress)
 import System.Environment (getEnvironment)
 import Data.Maybe (fromMaybe)
@@ -25,6 +26,7 @@ import Blaze.ByteString.Builder (fromByteString, toLazyByteString)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromString)
 import Data.Conduit.Blaze (builderToByteStringFlush)
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Resource (withInternalState)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import System.IO (Handle)
 import Network.HTTP.Types (Status (..))
@@ -67,7 +69,7 @@ runSendfile sf app = do
 -- stick with 'run' or 'runSendfile'.
 runGeneric
      :: [(String, String)] -- ^ all variables
-     -> (Int -> Source (ResourceT IO) B.ByteString) -- ^ responseBody of input
+     -> (Int -> Source IO B.ByteString) -- ^ responseBody of input
      -> (B.ByteString -> IO ()) -- ^ destination for output
      -> Maybe B.ByteString -- ^ does the server support the X-Sendfile header?
      -> Application
@@ -76,8 +78,6 @@ runGeneric vars inputH outputH xsendfile app = do
     let rmethod = B.pack $ lookup' "REQUEST_METHOD" vars
         pinfo = lookup' "PATH_INFO" vars
         qstring = lookup' "QUERY_STRING" vars
-        servername = lookup' "SERVER_NAME" vars
-        serverport = safeRead 80 $ lookup' "SERVER_PORT" vars
         contentLength = safeRead 0 $ lookup' "CONTENT_LENGTH" vars
         remoteHost' =
             case lookup "REMOTE_ADDR" vars of
@@ -95,24 +95,21 @@ runGeneric vars inputH outputH xsendfile app = do
             case addrs of
                 a:_ -> addrAddress a
                 [] -> error $ "Invalid REMOTE_ADDR or REMOTE_HOST: " ++ remoteHost'
-    runResourceT $ do
+    runResourceT $ withInternalState $ \internalState -> do
         let env = Request
                 { requestMethod = rmethod
                 , rawPathInfo = B.pack pinfo
                 , pathInfo = H.decodePathSegments $ B.pack pinfo
                 , rawQueryString = B.pack qstring
                 , queryString = H.parseQuery $ B.pack qstring
-                , serverName = B.pack servername
-                , serverPort = serverport
                 , requestHeaders = map (cleanupVarName *** B.pack) vars
                 , isSecure = isSecure'
                 , remoteHost = addr
                 , httpVersion = H.http11 -- FIXME
                 , requestBody = inputH contentLength
                 , vault = mempty
-#if MIN_VERSION_wai(1, 4, 0)
                 , requestBodyLength = KnownLength $ fromIntegral contentLength
-#endif
+                , resourceInternalState = internalState
                 }
         -- FIXME worry about exception?
         res <- app env
@@ -120,7 +117,7 @@ runGeneric vars inputH outputH xsendfile app = do
             (Just sf, ResponseFile s hs fp Nothing) ->
                 liftIO $ mapM_ outputH $ L.toChunks $ toLazyByteString $ sfBuilder s hs sf fp
             _ -> do
-                let (s, hs, b) = responseSource res
+                let (s, hs, b) = responseToSource env res
                     src = CL.sourceList [Chunk $ headers s hs `mappend` fromChar '\n']
                           `mappend` b
                 src $$ builderSink
@@ -170,12 +167,12 @@ cleanupVarName s =
     helper' (x:rest) = toLower x : helper' rest
     helper' [] = []
 
-requestBodyHandle :: Handle -> Int -> Source (ResourceT IO) B.ByteString
+requestBodyHandle :: Handle -> Int -> Source IO B.ByteString
 requestBodyHandle h = requestBodyFunc $ \i -> do
     bs <- B.hGet h i
     return $ if B.null bs then Nothing else Just bs
 
-requestBodyFunc :: (Int -> IO (Maybe B.ByteString)) -> Int -> Source (ResourceT IO) B.ByteString
+requestBodyFunc :: (Int -> IO (Maybe B.ByteString)) -> Int -> Source IO B.ByteString
 requestBodyFunc get =
     loop
   where

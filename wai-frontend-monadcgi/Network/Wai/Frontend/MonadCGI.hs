@@ -67,6 +67,4 @@ getCgiVars e =
     [ ("PATH_INFO", S8.unpack $ rawPathInfo e)
     , ("REQUEST_METHOD", show $ requestMethod e)
     , ("QUERY_STRING", S8.unpack $ rawQueryString e)
-    , ("SERVER_NAME", S8.unpack $ serverName e)
-    , ("SERVER_PORT", show $ serverPort e)
     ]

@@ -20,11 +20,14 @@ module Network.Wai.Test
     , assertHeader
     , assertNoHeader
     ) where
+
 import Network.Wai
+import Network.Wai.Internal (Request (Request))
 import qualified Test.HUnit.Base as H
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.State (StateT, evalStateT)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
+import Control.Monad.Trans.Resource (withInternalState)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.ByteString (ByteString)
@@ -75,8 +78,6 @@ defaultRequest = Request
     , httpVersion = H.http11
     , rawPathInfo = "/"
     , rawQueryString = ""
-    , serverName = "localhost"
-    , serverPort = 80
     , requestHeaders = []
     , isSecure = False
     , remoteHost = SockAddrInet 0 0
@@ -84,9 +85,8 @@ defaultRequest = Request
     , queryString = []
     , requestBody = mempty
     , vault = mempty
-#if MIN_VERSION_wai(1, 4, 0)
     , requestBodyLength = KnownLength 0
-#endif
+    , resourceInternalState = error "Network.Wai.Test.defaultRequest: No resourceInternalState provided"
     }
 
 -- | Set whole path (request path + query string).
@@ -112,19 +112,22 @@ setRawPathInfo r rawPinfo =
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
     app <- ask
-    liftIO $ C.runResourceT $ do
-        let req' = req { requestBody = CL.sourceList $ L.toChunks bod }
+    liftIO $ C.runResourceT $ withInternalState $ \internalState -> do
+        let req' = req
+                { requestBody = CL.sourceList $ L.toChunks bod
+                , resourceInternalState = internalState
+                }
         res <- app req'
-        sres <- runResponse res
+        sres <- runResponse req' res
         -- FIXME cookie processing
         return sres
 
-runResponse :: Response -> C.ResourceT IO SResponse
-runResponse res = do
+runResponse :: Request -> Response -> IO SResponse
+runResponse req res = do
     bss <- body C.$= CL.map toBuilder C.$= builderToByteString C.$$ CL.consume
     return $ SResponse s h $ L.fromChunks bss
   where
-    (s, h, body) = responseSource res
+    (s, h, body) = responseToSource req res
     toBuilder (C.Chunk builder) = builder
     toBuilder C.Flush = flush
 

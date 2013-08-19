@@ -115,7 +115,7 @@ caseParseHttpAccept = do
 
 parseRequestBody' :: BackEnd L.ByteString
                   -> SRequest
-                  -> C.ResourceT IO ([(S.ByteString, S.ByteString)], [(S.ByteString, FileInfo L.ByteString)])
+                  -> IO ([(S.ByteString, S.ByteString)], [(S.ByteString, FileInfo L.ByteString)])
 parseRequestBody' sink (SRequest req bod) =
     case getRequestBodyType req of
         Nothing -> return ([], [])
@@ -123,7 +123,7 @@ parseRequestBody' sink (SRequest req bod) =
 
 caseParseRequestBody :: Assertion
 caseParseRequestBody =
-    C.runResourceT t
+    t
   where
     content2 = S8.pack $
         "--AaB03x\n" ++
@@ -187,7 +187,7 @@ caseParseRequestBody =
 
 caseMultipartPlus :: Assertion
 caseMultipartPlus = do
-    result <- C.runResourceT $ parseRequestBody' lbsBackEnd $ toRequest ctype content
+    result <- parseRequestBody' lbsBackEnd $ toRequest ctype content
     liftIO $ result @?= ([("email", "has+plus")], [])
   where
     content = S8.pack $
@@ -200,7 +200,7 @@ caseMultipartPlus = do
 
 caseMultipartAttrs :: Assertion
 caseMultipartAttrs = do
-    result <- C.runResourceT $ parseRequestBody' lbsBackEnd $ toRequest ctype content
+    result <- parseRequestBody' lbsBackEnd $ toRequest ctype content
     liftIO $ result @?= ([("email", "has+plus")], [])
   where
     content = S8.pack $
@@ -213,7 +213,7 @@ caseMultipartAttrs = do
 
 caseUrlEncPlus :: Assertion
 caseUrlEncPlus = do
-    result <- C.runResourceT $ parseRequestBody' lbsBackEnd $ toRequest ctype content
+    result <- parseRequestBody' lbsBackEnd $ toRequest ctype content
     liftIO $ result @?= ([("email", "has+plus")], [])
   where
     content = S8.pack $ "email=has%2Bplus"
@@ -357,19 +357,19 @@ vhostApp1, vhostApp2, vhostApp :: Application
 vhostApp1 = const $ return $ responseLBS status200 [] "app1"
 vhostApp2 = const $ return $ responseLBS status200 [] "app2"
 vhostApp = vhost
-    [ ((== "foo.com") . serverName, vhostApp1)
+    [ ((== Just "foo.com") . lookup "host" . requestHeaders, vhostApp1)
     ]
     vhostApp2
 
 caseVhost :: Assertion
 caseVhost = flip runSession vhostApp $ do
     sres1 <- request defaultRequest
-                { serverName = "foo.com"
+                { requestHeaders = [("Host", "foo.com")]
                 }
     assertBody "app1" sres1
 
     sres2 <- request defaultRequest
-                { serverName = "bar.com"
+                { requestHeaders = [("Host", "bar.com")]
                 }
     assertBody "app2" sres2
 
@@ -494,7 +494,7 @@ dalvikHelper includeLength = do
         case getRequestBodyType request' of
             Nothing -> return ([], [])
             Just rbt -> C.runResourceT $ sourceFile "test/requests/dalvik-request"
-                       C.$$ sinkRequestBody lbsBackEnd rbt
+                       C.$$ C.transPipe liftIO (sinkRequestBody lbsBackEnd rbt)
     lookup "scannedTime" params @?= Just "1.298590056748E9"
     lookup "geoLong" params @?= Just "0"
     lookup "geoLat" params @?= Just "0"

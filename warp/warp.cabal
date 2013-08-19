@@ -1,5 +1,5 @@
 Name:                warp
-Version:             1.5.0
+Version:             2.0.0
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -42,7 +42,7 @@ Library
                    , transformers              >= 0.2.2    && < 0.4
                    , unix-compat               >= 0.2
                    , void
-                   , wai                       >= 1.5      && < 1.6
+                   , wai                       >= 2.0      && < 2.1
                    , http-attoparsec
                    , resourcet
   if flag(network-bytestring)

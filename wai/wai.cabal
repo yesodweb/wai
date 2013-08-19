@@ -1,5 +1,5 @@
 Name:                wai
-Version:             1.5.0
+Version:             2.0.0
 Synopsis:            Web Application Interface.
 Description:         Provides a common protocol for communication between web applications and web servers.
 License:             MIT

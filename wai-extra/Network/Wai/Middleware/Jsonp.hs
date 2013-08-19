@@ -16,6 +16,7 @@
 module Network.Wai.Middleware.Jsonp (jsonp) where
 
 import Network.Wai
+import Network.Wai.Internal
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
 import Blaze.ByteString.Builder (copyByteString)
@@ -68,7 +69,7 @@ jsonp app env = do
             Just hs' -> addCallback c s hs' b
             Nothing -> return r
       where
-        (s, hs, b) = responseSource r
+        (s, hs, b) = responseToSource env r
 
     checkJSON hs =
         case lookup "Content-Type" hs of

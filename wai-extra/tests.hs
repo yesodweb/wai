@@ -1,4 +1,4 @@
-import Test.Hspec.Monadic
+import Test.Hspec
 import qualified WaiExtraTest
 
 main :: IO ()

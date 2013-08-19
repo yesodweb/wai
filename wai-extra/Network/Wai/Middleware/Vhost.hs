@@ -16,7 +16,7 @@ vhost vhosts def req =
 
 redirectWWW :: Text -> Application -> Application -- W.MiddleWare
 redirectWWW home app req =
-  if BS.isPrefixOf "www" $ serverName req
+  if maybe True (BS.isPrefixOf "www") $ lookup "host" $ requestHeaders req
     then return $ responseLBS H.status301
           [ ("Content-Type", "text/plain") , ("Location", TE.encodeUtf8 home) ] "Redirect"
     else app req

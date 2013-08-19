@@ -12,7 +12,6 @@ import Network.Wai
 import Network.HTTP.Types           (parseQuery)
 import Data.Monoid                  (mconcat)
 import Data.Conduit.Lazy            (lazyConsume)
-import Control.Monad.Trans.Resource (ResourceT)
 import Data.Conduit.List            (sourceList)
 
 -- | Allows overriding of the HTTP request method via the _method post string parameter.
@@ -31,7 +30,7 @@ methodOverridePost app req = case (requestMethod req, lookup "Content-Type" (req
   ("POST", Just "application/x-www-form-urlencoded") -> setPost req >>= app
   _                                                  -> app req
 
-setPost :: Request -> ResourceT IO Request
+setPost :: Request -> IO Request
 setPost req = do
   body <- lazyConsume (requestBody req)
   case parseQuery (mconcat body) of

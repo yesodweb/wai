@@ -187,7 +187,7 @@ detailedMiddleware cb useColors = do
       ]
 
 detailedMiddleware' :: Callback
-                    -> (C.ResourceT IO (BS.ByteString -> [BS.ByteString]))
+                    -> IO (BS.ByteString -> [BS.ByteString])
                     -> Middleware
 detailedMiddleware' cb getAddColor app req = do
     let mlen = lookup "content-length" (requestHeaders req) >>= readInt
@@ -245,7 +245,7 @@ detailedMiddleware' cb getAddColor app req = do
     allPostParams body =
         case getRequestBodyType req of
             Nothing -> return ([], [])
-            Just rbt -> C.runResourceT $ CL.sourceList body C.$$ sinkRequestBody lbsBackEnd rbt
+            Just rbt -> CL.sourceList body C.$$ sinkRequestBody lbsBackEnd rbt
 
     emptyGetParam :: (BS.ByteString, Maybe BS.ByteString) -> (BS.ByteString, BS.ByteString)
     emptyGetParam (k, Just v) = (k,v)

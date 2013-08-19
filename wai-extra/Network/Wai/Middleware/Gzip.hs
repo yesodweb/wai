@@ -40,6 +40,7 @@ import Data.Conduit.Blaze (builderToByteStringFlush)
 import Blaze.ByteString.Builder (fromByteString)
 import Control.Exception (try, SomeException)
 import qualified Data.Set as Set
+import Network.Wai.Internal
 
 data GzipSettings = GzipSettings
     { gzipFiles :: GzipFiles
@@ -84,7 +85,7 @@ gzip set app env = do
                                 Just m
                                     | gzipCheckMime set m -> liftIO $ compressFile s hs file cache
                                 _ -> return res
-                        _ -> return $ compressE set res
+                        _ -> return $ compressE set env res
                 else return res
   where
     enc = fromMaybe [] $ (splitCommas . S8.unpack)
@@ -119,9 +120,10 @@ compressFile s hs file cache = do
     safe _ = '_'
 
 compressE :: GzipSettings
+          -> Request
           -> Response
           -> Response
-compressE set res =
+compressE set req res =
     case lookup "content-type" hs of
         Just m | gzipCheckMime set m ->
             let hs' = fixHeaders hs
@@ -130,7 +132,7 @@ compressE set res =
                                          C.$= CL.map (fmap fromByteString)
         _ -> res
   where
-    (s, hs, b) = responseSource res
+    (s, hs, b) = responseToSource req res
 
 -- Remove Content-Length header, since we will certainly have a
 -- different length after gzip compression.

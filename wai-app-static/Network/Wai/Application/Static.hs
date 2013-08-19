@@ -85,7 +85,7 @@ serveFolder ss@StaticSettings {..} pieces req folder@Folder {..} =
                 Just listing -> do
                     -- directory listings turned on, display it
                     builder <- listing pieces folder
-                    return $ WaiResponse $ W.ResponseBuilder H.status200
+                    return $ WaiResponse $ W.responseBuilder H.status200
                         [ ("Content-Type", "text/html; charset=utf-8")
                         ] builder
                 Nothing -> return $ WaiResponse $ W.responseLBS H.status403

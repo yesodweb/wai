@@ -91,7 +91,7 @@ fileHelper hashFunc fp name = do
         Left (_ :: SomeException) -> return Nothing
         Right fs | isRegularFile fs -> return $ Just File
             { fileGetSize = fromIntegral $ fileSize fs
-            , fileToResponse = \s h -> W.ResponseFile s h (F.encodeString fp) Nothing
+            , fileToResponse = \s h -> W.responseFile s h (F.encodeString fp) Nothing
             , fileName = name
             , fileGetHash = hashFunc fp
             , fileGetModified = Just $ modificationTime fs
