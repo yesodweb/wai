@@ -80,22 +80,15 @@ data Request = Request
   -- /will/ include the leading question mark.
   -- Do not modify this raw value- modify queryString instead.
   ,  rawQueryString :: B.ByteString
-  -- | Generally the host requested by the user via the Host request header.
-  -- Backends are free to provide alternative values as necessary. This value
-  -- should not be used to construct URLs.
-  ,  serverName     :: B.ByteString
-  -- | The listening port that the server received this request on. It is
-  -- possible for a server to listen on a non-numeric port (i.e., Unix named
-  -- socket), in which case this value will be arbitrary. Like 'serverName',
-  -- this value should not be used in URL construction.
-  ,  serverPort     :: Int
   ,  requestHeaders :: H.RequestHeaders
   -- | Was this request made over an SSL connection?
   --
-  -- This value should /not/ be used, and will be removed in future revisions
-  -- of WAI. There is no meaningful way that a backend can indicate whether the
-  -- request is actually over a secure channel, due to issues of reverse
-  -- proxying.
+  -- Note that this value will /not/ tell you if the client originally made
+  -- this request over SSL, but rather whether the current connection is SSL.
+  -- The distinction lies with reverse proxies. In many cases, the client will
+  -- connect to a load balancer over SSL, but connect to the WAI handler
+  -- without SSL. In such a case, @isSecure@ will be @False@, but from a user
+  -- perspective, there is a secure connection.
   ,  isSecure       :: Bool
   -- | The client\'s host information.
   ,  remoteHost     :: SockAddr
