@@ -28,4 +28,5 @@ Library
                    , vault                     >= 0.1      && < 0.3
                    , resourcet                 >= 0.4.7
   Exposed-modules:   Network.Wai
+                     Network.Wai.Internal
   ghc-options:       -Wall

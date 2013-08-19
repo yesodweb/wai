@@ -1,6 +1,4 @@
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-|
 
 This module defines a generic web application interface. It is a common
@@ -37,108 +35,57 @@ include:
 -}
 module Network.Wai
     ( -- * WAI interface
-      Request (..)
-    , Response (..)
+      -- ** Request
+      Request
+    , requestMethod
+    , httpVersion
+    , rawPathInfo
+    , rawQueryString
+    , requestHeaders
+    , isSecure
+    , remoteHost
+    , pathInfo
+    , queryString
+    , requestBody
+    , vault
+    , requestBodyLength
+    , resourceInternalState
+      -- ** Response
+    , Response
+    , responseFile
+    , responseBuilder
     , responseSource
+    , responseLBS
+      -- ** Other types
     , Application
     , Middleware
     , FilePart (..)
     , RequestBodyLength (..)
-      -- * Response body smart constructors
-    , responseLBS
+      -- ** Helper functions
+    , responseToSource
     , responseStatus
     ) where
 
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
-import Data.Typeable (Typeable)
-import qualified Data.Conduit as C
-import qualified Data.Conduit.List as CL
-import qualified Data.Conduit.Binary as CB
-import Blaze.ByteString.Builder (Builder, fromLazyByteString)
-import Network.Socket (SockAddr)
-import qualified Network.HTTP.Types as H
-import Data.Text (Text)
-import Data.ByteString.Lazy.Char8 () -- makes it easier to use responseLBS
-import Blaze.ByteString.Builder (fromByteString)
-import Data.Vault (Vault)
-import Data.Word (Word64)
+import           Blaze.ByteString.Builder     (Builder, fromLazyByteString)
+import           Blaze.ByteString.Builder     (fromByteString)
 import qualified Control.Monad.Trans.Resource as Res
+import qualified Data.ByteString              as B
+import qualified Data.ByteString.Lazy         as L
+import           Data.ByteString.Lazy.Char8   ()
+import qualified Data.Conduit                 as C
+import qualified Data.Conduit.Binary          as CB
+import qualified Data.Conduit.List            as CL
+import qualified Network.HTTP.Types           as H
+import           Network.Wai.Internal
 
--- | Information on the request sent by the client. This abstracts away the
--- details of the underlying implementation.
-data Request = Request
-  {  requestMethod  :: H.Method
-  ,  httpVersion    :: H.HttpVersion
-  -- | Extra path information sent by the client. The meaning varies slightly
-  -- depending on backend; in a standalone server setting, this is most likely
-  -- all information after the domain name. In a CGI application, this would be
-  -- the information following the path to the CGI executable itself.
-  -- Do not modify this raw value- modify pathInfo instead.
-  ,  rawPathInfo    :: B.ByteString
-  -- | If no query string was specified, this should be empty. This value
-  -- /will/ include the leading question mark.
-  -- Do not modify this raw value- modify queryString instead.
-  ,  rawQueryString :: B.ByteString
-  ,  requestHeaders :: H.RequestHeaders
-  -- | Was this request made over an SSL connection?
-  --
-  -- Note that this value will /not/ tell you if the client originally made
-  -- this request over SSL, but rather whether the current connection is SSL.
-  -- The distinction lies with reverse proxies. In many cases, the client will
-  -- connect to a load balancer over SSL, but connect to the WAI handler
-  -- without SSL. In such a case, @isSecure@ will be @False@, but from a user
-  -- perspective, there is a secure connection.
-  ,  isSecure       :: Bool
-  -- | The client\'s host information.
-  ,  remoteHost     :: SockAddr
-  -- | Path info in individual pieces- the url without a hostname/port and without a query string, split on forward slashes,
-  ,  pathInfo       :: [Text]
-  -- | Parsed query string information
-  ,  queryString    :: H.Query
-  ,  requestBody    :: C.Source IO B.ByteString
-  -- | A location for arbitrary data to be shared by applications and middleware.
-  , vault           :: Vault
-  -- | The size of the request body. In the case of a chunked request body, this may be unknown.
-  --
-  -- Since 1.4.0
-  , requestBodyLength :: RequestBodyLength
-  -- | The internal @ResourceT@ state, used for allocating scarce resources
-  -- will in an application.
-  --
-  -- Since 1.5.0
-  , resourceInternalState :: Res.InternalState
-  }
-  deriving (Typeable)
+responseFile :: H.Status -> H.ResponseHeaders -> FilePath -> Maybe FilePart -> Response
+responseFile = ResponseFile
 
--- |
---
--- Some questions and answers about the usage of 'Builder' here:
---
--- Q1. Shouldn't it be at the user's discretion to use Builders internally and
--- then create a stream of ByteStrings?
---
--- A1. That would be less efficient, as we wouldn't get cheap concatenation
--- with the response headers.
---
--- Q2. Isn't it really inefficient to convert from ByteString to Builder, and
--- then right back to ByteString?
---
--- A2. No. If the ByteStrings are small, then they will be copied into a larger
--- buffer, which should be a performance gain overall (less system calls). If
--- they are already large, then blaze-builder uses an InsertByteString
--- instruction to avoid copying.
---
--- Q3. Doesn't this prevent us from creating comet-style servers, since data
--- will be cached?
---
--- A3. You can force blaze-builder to output a ByteString before it is an
--- optimal size by sending a flush command.
-data Response
-    = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
-    | ResponseBuilder H.Status H.ResponseHeaders Builder
-    | ResponseSource H.Status H.ResponseHeaders (C.Source IO (C.Flush Builder))
-  deriving Typeable
+responseBuilder :: H.Status -> H.ResponseHeaders -> Builder -> Response
+responseBuilder = ResponseBuilder
+
+responseSource :: H.Status -> H.ResponseHeaders -> C.Source IO (C.Flush Builder) -> Response
+responseSource = ResponseSource
 
 responseStatus :: Response -> H.Status
 responseStatus rsp =
@@ -147,24 +94,19 @@ responseStatus rsp =
       ResponseBuilder s _ _   -> s
       ResponseSource  s _ _   -> s
 
-data FilePart = FilePart
-    { filePartOffset :: Integer
-    , filePartByteCount :: Integer
-    } deriving Show
-
-responseSource :: Request
+responseToSource :: Request
                -> Response
                -> (H.Status, H.ResponseHeaders, C.Source IO (C.Flush Builder))
-responseSource _ (ResponseSource s h b) = (s, h, b)
-responseSource req (ResponseFile s h fp (Just part)) =
+responseToSource _ (ResponseSource s h b) = (s, h, b)
+responseToSource req (ResponseFile s h fp (Just part)) =
     (s, h, transRes (sourceFilePart part fp) C.$= CL.map (C.Chunk . fromByteString))
   where
     transRes = C.transPipe (flip Res.runInternalState (resourceInternalState req))
-responseSource req (ResponseFile s h fp Nothing) =
+responseToSource req (ResponseFile s h fp Nothing) =
     (s, h, transRes (CB.sourceFile fp) C.$= CL.map (C.Chunk . fromByteString))
   where
     transRes = C.transPipe (flip Res.runInternalState (resourceInternalState req))
-responseSource _ (ResponseBuilder s h b) =
+responseToSource _ (ResponseBuilder s h b) =
     (s, h, CL.sourceList [C.Chunk b])
 
 sourceFilePart :: C.MonadResource m => FilePart -> FilePath -> C.Source m B.ByteString
@@ -191,9 +133,3 @@ type Application = Request -> IO Response
 -- Here, instead of taking a standard 'Application' as its first argument, the
 -- middleware takes a function which consumes the session information as well.
 type Middleware = Application -> Application
-
--- | The size of the request body. In the case of chunked bodies, the size will
--- not be known.
---
--- Since 1.4.0
-data RequestBodyLength = ChunkedBody | KnownLength Word64
