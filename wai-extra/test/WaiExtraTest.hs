@@ -15,6 +15,7 @@ import qualified Data.Text.Lazy as T
 import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
 import Control.Arrow
+import Control.Monad.Trans.Resource (getInternalState)
 
 import Network.Wai.Middleware.Jsonp
 import Network.Wai.Middleware.Gzip
@@ -119,7 +120,7 @@ parseRequestBody' :: BackEnd L.ByteString
 parseRequestBody' sink (SRequest req bod) =
     case getRequestBodyType req of
         Nothing -> return ([], [])
-        Just rbt -> CL.sourceList (L.toChunks bod) C.$$ sinkRequestBody sink rbt
+        Just rbt -> CL.sourceList (L.toChunks bod) C.$$ sinkRequestBody (resourceInternalState req) sink rbt
 
 caseParseRequestBody :: Assertion
 caseParseRequestBody =
@@ -493,8 +494,10 @@ dalvikHelper includeLength = do
     (params, files) <-
         case getRequestBodyType request' of
             Nothing -> return ([], [])
-            Just rbt -> C.runResourceT $ sourceFile "test/requests/dalvik-request"
-                       C.$$ C.transPipe liftIO (sinkRequestBody lbsBackEnd rbt)
+            Just rbt -> C.runResourceT $ do
+                internalState <- getInternalState
+                sourceFile "test/requests/dalvik-request"
+                       C.$$ C.transPipe liftIO (sinkRequestBody internalState lbsBackEnd rbt)
     lookup "scannedTime" params @?= Just "1.298590056748E9"
     lookup "geoLong" params @?= Just "0"
     lookup "geoLat" params @?= Just "0"

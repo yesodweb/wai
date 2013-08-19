@@ -51,13 +51,9 @@ import qualified Network.HTTP.Types as H
 import Data.Either (partitionEithers)
 import Control.Monad (when, unless)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Resource (allocate, release, register)
-#if MIN_VERSION_conduit(1, 0, 0)
+import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
 import Data.Conduit.Internal (Pipe (NeedInput, HaveOutput), (>+>), withUpstream, injectLeftovers, ConduitM (..))
 import Data.Void (Void)
-#else
-import Data.Conduit.Internal (sinkToPipe)
-#endif
 
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
@@ -130,7 +126,7 @@ type File y = (S.ByteString, FileInfo y)
 -- type, and returns a `Sink` for storing the contents.
 type BackEnd a = S.ByteString -- ^ parameter name
               -> FileInfo ()
-              -> Sink S.ByteString IO a
+              -> Sink S.ByteString (ResourceT IO) a
 
 data RequestBodyType = UrlEncoded | Multipart S.ByteString
 
@@ -173,30 +169,28 @@ parseRequestBody :: BackEnd y
 parseRequestBody s r =
     case getRequestBodyType r of
         Nothing -> return ([], [])
-        Just rbt -> fmap partitionEithers $ requestBody r $$ conduitRequestBody s rbt =$ CL.consume
+        Just rbt -> fmap partitionEithers $ requestBody r $$ conduitRequestBody (resourceInternalState r) s rbt =$ CL.consume
 
-sinkRequestBody :: BackEnd y
+sinkRequestBody :: InternalState
+                -> BackEnd y
                 -> RequestBodyType
                 -> Sink S.ByteString IO ([Param], [File y])
-sinkRequestBody s r = fmap partitionEithers $ conduitRequestBody s r =$ CL.consume
+sinkRequestBody internalState s r = fmap partitionEithers $ conduitRequestBody internalState s r =$ CL.consume
 
-conduitRequestBody :: BackEnd y
+conduitRequestBody :: InternalState
+                   -> BackEnd y
                    -> RequestBodyType
                    -> Conduit S.ByteString IO (Either Param (File y))
-conduitRequestBody _ UrlEncoded = do
+conduitRequestBody _ _ UrlEncoded = do
     -- NOTE: in general, url-encoded data will be in a single chunk.
     -- Therefore, I'm optimizing for the usual case by sticking with
     -- strict byte strings here.
     bs <- CL.consume
     mapM_ yield $ map Left $ H.parseSimpleQuery $ S.concat bs
-conduitRequestBody backend (Multipart bound) =
-    parsePieces backend $ S8.pack "--" `S.append` bound
+conduitRequestBody internalState backend (Multipart bound) =
+    parsePieces internalState backend $ S8.pack "--" `S.append` bound
 
-#if MIN_VERSION_conduit(1, 0, 0)
 takeLine :: Monad m => Consumer S.ByteString m (Maybe S.ByteString)
-#else
-takeLine :: Monad m => Pipe S.ByteString S.ByteString o u m (Maybe S.ByteString)
-#endif
 takeLine =
     go id
   where
@@ -211,11 +205,7 @@ takeLine =
                     when (S.length y > 1) $ leftover $ S.drop 1 y
                     return $ Just $ killCR x
 
-#if MIN_VERSION_conduit(1, 0, 0)
 takeLines :: Consumer S.ByteString IO [S.ByteString]
-#else
-takeLines :: Pipe S.ByteString S.ByteString o u IO [S.ByteString]
-#endif
 takeLines = do
     res <- takeLine
     case res of
@@ -226,14 +216,11 @@ takeLines = do
                 ls <- takeLines
                 return $ l : ls
 
-parsePieces :: BackEnd y
+parsePieces :: InternalState
+            -> BackEnd y
             -> S.ByteString
-#if MIN_VERSION_conduit(1, 0, 0)
             -> ConduitM S.ByteString (Either Param (File y)) IO ()
-#else
-            -> Pipe S.ByteString S.ByteString (Either Param (File y)) u IO ()
-#endif
-parsePieces sink bound =
+parsePieces internalState sink bound =
     loop
   where
     loop = do
@@ -251,7 +238,7 @@ parsePieces sink bound =
                 Just (mct, name, Just filename) -> do
                     let ct = fromMaybe "application/octet-stream" mct
                         fi0 = FileInfo filename ct ()
-                    (wasFound, y) <- sinkTillBound' bound name fi0 sink
+                    (wasFound, y) <- sinkTillBound' internalState bound name fi0 sink
                     yield $ Right (name, fi0 { fileContent = y })
                     when wasFound loop
                 Just (_ct, name, Nothing) -> do
@@ -303,45 +290,30 @@ findBound b bs = handleBreak $ Search.breakOn b bs
         | S.index b x == S.index bs y = mismatch xs ys
         | otherwise = True
 
-sinkTillBound' :: S.ByteString
+sinkTillBound' :: InternalState
+               -> S.ByteString
                -> S.ByteString
                -> FileInfo ()
                -> BackEnd y
-#if MIN_VERSION_conduit(1, 0, 0)
                -> ConduitM S.ByteString o IO (Bool, y)
-#else
-               -> Pipe S.ByteString S.ByteString o u IO (Bool, y)
-#endif
-sinkTillBound' bound name fi sink =
-#if MIN_VERSION_conduit(1, 0, 0)
+sinkTillBound' internalState bound name fi sink =
     ConduitM $ anyOutput $
-#endif
     conduitTillBound bound >+> withUpstream (fix $ sink name fi)
   where
-#if MIN_VERSION_conduit(1, 0, 0)
-    fix :: Sink S8.ByteString IO y -> Pipe Void S8.ByteString Void Bool IO y
-    fix (ConduitM p) = ignoreTerm >+> injectLeftovers p
+    fix :: Sink S8.ByteString (ResourceT IO) y -> Pipe Void S8.ByteString Void Bool IO y
+    fix p = ignoreTerm >+> injectLeftovers (unConduitM $ transPipe (flip runInternalState internalState) p)
     ignoreTerm = await' >>= maybe (return ()) (\x -> yield' x >> ignoreTerm)
     await' = NeedInput (return . Just) (const $ return Nothing)
     yield' = HaveOutput (return ()) (return ())
 
     anyOutput p = p >+> dropInput
     dropInput = NeedInput (const dropInput) return
-#else
-    fix = sinkToPipe
-#endif
 
 conduitTillBound :: Monad m
                  => S.ByteString -- bound
-#if MIN_VERSION_conduit(1, 0, 0)
                  -> Pipe S.ByteString S.ByteString S.ByteString () m Bool
-#else
-                 -> Pipe S.ByteString S.ByteString S.ByteString u m Bool
-#endif
 conduitTillBound bound =
-#if MIN_VERSION_conduit(1, 0, 0)
     unConduitM $
-#endif
     go id
   where
     go front = await >>= maybe (close front) (push front)
@@ -371,26 +343,16 @@ conduitTillBound bound =
 sinkTillBound :: S.ByteString
               -> (x -> S.ByteString -> IO x)
               -> x
-#if MIN_VERSION_conduit(1, 0, 0)
               -> Consumer S.ByteString IO (Bool, x)
-#else
-              -> Pipe S.ByteString S.ByteString o u IO (Bool, x)
-#endif
 sinkTillBound bound iter seed0 =
-#if MIN_VERSION_conduit(1, 0, 0)
     ConduitM $
-#endif
     (conduitTillBound bound >+> (withUpstream $ ij $ CL.foldM iter' seed0))
   where
     iter' a b = liftIO $ iter a b
-#if MIN_VERSION_conduit(1, 0, 0)
     ij (ConduitM p) = ignoreTerm >+> injectLeftovers p
     ignoreTerm = await' >>= maybe (return ()) (\x -> yield' x >> ignoreTerm)
     await' = NeedInput (return . Just) (const $ return Nothing)
     yield' = HaveOutput (return ()) (return ())
-#else
-    ij = id
-#endif
 
 parseAttrs :: S.ByteString -> [(S.ByteString, S.ByteString)]
 parseAttrs = map go . S.split 59 -- semicolon

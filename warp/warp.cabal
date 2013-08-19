@@ -51,6 +51,7 @@ Library
   else
       Build-Depends: network               >= 2.3
   Exposed-modules:   Network.Wai.Handler.Warp
+                     Network.Wai.Handler.Warp.Timeout
   Other-modules:     Network.Wai.Handler.Warp.Conduit
                      Network.Wai.Handler.Warp.ReadInt
                      Network.Wai.Handler.Warp.Request
@@ -58,7 +59,6 @@ Library
                      Network.Wai.Handler.Warp.ResponseHeader
                      Network.Wai.Handler.Warp.Run
                      Network.Wai.Handler.Warp.Settings
-                     Network.Wai.Handler.Warp.Timeout
                      Network.Wai.Handler.Warp.Types
                      Paths_warp
   Ghc-Options:       -Wall

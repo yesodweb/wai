@@ -245,7 +245,7 @@ detailedMiddleware' cb getAddColor app req = do
     allPostParams body =
         case getRequestBodyType req of
             Nothing -> return ([], [])
-            Just rbt -> CL.sourceList body C.$$ sinkRequestBody lbsBackEnd rbt
+            Just rbt -> CL.sourceList body C.$$ sinkRequestBody (resourceInternalState req) lbsBackEnd rbt
 
     emptyGetParam :: (BS.ByteString, Maybe BS.ByteString) -> (BS.ByteString, BS.ByteString)
     emptyGetParam (k, Just v) = (k,v)

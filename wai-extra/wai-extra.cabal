@@ -36,7 +36,7 @@ Library
                    , date-cache                >= 0.3      && < 0.4
                    , fast-logger               >= 0.2      && < 0.4
                    , wai-logger                >= 0.2      && < 0.4
-                   , conduit                   >= 0.5      && < 1.1
+                   , conduit                   >= 1.0      && < 1.1
                    , zlib-conduit              >= 0.5      && < 1.1
                    , blaze-builder-conduit     >= 0.5      && < 1.1
                    , ansi-terminal
@@ -86,6 +86,7 @@ test-suite tests
                    , data-default
                    , conduit
                    , fast-logger
+                   , resourcet
     ghc-options:       -Wall
 
 source-repository head
