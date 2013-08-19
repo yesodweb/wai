@@ -21,6 +21,7 @@ import Data.Maybe (isJust, listToMaybe)
 import Data.Monoid (mappend)
 import qualified Network.HTTP.Types as H
 import Network.Wai
+import Network.Wai.Internal
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.ResponseHeader as RH

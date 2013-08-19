@@ -14,13 +14,12 @@ import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import qualified Data.IORef as I
-import Data.Maybe (fromMaybe)
 import Data.Monoid (mempty)
-import Data.Void (Void)
 import Data.Word (Word8)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
+import Network.Wai.Internal
 import Network.Wai.Handler.Warp.Conduit
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Types
@@ -36,12 +35,12 @@ parseRequest
              :: Connection
              -> Timeout.Handle
              -> Res.InternalState
-             -> Port -> SockAddr
+             -> SockAddr
              -> Source IO ByteString
              -> IO (Request, IO (ResumableSource IO ByteString))
-parseRequest conn timeoutHandle internalState port remoteHost' src1 = do
+parseRequest conn timeoutHandle internalState remoteHost' src1 = do
     (src2, headers') <- src1 $$+ takeHeaders
-    parseRequest' conn timeoutHandle internalState port headers' remoteHost' src2
+    parseRequest' conn timeoutHandle internalState headers' remoteHost' src2
 
 handleExpect :: Connection
              -> H.HttpVersion
@@ -61,27 +60,24 @@ handleExpect conn hv front (x:xs) = handleExpect conn hv (front . (x:)) xs
 parseRequest' :: Connection
               -> Timeout.Handle
               -> Res.InternalState
-              -> Port
               -> [ByteString]
               -> SockAddr
               -> ResumableSource IO ByteString -- FIXME was buffered
               -> IO (Request, IO (ResumableSource IO ByteString))
-parseRequest' _ _ _ _ [] _ _ = throwIO $ NotEnoughLines []
-parseRequest' conn timeoutHandle internalState port (firstLine:otherLines) remoteHost' src = do
+parseRequest' _ _ _ [] _ _ = throwIO $ NotEnoughLines []
+parseRequest' conn timeoutHandle internalState (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
-    let (host',rpath)
-            | S.null rpath' = ("", "/")
-            | "http://" `S.isPrefixOf` rpath' = S.breakByte 47 $ S.drop 7 rpath'
-            | otherwise = ("", rpath')
+    let rpath
+            | S.null rpath' = "/"
+            | "http://" `S.isPrefixOf` rpath' = snd $ S.breakByte 47 $ S.drop 7 rpath'
+            | otherwise = rpath'
     heads <- liftIO
            $ handleExpect conn httpversion id
              (map parseHeaderNoAttr otherLines)
-    let host = fromMaybe host' $ lookup hHost heads
     let len0 =
             case lookup H.hContentLength heads of
                 Nothing -> 0
                 Just bs -> readInt bs
-    let serverName' = takeUntil 58 host -- ':'
     let chunked = maybe False ((== "chunked") . CI.foldCase)
                   $ lookup hTransferEncoding heads
     (rbody, getSource) <-
@@ -100,8 +96,6 @@ parseRequest' conn timeoutHandle internalState port (firstLine:otherLines) remot
             , rawPathInfo = rpath
             , rawQueryString = gets
             , queryString = H.parseQuery gets
-            , serverName = serverName'
-            , serverPort = port
             , requestHeaders = heads
             , isSecure = False
             , remoteHost = remoteHost'
