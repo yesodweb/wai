@@ -13,7 +13,6 @@ import Control.Monad
 import Data.Hashable
 import Data.IORef
 import Network.Wai.Handler.Warp.MultiMap
-import System.Mem.Weak (addFinalizer)
 import System.Posix.IO
 import System.Posix.Types
 
@@ -50,7 +49,7 @@ newFdEntry path = FdEntry path
 
 type Hash = Int
 type FdCache = MMap Hash FdEntry
-newtype MutableFdCache = MutableFdCache (IORef FdCache)
+newtype MutableFdCache = MutableFdCache { unMutableFdCache :: IORef FdCache }
 
 newMutableFdCache :: IO MutableFdCache
 newMutableFdCache = MutableFdCache <$> newIORef empty
@@ -82,7 +81,7 @@ initialize :: Int -> IO MutableFdCache
 initialize duration = do
     mfc <- newMutableFdCache
     tid <- forkIO $ loop mfc
-    addFinalizer mfc $ terminate mfc tid
+    _ <- mkWeakIORef (unMutableFdCache mfc) $ terminate mfc tid
     return mfc
   where
     loop mfc = do
