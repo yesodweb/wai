@@ -25,7 +25,7 @@ module Network.Wai.Middleware.Gzip
     ) where
 
 import Network.Wai
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString as S
 import Data.Default
@@ -76,7 +76,7 @@ gzip set app env = do
     res <- app env
     case res of
         ResponseFile{} | gzipFiles set == GzipIgnore -> return res
-        _ -> if "gzip" `elem` enc && not isMSIE6
+        _ -> if "gzip" `elem` enc && not isMSIE6 && not (isEncoded res)
                 then
                     case (res, gzipFiles set) of
                         (ResponseFile s hs file Nothing, GzipCacheFolder cache) ->
@@ -91,6 +91,11 @@ gzip set app env = do
                     `fmap` lookup "Accept-Encoding" (requestHeaders env)
     ua = fromMaybe "" $ lookup "user-agent" $ requestHeaders env
     isMSIE6 = "MSIE 6" `S.isInfixOf` ua
+    responseHeaders res = case res of
+                            ResponseFile _ h _ _  -> h
+                            ResponseBuilder _ h _ -> h
+                            ResponseSource _ h _  -> h
+    isEncoded res = isJust $ lookup "Content-Encoding" $ responseHeaders res
 
 compressFile :: Status -> [Header] -> FilePath -> FilePath -> IO Response
 compressFile s hs file cache = do
