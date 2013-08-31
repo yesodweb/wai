@@ -63,6 +63,7 @@ specs = do
     it "jsonp" caseJsonp
     it "gzip" caseGzip
     it "gzip not for MSIE" caseGzipMSIE
+    it "gzip bypass when precompressed" caseGzipBypassPre
     it "defaultCheckMime" caseDefaultCheckMime
     it "vhost" caseVhost
     it "autohead" caseAutohead
@@ -318,6 +319,14 @@ gzipApp = gzip def $ const $ return $ responseLBS status200
     [("Content-Type", "text/plain")]
     "test"
 
+-- Lie a little and don't compress the body.  This way we test
+-- that the compression is skipped based on the presence of
+-- the Content-Encoding header.
+gzipPrecompressedApp :: Application
+gzipPrecompressedApp = gzip def $ const $ return $ responseLBS status200
+    [("Content-Type", "text/plain"), ("Content-Encoding", "gzip")]
+    "test"
+
 caseGzip :: Assertion
 caseGzip = flip runSession gzipApp $ do
     sres1 <- request defaultRequest
@@ -352,6 +361,14 @@ caseGzipMSIE = flip runSession gzipApp $ do
                 }
     assertNoHeader "Content-Encoding" sres1
     liftIO $ simpleBody sres1 @?= "test"
+
+caseGzipBypassPre :: Assertion
+caseGzipBypassPre = flip runSession gzipPrecompressedApp $ do
+    sres1 <- request defaultRequest
+                { requestHeaders = [("Accept-Encoding", "gzip")]
+                }
+    assertHeader "Content-Encoding" "gzip" sres1
+    assertBody "test" sres1 -- the body is not actually compressed
 
 vhostApp1, vhostApp2, vhostApp :: Application
 vhostApp1 = const $ return $ responseLBS status200 [] "app1"
