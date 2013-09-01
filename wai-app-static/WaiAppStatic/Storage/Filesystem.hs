@@ -27,7 +27,7 @@ import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime, isRe
 import Data.Maybe (catMaybes)
 import qualified Crypto.Conduit
 import Data.Serialize (encode)
-import Crypto.Hash.MD5 (MD5)
+import Crypto.Hash.CryptoAPI (MD5)
 import qualified Data.ByteString.Base64 as B64
 
 -- | Construct a new path from a root and some @Pieces@.
