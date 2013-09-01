@@ -1,5 +1,5 @@
 -- | Lookup files stored in memory instead of from the filesystem.
-module WaiAppStatic.Storage.Embedded
+module WaiAppStatic.Storage.Embedded.Runtime
     ( -- * Settings
       embeddedSettings
     ) where
