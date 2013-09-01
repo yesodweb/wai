@@ -15,7 +15,8 @@ import Data.Function (on)
 import qualified Data.Text as T
 import Data.Ord
 import qualified Data.ByteString as S
-import qualified Crypto.Hash.MD5 as MD5
+import qualified Crypto.Classes as CR
+import Crypto.Hash.CryptoAPI (hash', MD5)
 import qualified Data.ByteString.Base64 as B64
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 
@@ -89,4 +90,4 @@ bsToFile name bs = File
     }
 
 runHash :: ByteString -> ByteString
-runHash = B64.encode . MD5.hash
+runHash = B64.encode . CR.encode . (hash' :: S.ByteString -> MD5)
