@@ -46,6 +46,7 @@ Library
                    , containers
                    , base64-bytestring
                    , word8
+                   , lifted-base
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
