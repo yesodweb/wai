@@ -37,7 +37,8 @@ library
                    , text                      >= 0.7
                    , blaze-builder             >= 0.2.1.4
                    , base64-bytestring         >= 0.1
-                   , cryptohash                >= 0.7
+                   , crypto-api                >= 0.12.2
+                   , cryptohash-cryptoapi      >= 0.1.0
                    , system-filepath           >= 0.4
                    , system-fileio             >= 0.3
                    , http-date

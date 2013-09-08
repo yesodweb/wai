@@ -1,5 +1,6 @@
 {-# OPTIONS_HADDOCK not-home #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE CPP #-}
 -- | Internal constructors and helper functions. Note that no guarantees are
 -- given for stability of these interfaces.
 module Network.Wai.Internal where
@@ -10,7 +11,11 @@ import qualified Data.ByteString              as B
 import qualified Data.Conduit                 as C
 import           Data.Text                    (Text)
 import           Data.Typeable                (Typeable)
-import           Data.Vault                   (Vault)
+#if MIN_VERSION_vault(0,3,0)
+import Data.Vault.Lazy (Vault)
+#else
+import Data.Vault (Vault)
+#endif
 import           Data.Word                    (Word64)
 import qualified Network.HTTP.Types           as H
 import           Network.Socket               (SockAddr)

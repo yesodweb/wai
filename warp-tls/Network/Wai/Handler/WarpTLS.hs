@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -46,6 +47,9 @@ import Crypto.Random.AESCtr (makeSystem)
 import Control.Exception (Exception, throwIO)
 import Data.Typeable (Typeable)
 import qualified Data.Conduit.Binary as CB
+#if MIN_VERSION_tls(1, 1, 3)
+import qualified Crypto.Random.AESCtr
+#endif
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -117,7 +121,11 @@ runTLSSocket TLSSettings {..} set sock app = do
                     return bs
             if maybe False ((== 0x16) . fst) (firstBS >>= B.uncons)
                 then do
+#if MIN_VERSION_tls(1, 1, 3)
+                    gen <- Crypto.Random.AESCtr.makeSystem
+#else
                     gen <- makeSystem
+#endif
                     ctx <- TLS.contextNew
                         TLS.Backend
                             { TLS.backendFlush = return ()
