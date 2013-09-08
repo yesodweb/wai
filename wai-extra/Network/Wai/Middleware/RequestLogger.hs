@@ -34,7 +34,7 @@ import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 
 import System.Console.ANSI
-import Data.IORef
+import Data.IORef.Lifted
 import System.IO.Unsafe
 
 import Data.Default (Default (def))
@@ -198,7 +198,24 @@ detailedMiddleware' cb getAddColor app req = do
                  body <- requestBody req C.$$ CL.consume
                  -- logging the body here consumes it, so fill it back up
                  -- obviously not efficient, but this is the development logger
-                 let req' = req { requestBody = CL.sourceList body }
+                 --
+                 -- Note: previously, we simply used CL.sourceList. However,
+                 -- that meant that you could read the request body in twice.
+                 -- While that in itself is not a problem, the issue is that,
+                 -- in production, you wouldn't be able to do this, and
+                 -- therefore some bugs wouldn't show up during testing. This
+                 -- implementation ensures that each chunk is only returned
+                 -- once.
+                 ichunks <- newIORef body
+                 let rbody = do
+                        chunks <- readIORef ichunks
+                        case chunks of
+                            [] -> return ()
+                            x:xs -> do
+                                writeIORef ichunks xs
+                                C.yield x
+                                rbody
+                 let req' = req { requestBody = rbody }
                  return (req', body)
             _ -> return (req, [])
 
