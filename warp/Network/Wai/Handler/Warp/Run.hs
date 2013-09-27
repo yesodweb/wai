@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Network.Wai.Handler.Warp.Run where
@@ -18,6 +19,8 @@ import Network (sClose, Socket)
 import Network.Sendfile
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
+import Data.Monoid (mempty)
+import qualified Network.HTTP.Types as H
 import Network.Wai
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
@@ -233,7 +236,8 @@ serveConnection :: T.Handle
                 -> Cleaner
                 -> Port -> Application -> Connection -> SockAddr-> IO ()
 serveConnection timeoutHandle settings cleaner port app conn remoteHost' =
-    runResourceT serveConnection'
+    respondOnException settings cleaner conn remoteHost' $
+        runResourceT serveConnection'
   where
     innerRunResourceT
         | settingsResourceTPerRequest settings = lift . runResourceT
@@ -264,6 +268,14 @@ serveConnection timeoutHandle settings cleaner port app conn remoteHost' =
                 liftIO $ T.pause th
                 ResumableSource fromClient' _ <- liftIO getSource
                 intercept fromClient' conn
+
+respondOnException :: Settings -> Cleaner -> Connection -> SockAddr -> IO () -> IO ()
+respondOnException settings cleaner conn remoteHost' io = io `catch` \e@(SomeException _) -> do
+    _ <- runResourceT $ sendResponse settings cleaner blankRequest conn internalError
+    throwIO e
+  where
+    blankRequest = Request H.methodGet H.http10 mempty mempty mempty 0 [] False remoteHost' [] [] (return mempty) mempty (KnownLength 0)
+    internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
 connSource :: Connection -> T.Handle -> Source (ResourceT IO) ByteString
 connSource Connection { connRecv = recv } th = src
