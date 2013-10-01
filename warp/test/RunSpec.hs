@@ -118,7 +118,7 @@ runTerminateTest :: InvalidRequest
 runTerminateTest expected input = do
     ref <- I.newIORef Nothing
     withApp defaultSettings
-      { settingsOnException = \e -> I.writeIORef ref $ Just e
+      { settingsOnException = \_ e -> I.writeIORef ref $ Just e
       } dummyApp $ \port -> do
         handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
         hPutStr handle input

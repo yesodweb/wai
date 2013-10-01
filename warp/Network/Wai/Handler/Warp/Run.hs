@@ -5,6 +5,7 @@ module Network.Wai.Handler.Warp.Run where
 
 import Control.Concurrent (threadDelay, forkIOWithUnmask)
 import Control.Exception
+import qualified Control.Exception.Lifted as Lifted
 import Control.Monad (forever, when, unless, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Control.Monad.Trans.Resource as Res
@@ -200,7 +201,7 @@ runSettingsConnectionMaker set getConn app = do
                  in unmask .
                     -- Call the user-supplied on exception code if any
                     -- exceptions are thrown.
-                    handle onE .
+                    handle (onE Nothing) .
 
                     -- Call the user-supplied code for connection open and close events
                     bracket_ onOpen onClose $
@@ -210,7 +211,7 @@ runSettingsConnectionMaker set getConn app = do
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
     getConnLoop = getConn `catch` \(e :: IOException) -> do
-        onE (toException e)
+        onE Nothing (toException e)
         -- "resource exhausted (Too many open files)" may happen by accept().
         -- Wait a second hoping that resource will be available.
         threadDelay 1000000
@@ -241,9 +242,11 @@ serveConnection timeoutHandle settings cleaner app conn remoteHost' =
         | otherwise = f env
     th = threadHandle cleaner
 
+    onE env = liftIO . settingsOnException settings env
+
     serveConnection'' fromClient internalState = do
         (env, getSource) <- parseRequest conn timeoutHandle internalState remoteHost' fromClient
-        case settingsIntercept settings env of
+        Lifted.handle (onE (Just env)) $ case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
                 liftIO $ T.pause th
