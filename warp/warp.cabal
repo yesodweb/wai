@@ -84,6 +84,7 @@ Test-Suite spec
                    , case-insensitive          >= 0.2
                    , conduit                   >= 0.5
                    , ghc-prim
+                   , HTTP
                    , http-types                >= 0.7
                    , lifted-base               >= 0.1
                    , network-conduit
