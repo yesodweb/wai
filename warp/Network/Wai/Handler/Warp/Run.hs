@@ -5,7 +5,7 @@ module Network.Wai.Handler.Warp.Run where
 
 import Control.Concurrent (threadDelay, forkIOWithUnmask)
 import qualified Control.Concurrent as Conc (yield)
-import Control.Exception
+import Control.Exception as E
 import qualified Control.Exception.Lifted as Lifted
 import Control.Monad (forever, when, unless, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -26,7 +26,6 @@ import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import Prelude hiding (catch)
 
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
@@ -207,7 +206,7 @@ runSettingsConnectionMaker set getConn app = do
                     serveConnection th set cleaner app conn addr
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
-    getConnLoop = getConn `catch` \(e :: IOException) -> do
+    getConnLoop = getConn `E.catch` \(e :: IOException) -> do
         onE Nothing (toException e)
         -- "resource exhausted (Too many open files)" may happen by accept().
         -- Wait a second hoping that resource will be available.
