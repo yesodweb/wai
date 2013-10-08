@@ -28,10 +28,6 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Prelude hiding (catch)
 
--- Sock.recv first tries to call recvfrom() optimistically.
--- If EAGAIN returns, it polls incoming data with epoll/kqueue.
--- This code first polls incoming data with epoll/kqueue.
-
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
 import Network.Socket (withSocketsDo)
