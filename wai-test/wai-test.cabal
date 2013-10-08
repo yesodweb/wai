@@ -27,7 +27,6 @@ library
                    , http-types                >= 0.7
                    , case-insensitive          >= 0.2
                    , network
-                   , resourcet
     exposed-modules: Network.Wai.Test
     ghc-options:     -Wall
 

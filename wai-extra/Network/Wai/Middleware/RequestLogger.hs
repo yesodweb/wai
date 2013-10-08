@@ -26,6 +26,7 @@ import Network.Wai (Request(..), Middleware, responseStatus, Response)
 import System.Log.FastLogger
 import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe)
+import Control.Monad.Trans.Resource (withInternalState)
 
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, getRequestBodyType)
 import qualified Data.ByteString.Lazy as LBS
@@ -262,7 +263,8 @@ detailedMiddleware' cb getAddColor app req = do
     allPostParams body =
         case getRequestBodyType req of
             Nothing -> return ([], [])
-            Just rbt -> CL.sourceList body C.$$ sinkRequestBody (resourceInternalState req) lbsBackEnd rbt
+            Just rbt -> C.runResourceT $ withInternalState $ \internalState ->
+                        CL.sourceList body C.$$ sinkRequestBody internalState lbsBackEnd rbt
 
     emptyGetParam :: (BS.ByteString, Maybe BS.ByteString) -> (BS.ByteString, BS.ByteString)
     emptyGetParam (k, Just v) = (k,v)

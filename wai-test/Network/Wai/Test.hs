@@ -27,7 +27,6 @@ import qualified Test.HUnit.Base as H
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.State (StateT, evalStateT)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
-import Control.Monad.Trans.Resource (withInternalState)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.ByteString (ByteString)
@@ -86,7 +85,6 @@ defaultRequest = Request
     , requestBody = mempty
     , vault = mempty
     , requestBodyLength = KnownLength 0
-    , resourceInternalState = error "Network.Wai.Test.defaultRequest: No resourceInternalState provided"
     }
 
 -- | Set whole path (request path + query string).
@@ -112,22 +110,19 @@ setRawPathInfo r rawPinfo =
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
     app <- ask
-    liftIO $ C.runResourceT $ withInternalState $ \internalState -> do
-        let req' = req
-                { requestBody = CL.sourceList $ L.toChunks bod
-                , resourceInternalState = internalState
-                }
-        res <- app req'
-        sres <- runResponse req' res
-        -- FIXME cookie processing
-        return sres
+    let req' = req
+            { requestBody = CL.sourceList $ L.toChunks bod
+            }
+    liftIO $ app req' >>= runResponse
+    -- FIXME cookie processing
+    --return sres
 
-runResponse :: Request -> Response -> IO SResponse
-runResponse req res = do
-    bss <- body C.$= CL.map toBuilder C.$= builderToByteString C.$$ CL.consume
+runResponse :: Response -> IO SResponse
+runResponse res = do
+    bss <- withBody $ \body -> body C.$= CL.map toBuilder C.$= builderToByteString C.$$ CL.consume
     return $ SResponse s h $ L.fromChunks bss
   where
-    (s, h, body) = responseToSource req res
+    (s, h, withBody) = responseToSource res
     toBuilder (C.Chunk builder) = builder
     toBuilder C.Flush = flush
 

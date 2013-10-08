@@ -46,14 +46,14 @@ ping  var app req
             ResponseSource _ hs _
                 | not $ isHtml hs -> return res
             _ -> do
-                let (s, hs, body) = responseToSource req res
+                let (s, hs, withBody) = responseToSource res
                 let (isEnc, headers') = fixHeaders id hs
                 let headers'' = filter (\(x, _) -> x /= "content-length") headers'
                 let fixEnc src =
                         if isEnc then
                             src $= decompressFlush (WindowBits 31)
                             else src
-                return $ ResponseSource s headers''
+                return $ ResponseSource s headers'' $ \f -> withBody $ \body -> f
                     $ fixEnc (body $= builderToByteStringFlush)
                     $= insideHead
                     $= CL.map (fmap fromByteString)

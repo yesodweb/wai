@@ -25,7 +25,6 @@ import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Types
 import Prelude hiding (lines)
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout
-import qualified Control.Monad.Trans.Resource as Res
 
 -- FIXME come up with good values here
 maxTotalHeaderLength :: Int
@@ -34,13 +33,12 @@ maxTotalHeaderLength = 50 * 1024
 parseRequest
              :: Connection
              -> Timeout.Handle
-             -> Res.InternalState
              -> SockAddr
              -> Source IO ByteString
              -> IO (Request, IO (ResumableSource IO ByteString))
-parseRequest conn timeoutHandle internalState remoteHost' src1 = do
+parseRequest conn timeoutHandle remoteHost' src1 = do
     (src2, headers') <- src1 $$+ takeHeaders
-    parseRequest' conn timeoutHandle internalState headers' remoteHost' src2
+    parseRequest' conn timeoutHandle headers' remoteHost' src2
 
 handleExpect :: Connection
              -> H.HttpVersion
@@ -59,13 +57,12 @@ handleExpect conn hv front (x:xs) = handleExpect conn hv (front . (x:)) xs
 -- | Parse a set of header lines and body into a 'Request'.
 parseRequest' :: Connection
               -> Timeout.Handle
-              -> Res.InternalState
               -> [ByteString]
               -> SockAddr
               -> ResumableSource IO ByteString -- FIXME was buffered
               -> IO (Request, IO (ResumableSource IO ByteString))
-parseRequest' _ _ _ [] _ _ = throwIO $ NotEnoughLines []
-parseRequest' conn timeoutHandle internalState (firstLine:otherLines) remoteHost' src = do
+parseRequest' _ _ [] _ _ = throwIO $ NotEnoughLines []
+parseRequest' conn timeoutHandle (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
     let rpath
             | S.null rpath' = "/"
@@ -116,7 +113,6 @@ parseRequest' conn timeoutHandle internalState (firstLine:otherLines) remoteHost
                     then ChunkedBody
                     else KnownLength $ fromIntegral len0
 #endif
-            , resourceInternalState = internalState
             }, getSource)
 
 {-# INLINE takeUntil #-}

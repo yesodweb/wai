@@ -15,7 +15,7 @@ import qualified Data.Text.Lazy as T
 import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
 import Control.Arrow
-import Control.Monad.Trans.Resource (getInternalState)
+import Control.Monad.Trans.Resource (getInternalState, withInternalState, runResourceT)
 
 import Network.Wai.Middleware.Jsonp
 import Network.Wai.Middleware.Gzip
@@ -121,7 +121,8 @@ parseRequestBody' :: BackEnd L.ByteString
 parseRequestBody' sink (SRequest req bod) =
     case getRequestBodyType req of
         Nothing -> return ([], [])
-        Just rbt -> CL.sourceList (L.toChunks bod) C.$$ sinkRequestBody (resourceInternalState req) sink rbt
+        Just rbt -> runResourceT $ withInternalState $ \is ->
+                    CL.sourceList (L.toChunks bod) C.$$ sinkRequestBody is sink rbt
 
 caseParseRequestBody :: Assertion
 caseParseRequestBody =

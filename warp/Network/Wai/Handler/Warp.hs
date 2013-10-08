@@ -32,7 +32,6 @@ module Network.Wai.Handler.Warp (
   , settingsIntercept
   , settingsManager
   , settingsFdCacheDuration
-  , settingsResourceTPerRequest
   , settingsBeforeMainLoop
   , settingsServerName
     -- ** Data types
