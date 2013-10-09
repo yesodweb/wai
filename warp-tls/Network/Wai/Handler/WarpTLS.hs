@@ -150,11 +150,11 @@ runTLSSocket TLSSettings {..} set sock app = do
                     return conn
                 else
                     case onInsecure of
-                        AllowInsecure ->
-                            let conn = (socketConnection s)
+                        AllowInsecure -> do
+                            conn' <- socketConnection s
+                            return conn'
                                     { connRecv = getNext $ fmap (fromMaybe B.empty) C.await
                                     }
-                             in return conn
                         DenyInsecure lbs -> do
                             let src = do
                                     C.yield "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
