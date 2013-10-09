@@ -113,7 +113,7 @@ runSettingsSocket set socket app =
   where
     getConn = do
         (s, sa) <- accept socket
-        setSocketCloseOnExec socket
+        setSocketCloseOnExec s
         conn <- socketConnection s
         return (conn, sa)
 
