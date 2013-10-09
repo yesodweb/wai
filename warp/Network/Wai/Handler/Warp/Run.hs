@@ -131,7 +131,7 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
 --
 -- Since 1.3.5
 runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
-runSettingsConnectionMaker set getConn app = do
+runSettingsConnectionMaker set getConnMaker app = do
 #if SENDFILEFD
     let duration = settingsFdCacheDuration set
     fc <- case duration of
@@ -208,7 +208,7 @@ runSettingsConnectionMaker set getConn app = do
                     serveConnection th set cleaner app conn addr
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
-    getConnLoop = getConn `E.catch` \(e :: IOException) -> do
+    getConnLoop = getConnMaker `E.catch` \(e :: IOException) -> do
         onE Nothing (toException e)
         -- "resource exhausted (Too many open files)" may happen by accept().
         -- Wait a second hoping that resource will be available.
