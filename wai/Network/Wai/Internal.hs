@@ -1,12 +1,12 @@
 {-# OPTIONS_HADDOCK not-home #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE RankNTypes #-}
 -- | Internal constructors and helper functions. Note that no guarantees are
 -- given for stability of these interfaces.
 module Network.Wai.Internal where
 
 import           Blaze.ByteString.Builder     (Builder)
-import qualified Control.Monad.Trans.Resource as Res
 import qualified Data.ByteString              as B
 import qualified Data.Conduit                 as C
 import           Data.Text                    (Text)
@@ -58,11 +58,6 @@ data Request = Request
   --
   -- Since 1.4.0
   , requestBodyLength     :: RequestBodyLength
-  -- | The internal @ResourceT@ state, used for allocating scarce resources
-  -- will in an application.
-  --
-  -- Since 1.5.0
-  , resourceInternalState :: Res.InternalState
   }
   deriving (Typeable)
 
@@ -92,8 +87,10 @@ data Request = Request
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
-    | ResponseSource H.Status H.ResponseHeaders (C.Source IO (C.Flush Builder))
+    | ResponseSource H.Status H.ResponseHeaders (forall b. WithSource IO (C.Flush Builder) b)
   deriving Typeable
+
+type WithSource m a b = (C.Source m a -> m b) -> m b
 
 -- | The size of the request body. In the case of chunked bodies, the size will
 -- not be known.

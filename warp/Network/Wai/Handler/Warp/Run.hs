@@ -9,7 +9,6 @@ import Control.Exception as E
 import qualified Control.Exception.Lifted as Lifted
 import Control.Monad (forever, when, unless, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Control.Monad.Trans.Resource as Res
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import Data.Conduit
@@ -229,28 +228,24 @@ serveConnection :: T.Handle
                 -> Cleaner
                 -> Application -> Connection -> SockAddr-> IO ()
 serveConnection timeoutHandle settings cleaner app conn remoteHost' =
-    runResourceT $ Res.withInternalState $ serveConnection'' $ connSource conn th
+    serveConnection'' $ connSource conn th
   where
-    innerRunResourceT env f
-        | settingsResourceTPerRequest settings = runResourceT $ Res.withInternalState $ \is' -> f env
-            { resourceInternalState = is'
-            }
-        | otherwise = f env
     th = threadHandle cleaner
 
-    onE env = liftIO . settingsOnException settings env
-
-    serveConnection'' fromClient internalState = do
-        (env, getSource) <- parseRequest conn timeoutHandle internalState remoteHost' fromClient
-        Lifted.handle (onE (Just env)) $ case settingsIntercept settings env of
+    serveConnection'' fromClient = do
+        (env, getSource) <- parseRequest conn timeoutHandle remoteHost' fromClient
+        case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
                 liftIO $ T.pause th
-                keepAlive <- innerRunResourceT env $ \env' -> do
-                    res <- app env'
 
+                -- In the event that some scarce resource was acquired during
+                -- creating the request, we need to make sure that we don't get
+                -- an async exception before calling the ResponseSource.
+                keepAlive <- mask $ \restore -> do
+                    res <- restore $ app env
                     liftIO $ T.resume th
-                    sendResponse settings cleaner env' conn res
+                    sendResponse settings cleaner env conn restore res
 
                 -- | We just send a Response and it takes a time to
                 --   receive a Request again. If we immediately call recv,
@@ -265,7 +260,7 @@ serveConnection timeoutHandle settings cleaner app conn remoteHost' =
                 requestBody env $$ CL.sinkNull
                 ResumableSource fromClient' _ <- liftIO getSource
 
-                when keepAlive $ serveConnection'' fromClient' internalState
+                when keepAlive $ serveConnection'' fromClient'
             Just intercept -> do
                 liftIO $ T.pause th
                 ResumableSource fromClient' _ <- liftIO getSource

@@ -28,11 +28,6 @@ data Settings = Settings
     , settingsIntercept :: Request -> Maybe (Source IO S.ByteString -> Connection -> IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     , settingsFdCacheDuration :: Int -- ^ Cache duratoin time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 10
-    , settingsResourceTPerRequest :: Bool
-      -- ^ If @True@, each request\/response pair will run in a separate
-      -- @ResourceT@. This provides more intuitive behavior for dynamic code,
-      -- but can hinder performance in high-throughput cases. File servers can
-      -- safely set to @False@ for increased performance. Default is @True@.
     , settingsBeforeMainLoop :: IO ()
       -- ^ Code to run after the listening socket is ready but before entering
       -- the main event loop. Useful for signaling to tests that they can start
@@ -62,7 +57,6 @@ defaultSettings = Settings
     , settingsIntercept = const Nothing
     , settingsManager = Nothing
     , settingsFdCacheDuration = 10
-    , settingsResourceTPerRequest = True
     , settingsBeforeMainLoop = return ()
     , settingsServerName = S8.pack $ "Warp/" ++ warpVersion
     }

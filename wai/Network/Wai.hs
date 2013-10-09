@@ -50,7 +50,6 @@ module Network.Wai
     , requestBody
     , vault
     , requestBodyLength
-    , resourceInternalState
       -- ** Response
     , Response
     , responseFile
@@ -62,6 +61,7 @@ module Network.Wai
     , Middleware
     , FilePart (..)
     , RequestBodyLength (..)
+    , WithSource
       -- ** Helper functions
     , responseToSource
     , responseStatus
@@ -69,7 +69,6 @@ module Network.Wai
 
 import           Blaze.ByteString.Builder     (Builder, fromLazyByteString)
 import           Blaze.ByteString.Builder     (fromByteString)
-import qualified Control.Monad.Trans.Resource as Res
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as L
 import           Data.ByteString.Lazy.Char8   ()
@@ -78,6 +77,7 @@ import qualified Data.Conduit.Binary          as CB
 import qualified Data.Conduit.List            as CL
 import qualified Network.HTTP.Types           as H
 import           Network.Wai.Internal
+import qualified System.IO                    as IO
 
 responseFile :: H.Status -> H.ResponseHeaders -> FilePath -> Maybe FilePart -> Response
 responseFile = ResponseFile
@@ -86,7 +86,7 @@ responseBuilder :: H.Status -> H.ResponseHeaders -> Builder -> Response
 responseBuilder = ResponseBuilder
 
 responseSource :: H.Status -> H.ResponseHeaders -> C.Source IO (C.Flush Builder) -> Response
-responseSource = ResponseSource
+responseSource st hs src = ResponseSource st hs ($ src)
 
 responseStatus :: Response -> H.Status
 responseStatus rsp =
@@ -95,24 +95,19 @@ responseStatus rsp =
       ResponseBuilder s _ _   -> s
       ResponseSource  s _ _   -> s
 
-responseToSource :: Request
-               -> Response
-               -> (H.Status, H.ResponseHeaders, C.Source IO (C.Flush Builder))
-responseToSource _ (ResponseSource s h b) = (s, h, b)
-responseToSource req (ResponseFile s h fp (Just part)) =
-    (s, h, transRes (sourceFilePart part fp) C.$= CL.map (C.Chunk . fromByteString))
-  where
-    transRes = C.transPipe (flip Res.runInternalState (resourceInternalState req))
-responseToSource req (ResponseFile s h fp Nothing) =
-    (s, h, transRes (CB.sourceFile fp) C.$= CL.map (C.Chunk . fromByteString))
-  where
-    transRes = C.transPipe (flip Res.runInternalState (resourceInternalState req))
-responseToSource _ (ResponseBuilder s h b) =
-    (s, h, CL.sourceList [C.Chunk b])
+responseToSource :: Response
+                 -> (H.Status, H.ResponseHeaders, WithSource IO (C.Flush Builder) b)
+responseToSource (ResponseSource s h b) = (s, h, b)
+responseToSource (ResponseFile s h fp (Just part)) =
+    (s, h, \f -> IO.withFile fp IO.ReadMode $ \handle -> f $ sourceFilePart handle part C.$= CL.map (C.Chunk . fromByteString))
+responseToSource (ResponseFile s h fp Nothing) =
+    (s, h, \f -> IO.withFile fp IO.ReadMode $ \handle -> f $ CB.sourceHandle handle C.$= CL.map (C.Chunk . fromByteString))
+responseToSource (ResponseBuilder s h b) =
+    (s, h, ($ CL.sourceList [C.Chunk b]))
 
-sourceFilePart :: C.MonadResource m => FilePart -> FilePath -> C.Source m B.ByteString
-sourceFilePart (FilePart offset count) fp =
-    CB.sourceFileRange fp (Just offset) (Just count)
+sourceFilePart :: IO.Handle -> FilePart -> C.Source IO B.ByteString
+sourceFilePart handle (FilePart offset count) =
+    CB.sourceHandleRange handle (Just offset) (Just count)
 
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString

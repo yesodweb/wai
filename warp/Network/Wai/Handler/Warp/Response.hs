@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Network.Wai.Handler.Warp.Response (
     sendResponse
@@ -35,13 +36,15 @@ import Numeric (showInt)
 ----------------------------------------------------------------
 
 sendResponse :: Settings
-             -> Cleaner -> Request -> Connection -> Response
+             -> Cleaner -> Request -> Connection
+             -> (forall a. IO a -> IO a) -- ^ restore masking state
+             -> Response
              -> IO Bool
 
 ----------------------------------------------------------------
 
-sendResponse settings cleaner req conn (ResponseFile s0 hs0 path mpart0) =
-    headerAndLength >>= sendResponse'
+sendResponse settings cleaner req conn restore (ResponseFile s0 hs0 path mpart0) =
+    restore $ headerAndLength >>= sendResponse'
   where
     hs = addAccept hs0
     th = threadHandle cleaner
@@ -95,14 +98,14 @@ sendResponse settings cleaner req conn (ResponseFile s0 hs0 path mpart0) =
         (isPersist,_) = infoFromRequest req
 
     sendResponse' (Left (_ :: SomeException)) =
-        sendResponse settings cleaner req conn notFound
+        sendResponse settings cleaner req conn restore notFound
       where
         notFound = responseLBS H.status404 [(H.hContentType, "text/plain")] "File not found"
 
 ----------------------------------------------------------------
 
-sendResponse settings cleaner req conn (ResponseBuilder s hs b)
-  | hasBody s req = liftIO $ do
+sendResponse settings cleaner req conn restore (ResponseBuilder s hs b)
+  | hasBody s req = restore $ do
       header <- composeHeaderBuilder settings version s hs needsChunked
       let body
             | needsChunked = header `mappend` chunkedTransferEncoding b
@@ -112,7 +115,7 @@ sendResponse settings cleaner req conn (ResponseBuilder s hs b)
           connSendAll conn bs
           T.tickle th
       return isKeepAlive
-  | otherwise = liftIO $ do
+  | otherwise = restore $ do
       composeHeader settings version s hs >>= connSendAll conn
       T.tickle th
       return isPersist
@@ -124,24 +127,26 @@ sendResponse settings cleaner req conn (ResponseBuilder s hs b)
 
 ----------------------------------------------------------------
 
-sendResponse settings cleaner req conn (ResponseSource s hs bodyFlush)
-  | hasBody s req = do
+sendResponse settings cleaner req conn restore (ResponseSource s hs withBodyFlush)
+  | hasBody s req = withBodyFlush $ \bodyFlush -> restore $ do
       header <- liftIO $ composeHeaderBuilder settings version s hs needsChunked
-      let src = CL.sourceList [header] `mappend` cbody
+      let src = CL.sourceList [header] `mappend` cbody bodyFlush
       src $$ builderToByteString =$ connSink conn th
       return isKeepAlive
-  | otherwise = liftIO $ do
+  | otherwise = withBodyFlush $ \_bodyFlush -> restore $ do -- make sure any cleanup is called
       composeHeader settings version s hs >>= connSendAll conn
       T.tickle th
       return isPersist
   where
     th = threadHandle cleaner
-    body =
-           mapOutput (\x -> case x of
-                    Flush -> flush
-                    Chunk builder -> builder)
-           bodyFlush
-    cbody = if needsChunked then body $= chunk else body
+    cbody bodyFlush =
+        if needsChunked then body $= chunk else body
+      where
+        body =
+               mapOutput (\x -> case x of
+                        Flush -> flush
+                        Chunk builder -> builder)
+               bodyFlush
     -- FIXME perhaps alloca a buffer per thread and reuse that in all
     -- functions below. Should lessen greatly the GC burden (I hope)
     chunk :: Conduit Builder IO Builder

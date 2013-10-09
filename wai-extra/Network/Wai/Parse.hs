@@ -51,7 +51,7 @@ import qualified Network.HTTP.Types as H
 import Data.Either (partitionEithers)
 import Control.Monad (when, unless)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
+import Control.Monad.Trans.Resource (allocate, release, register, InternalState, withInternalState, runInternalState)
 import Data.Conduit.Internal (Pipe (NeedInput, HaveOutput), (>+>), withUpstream, injectLeftovers, ConduitM (..))
 import Data.Void (Void)
 
@@ -169,7 +169,8 @@ parseRequestBody :: BackEnd y
 parseRequestBody s r =
     case getRequestBodyType r of
         Nothing -> return ([], [])
-        Just rbt -> fmap partitionEithers $ requestBody r $$ conduitRequestBody (resourceInternalState r) s rbt =$ CL.consume
+        Just rbt -> runResourceT $ withInternalState $ \internalState ->
+                    fmap partitionEithers $ requestBody r $$ conduitRequestBody internalState s rbt =$ CL.consume
 
 sinkRequestBody :: InternalState
                 -> BackEnd y

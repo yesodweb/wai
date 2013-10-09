@@ -19,7 +19,7 @@ import Network.Wai
 import Network.Wai.Internal
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
-import Blaze.ByteString.Builder (copyByteString)
+import Blaze.ByteString.Builder (Builder, copyByteString)
 import Blaze.ByteString.Builder.Char8 (fromChar)
 import Data.Monoid (mappend)
 import Control.Monad (join)
@@ -27,6 +27,8 @@ import Data.Maybe (fromMaybe)
 import qualified Data.ByteString as S
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
+import Data.CaseInsensitive (CI)
+import Network.HTTP.Types (Status)
 
 -- | Wrap json responses in a jsonp callback.
 --
@@ -52,24 +54,24 @@ jsonp app env = do
                                            $ requestHeaders env
                         }
     res <- app env'
-    case callback of
-        Nothing -> return res
+    return $ case callback of
+        Nothing -> res
         Just c -> go c res
   where
     go c r@(ResponseBuilder s hs b) =
         case checkJSON hs of
-            Nothing -> return r
-            Just hs' -> return $ ResponseBuilder s hs' $
+            Nothing -> r
+            Just hs' -> ResponseBuilder s hs' $
                 copyByteString c
                 `mappend` fromChar '('
                 `mappend` b
                 `mappend` fromChar ')'
     go c r =
         case checkJSON hs of
-            Just hs' -> addCallback c s hs' b
-            Nothing -> return r
+            Just hs' -> addCallback c s hs' wb
+            Nothing -> r
       where
-        (s, hs, b) = responseToSource env r
+        (s, hs, wb) = responseToSource r
 
     checkJSON hs =
         case lookup "Content-Type" hs of
@@ -79,11 +81,16 @@ jsonp app env = do
             _ -> Nothing
     fixHeaders = changeVal "Content-Type" "text/javascript"
 
-    addCallback cb s hs b =
-        return $ ResponseSource s hs $
-            CL.sourceList [C.Chunk $ copyByteString cb `mappend` fromChar '(']
+    addCallback :: ByteString
+                -> Status
+                -> [(CI ByteString, ByteString)]
+                -> (forall b. WithSource IO (C.Flush Builder) b)
+                -> Response
+    addCallback cb s hs wb =
+        ResponseSource s hs $ \f -> wb $ \b -> f $
+            C.yield (C.Chunk $ copyByteString cb `mappend` fromChar '(')
             `mappend` b
-            `mappend` CL.sourceList [C.Chunk $ fromChar ')']
+            `mappend` C.yield (C.Chunk $ fromChar ')')
 
 changeVal :: Eq a
           => a

@@ -85,7 +85,7 @@ gzip set app env = do
                                 Just m
                                     | gzipCheckMime set m -> liftIO $ compressFile s hs file cache
                                 _ -> return res
-                        _ -> return $ compressE set env res
+                        _ -> return $ compressE set res
                 else return res
   where
     enc = fromMaybe [] $ (splitCommas . S8.unpack)
@@ -125,19 +125,19 @@ compressFile s hs file cache = do
     safe _ = '_'
 
 compressE :: GzipSettings
-          -> Request
           -> Response
           -> Response
-compressE set req res =
+compressE set res =
     case lookup "content-type" hs of
         Just m | gzipCheckMime set m ->
             let hs' = fixHeaders hs
-             in ResponseSource s hs' $ b C.$= builderToByteStringFlush
+             in ResponseSource s hs' $ \f -> wb $ \b -> f $
+                                       b C.$= builderToByteStringFlush
                                          C.$= CZ.compressFlush 1 (CZ.WindowBits 31)
                                          C.$= CL.map (fmap fromByteString)
         _ -> res
   where
-    (s, hs, b) = responseToSource req res
+    (s, hs, wb) = responseToSource res
 
 -- Remove Content-Length header, since we will certainly have a
 -- different length after gzip compression.

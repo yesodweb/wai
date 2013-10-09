@@ -15,6 +15,7 @@ import Network.Wai.Internal
 import Network.Socket (getAddrInfo, addrAddress)
 import System.Environment (getEnvironment)
 import Data.Maybe (fromMaybe)
+import Control.Exception (mask)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as L
 import Control.Arrow ((***))
@@ -26,7 +27,6 @@ import Blaze.ByteString.Builder (fromByteString, toLazyByteString)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromString)
 import Data.Conduit.Blaze (builderToByteStringFlush)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Resource (withInternalState)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import System.IO (Handle)
 import Network.HTTP.Types (Status (..))
@@ -34,7 +34,6 @@ import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import Data.Monoid (mappend)
 import Data.Conduit
-import qualified Data.Conduit.List as CL
 
 safeRead :: Read a => a -> String -> a
 safeRead d s =
@@ -95,7 +94,7 @@ runGeneric vars inputH outputH xsendfile app = do
             case addrs of
                 a:_ -> addrAddress a
                 [] -> error $ "Invalid REMOTE_ADDR or REMOTE_HOST: " ++ remoteHost'
-    runResourceT $ withInternalState $ \internalState -> do
+    mask $ \restore -> do
         let env = Request
                 { requestMethod = rmethod
                 , rawPathInfo = B.pack pinfo
@@ -109,18 +108,19 @@ runGeneric vars inputH outputH xsendfile app = do
                 , requestBody = inputH contentLength
                 , vault = mempty
                 , requestBodyLength = KnownLength $ fromIntegral contentLength
-                , resourceInternalState = internalState
                 }
         -- FIXME worry about exception?
-        res <- app env
+        res <- restore $ app env
         case (xsendfile, res) of
             (Just sf, ResponseFile s hs fp Nothing) ->
-                liftIO $ mapM_ outputH $ L.toChunks $ toLazyByteString $ sfBuilder s hs sf fp
+                restore $ mapM_ outputH $ L.toChunks $ toLazyByteString $ sfBuilder s hs sf fp
             _ -> do
-                let (s, hs, b) = responseToSource env res
-                    src = CL.sourceList [Chunk $ headers s hs `mappend` fromChar '\n']
-                          `mappend` b
-                src $$ builderSink
+                let (s, hs, wb) = responseToSource res
+                wb $ \b ->
+                    let src = do
+                            yield (Chunk $ headers s hs `mappend` fromChar '\n')
+                            b
+                     in src $$ builderSink
   where
     headers s hs = mconcat (map header $ status s : map header' (fixHeaders hs))
     status (Status i m) = (fromByteString "Status", mconcat
