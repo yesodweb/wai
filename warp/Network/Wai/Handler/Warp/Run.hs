@@ -6,7 +6,6 @@ module Network.Wai.Handler.Warp.Run where
 import Control.Concurrent (threadDelay, forkIOWithUnmask)
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception as E
-import qualified Control.Exception.Lifted as Lifted
 import Control.Monad (forever, when, unless, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
