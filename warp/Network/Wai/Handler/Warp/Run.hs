@@ -45,14 +45,16 @@ bytesPerRead :: Int
 bytesPerRead = 4096
 
 -- | Default action value for 'Connection'
-socketConnection :: Socket -> ReceiveBuffer -> Connection
-socketConnection s buf = Connection
-    { connSendMany = Sock.sendMany s
-    , connSendAll = Sock.sendAll s
-    , connSendFile = sendFile s
-    , connClose = sClose s
-    , connRecv = receive s buf bytesPerRead
-    }
+socketConnection :: Socket -> IO Connection
+socketConnection s = do
+    buf <- allocateRecvBuffer bytesPerRead
+    return Connection {
+        connSendMany = Sock.sendMany s
+      , connSendAll = Sock.sendAll s
+      , connSendFile = sendFile s
+      , connClose = sClose s >> freeRecvBuffer buf
+      , connRecv = receive s buf bytesPerRead
+      }
 
 sendFile :: Socket -> FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO ()
 #if SENDFILEFD
@@ -111,9 +113,9 @@ runSettingsSocket set socket app =
   where
     getConn = do
         (s, sa) <- accept socket
-        buf <- allocateRecvBuffer bytesPerRead
         setSocketCloseOnExec socket
-        return (socketConnection s buf, sa)
+        conn <- socketConnection s
+        return (conn, sa)
 
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
 runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
