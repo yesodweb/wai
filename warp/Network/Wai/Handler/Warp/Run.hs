@@ -24,6 +24,7 @@ import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Recv
 
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
@@ -44,13 +45,13 @@ bytesPerRead :: Int
 bytesPerRead = 4096
 
 -- | Default action value for 'Connection'
-socketConnection :: Socket -> Connection
-socketConnection s = Connection
+socketConnection :: Socket -> ReceiveBuffer -> Connection
+socketConnection s buf = Connection
     { connSendMany = Sock.sendMany s
     , connSendAll = Sock.sendAll s
     , connSendFile = sendFile s
     , connClose = sClose s
-    , connRecv = Sock.recv s bytesPerRead
+    , connRecv = receive s buf bytesPerRead
     }
 
 sendFile :: Socket -> FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO ()
@@ -110,8 +111,9 @@ runSettingsSocket set socket app =
   where
     getter = do
         (conn, sa) <- accept socket
+        buf <- allocateRecvBuffer bytesPerRead
         setSocketCloseOnExec socket
-        return (socketConnection conn, sa)
+        return (socketConnection conn buf, sa)
 
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
 runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
