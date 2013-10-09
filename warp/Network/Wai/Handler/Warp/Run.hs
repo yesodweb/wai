@@ -118,7 +118,7 @@ runSettingsSocket set socket app =
   where
     getter = do
         (conn, sa) <- accept socket
-        setSocketCloseOnExec socket
+        setSocketCloseOnExec conn
         return (socketConnection conn, sa)
 
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
