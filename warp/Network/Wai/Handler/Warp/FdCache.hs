@@ -9,7 +9,6 @@ module Network.Wai.Handler.Warp.FdCache (
 import Control.Applicative ((<$>), (<*>))
 import Control.Concurrent
 import Control.Exception (mask_)
-import Control.Monad
 import Data.Hashable
 import Data.IORef
 import Network.Wai.Handler.Warp.MultiMap

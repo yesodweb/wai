@@ -21,7 +21,7 @@ import System.IO.Error (ioeGetErrorType)
 data Settings = Settings
     { settingsPort :: Int -- ^ Port to listen on. Default value: 3000
     , settingsHost :: HostPreference -- ^ Default value: HostIPv4
-    , settingsOnException :: SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
+    , settingsOnException :: Maybe Request -> SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
     , settingsOnOpen :: IO () -- ^ What to do when a connection is open. Default: do nothing.
     , settingsOnClose :: IO ()  -- ^ What to do when a connection is close. Default: do nothing.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
@@ -61,8 +61,8 @@ defaultSettings = Settings
     , settingsServerName = S8.pack $ "Warp/" ++ warpVersion
     }
 
-defaultExceptionHandler :: SomeException -> IO ()
-defaultExceptionHandler e = throwIO e `catches` handlers
+defaultExceptionHandler :: Maybe Request -> SomeException -> IO ()
+defaultExceptionHandler _ e = throwIO e `catches` handlers
   where
     handlers = [Handler ah, Handler ih, Handler oh, Handler sh]
 

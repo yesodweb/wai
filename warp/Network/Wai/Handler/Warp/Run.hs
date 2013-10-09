@@ -4,7 +4,8 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Concurrent (threadDelay, forkIOWithUnmask)
-import Control.Exception
+import qualified Control.Concurrent as Conc (yield)
+import Control.Exception as E
 import Control.Monad (forever, when, unless, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
@@ -23,11 +24,7 @@ import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import Prelude hiding (catch)
-
--- Sock.recv first tries to call recvfrom() optimistically.
--- If EAGAIN returns, it polls incoming data with epoll/kqueue.
--- This code first polls incoming data with epoll/kqueue.
+import Network.Wai.Handler.Warp.Recv
 
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
@@ -48,14 +45,16 @@ bytesPerRead :: Int
 bytesPerRead = 4096
 
 -- | Default action value for 'Connection'
-socketConnection :: Socket -> Connection
-socketConnection s = Connection
-    { connSendMany = Sock.sendMany s
-    , connSendAll = Sock.sendAll s
-    , connSendFile = sendFile s
-    , connClose = sClose s
-    , connRecv = Sock.recv s bytesPerRead
-    }
+socketConnection :: Socket -> IO Connection
+socketConnection s = do
+    buf <- allocateRecvBuffer bytesPerRead
+    return Connection {
+        connSendMany = Sock.sendMany s
+      , connSendAll = Sock.sendAll s
+      , connSendFile = sendFile s
+      , connClose = sClose s >> freeRecvBuffer buf
+      , connRecv = receive s buf bytesPerRead
+      }
 
 sendFile :: Socket -> FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO ()
 #if SENDFILEFD
@@ -110,12 +109,13 @@ runSettings set app =
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket set socket app =
-    runSettingsConnection set getter app
+    runSettingsConnection set getConn app
   where
-    getter = do
-        (conn, sa) <- accept socket
+    getConn = do
+        (s, sa) <- accept socket
         setSocketCloseOnExec socket
-        return (socketConnection conn, sa)
+        conn <- socketConnection s
+        return (conn, sa)
 
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
 runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
@@ -131,7 +131,7 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
 --
 -- Since 1.3.5
 runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
-runSettingsConnectionMaker set getConn app = do
+runSettingsConnectionMaker set getConnMaker app = do
 #if SENDFILEFD
     let duration = settingsFdCacheDuration set
     fc <- case duration of
@@ -199,7 +199,7 @@ runSettingsConnectionMaker set getConn app = do
                  in unmask .
                     -- Call the user-supplied on exception code if any
                     -- exceptions are thrown.
-                    handle onE .
+                    handle (onE Nothing) .
 
                     -- Call the user-supplied code for connection open and close events
                     bracket_ onOpen onClose $
@@ -208,8 +208,8 @@ runSettingsConnectionMaker set getConn app = do
                     serveConnection th set cleaner app conn addr
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
-    getConnLoop = getConn `catch` \(e :: IOException) -> do
-        onE (toException e)
+    getConnLoop = getConnMaker `E.catch` \(e :: IOException) -> do
+        onE Nothing (toException e)
         -- "resource exhausted (Too many open files)" may happen by accept().
         -- Wait a second hoping that resource will be available.
         threadDelay 1000000
@@ -250,6 +250,15 @@ serveConnection timeoutHandle settings cleaner app conn remoteHost' =
                     liftIO $ T.resume th
                     sendResponse settings cleaner env conn restore res
 
+                -- | We just send a Response and it takes a time to
+                --   receive a Request again. If we immediately call recv,
+                --   it is likely to fail and the IO manager works.
+                --   It is very costy. So, we yield to another Haskell
+                --   thread hoping that the next Request will arraive
+                --   when this Haskell thread will be re-scheduled.
+                --   This improves performance at least when
+                --   the number of cores is small.
+                Conc.yield
                 -- flush the rest of the request body
                 requestBody env $$ CL.sinkNull
                 ResumableSource fromClient' _ <- liftIO getSource
