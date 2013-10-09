@@ -107,13 +107,13 @@ runSettings set app =
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket set socket app =
-    runSettingsConnection set getter app
+    runSettingsConnection set getConn app
   where
-    getter = do
-        (conn, sa) <- accept socket
+    getConn = do
+        (s, sa) <- accept socket
         buf <- allocateRecvBuffer bytesPerRead
         setSocketCloseOnExec socket
-        return (socketConnection conn buf, sa)
+        return (socketConnection s buf, sa)
 
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
 runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
