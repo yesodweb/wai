@@ -1,22 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 module PartialFileSpec (main, spec) where
 
-import Network.Wai.Handler.Warp.Conduit
-import Data.Conduit
-import qualified Data.Conduit.List as CL
-import Test.Hspec
-import qualified Data.IORef as I
+import Control.Concurrent (threadDelay)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
-import Control.Monad.Trans.Class (lift)
-import RunSpec (withApp)
+import Data.Maybe (mapMaybe)
+import Network (connectTo, PortID (PortNumber))
 import Network.HTTP.Types (status200)
 import Network.Wai
-import System.IO (hClose, hFlush)
-import Network (connectTo, PortID (PortNumber))
 import Network.Wai.Handler.Warp
-import Data.Maybe (mapMaybe)
-import Control.Concurrent (threadDelay)
+import RunSpec (withApp)
+import System.IO (hClose, hFlush)
+import Test.Hspec
 
 main :: IO ()
 main = hspec spec
