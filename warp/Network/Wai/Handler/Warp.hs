@@ -43,27 +43,32 @@ module Network.Wai.Handler.Warp (
     -- * Datatypes
   , Port
   , InvalidRequest (..)
-    -- * Internal (Manager)
+    -- * Internal
+    -- ** Time out manager
   , Manager
   , Handle
+  , TimeoutAction
   , initialize
   , withManager
   , register
   , registerKillThread
-  , pause
-  , resume
+  , tickle
   , cancel
-    -- * Internal
+  , resume
+  , pause
+    -- ** Cleaner
+  , Cleaner
+  , dummyCleaner
+    -- ** Request and response
   , parseRequest
   , sendResponse
-  , dummyCleaner
   , socketConnection
 #if TEST
   , takeHeaders
   , parseFirst
   , readInt
 #endif
-    -- * Misc
+    -- ** Version
   , warpVersion
   ) where
 

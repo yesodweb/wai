@@ -87,6 +87,7 @@ dummyCleaner :: Cleaner
 #if SENDFILEFD
 dummyCleaner = Cleaner T.dummyHandle Nothing
 
+-- | A type used to clean up file descriptor caches.
 data Cleaner = Cleaner {
     threadHandle :: T.Handle
   , fdCacher :: Maybe F.MutableFdCache

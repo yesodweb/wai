@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Network.Wai.Handler.Warp.Run where
@@ -14,17 +15,20 @@ import Data.Conduit
 import Data.Conduit.Internal (ResumableSource (..))
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network (bindPort)
+import Data.Monoid (mempty)
 import Network (sClose, Socket)
+import qualified Network.HTTP.Types as H
 import Network.Sendfile
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
+import Network.Wai.Internal
+import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Handler.Warp.Recv
 
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
@@ -231,7 +235,7 @@ serveConnection :: T.Handle
                 -> Cleaner
                 -> Application -> Connection -> SockAddr-> IO ()
 serveConnection timeoutHandle settings cleaner app conn remoteHost' =
-    serveConnection'' $ connSource conn th
+    respondOnException settings cleaner conn remoteHost' $ serveConnection'' $ connSource conn th
   where
     th = threadHandle cleaner
 
@@ -268,6 +272,28 @@ serveConnection timeoutHandle settings cleaner app conn remoteHost' =
                 liftIO $ T.pause th
                 ResumableSource fromClient' _ <- liftIO getSource
                 intercept fromClient' conn
+
+respondOnException :: Settings -> Cleaner -> Connection -> SockAddr -> IO () -> IO ()
+respondOnException settings cleaner conn remoteHost' io = io `catch` \e@(SomeException _) -> do
+    mask $ \restore ->
+      void $ sendResponse settings cleaner blankRequest conn restore internalError
+    throwIO e
+  where
+    internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
+    blankRequest = Request {
+        requestMethod = H.methodGet
+      , httpVersion = H.http10
+      , rawPathInfo = ""
+      , rawQueryString = ""
+      , requestHeaders = []
+      , isSecure = False
+      , remoteHost = remoteHost'
+      , pathInfo = []
+      , queryString = mempty
+      , requestBody = return mempty
+      , vault = mempty
+      , requestBodyLength = KnownLength 0
+      }
 
 connSource :: Connection -> T.Handle -> Source IO ByteString
 connSource Connection { connRecv = recv } th = src

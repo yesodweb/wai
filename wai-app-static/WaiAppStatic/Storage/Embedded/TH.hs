@@ -18,6 +18,10 @@ import WaiAppStatic.Types
 import WaiAppStatic.Storage.Filesystem (defaultWebAppSettings)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+#if !MIN_VERSION_template_haskell(2, 8, 0)
+import qualified Data.ByteString.Char8 as B8
+import qualified Data.ByteString.Lazy.Char8 as BL8
+#endif
 import qualified Data.HashMap.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -71,15 +75,30 @@ data ReloadEntry = ReloadEntry {
 -- the IORef will always be holding (NoFinalizers, []).  Therefore
 -- unsafeDupablePerformIO is safe.
 bytestringE :: B.ByteString -> ExpQ
+#if MIN_VERSION_template_haskell(2, 8, 0)
 bytestringE b = [| unsafeDupablePerformIO (unsafePackAddressLen (I# $lenE) $ctE) |]
     where
         lenE = litE $ intPrimL $ toInteger $ B.length b
         ctE = litE $ stringPrimL $ B.unpack b
+#else
+bytestringE b =
+    [| B8.pack $s |]
+  where
+    s = litE $ stringL $ B8.unpack b
+#endif
+
 bytestringLazyE :: BL.ByteString -> ExpQ
+#if MIN_VERSION_template_haskell(2, 8, 0)
 bytestringLazyE b = [| unsafeDupablePerformIO (unsafePackAddressLen (I# $lenE) $ctE) |]
     where
         lenE = litE $ intPrimL $ toInteger $ BL.length b
         ctE = litE $ stringPrimL $ BL.unpack b
+#else
+bytestringLazyE b =
+    [| B8.pack $s |]
+  where
+    s = litE $ stringL $ BL8.unpack b
+#endif
 
 -- | A template haskell expression which creates either an EmbeddedEntry or ReloadEntry.
 mkEntry :: EmbeddableEntry -> ExpQ
