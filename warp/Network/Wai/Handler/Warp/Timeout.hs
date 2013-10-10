@@ -121,6 +121,11 @@ registerKillThread m = do
     wtid <- myThreadId >>= mkWeakThreadId
     register m $ killIfExist wtid
 
+-- If ThreadId is hold referred by a strong reference,
+-- it leaks even after the thread is killed.
+-- So, let's use a weak reference so that CG can throw ThreadId away.
+-- deRefWeak checks if ThreadId referenced by the weak reference
+-- exists. If exists, it means that the thread is alive.
 killIfExist :: Weak ThreadId -> TimeoutAction
 killIfExist wtid = deRefWeak wtid >>= maybe (return ()) killThread
 
