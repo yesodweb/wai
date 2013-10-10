@@ -72,24 +72,25 @@ initialize timeout = do
     ref <- I.newIORef []
     void . forkIO $ E.handle ignoreStop $ forever $ do
         threadDelay timeout
-        ms <- I.atomicModifyIORef ref (\x -> ([], x))
-        ms' <- go ms id
-        I.atomicModifyIORef ref (\x -> (ms' x, ()))
+        -- FIXME: isn't mask_ necessary?
+        old <- I.atomicModifyIORef ref (\x -> ([], x))
+        merge <- prune old id
+        I.atomicModifyIORef ref (\new -> (merge new, ()))
     return $ Manager ref
   where
     ignoreStop TimeoutManagerStopped = return ()
 
-    go [] front = return front
-    go (m@(Handle onTimeout iactive):rest) front = do
-        state <- I.atomicModifyIORef iactive (\x -> (go' x, x))
+    prune [] front = return front
+    prune (m@(Handle onTimeout iactive):rest) front = do
+        state <- I.atomicModifyIORef iactive (\x -> (inactivate x, x))
         case state of
             Inactive -> do
                 onTimeout `E.catch` ignoreAll
-                go rest front
-            Canceled -> go rest front
-            _ -> go rest (front . (:) m)
-    go' Active = Inactive
-    go' x = x
+                prune rest front
+            Canceled -> prune rest front
+            _        -> prune rest (front . (:) m)
+    inactivate Active = Inactive
+    inactivate x = x
 
 ----------------------------------------------------------------
 
@@ -98,9 +99,9 @@ stopManager (Manager ihandles) = E.mask_ $ do
     -- Put an undefined value in the IORef to kill the worker thread (yes, it's
     -- a bit of a hack)
     !handles <- I.atomicModifyIORef ihandles $ \h -> (E.throw TimeoutManagerStopped, h)
-    mapM_ go handles
+    mapM_ fire handles
   where
-    go (Handle onTimeout _) = onTimeout `E.catch` ignoreAll
+    fire (Handle onTimeout _) = onTimeout `E.catch` ignoreAll
 
 ignoreAll :: E.SomeException -> IO ()
 ignoreAll _ = return ()
