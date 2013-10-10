@@ -44,7 +44,10 @@ newtype Manager = Manager (IORef [Handle])
 -- First field is action to be performed on timeout.
 data Handle = Handle (IO ()) (IORef State)
 
-data State = Active | Inactive | Paused | Canceled
+data State = Active    -- Manager turns it to Inactive.
+           | Inactive  -- Manager removes it with timeout action.
+           | Paused    -- Manager does not change it.
+           | Canceled  -- Manager removes it without timeout action.
 
 ----------------------------------------------------------------
 
