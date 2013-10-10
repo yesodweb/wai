@@ -59,6 +59,12 @@ dummyHandle = Handle (return ()) (unsafePerformIO $ I.newIORef Active)
 
 ----------------------------------------------------------------
 
+data TimeoutManagerStopped = TimeoutManagerStopped
+    deriving (Show, Typeable)
+instance E.Exception TimeoutManagerStopped
+
+----------------------------------------------------------------
+
 -- | Creating timeout manager which works every N micro seconds
 --   where N is the first argument.
 initialize :: Int -> IO Manager
@@ -85,9 +91,7 @@ initialize timeout = do
     go' Active = Inactive
     go' x = x
 
-data TimeoutManagerStopped = TimeoutManagerStopped
-    deriving (Show, Typeable)
-instance E.Exception TimeoutManagerStopped
+----------------------------------------------------------------
 
 stopManager :: Manager -> IO ()
 stopManager (Manager ihandles) = E.mask_ $ do
