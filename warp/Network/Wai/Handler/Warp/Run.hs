@@ -15,14 +15,12 @@ import Data.Conduit
 import Data.Conduit.Internal (ResumableSource (..))
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network (bindPort)
-import Data.Monoid (mempty)
 import Network (sClose, Socket)
 import qualified Network.HTTP.Types as H
 import Network.Sendfile
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
-import Network.Wai.Internal
 import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
@@ -276,24 +274,12 @@ serveConnection timeoutHandle settings cleaner app conn remoteHost' =
 respondOnException :: Settings -> Cleaner -> Connection -> SockAddr -> IO () -> IO ()
 respondOnException settings cleaner conn remoteHost' io = io `catch` \e@(SomeException _) -> do
     mask $ \restore ->
-      void $ sendResponse settings cleaner blankRequest conn restore internalError
+      void $ sendResponse settings cleaner defaultRequest
+        { remoteHost = remoteHost'
+        } conn restore internalError
     throwIO e
   where
     internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
-    blankRequest = Request {
-        requestMethod = H.methodGet
-      , httpVersion = H.http10
-      , rawPathInfo = ""
-      , rawQueryString = ""
-      , requestHeaders = []
-      , isSecure = False
-      , remoteHost = remoteHost'
-      , pathInfo = []
-      , queryString = mempty
-      , requestBody = return mempty
-      , vault = mempty
-      , requestBodyLength = KnownLength 0
-      }
 
 connSource :: Connection -> T.Handle -> Source IO ByteString
 connSource Connection { connRecv = recv } th = src

@@ -65,6 +65,8 @@ module Network.Wai
       -- ** Helper functions
     , responseToSource
     , responseStatus
+      -- ** Defaults
+    , defaultRequest
     ) where
 
 import           Blaze.ByteString.Builder     (Builder, fromLazyByteString)
@@ -75,7 +77,9 @@ import           Data.ByteString.Lazy.Char8   ()
 import qualified Data.Conduit                 as C
 import qualified Data.Conduit.Binary          as CB
 import qualified Data.Conduit.List            as CL
+import           Data.Monoid                  (mempty)
 import qualified Network.HTTP.Types           as H
+import           Network.Socket               (SockAddr (SockAddrInet))
 import           Network.Wai.Internal
 import qualified System.IO                    as IO
 
@@ -129,3 +133,22 @@ type Application = Request -> IO Response
 -- Here, instead of taking a standard 'Application' as its first argument, the
 -- middleware takes a function which consumes the session information as well.
 type Middleware = Application -> Application
+
+-- | A default, blank request.
+--
+-- Since 2.0.0
+defaultRequest :: Request
+defaultRequest = Request
+    { requestMethod = H.methodGet
+    , httpVersion = H.http10
+    , rawPathInfo = B.empty
+    , rawQueryString = B.empty
+    , requestHeaders = []
+    , isSecure = False
+    , remoteHost = SockAddrInet 0 0
+    , pathInfo = []
+    , queryString = []
+    , requestBody = return ()
+    , vault = mempty
+    , requestBodyLength = KnownLength 0
+    }
