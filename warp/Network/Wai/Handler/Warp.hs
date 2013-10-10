@@ -52,9 +52,10 @@ module Network.Wai.Handler.Warp (
   , withManager
   , register
   , registerKillThread
+  , tickle
+  , cancel
   , resume
   , pause
-  , cancel
     -- ** Cleaner
   , Cleaner
   , dummyCleaner

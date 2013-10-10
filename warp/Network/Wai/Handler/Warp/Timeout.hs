@@ -123,21 +123,23 @@ mkWeakThreadId t@(ThreadId t#) = IO $ \s ->
 
 -- | Setting the state to active.
 --   'Manager' turns active to inactive repeatedly.
-resume :: Handle -> IO ()
-resume (Handle _ iactive) = I.writeIORef iactive Active
-
 tickle :: Handle -> IO ()
-tickle = resume
+tickle (Handle _ iactive) = I.writeIORef iactive Active
+
+-- | Setting the state to canceled.
+--   'Manager' eventually removes this without timeout action.
+cancel :: Handle -> IO ()
+cancel (Handle _ iactive) = I.writeIORef iactive Canceled
 
 -- | Setting the state to paused.
 --   'Manager' does not change the value.
 pause :: Handle -> IO ()
 pause (Handle _ iactive) = I.writeIORef iactive Paused
 
--- | Setting the state to canceled.
---   'Manager' eventually removes this without timeout action.
-cancel :: Handle -> IO ()
-cancel (Handle _ iactive) = I.writeIORef iactive Canceled
+-- | Setting the state to active.
+--   This is an alias to 'ticle'.
+resume :: Handle -> IO ()
+resume = tickle
 
 ----------------------------------------------------------------
 
