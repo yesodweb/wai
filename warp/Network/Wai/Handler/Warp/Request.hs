@@ -16,7 +16,6 @@ import Data.Conduit
 import qualified Data.IORef as I
 import Data.Maybe (fromMaybe)
 import Data.Monoid (mempty)
-import Data.Void (Void)
 import Data.Word (Word8)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)

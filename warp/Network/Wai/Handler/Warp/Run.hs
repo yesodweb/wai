@@ -5,7 +5,7 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Concurrent (threadDelay, forkIOWithUnmask)
-import Control.Exception
+import Control.Exception as E
 import Control.Monad (forever, when, unless, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
@@ -27,7 +27,6 @@ import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import Prelude hiding (catch)
 
 -- Sock.recv first tries to call recvfrom() optimistically.
 -- If EAGAIN returns, it polls incoming data with epoll/kqueue.
@@ -212,7 +211,7 @@ runSettingsConnectionMaker set getConn app = do
                     serveConnection th set cleaner port app conn addr
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
-    getConnLoop = getConn `catch` \(e :: IOException) -> do
+    getConnLoop = getConn `E.catch` \(e :: IOException) -> do
         onE (toException e)
         -- "resource exhausted (Too many open files)" may happen by accept().
         -- Wait a second hoping that resource will be available.
@@ -270,7 +269,7 @@ serveConnection timeoutHandle settings cleaner port app conn remoteHost' =
                 intercept fromClient' conn
 
 respondOnException :: Settings -> Cleaner -> Connection -> SockAddr -> IO () -> IO ()
-respondOnException settings cleaner conn remoteHost' io = io `catch` \e@(SomeException _) -> do
+respondOnException settings cleaner conn remoteHost' io = io `E.catch` \e@(SomeException _) -> do
     _ <- runResourceT $ sendResponse settings cleaner blankRequest conn internalError
     throwIO e
   where
