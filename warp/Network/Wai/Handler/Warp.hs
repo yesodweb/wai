@@ -44,7 +44,8 @@ module Network.Wai.Handler.Warp (
     -- * Datatypes
   , Port
   , InvalidRequest (..)
-    -- * Internal (Manager)
+    -- * Internal
+    -- ** Time out manager
   , Manager
   , Handle
   , initialize
@@ -54,17 +55,19 @@ module Network.Wai.Handler.Warp (
   , pause
   , resume
   , cancel
-    -- * Internal
+    -- ** Cleaner
+  , Cleaner
+  , dummyCleaner
+    -- ** Request and response
   , parseRequest
   , sendResponse
-  , dummyCleaner
   , socketConnection
 #if TEST
   , takeHeaders
   , parseFirst
   , readInt
 #endif
-    -- * Misc
+    -- ** Version
   , warpVersion
   ) where
 
