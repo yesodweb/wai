@@ -7,13 +7,13 @@ module Network.Wai.Handler.Warp.FdCache (
   ) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Concurrent
+import Control.Concurrent (forkIO, threadDelay, ThreadId, killThread)
 import Control.Exception (mask_)
-import Data.Hashable
-import Data.IORef
+import Data.Hashable (hash)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef, mkWeakIORef)
 import Network.Wai.Handler.Warp.MultiMap
-import System.Posix.IO
-import System.Posix.Types
+import System.Posix.IO (openFd, defaultFileFlags, OpenMode(ReadOnly), closeFd)
+import System.Posix.Types (Fd)
 
 ----------------------------------------------------------------
 

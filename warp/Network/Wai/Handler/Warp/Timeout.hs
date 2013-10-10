@@ -17,29 +17,30 @@ module Network.Wai.Handler.Warp.Timeout (
   , dummyHandle
   ) where
 
-import System.Mem.Weak (deRefWeak)
 #if MIN_VERSION_base(4,6,0)
 import Control.Concurrent (mkWeakThreadId)
 #else
-import GHC.Weak (Weak (..))
 import GHC.Conc.Sync (ThreadId (..))
-import GHC.IO (IO (IO))
 import GHC.Exts (mkWeak#)
+import GHC.IO (IO (IO))
+import GHC.Weak (Weak (..))
 #endif
 import Control.Concurrent (forkIO, threadDelay, myThreadId, killThread)
 import qualified Control.Exception as E
 import Control.Monad (forever, void)
+import Data.IORef (IORef)
 import qualified Data.IORef as I
-import System.IO.Unsafe (unsafePerformIO)
 import Data.Typeable (Typeable)
+import System.IO.Unsafe (unsafePerformIO)
+import System.Mem.Weak (deRefWeak)
 
 -- | A timeout manager
-newtype Manager = Manager (I.IORef [Handle])
+newtype Manager = Manager (IORef [Handle])
 
 -- | A handle used by 'Manager'
 --
 -- First field is action to be performed on timeout.
-data Handle = Handle (IO ()) (I.IORef State)
+data Handle = Handle (IO ()) (IORef State)
 
 -- | A dummy @Handle@.
 dummyHandle :: Handle
