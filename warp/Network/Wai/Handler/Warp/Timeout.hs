@@ -19,13 +19,13 @@ module Network.Wai.Handler.Warp.Timeout (
   ) where
 
 #if MIN_VERSION_base(4,6,0)
-import Control.Concurrent (mkWeakThreadId)
+import Control.Concurrent (mkWeakThreadId, ThreadId)
 #else
-import GHC.Conc.Sync (ThreadId (..))
+import Control.Concurrent (ThreadId(..))
 import GHC.Exts (mkWeak#)
 import GHC.IO (IO (IO))
-import GHC.Weak (Weak (..))
 #endif
+import GHC.Weak (Weak (..))
 import Control.Concurrent (forkIO, threadDelay, myThreadId, killThread)
 import qualified Control.Exception as E
 import Control.Monad (forever, void)
@@ -115,7 +115,10 @@ register (Manager ref) onTimeout = do
 registerKillThread :: Manager -> IO Handle
 registerKillThread m = do
     wtid <- myThreadId >>= mkWeakThreadId
-    register m $ deRefWeak wtid >>= maybe (return ()) killThread
+    register m $ killIfExist wtid
+
+killIfExist :: Weak ThreadId -> TimeoutAction
+killIfExist wtid = deRefWeak wtid >>= maybe (return ()) killThread
 
 #if !MIN_VERSION_base(4,6,0)
 mkWeakThreadId :: ThreadId -> IO (Weak ThreadId)
