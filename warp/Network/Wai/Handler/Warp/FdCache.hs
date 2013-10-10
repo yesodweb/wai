@@ -80,6 +80,9 @@ initialize :: Int -> IO MutableFdCache
 initialize duration = do
     mfc <- newMutableFdCache
     tid <- forkIO $ loop mfc
+    -- Registering finalizer to this IORef.
+    -- When Warp is finished in GHCi, this IORef is GCed.
+    -- At that time, we should close all opened file descriptors.
     _ <- mkWeakIORef (unMutableFdCache mfc) $ terminate mfc tid
     return mfc
   where
