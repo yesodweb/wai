@@ -48,6 +48,7 @@ module Network.Wai.Handler.Warp (
     -- ** Time out manager
   , Manager
   , Handle
+  , TimeoutAction
   , initialize
   , withManager
   , register

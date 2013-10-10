@@ -5,6 +5,7 @@
 module Network.Wai.Handler.Warp.Timeout (
     Manager
   , Handle
+  , TimeoutAction
   , initialize
   , stopManager
   , register
@@ -39,10 +40,11 @@ import System.Mem.Weak (deRefWeak)
 -- | A timeout manager
 newtype Manager = Manager (IORef [Handle])
 
+-- | An action to be performed on timeout.
+type TimeoutAction = IO ()
+
 -- | A handle used by 'Manager'
---
--- First field is action to be performed on timeout.
-data Handle = Handle (IO ()) (IORef State)
+data Handle = Handle TimeoutAction (IORef State)
 
 data State = Active    -- Manager turns it to Inactive.
            | Inactive  -- Manager removes it with timeout action.
@@ -102,7 +104,7 @@ ignoreAll _ = return ()
 ----------------------------------------------------------------
 
 -- | Registering a timeout action.
-register :: Manager -> IO () -> IO Handle
+register :: Manager -> TimeoutAction -> IO Handle
 register (Manager ref) onTimeout = do
     iactive <- I.newIORef Active
     let h = Handle onTimeout iactive
