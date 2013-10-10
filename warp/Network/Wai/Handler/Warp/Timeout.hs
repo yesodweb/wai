@@ -34,6 +34,8 @@ import Data.Typeable (Typeable)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Mem.Weak (deRefWeak)
 
+----------------------------------------------------------------
+
 -- | A timeout manager
 newtype Manager = Manager (IORef [Handle])
 
@@ -42,12 +44,18 @@ newtype Manager = Manager (IORef [Handle])
 -- First field is action to be performed on timeout.
 data Handle = Handle (IO ()) (IORef State)
 
+data State = Active | Inactive | Paused | Canceled
+
+----------------------------------------------------------------
+
 -- | A dummy @Handle@.
 dummyHandle :: Handle
 dummyHandle = Handle (return ()) (unsafePerformIO $ I.newIORef Active)
 
-data State = Active | Inactive | Paused | Canceled
+----------------------------------------------------------------
 
+-- | Creating timeout manager which works every N micro seconds
+--   where N is the first argument.
 initialize :: Int -> IO Manager
 initialize timeout = do
     ref <- I.newIORef []
@@ -88,6 +96,9 @@ stopManager (Manager ihandles) = E.mask_ $ do
 ignoreAll :: E.SomeException -> IO ()
 ignoreAll _ = return ()
 
+----------------------------------------------------------------
+
+-- | Registering a timeout action.
 register :: Manager -> IO () -> IO Handle
 register (Manager ref) onTimeout = do
     iactive <- I.newIORef Active
@@ -95,6 +106,7 @@ register (Manager ref) onTimeout = do
     I.atomicModifyIORef ref (\x -> (h : x, ()))
     return h
 
+-- | Registering a timeout action of killing this thread.
 registerKillThread :: Manager -> IO Handle
 registerKillThread m = do
     wtid <- myThreadId >>= mkWeakThreadId
@@ -107,11 +119,27 @@ mkWeakThreadId t@(ThreadId t#) = IO $ \s ->
       (# s1, w #) -> (# s1, Weak w #)
 #endif
 
-tickle, pause, resume, cancel :: Handle -> IO ()
-tickle (Handle _ iactive) = I.writeIORef iactive Active
+----------------------------------------------------------------
+
+-- | Setting the state to active.
+--   'Manager' turns active to inactive repeatedly.
+resume :: Handle -> IO ()
+resume (Handle _ iactive) = I.writeIORef iactive Active
+
+tickle :: Handle -> IO ()
+tickle = resume
+
+-- | Setting the state to paused.
+--   'Manager' does not change the value.
+pause :: Handle -> IO ()
 pause (Handle _ iactive) = I.writeIORef iactive Paused
-resume = tickle
+
+-- | Setting the state to canceled.
+--   'Manager' eventually removes this without timeout action.
+cancel :: Handle -> IO ()
 cancel (Handle _ iactive) = I.writeIORef iactive Canceled
+
+----------------------------------------------------------------
 
 -- | Call the inner function with a timeout manager.
 withManager :: Int -- ^ timeout in microseconds
