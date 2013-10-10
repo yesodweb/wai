@@ -233,9 +233,16 @@ serveConnection :: T.Handle
                 -> Cleaner
                 -> Application -> Connection -> SockAddr-> IO ()
 serveConnection timeoutHandle settings cleaner app conn remoteHost' =
-    respondOnException settings cleaner conn remoteHost' $ serveConnection'' $ connSource conn th
+    (serveConnection'' $ connSource conn th) `onException` send500
   where
     th = threadHandle cleaner
+
+    send500 =  void . mask $ \restore ->
+        sendResponse settings cleaner dummyreq conn restore internalError
+
+    dummyreq = defaultRequest { remoteHost = remoteHost' }
+
+    internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
     serveConnection'' fromClient = do
         (env, getSource) <- parseRequest conn timeoutHandle remoteHost' fromClient
@@ -270,16 +277,6 @@ serveConnection timeoutHandle settings cleaner app conn remoteHost' =
                 liftIO $ T.pause th
                 ResumableSource fromClient' _ <- liftIO getSource
                 intercept fromClient' conn
-
-respondOnException :: Settings -> Cleaner -> Connection -> SockAddr -> IO () -> IO ()
-respondOnException settings cleaner conn remoteHost' io = io `catch` \e@(SomeException _) -> do
-    mask $ \restore ->
-      void $ sendResponse settings cleaner defaultRequest
-        { remoteHost = remoteHost'
-        } conn restore internalError
-    throwIO e
-  where
-    internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
 connSource :: Connection -> T.Handle -> Source IO ByteString
 connSource Connection { connRecv = recv } th = src
