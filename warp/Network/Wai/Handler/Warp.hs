@@ -40,15 +40,15 @@ module Network.Wai.Handler.Warp (
   , HostPreference (..)
   , Port
   , InvalidRequest (..)
+  , ConnSendFileOverride (..)
     -- * Connection
   , Connection (..)
   , socketConnection
     -- * Internal
     -- ** Time out manager
   , module Network.Wai.Handler.Warp.Timeout
-    -- ** Cleaner
+    -- ** Data types
   , Cleaner
-  , dummyCleaner
     -- ** Request and response
   , parseRequest
   , sendResponse
