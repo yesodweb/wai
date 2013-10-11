@@ -2,6 +2,25 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE UnboxedTuples, MagicHash #-}
+
+-- |
+--
+-- In order to provide slowloris protection, Warp provides timeout handlers. We
+-- follow these rules:
+--
+-- * A timeout is created when a connection is opened.
+--
+-- * When all request headers are read, the timeout is tickled.
+--
+-- * Every time at least 2048 bytes of the request body are read, the timeout
+--   is tickled.
+--
+-- * The timeout is paused while executing user code. This will apply to both
+--   the application itself, and a ResponseSource response. The timeout is
+--   resumed as soon as we return from user code.
+--
+-- * Every time data is successfully sent to the client, the timeout is tickled.
+
 module Network.Wai.Handler.Warp.Timeout (
   -- * Types
     Manager
@@ -158,8 +177,8 @@ cancel (Handle _ iactive) = I.writeIORef iactive Canceled
 pause :: Handle -> IO ()
 pause (Handle _ iactive) = I.writeIORef iactive Paused
 
--- | Setting the state to active.
---   This is an alias to 'ticle'.
+-- | Setting the paused state to active.
+--   This is an alias to 'tickle'.
 resume :: Handle -> IO ()
 resume = tickle
 

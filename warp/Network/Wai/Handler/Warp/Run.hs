@@ -80,7 +80,7 @@ allowInterrupt = unblock $ return ()
 run :: Port -> Application -> IO ()
 run p = runSettings defaultSettings { settingsPort = p }
 
--- | Run a Warp server with the given settings.
+-- | Run an 'Applicatoin' with the given 'Settings'.
 runSettings :: Settings -> Application -> IO ()
 #if WINDOWS
 runSettings set app = withSocketsDo $ do
@@ -119,6 +119,12 @@ runSettingsSocket set socket app =
         conn <- socketConnection s
         return (conn, sa)
 
+-- | Allows you to provide a function which will return a 'Connection'. In
+-- cases where creating the @Connection@ can be expensive, this allows the
+-- expensive computations to be performed in a separate thread instead of the
+-- main server loop.
+--
+-- Since 1.3.5
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
 runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
   where
@@ -126,12 +132,8 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
       (conn, sa) <- getConn
       return (return conn, sa)
 
--- | Allows you to provide a function which will return a @Connection@. In
--- cases where creating the @Connection@ can be expensive, this allows the
--- expensive computations to be performed in a separate thread instead of the
--- main server loop.
---
--- Since 1.3.5
+-- | Allows you to provide a function which will return a function
+-- which will return 'Connection'.
 runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
 runSettingsConnectionMaker set getConnMaker app = do
 #if SENDFILEFD

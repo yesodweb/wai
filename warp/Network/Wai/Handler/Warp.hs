@@ -20,6 +20,8 @@ module Network.Wai.Handler.Warp (
     run
   , runSettings
   , runSettingsSocket
+  , runSettingsConnection
+  , runSettingsConnectionMaker
     -- * Settings
   , Settings
   , defaultSettings
@@ -36,12 +38,8 @@ module Network.Wai.Handler.Warp (
   , settingsServerName
     -- ** Data types
   , HostPreference (..)
-    -- * Connection
-  , Connection (..)
-  , runSettingsConnection
-  , runSettingsConnectionMaker
-    -- * Datatypes
   , Port
+  , Connection (..)
   , InvalidRequest (..)
     -- * Internal
     -- ** Time out manager

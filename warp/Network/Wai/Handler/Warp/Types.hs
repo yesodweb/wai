@@ -38,6 +38,7 @@ hServer = "Server"
 
 ----------------------------------------------------------------
 
+-- | Error types for bad 'Request'.
 data InvalidRequest =
     NotEnoughLines [String]
     | BadFirstLine String
@@ -51,27 +52,11 @@ instance Exception InvalidRequest
 
 ----------------------------------------------------------------
 
--- |
---
--- In order to provide slowloris protection, Warp provides timeout handlers. We
--- follow these rules:
---
--- * A timeout is created when a connection is opened.
---
--- * When all request headers are read, the timeout is tickled.
---
--- * Every time at least 2048 bytes of the request body are read, the timeout
---   is tickled.
---
--- * The timeout is paused while executing user code. This will apply to both
---   the application itself, and a ResponseSource response. The timeout is
---   resumed as soon as we return from user code.
---
--- * Every time data is successfully sent to the client, the timeout is tickled.
+-- | Data type to manipulate IO actions for connections.
 data Connection = Connection
     { connSendMany :: [ByteString] -> IO ()
     , connSendAll  :: ByteString -> IO ()
-    , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO () -- ^ offset, length
+    , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO () -- ^ filepath, offset, length, hook action, HTTP headers, fd clear
     , connClose    :: IO ()
     , connRecv     :: IO ByteString
     }
