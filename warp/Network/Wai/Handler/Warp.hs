@@ -45,17 +45,7 @@ module Network.Wai.Handler.Warp (
   , InvalidRequest (..)
     -- * Internal
     -- ** Time out manager
-  , Manager
-  , Handle
-  , TimeoutAction
-  , initialize
-  , withManager
-  , register
-  , registerKillThread
-  , tickle
-  , cancel
-  , resume
-  , pause
+  , module Network.Wai.Handler.Warp.Timeout
     -- ** Cleaner
   , Cleaner
   , dummyCleaner

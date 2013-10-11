@@ -3,19 +3,23 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE UnboxedTuples, MagicHash #-}
 module Network.Wai.Handler.Warp.Timeout (
+  -- * Types
     Manager
-  , Handle
   , TimeoutAction
+  , Handle
+  , dummyHandle
+  -- * Manager
   , initialize
   , stopManager
+  , withManager
+  -- * Registration
   , register
   , registerKillThread
+  -- * Control
   , tickle
+  , cancel
   , pause
   , resume
-  , cancel
-  , withManager
-  , dummyHandle
   ) where
 
 #if MIN_VERSION_base(4,6,0)
