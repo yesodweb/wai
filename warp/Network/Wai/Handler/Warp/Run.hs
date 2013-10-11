@@ -46,7 +46,7 @@ import qualified Network.Wai.Handler.Warp.FdCache as F
 bytesPerRead :: Int
 bytesPerRead = 4096
 
--- | Default action value for 'Connection'
+-- | Default action value for 'Connection'.
 socketConnection :: Socket -> IO Connection
 socketConnection s = do
     buf <- allocateRecvBuffer bytesPerRead

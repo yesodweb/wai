@@ -39,8 +39,10 @@ module Network.Wai.Handler.Warp (
     -- ** Data types
   , HostPreference (..)
   , Port
-  , Connection (..)
   , InvalidRequest (..)
+    -- ** Connection
+  , Connection (..)
+  , socketConnection
     -- * Internal
     -- ** Time out manager
   , module Network.Wai.Handler.Warp.Timeout
@@ -50,7 +52,6 @@ module Network.Wai.Handler.Warp (
     -- ** Request and response
   , parseRequest
   , sendResponse
-  , socketConnection
 #if TEST
   , takeHeaders
   , parseFirst
