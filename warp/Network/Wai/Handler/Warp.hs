@@ -36,11 +36,11 @@ module Network.Wai.Handler.Warp (
   , settingsFdCacheDuration
   , settingsBeforeMainLoop
   , settingsServerName
-    -- ** Data types
+    -- * Data types
   , HostPreference (..)
   , Port
   , InvalidRequest (..)
-    -- ** Connection
+    -- * Connection
   , Connection (..)
   , socketConnection
     -- * Internal
