@@ -11,7 +11,7 @@ import Blaze.ByteString.Builder (fromByteString, Builder, toByteStringIO, flush)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 import Control.Applicative
 import Control.Exception
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI

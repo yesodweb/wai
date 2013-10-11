@@ -8,7 +8,7 @@ import Control.Concurrent (threadDelay, forkIOWithUnmask)
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception as E
 import Control.Monad (forever, when, unless, void)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import Data.Conduit
@@ -237,7 +237,7 @@ serveConnection timeoutHandle settings cleaner app conn remoteHost' =
   where
     th = threadHandle cleaner
 
-    send500 =  void . mask $ \restore ->
+    send500 = void $ mask $ \restore ->
         sendResponse settings cleaner dummyreq conn restore internalError
 
     dummyreq = defaultRequest { remoteHost = remoteHost' }

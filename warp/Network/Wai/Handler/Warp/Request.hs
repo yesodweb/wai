@@ -6,7 +6,7 @@ module Network.Wai.Handler.Warp.Request where
 
 import Control.Applicative
 import Control.Exception.Lifted (throwIO)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as B (unpack)
