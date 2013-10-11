@@ -86,7 +86,7 @@ sendResponse settings cleaner req conn restore (ResponseFile s0 hs0 path mpart0)
     sendResponse' (Right (s, lengthyHeaders, beg, end))
       | hasBody s req = liftIO $ do
           lheader <- composeHeader settings version s lengthyHeaders
-          connSendFile conn path beg end (T.tickle th) [lheader] cleaner
+          connSendFile conn path beg end (T.tickle th) [lheader]
           T.tickle th
           return isPersist
       | otherwise = liftIO $ do

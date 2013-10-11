@@ -17,7 +17,6 @@ import qualified Data.Conduit.List as CL
 import Data.Conduit.Network (bindPort)
 import Network (sClose, Socket)
 import qualified Network.HTTP.Types as H
-import Network.Sendfile
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
@@ -28,6 +27,7 @@ import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.SendFile
 
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
@@ -49,22 +49,11 @@ socketConnection s = do
     return Connection {
         connSendMany = Sock.sendMany s
       , connSendAll = Sock.sendAll s
-      , connSendFile = sendFile s
+      , connSendFile = defaultSendFile s
       , connClose = sClose s >> freeRecvBuffer buf
       , connRecv = receive s buf bytesPerRead
+      , connSendFileOverride = Override s
       }
-
-sendFile :: Socket -> FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO ()
-#if SENDFILEFD
-sendFile s path off len act hdr cleaner = case fdCacher cleaner of
-    Nothing  -> sendfileWithHeader s path (PartOfFile off len) act hdr
-    Just fdc -> do
-        (fd, fresher) <- F.getFd fdc path
-        sendfileFdWithHeader s fd (PartOfFile off len) (act>>fresher) hdr
-#else
-sendFile s path off len act hdr _ =
-    sendfileWithHeader s path (PartOfFile off len) act hdr
-#endif
 
 #if __GLASGOW_HASKELL__ < 702
 allowInterrupt :: IO ()
@@ -178,12 +167,13 @@ runSettingsConnectionMaker set getConnMaker app = do
             -- We grab the connection before registering timeouts since the
             -- timeouts will be useless during connection creation, due to the
             -- fact that async exceptions are still masked.
-            bracket mkConn connClose $ \conn ->
+            bracket mkConn connClose $ \conn' ->
 
             -- We need to register a timeout handler for this thread, and
             -- cancel that handler as soon as we exit.
             bracket (T.registerKillThread tm) T.cancel $ \th ->
                 let cleaner = Cleaner th fc
+                    conn = setSendFile conn' fc
                     -- We now have fully registered a connection close handler
                     -- in the case of all exceptions, so it is safe to one
                     -- again allow async exceptions.

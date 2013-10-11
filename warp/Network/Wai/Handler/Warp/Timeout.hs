@@ -26,7 +26,6 @@ module Network.Wai.Handler.Warp.Timeout (
     Manager
   , TimeoutAction
   , Handle
-  , dummyHandle
   -- * Manager
   , initialize
   , stopManager
@@ -55,7 +54,6 @@ import Control.Monad (forever, void)
 import Data.IORef (IORef)
 import qualified Data.IORef as I
 import Data.Typeable (Typeable)
-import System.IO.Unsafe (unsafePerformIO)
 import System.Mem.Weak (deRefWeak)
 
 ----------------------------------------------------------------
@@ -73,12 +71,6 @@ data State = Active    -- Manager turns it to Inactive.
            | Inactive  -- Manager removes it with timeout action.
            | Paused    -- Manager does not change it.
            | Canceled  -- Manager removes it without timeout action.
-
-----------------------------------------------------------------
-
--- | A dummy @Handle@.
-dummyHandle :: Handle
-dummyHandle = Handle (return ()) (unsafePerformIO $ I.newIORef Active)
 
 ----------------------------------------------------------------
 

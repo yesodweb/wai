@@ -8,6 +8,7 @@ import Control.Exception
 import Data.ByteString (ByteString)
 import Data.Typeable (Typeable)
 import Data.Version (showVersion)
+import Network.Socket (Socket)
 import Network.HTTP.Types.Header
 import qualified Paths_warp
 import qualified Network.Wai.Handler.Warp.Timeout as T
@@ -50,23 +51,21 @@ instance Exception InvalidRequest
 
 ----------------------------------------------------------------
 
+data ConnSendFileOverride = NotOverride | Override Socket
+
+----------------------------------------------------------------
+
 -- | Data type to manipulate IO actions for connections.
 data Connection = Connection
     { connSendMany :: [ByteString] -> IO ()
     , connSendAll  :: ByteString -> IO ()
-    , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> Cleaner -> IO () -- ^ filepath, offset, length, hook action, HTTP headers, fd clear
+    , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> IO () -- ^ filepath, offset, length, hook action, HTTP headers
     , connClose    :: IO ()
     , connRecv     :: IO ByteString
+    , connSendFileOverride :: ConnSendFileOverride
     }
 
 ----------------------------------------------------------------
-
--- | A dummy @Cleaner@, intended for applications making use of the low-level
--- request parsing and rendering functions.
---
--- Since 1.3.4
-dummyCleaner :: Cleaner
-dummyCleaner = Cleaner T.dummyHandle Nothing
 
 -- | A type used to clean up file descriptor caches.
 data Cleaner = Cleaner {
