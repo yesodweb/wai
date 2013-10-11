@@ -1,5 +1,17 @@
-{-# LANGUAGE BangPatterns, FlexibleInstances #-}
+{-# LANGUAGE BangPatterns, FlexibleInstances, CPP #-}
 
+#ifndef SENDFILEFD
+module Network.Wai.Handler.Warp.FdCache (
+    initialize
+  , MutableFdCache
+  ) where
+
+data MutableFdCache = MutableFdCache
+
+initialize :: Int -> IO (Maybe MutableFdCache)
+initialize _ = return Nothing
+
+#else
 module Network.Wai.Handler.Warp.FdCache (
     initialize
   , getFd
@@ -76,7 +88,8 @@ look mfc path key = searchWith key check <$> fdCache mfc
 
 ----------------------------------------------------------------
 
-initialize :: Int -> IO MutableFdCache
+initialize :: Int -> IO (Maybe MutableFdCache)
+initialize 0 = return Nothing
 initialize duration = do
     mfc <- newMutableFdCache
     tid <- forkIO $ loop mfc
@@ -84,7 +97,7 @@ initialize duration = do
     -- When Warp is finished in GHCi, this IORef is GCed.
     -- At that time, we should close all opened file descriptors.
     _ <- mkWeakIORef (unMutableFdCache mfc) $ terminate mfc tid
-    return mfc
+    return (Just mfc)
   where
     loop mfc = do
         mask_ $ do
@@ -130,3 +143,4 @@ getFd mfc path = look mfc path key >>= getFd'
     getFd' (Just (FdEntry _ fd mst)) = do
         refresh mst
         return (fd, refresh mst)
+#endif

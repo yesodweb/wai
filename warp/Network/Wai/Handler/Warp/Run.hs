@@ -21,6 +21,7 @@ import Network.Sendfile
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
+import qualified Network.Wai.Handler.Warp.FdCache as F
 import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
@@ -35,11 +36,6 @@ import Control.Concurrent (forkIO)
 #else
 import System.Posix.IO (FdOption(CloseOnExec), setFdOption)
 import Network.Socket (fdSocket)
-#endif
-
-#if SENDFILEFD
-import Control.Applicative
-import qualified Network.Wai.Handler.Warp.FdCache as F
 #endif
 
 -- FIXME come up with good values here
@@ -136,12 +132,7 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
 -- which will return 'Connection'.
 runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
 runSettingsConnectionMaker set getConnMaker app = do
-#if SENDFILEFD
-    let duration = settingsFdCacheDuration set
-    fc <- case duration of
-        0 -> return Nothing
-        _ -> Just <$> F.initialize (duration * 1000000)
-#endif
+    fc <- F.initialize (settingsFdCacheDuration set * 1000000)
     settingsBeforeMainLoop set
 
     -- Note that there is a thorough discussion of the exception safety of the
@@ -192,11 +183,7 @@ runSettingsConnectionMaker set getConnMaker app = do
             -- We need to register a timeout handler for this thread, and
             -- cancel that handler as soon as we exit.
             bracket (T.registerKillThread tm) T.cancel $ \th ->
-#if SENDFILEFD
                 let cleaner = Cleaner th fc
-#else
-                let cleaner = Cleaner th
-#endif
                     -- We now have fully registered a connection close handler
                     -- in the case of all exceptions, so it is safe to one
                     -- again allow async exceptions.

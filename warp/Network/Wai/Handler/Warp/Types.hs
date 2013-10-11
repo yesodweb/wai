@@ -11,9 +11,7 @@ import Data.Version (showVersion)
 import Network.HTTP.Types.Header
 import qualified Paths_warp
 import qualified Network.Wai.Handler.Warp.Timeout as T
-#if SENDFILEFD
 import qualified Network.Wai.Handler.Warp.FdCache as F
-#endif
 
 ----------------------------------------------------------------
 
@@ -68,8 +66,6 @@ data Connection = Connection
 --
 -- Since 1.3.4
 dummyCleaner :: Cleaner
-
-#if SENDFILEFD
 dummyCleaner = Cleaner T.dummyHandle Nothing
 
 -- | A type used to clean up file descriptor caches.
@@ -77,9 +73,3 @@ data Cleaner = Cleaner {
     threadHandle :: T.Handle
   , fdCacher :: Maybe F.MutableFdCache
   }
-
-#else
-dummyCleaner = Cleaner T.dummyHandle
-
-newtype Cleaner = Cleaner { threadHandle :: T.Handle }
-#endif
