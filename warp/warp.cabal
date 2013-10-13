@@ -61,6 +61,7 @@ Library
                      Network.Wai.Handler.Warp.Response
                      Network.Wai.Handler.Warp.ResponseHeader
                      Network.Wai.Handler.Warp.Run
+                     Network.Wai.Handler.Warp.SendFile
                      Network.Wai.Handler.Warp.Settings
                      Network.Wai.Handler.Warp.Types
                      Paths_warp
