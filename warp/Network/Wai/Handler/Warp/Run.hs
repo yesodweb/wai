@@ -172,7 +172,7 @@ runSettingsConnectionMaker set getConnMaker app = do
             -- We need to register a timeout handler for this thread, and
             -- cancel that handler as soon as we exit.
             bracket (T.registerKillThread tm) T.cancel $ \th ->
-                let cleaner = Cleaner th fc
+                let ii = InternalInfo th fc
                     conn = setSendFile conn' fc
                     -- We now have fully registered a connection close handler
                     -- in the case of all exceptions, so it is safe to one
@@ -186,7 +186,7 @@ runSettingsConnectionMaker set getConnMaker app = do
                     bracket_ onOpen onClose $
 
                     -- Actually serve this connection.
-                    serveConnection th set cleaner app conn addr
+                    serveConnection th set ii app conn addr
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
     getConnLoop = getConnMaker `E.catch` \(e :: IOException) -> do
@@ -209,15 +209,15 @@ runSettingsConnectionMaker set getConnMaker app = do
 
 serveConnection :: T.Handle
                 -> Settings
-                -> Cleaner
+                -> InternalInfo
                 -> Application -> Connection -> SockAddr-> IO ()
-serveConnection timeoutHandle settings cleaner app conn remoteHost' =
+serveConnection timeoutHandle settings ii app conn remoteHost' =
     (serveConnection'' $ connSource conn th) `onException` send500
   where
-    th = threadHandle cleaner
+    th = threadHandle ii
 
     send500 = void $ mask $ \restore ->
-        sendResponse settings cleaner dummyreq conn restore internalError
+        sendResponse settings ii dummyreq conn restore internalError
 
     dummyreq = defaultRequest { remoteHost = remoteHost' }
 
@@ -236,7 +236,7 @@ serveConnection timeoutHandle settings cleaner app conn remoteHost' =
                 keepAlive <- mask $ \restore -> do
                     res <- restore $ app env
                     liftIO $ T.resume th
-                    sendResponse settings cleaner env conn restore res
+                    sendResponse settings ii env conn restore res
 
                 -- We just send a Response and it takes a time to
                 -- receive a Request again. If we immediately call recv,

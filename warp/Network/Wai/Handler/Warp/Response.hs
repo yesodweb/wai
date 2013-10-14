@@ -36,18 +36,18 @@ import Numeric (showInt)
 ----------------------------------------------------------------
 
 sendResponse :: Settings
-             -> Cleaner -> Request -> Connection
+             -> InternalInfo -> Request -> Connection
              -> (forall a. IO a -> IO a) -- ^ restore masking state
              -> Response
              -> IO Bool
 
 ----------------------------------------------------------------
 
-sendResponse settings cleaner req conn restore (ResponseFile s0 hs0 path mpart0) =
+sendResponse settings ii req conn restore (ResponseFile s0 hs0 path mpart0) =
     restore $ headerAndLength >>= sendResponse'
   where
     hs = addAccept hs0
-    th = threadHandle cleaner
+    th = threadHandle ii
     headerAndLength = liftIO . try $ do
         (hadLength, cl) <-
             case readInt <$> checkLength hs of
@@ -98,13 +98,13 @@ sendResponse settings cleaner req conn restore (ResponseFile s0 hs0 path mpart0)
         (isPersist,_) = infoFromRequest req
 
     sendResponse' (Left (_ :: SomeException)) =
-        sendResponse settings cleaner req conn restore notFound
+        sendResponse settings ii req conn restore notFound
       where
         notFound = responseLBS H.status404 [(H.hContentType, "text/plain")] "File not found"
 
 ----------------------------------------------------------------
 
-sendResponse settings cleaner req conn restore (ResponseBuilder s hs b)
+sendResponse settings ii req conn restore (ResponseBuilder s hs b)
   | hasBody s req = restore $ do
       header <- composeHeaderBuilder settings version s hs needsChunked
       let body
@@ -120,14 +120,14 @@ sendResponse settings cleaner req conn restore (ResponseBuilder s hs b)
       T.tickle th
       return isPersist
   where
-    th = threadHandle cleaner
+    th = threadHandle ii
     version = httpVersion req
     reqinfo@(isPersist,_) = infoFromRequest req
     (isKeepAlive, needsChunked) = infoFromResponse hs reqinfo
 
 ----------------------------------------------------------------
 
-sendResponse settings cleaner req conn restore (ResponseSource s hs withBodyFlush)
+sendResponse settings ii req conn restore (ResponseSource s hs withBodyFlush)
   | hasBody s req = withBodyFlush $ \bodyFlush -> restore $ do
       header <- liftIO $ composeHeaderBuilder settings version s hs needsChunked
       let src = CL.sourceList [header] `mappend` cbody bodyFlush
@@ -138,7 +138,7 @@ sendResponse settings cleaner req conn restore (ResponseSource s hs withBodyFlus
       T.tickle th
       return isPersist
   where
-    th = threadHandle cleaner
+    th = threadHandle ii
     cbody bodyFlush =
         if needsChunked then body $= chunk else body
       where

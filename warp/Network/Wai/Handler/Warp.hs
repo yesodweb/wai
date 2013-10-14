@@ -48,7 +48,7 @@ module Network.Wai.Handler.Warp (
     -- ** Time out manager
   , module Network.Wai.Handler.Warp.Timeout
     -- ** Data types
-  , Cleaner
+  , InternalInfo
     -- ** Request and response
   , parseRequest
   , sendResponse

@@ -68,7 +68,7 @@ data Connection = Connection
 ----------------------------------------------------------------
 
 -- | A type used to clean up file descriptor caches.
-data Cleaner = Cleaner {
+data InternalInfo = InternalInfo {
     threadHandle :: T.Handle
   , fdCacher :: Maybe F.MutableFdCache
   }
