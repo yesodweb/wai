@@ -13,17 +13,17 @@ defaultSendFile s path off len act hdr = sendfileWithHeader s path (PartOfFile o
 
 
 #if SENDFILEFD
-setSendFile :: Connection -> Maybe F.MutableFdCacheSet -> Connection
+setSendFile :: Connection -> Maybe F.MutableFdCache -> Connection
 setSendFile conn Nothing    = conn
 setSendFile conn (Just fdcs) = case connSendFileOverride conn of
     NotOverride -> conn
     Override s  -> conn { connSendFile = sendFile fdcs s }
 
-sendFile :: F.MutableFdCacheSet -> Socket -> FilePath -> Integer -> Integer -> IO () -> [ByteString] -> IO ()
+sendFile :: F.MutableFdCache -> Socket -> FilePath -> Integer -> Integer -> IO () -> [ByteString] -> IO ()
 sendFile fdcs s path off len act hdr = do
     (fd, fresher) <- F.getFd fdcs path
     sendfileFdWithHeader s fd (PartOfFile off len) (act>>fresher) hdr
 #else
-setSendFile :: Connection -> Maybe F.MutableFdCacheSet -> Connection
+setSendFile :: Connection -> Maybe F.MutableFdCache -> Connection
 setSendFile conn _ = conn
 #endif

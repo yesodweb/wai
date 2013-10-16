@@ -70,5 +70,5 @@ data Connection = Connection
 -- | Internal information.
 data InternalInfo = InternalInfo {
     threadHandle :: T.Handle
-  , fdCacher :: Maybe F.MutableFdCacheSet
+  , fdCacher :: Maybe F.MutableFdCache
   }

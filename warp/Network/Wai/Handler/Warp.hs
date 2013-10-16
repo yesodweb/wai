@@ -47,6 +47,8 @@ module Network.Wai.Handler.Warp (
     -- * Internal
     -- ** Time out manager
   , module Network.Wai.Handler.Warp.Timeout
+    -- ** File descriptor cache
+  , module Network.Wai.Handler.Warp.FdCache
     -- ** Data types
   , InternalInfo
     -- ** Request and response
@@ -61,10 +63,11 @@ module Network.Wai.Handler.Warp (
   , warpVersion
   ) where
 
+import Data.Conduit.Network (HostPreference(..))
+import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.Settings
-import Network.Wai.Handler.Warp.Types
 import Network.Wai.Handler.Warp.Timeout
-import Data.Conduit.Network (HostPreference(..))
+import Network.Wai.Handler.Warp.Types

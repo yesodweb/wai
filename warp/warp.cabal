@@ -31,7 +31,6 @@ Flag allow-sendfilefd
 
 Library
   Build-Depends:     base                      >= 3        && < 5
-                   , array
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , blaze-builder-conduit     >= 0.5      && < 1.1
                    , bytestring                >= 0.9.1.4
@@ -83,7 +82,6 @@ Test-Suite spec
 
     Ghc-Options:     -Wall
     Build-Depends:   base >= 4 && < 5
-                   , array
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , blaze-builder-conduit     >= 0.5
                    , bytestring                >= 0.9.1.4
