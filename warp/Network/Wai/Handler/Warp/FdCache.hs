@@ -2,27 +2,28 @@
 
 #ifndef SENDFILEFD
 module Network.Wai.Handler.Warp.FdCache (
-    initialize
-  , MutableFdCache
+    withFdCache
+  , MutableFdCacheSet
   ) where
 
-data MutableFdCache = MutableFdCache
+data MutableFdCacheSet = MutableFdCacheSet
 
-initialize :: Int -> IO (Maybe MutableFdCache)
-initialize _ = return Nothing
-
+withFdCache :: Int -> (Maybe MutableFdCacheSet -> IO a) -> IO a
+withFdCache _ f = f Nothing
 #else
 module Network.Wai.Handler.Warp.FdCache (
-    initialize
+    withFdCache
   , getFd
-  , MutableFdCache
+  , MutableFdCacheSet
   ) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Concurrent (forkIO, threadDelay, ThreadId, killThread)
-import Control.Exception (mask_)
+import Control.Concurrent (forkIO, threadDelay, myThreadId, threadCapability, getNumCapabilities)
+import Control.Exception (bracket)
+import Control.Monad (replicateM, void)
+import Data.Array (Array, (!), listArray, elems)
 import Data.Hashable (hash)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef, mkWeakIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
 import Network.Wai.Handler.Warp.MultiMap
 import System.Posix.IO (openFd, defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types (Fd)
@@ -60,7 +61,8 @@ newFdEntry path = FdEntry path
 
 type Hash = Int
 type FdCache = MMap Hash FdEntry
-newtype MutableFdCache = MutableFdCache { unMutableFdCache :: IORef FdCache }
+newtype MutableFdCache = MutableFdCache (IORef FdCache)
+newtype MutableFdCacheSet = MutableFdCacheSet (Array Int MutableFdCache)
 
 newMutableFdCache :: IO MutableFdCache
 newMutableFdCache = MutableFdCache <$> newIORef empty
@@ -88,31 +90,41 @@ look mfc path key = searchWith key check <$> fdCache mfc
 
 ----------------------------------------------------------------
 
-initialize :: Int -> IO (Maybe MutableFdCache)
+withFdCache :: Int -> (Maybe MutableFdCacheSet -> IO a) -> IO a
+withFdCache duration action = bracket (initialize duration)
+                                      terminate
+                                      action
+
+----------------------------------------------------------------
+
+initialize :: Int -> IO (Maybe MutableFdCacheSet)
 initialize 0 = return Nothing
 initialize duration = do
-    mfc <- newMutableFdCache
-    tid <- forkIO $ loop mfc
-    -- Registering finalizer to this IORef.
-    -- When Warp is finished in GHCi, this IORef is GCed.
-    -- At that time, we should close all opened file descriptors.
-    _ <- mkWeakIORef (unMutableFdCache mfc) $ terminate mfc tid
-    return (Just mfc)
-  where
-    loop mfc = do
-        mask_ $ do
-            old <- swapWithNew mfc
-            new <- pruneWith old prune
-            update mfc (merge new)
-        threadDelay duration
-        loop mfc
+    mfcset <- create
+    -- FIXME: how to stop this thread?
+    void . forkIO $ cleanLoop duration mfcset
+    return (Just mfcset)
 
-terminate :: MutableFdCache -> ThreadId -> IO ()
-terminate (MutableFdCache icache) tid = do
-    killThread tid
-    readIORef icache >>= mapM_ go . toList
-  where
-    go (_, FdEntry _ fd _) = closeFd fd
+create :: IO MutableFdCacheSet
+create = do
+    n <- getNumCapabilities
+    mfcs <- replicateM n newMutableFdCache
+    let mfcset = listArray (0,n-1) mfcs
+    return $ MutableFdCacheSet mfcset
+
+cleanLoop :: Int -> MutableFdCacheSet -> IO ()
+cleanLoop duration (MutableFdCacheSet mfcs) = loop
+ where
+   loop = do
+       mapM_ clean $ elems mfcs
+       threadDelay duration
+       loop
+
+clean :: MutableFdCache -> IO ()
+clean mfc = do
+    old <- swapWithNew mfc
+    new <- pruneWith old prune
+    update mfc (merge new)
 
 prune :: t -> Some FdEntry -> IO [(t, Some FdEntry)]
 prune k v@(One (FdEntry _ fd mst)) = status mst >>= prune'
@@ -132,15 +144,34 @@ prune k (Tom ent@(FdEntry _ fd mst) vs) = status mst >>= prune'
 
 ----------------------------------------------------------------
 
-getFd :: MutableFdCache -> FilePath -> IO (Fd, Refresh)
-getFd mfc path = look mfc path key >>= getFd'
+terminate :: Maybe MutableFdCacheSet -> IO ()
+terminate Nothing = return ()
+terminate (Just (MutableFdCacheSet mfcs)) = mapM_ cleanup $ elems mfcs
+
+cleanup :: MutableFdCache -> IO ()
+cleanup (MutableFdCache mfc) = readIORef mfc >>= mapM_ closeIt . toList
+  where
+    closeIt (_, FdEntry _ fd _) = closeFd fd
+
+----------------------------------------------------------------
+
+getFd :: MutableFdCacheSet -> FilePath -> IO (Fd, Refresh)
+getFd mfcs path = do
+    mfc <- myMutableFdCache mfcs
+    look mfc path key >>= getFd' mfc
   where
     key = hash path
-    getFd' Nothing = do
+    getFd' mfc Nothing = do
         ent@(FdEntry _ fd mst) <- newFdEntry path
         update mfc (insert key ent)
         return (fd, refresh mst)
-    getFd' (Just (FdEntry _ fd mst)) = do
+    getFd' _ (Just (FdEntry _ fd mst)) = do
         refresh mst
         return (fd, refresh mst)
+----------------------------------------------------------------
+
+myMutableFdCache :: MutableFdCacheSet -> IO MutableFdCache
+myMutableFdCache (MutableFdCacheSet mfcs) = do
+    (i, _) <- myThreadId >>= threadCapability
+    return $ mfcs ! i
 #endif

@@ -121,7 +121,6 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
 -- which will return 'Connection'.
 runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
 runSettingsConnectionMaker set getConnMaker app = do
-    fc <- F.initialize (settingsFdCacheDuration set * 1000000)
     settingsBeforeMainLoop set
 
     -- Note that there is a thorough discussion of the exception safety of the
@@ -140,6 +139,7 @@ runSettingsConnectionMaker set getConnMaker app = do
     -- First mask all exceptions in the main loop. This is necessary to ensure
     -- that no async exception is throw between the call to getConnLoop and the
     -- registering of connClose.
+    F.withFdCache (settingsFdCacheDuration set * 1000000) $ \fc -> do
     withTimeoutManager $ \tm -> mask_ . forever $ do
         -- Allow async exceptions before receiving the next connection maker.
         allowInterrupt
