@@ -29,7 +29,7 @@ import Control.Monad (void)
 import Data.Hashable (hash)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
 import Network.Wai.Handler.Warp.MultiMap
-import System.Posix.IO (openFd, defaultFileFlags, OpenMode(ReadOnly), closeFd)
+import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types (Fd)
 
 ----------------------------------------------------------------
@@ -58,7 +58,7 @@ data FdEntry = FdEntry !FilePath !Fd !MutableStatus
 
 newFdEntry :: FilePath -> IO FdEntry
 newFdEntry path = FdEntry path
-              <$> openFd path ReadOnly Nothing defaultFileFlags
+              <$> openFd path ReadOnly Nothing defaultFileFlags{nonBlock=True}
               <*> newActiveStatus
 
 ----------------------------------------------------------------
