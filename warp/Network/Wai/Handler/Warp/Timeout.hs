@@ -87,7 +87,6 @@ initialize timeout = do
     ref <- I.newIORef []
     void . forkIO $ E.handle ignoreStop $ forever $ do
         threadDelay timeout
-        -- FIXME: isn't mask_ necessary?
         old <- I.atomicModifyIORef ref (\x -> ([], x))
         merge <- prune old id
         I.atomicModifyIORef ref (\new -> (merge new, ()))
