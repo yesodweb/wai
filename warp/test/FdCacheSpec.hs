@@ -18,5 +18,3 @@ spec = describe "withFdCache" $ do
             writeIORef ref fd
         nfd <- readIORef ref
         fdRead nfd 1 `shouldThrow` anyIOException
-
-
