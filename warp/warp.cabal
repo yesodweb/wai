@@ -79,6 +79,7 @@ Test-Suite spec
     Main-Is:         Spec.hs
     Other-modules:   ConduitSpec
                      ExceptionSpec
+                     FdCacheSpec
                      MultiMapSpec
                      PartialFileSpec
                      ReadIntSpec
