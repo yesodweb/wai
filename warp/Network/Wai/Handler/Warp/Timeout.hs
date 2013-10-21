@@ -51,7 +51,6 @@ import Control.Concurrent (threadDelay, myThreadId, killThread)
 import qualified Control.Exception as E
 import Data.IORef (IORef)
 import qualified Data.IORef as I
-import Data.Typeable (Typeable)
 import GHC.Weak (Weak (..))
 import Network.Wai.Handler.Warp.Thread
 import System.Mem.Weak (deRefWeak)
@@ -71,12 +70,6 @@ data State = Active    -- Manager turns it to Inactive.
            | Inactive  -- Manager removes it with timeout action.
            | Paused    -- Manager does not change it.
            | Canceled  -- Manager removes it without timeout action.
-
-----------------------------------------------------------------
-
-data TimeoutManagerStopped = TimeoutManagerStopped
-    deriving (Show, Typeable)
-instance E.Exception TimeoutManagerStopped
 
 ----------------------------------------------------------------
 
