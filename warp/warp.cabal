@@ -77,6 +77,14 @@ Library
 
 Test-Suite spec
     Main-Is:         Spec.hs
+    Other-modules:   ConduitSpec
+                     ExceptionSpec
+                     MultiMapSpec
+                     PartialFileSpec
+                     ReadIntSpec
+                     RequestSpec
+                     ResponseHeaderSpec
+                     RunSpec
     Hs-Source-Dirs:  test, .
     Type:            exitcode-stdio-1.0
 
