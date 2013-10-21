@@ -23,12 +23,12 @@ module Network.Wai.Handler.Warp.FdCache (
   ) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Concurrent (forkIO, threadDelay)
-import Control.Exception (bracket)
-import Control.Monad (void)
+import Control.Concurrent (threadDelay)
+import Control.Exception (bracket, mask_)
 import Data.Hashable (hash)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
 import Network.Wai.Handler.Warp.MultiMap
+import Network.Wai.Handler.Warp.Thread
 import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types (Fd)
 
@@ -67,17 +67,17 @@ type Hash = Int
 type FdCache = MMap Hash FdEntry
 newtype MutableFdCache = MutableFdCache (IORef FdCache)
 
-newMutableFdCache :: IO MutableFdCache
-newMutableFdCache = MutableFdCache <$> newIORef empty
-
 fdCache :: MutableFdCache -> IO FdCache
 fdCache (MutableFdCache ref) = readIORef ref
 
-swapWithNew :: MutableFdCache -> IO FdCache
-swapWithNew (MutableFdCache ref) = atomicModifyIORef ref (\t -> (empty, t))
+swapWithNew :: IORef FdCache -> IO FdCache
+swapWithNew ref = atomicModifyIORef ref (\t -> (empty, t))
 
 update :: MutableFdCache -> (FdCache -> FdCache) -> IO ()
-update (MutableFdCache ref) f = do
+update (MutableFdCache ref) = update' ref
+
+update' :: IORef FdCache -> (FdCache -> FdCache) -> IO ()
+update' ref f = do
     !_  <- atomicModifyIORef ref $ \t -> let !new = f t in (new, ())
     return ()
 
@@ -103,24 +103,16 @@ withFdCache duration action = bracket (initialize duration)
 initialize :: Int -> IO (Maybe MutableFdCache)
 initialize 0 = return Nothing
 initialize duration = do
-    mfc <- newMutableFdCache
-    -- FIXME: how to stop this thread?
-    void . forkIO $ cleanLoop duration mfc
-    return (Just mfc)
+    ref' <- forkIOwithBreakableForever empty $ \ref -> do
+        threadDelay duration
+        clean ref
+    return (Just (MutableFdCache ref'))
 
-cleanLoop :: Int -> MutableFdCache -> IO ()
-cleanLoop duration mfc = loop
- where
-   loop = do
-       clean mfc
-       threadDelay duration
-       loop
-
-clean :: MutableFdCache -> IO ()
-clean mfc = do
-    old <- swapWithNew mfc
+clean :: IORef FdCache -> IO ()
+clean ref = do
+    old <- swapWithNew ref
     new <- pruneWith old prune
-    update mfc (merge new)
+    update' ref (merge new)
 
 prune :: t -> Some FdEntry -> IO [(t, Some FdEntry)]
 prune k v@(One (FdEntry _ fd mst)) = status mst >>= prune'
@@ -142,7 +134,9 @@ prune k (Tom ent@(FdEntry _ fd mst) vs) = status mst >>= prune'
 
 terminate :: Maybe MutableFdCache -> IO ()
 terminate Nothing = return ()
-terminate (Just (MutableFdCache mfc)) = readIORef mfc >>= mapM_ closeIt . toList
+terminate (Just (MutableFdCache ref)) = mask_ $ do
+    !t <- breakForever ref
+    mapM_ closeIt $ toList t
   where
     closeIt (_, FdEntry _ fd _) = closeFd fd
 

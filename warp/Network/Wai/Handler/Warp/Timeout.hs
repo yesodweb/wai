@@ -47,13 +47,12 @@ import Control.Concurrent (ThreadId(..))
 import GHC.Exts (mkWeak#)
 import GHC.IO (IO (IO))
 #endif
-import GHC.Weak (Weak (..))
-import Control.Concurrent (forkIO, threadDelay, myThreadId, killThread)
+import Control.Concurrent (threadDelay, myThreadId, killThread)
 import qualified Control.Exception as E
-import Control.Monad (forever, void)
 import Data.IORef (IORef)
 import qualified Data.IORef as I
-import Data.Typeable (Typeable)
+import GHC.Weak (Weak (..))
+import Network.Wai.Handler.Warp.Thread
 import System.Mem.Weak (deRefWeak)
 
 ----------------------------------------------------------------
@@ -74,26 +73,17 @@ data State = Active    -- Manager turns it to Inactive.
 
 ----------------------------------------------------------------
 
-data TimeoutManagerStopped = TimeoutManagerStopped
-    deriving (Show, Typeable)
-instance E.Exception TimeoutManagerStopped
-
-----------------------------------------------------------------
-
 -- | Creating timeout manager which works every N micro seconds
 --   where N is the first argument.
 initialize :: Int -> IO Manager
 initialize timeout = do
-    ref <- I.newIORef []
-    void . forkIO $ E.handle ignoreStop $ forever $ do
+    ref' <- forkIOwithBreakableForever [] $ \ref -> do
         threadDelay timeout
         old <- I.atomicModifyIORef ref (\x -> ([], x))
         merge <- prune old id
         I.atomicModifyIORef ref (\new -> (merge new, ()))
-    return $ Manager ref
+    return $ Manager ref'
   where
-    ignoreStop TimeoutManagerStopped = return ()
-
     prune [] front = return front
     prune (m@(Handle onTimeout iactive):rest) front = do
         state <- I.atomicModifyIORef iactive (\x -> (inactivate x, x))
@@ -109,10 +99,8 @@ initialize timeout = do
 ----------------------------------------------------------------
 
 stopManager :: Manager -> IO ()
-stopManager (Manager ihandles) = E.mask_ $ do
-    -- Put an undefined value in the IORef to kill the worker thread (yes, it's
-    -- a bit of a hack)
-    !handles <- I.atomicModifyIORef ihandles $ \h -> (E.throw TimeoutManagerStopped, h)
+stopManager (Manager ref) = E.mask_ $ do
+    !handles <- breakForever ref
     mapM_ fire handles
   where
     fire (Handle onTimeout _) = onTimeout `E.catch` ignoreAll
