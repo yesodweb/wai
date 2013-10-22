@@ -1,12 +1,19 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Network.Wai.Handler.Warp.Thread (
     forkIOwithBreakableForever
   , breakForever
   ) where
 
 import Control.Concurrent (forkIO)
+import Control.Exception (handle, throw, mask_, Exception)
 import Control.Monad (void, forever)
-import Control.Exception (handle, throw, mask_, SomeException, AsyncException(ThreadKilled))
 import Data.IORef
+import Data.Typeable
+
+data BreakForever = BreakForever deriving (Show, Typeable)
+
+instance Exception BreakForever
 
 forkIOwithBreakableForever :: a -> (IORef a -> IO ()) -> IO (IORef a)
 forkIOwithBreakableForever ini action = do
@@ -14,8 +21,8 @@ forkIOwithBreakableForever ini action = do
     void . forkIO . handle stopPropagation . forever . mask_ $ action ref
     return ref
 
-stopPropagation :: SomeException -> IO ()
+stopPropagation :: BreakForever -> IO ()
 stopPropagation _ = return ()
 
 breakForever :: IORef a -> IO a
-breakForever ref = atomicModifyIORef ref $ \x -> (throw ThreadKilled, x)
+breakForever ref = atomicModifyIORef ref $ \x -> (throw BreakForever, x)
