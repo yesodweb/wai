@@ -30,15 +30,14 @@ import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 maxTotalHeaderLength :: Int
 maxTotalHeaderLength = 50 * 1024
 
-parseRequest
-             :: Connection
-             -> Timeout.Handle
-             -> SockAddr
-             -> Source IO ByteString
-             -> IO (Request, IO (ResumableSource IO ByteString))
-parseRequest conn timeoutHandle remoteHost' src1 = do
+recvRequest :: Connection
+            -> Timeout.Handle
+            -> SockAddr
+            -> Source IO ByteString
+            -> IO (Request, IO (ResumableSource IO ByteString))
+recvRequest conn timeoutHandle remoteHost' src1 = do
     (src2, headers') <- src1 $$+ takeHeaders
-    parseRequest' conn timeoutHandle headers' remoteHost' src2
+    recvRequest' conn timeoutHandle headers' remoteHost' src2
 
 handleExpect :: Connection
              -> H.HttpVersion
@@ -55,14 +54,14 @@ handleExpect conn hv front (("expect", "100-continue"):rest) = do
 handleExpect conn hv front (x:xs) = handleExpect conn hv (front . (x:)) xs
 
 -- | Parse a set of header lines and body into a 'Request'.
-parseRequest' :: Connection
-              -> Timeout.Handle
-              -> [ByteString]
-              -> SockAddr
-              -> ResumableSource IO ByteString -- FIXME was buffered
-              -> IO (Request, IO (ResumableSource IO ByteString))
-parseRequest' _ _ [] _ _ = throwIO $ NotEnoughLines []
-parseRequest' conn timeoutHandle (firstLine:otherLines) remoteHost' src = do
+recvRequest' :: Connection
+             -> Timeout.Handle
+             -> [ByteString]
+             -> SockAddr
+             -> ResumableSource IO ByteString -- FIXME was buffered
+             -> IO (Request, IO (ResumableSource IO ByteString))
+recvRequest' _ _ [] _ _ = throwIO $ NotEnoughLines []
+recvRequest' conn timeoutHandle (firstLine:otherLines) remoteHost' src = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
     let rpath
             | S.null rpath' = "/"

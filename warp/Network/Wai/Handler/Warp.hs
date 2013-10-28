@@ -52,7 +52,7 @@ module Network.Wai.Handler.Warp (
     -- ** Data types
   , InternalInfo
     -- ** Request and response
-  , parseRequest
+  , recvRequest
   , sendResponse
 #if TEST
   , takeHeaders

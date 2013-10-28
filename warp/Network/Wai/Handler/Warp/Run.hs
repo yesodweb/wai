@@ -224,7 +224,7 @@ serveConnection timeoutHandle settings ii app conn remoteHost' =
     internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
     serveConnection'' fromClient = do
-        (env, getSource) <- parseRequest conn timeoutHandle remoteHost' fromClient
+        (env, getSource) <- recvRequest conn timeoutHandle remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
