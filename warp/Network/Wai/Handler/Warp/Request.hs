@@ -70,7 +70,7 @@ headerLines =
 
 ----------------------------------------------------------------
 
-parseHeaderLines :: [ByteString] -> IO (ByteString, ByteString, ByteString, H.HttpVersion, [H.Header])
+parseHeaderLines :: [ByteString] -> IO (ByteString, ByteString, ByteString, H.HttpVersion, H.RequestHeaders)
 parseHeaderLines [] = throwIO $ NotEnoughLines []
 parseHeaderLines (firstLine:otherLines) = do
     (method, rpath', gets, httpversion) <- parseFirst firstLine
@@ -117,9 +117,9 @@ parseRpath rpath'
 
 handleExpect :: Connection
              -> H.HttpVersion
-             -> ([H.Header] -> [H.Header])
-             -> [H.Header]
-             -> IO [H.Header]
+             -> (H.RequestHeaders -> H.RequestHeaders)
+             -> H.RequestHeaders
+             -> IO H.RequestHeaders
 handleExpect _ _ front [] = return $ front []
 handleExpect conn hv front (("expect", "100-continue"):rest) = do
     connSendAll conn $
@@ -132,7 +132,7 @@ handleExpect conn hv front (x:xs) = handleExpect conn hv (front . (x:)) xs
 ----------------------------------------------------------------
 
 bodyAndSource :: ResumableSource IO ByteString
-              -> [H.Header]
+              -> H.RequestHeaders
               -> IO (Source IO ByteString
                     ,RequestBodyLength
                     ,IO (ResumableSource IO ByteString))
@@ -150,7 +150,7 @@ bodyAndSource src hdr
     bodyLen = KnownLength $ fromIntegral len0
     chunked = isChunked hdr
 
-isChunked :: [H.Header] -> Bool
+isChunked :: H.RequestHeaders -> Bool
 isChunked hdr = maybe False ((== "chunked") . CI.foldCase) $ lookup hTransferEncoding hdr
 
 ----------------------------------------------------------------
