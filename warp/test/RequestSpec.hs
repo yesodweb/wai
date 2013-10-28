@@ -12,7 +12,7 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = describe "takeHeaders" $ do
+spec = describe "headerLines" $ do
     it "takes until blank" $
         blankSafe >>= (`shouldBe` ["foo", "bar", "baz"])
     it "ignored leading whitespace in bodies" $
@@ -22,10 +22,10 @@ spec = describe "takeHeaders" $ do
     it "throws OverLargeHeader when too large" $
         tooLarge `shouldThrow` overLargeHeader
   where
-    blankSafe = (sourceList ["f", "oo\n", "bar\nbaz\n\r\n"]) $$ takeHeaders
-    whiteSafe = (sourceList ["foo\r\nbar\r\nbaz\r\n\r\n hi there"]) $$ takeHeaders
-    tooMany = (sourceList $ repeat "f\n") $$ takeHeaders
-    tooLarge = (sourceList $ repeat "f") $$ takeHeaders
+    blankSafe = (sourceList ["f", "oo\n", "bar\nbaz\n\r\n"]) $$ headerLines
+    whiteSafe = (sourceList ["foo\r\nbar\r\nbaz\r\n\r\n hi there"]) $$ headerLines
+    tooMany = (sourceList $ repeat "f\n") $$ headerLines
+    tooLarge = (sourceList $ repeat "f") $$ headerLines
 
 overLargeHeader :: Selector InvalidRequest
 overLargeHeader e = e == OverLargeHeader

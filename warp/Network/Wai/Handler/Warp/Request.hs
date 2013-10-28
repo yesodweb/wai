@@ -4,7 +4,7 @@
 
 module Network.Wai.Handler.Warp.Request (
     recvRequest
-  , takeHeaders
+  , headerLines
   ) where
 
 import Control.Applicative
@@ -28,64 +28,24 @@ import Network.Wai.Handler.Warp.Types
 import Prelude hiding (lines)
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 
+----------------------------------------------------------------
+
 -- FIXME come up with good values here
 maxTotalHeaderLength :: Int
 maxTotalHeaderLength = 50 * 1024
+
+----------------------------------------------------------------
 
 recvRequest :: Connection
             -> Timeout.Handle
             -> SockAddr
             -> Source IO ByteString
             -> IO (Request, IO (ResumableSource IO ByteString))
-recvRequest conn timeoutHandle remoteHost' src1 = do
-    (src2, headers') <- src1 $$+ takeHeaders
-    recvRequest' conn timeoutHandle headers' remoteHost' src2
-
-handleExpect :: Connection
-             -> H.HttpVersion
-             -> ([H.Header] -> [H.Header])
-             -> [H.Header]
-             -> IO [H.Header]
-handleExpect _ _ front [] = return $ front []
-handleExpect conn hv front (("expect", "100-continue"):rest) = do
-    connSendAll conn $
-        if hv == H.http11
-            then "HTTP/1.1 100 Continue\r\n\r\n"
-            else "HTTP/1.0 100 Continue\r\n\r\n"
-    return $ front rest
-handleExpect conn hv front (x:xs) = handleExpect conn hv (front . (x:)) xs
-
--- | Parse a set of header lines and body into a 'Request'.
-recvRequest' :: Connection
-             -> Timeout.Handle
-             -> [ByteString]
-             -> SockAddr
-             -> ResumableSource IO ByteString -- FIXME was buffered
-             -> IO (Request, IO (ResumableSource IO ByteString))
-recvRequest' _ _ [] _ _ = throwIO $ NotEnoughLines []
-recvRequest' conn timeoutHandle (firstLine:otherLines) remoteHost' src = do
-    (method, rpath', gets, httpversion) <- parseFirst firstLine
-    let rpath
-            | S.null rpath' = "/"
-            | "http://" `S.isPrefixOf` rpath' = snd $ S.breakByte 47 $ S.drop 7 rpath'
-            | otherwise = rpath'
-    heads <- liftIO
-           $ handleExpect conn httpversion id
-             (map parseHeaderNoAttr otherLines)
-    let len0 =
-            case lookup H.hContentLength heads of
-                Nothing -> 0
-                Just bs -> readInt bs
-    let chunked = maybe False ((== "chunked") . CI.foldCase)
-                  $ lookup hTransferEncoding heads
-    (rbody, getSource) <-
-        if chunked
-          then do
-            ref <- I.newIORef (src, NeedLen)
-            return (chunkedSource ref, fst <$> I.readIORef ref)
-          else do
-            ibs <- IsolatedBSSource <$> I.newIORef (len0, src)
-            return (ibsIsolate ibs, ibsDone ibs)
+recvRequest conn timeoutHandle remoteHost' src0 = do
+    (src, hdrlines) <- src0 $$+ headerLines
+    (method, rpath, gets, httpversion, hdr') <- parseHeaderLines hdrlines
+    hdr <- liftIO $ handleExpect conn httpversion id hdr'
+    (rbody, bodyLength, getSource) <- bodyAndSource src hdr
 
     return (Request
             { requestMethod = method
@@ -94,29 +54,32 @@ recvRequest' conn timeoutHandle (firstLine:otherLines) remoteHost' src = do
             , rawPathInfo = rpath
             , rawQueryString = gets
             , queryString = H.parseQuery gets
-            , requestHeaders = heads
+            , requestHeaders = hdr
             , isSecure = False
             , remoteHost = remoteHost'
-            , requestBody = do
-                -- Timeout handling was paused after receiving the full request
-                -- headers. Now we need to resume it to avoid a slowloris
-                -- attack during request body sending.
-                liftIO $ Timeout.resume timeoutHandle
-                -- As soon as we finish receiving the request body, whether
-                -- because the application is not interested in more bytes, or
-                -- because there is no more data available, pause the timeout
-                -- handler again.
-                addCleanup (const $ liftIO $ Timeout.pause timeoutHandle) rbody
+            , requestBody = timeoutBody timeoutHandle rbody
             , vault = mempty
-#if MIN_VERSION_wai(1, 4, 0)
-            , requestBodyLength =
-                if chunked
-                    then ChunkedBody
-                    else KnownLength $ fromIntegral len0
-#endif
+            , requestBodyLength = bodyLength
             }, getSource)
 
-{-# INLINE parseFirst #-} -- FIXME is this inline necessary? the function is only called from one place and not exported
+----------------------------------------------------------------
+
+headerLines :: Sink ByteString IO [ByteString]
+headerLines =
+    await >>= maybe (throwIO ConnectionClosedByPeer) (push (THStatus 0 id id))
+
+----------------------------------------------------------------
+
+parseHeaderLines :: [ByteString] -> IO (ByteString, ByteString, ByteString, H.HttpVersion, [H.Header])
+parseHeaderLines [] = throwIO $ NotEnoughLines []
+parseHeaderLines (firstLine:otherLines) = do
+    (method, rpath', gets, httpversion) <- parseFirst firstLine
+    let rpath = parseRpath rpath'
+        hdr = map parseHeaderNoAttr otherLines
+    return (method, rpath, gets, httpversion, hdr)
+
+----------------------------------------------------------------
+
 parseFirst :: ByteString
            -> IO (ByteString, ByteString, ByteString, H.HttpVersion)
 parseFirst s =
@@ -134,11 +97,77 @@ parseFirst s =
                else throwIO NonHttp
         _ -> throwIO $ BadFirstLine $ B.unpack s
 
+----------------------------------------------------------------
+
 parseHeaderNoAttr :: ByteString -> H.Header
 parseHeaderNoAttr s =
     let (k, rest) = S.breakByte 58 s -- ':'
         rest' = S.dropWhile (\c -> c == 32 || c == 9) $ S.drop 1 rest
      in (CI.mk k, rest')
+
+----------------------------------------------------------------
+
+parseRpath :: ByteString -> ByteString
+parseRpath rpath'
+  | S.null rpath' = "/"
+  | "http://" `S.isPrefixOf` rpath' = snd $ S.breakByte 47 $ S.drop 7 rpath'
+  | otherwise = rpath'
+
+----------------------------------------------------------------
+
+handleExpect :: Connection
+             -> H.HttpVersion
+             -> ([H.Header] -> [H.Header])
+             -> [H.Header]
+             -> IO [H.Header]
+handleExpect _ _ front [] = return $ front []
+handleExpect conn hv front (("expect", "100-continue"):rest) = do
+    connSendAll conn $
+        if hv == H.http11
+            then "HTTP/1.1 100 Continue\r\n\r\n"
+            else "HTTP/1.0 100 Continue\r\n\r\n"
+    return $ front rest
+handleExpect conn hv front (x:xs) = handleExpect conn hv (front . (x:)) xs
+
+----------------------------------------------------------------
+
+bodyAndSource :: ResumableSource IO ByteString
+              -> [H.Header]
+              -> IO (Source IO ByteString
+                    ,RequestBodyLength
+                    ,IO (ResumableSource IO ByteString))
+bodyAndSource src hdr
+  | chunked = do
+      ref <- I.newIORef (src, NeedLen)
+      return (chunkedSource ref, ChunkedBody, fst <$> I.readIORef ref)
+  | otherwise = do
+      ibs <- IsolatedBSSource <$> I.newIORef (len0, src)
+      return (ibsIsolate ibs, bodyLen, ibsDone ibs)
+  where
+    len0 = case lookup H.hContentLength hdr of
+        Nothing -> 0
+        Just bs -> readInt bs
+    bodyLen = KnownLength $ fromIntegral len0
+    chunked = isChunked hdr
+
+isChunked :: [H.Header] -> Bool
+isChunked hdr = maybe False ((== "chunked") . CI.foldCase) $ lookup hTransferEncoding hdr
+
+----------------------------------------------------------------
+
+timeoutBody :: Timeout.Handle -> Source IO ByteString -> Source IO ByteString
+timeoutBody timeoutHandle rbody = do
+    -- Timeout handling was paused after receiving the full request
+    -- headers. Now we need to resume it to avoid a slowloris
+    -- attack during request body sending.
+    liftIO $ Timeout.resume timeoutHandle
+    -- As soon as we finish receiving the request body, whether
+    -- because the application is not interested in more bytes, or
+    -- because there is no more data available, pause the timeout
+    -- handler again.
+    addCleanup (const $ liftIO $ Timeout.pause timeoutHandle) rbody
+
+----------------------------------------------------------------
 
 type BSEndo = ByteString -> ByteString
 type BSEndoList = [ByteString] -> [ByteString]
@@ -148,10 +177,7 @@ data THStatus = THStatus
     BSEndoList -- previously parsed lines
     BSEndo -- bytestrings to be prepended
 
-{-# INLINE takeHeaders #-}
-takeHeaders :: Sink ByteString IO [ByteString]
-takeHeaders =
-    await >>= maybe (throwIO ConnectionClosedByPeer) (push (THStatus 0 id id))
+----------------------------------------------------------------
 
 close :: Sink ByteString IO a
 close = throwIO IncompleteHeaders
