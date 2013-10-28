@@ -2,7 +2,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
 
-module Network.Wai.Handler.Warp.Request where
+module Network.Wai.Handler.Warp.Request (
+    recvRequest
+  , takeHeaders
+  ) where
 
 import Control.Applicative
 import Control.Exception.Lifted (throwIO)
@@ -15,7 +18,6 @@ import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import qualified Data.IORef as I
 import Data.Monoid (mempty)
-import Data.Word (Word8)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
@@ -113,13 +115,6 @@ recvRequest' conn timeoutHandle (firstLine:otherLines) remoteHost' src = do
                     else KnownLength $ fromIntegral len0
 #endif
             }, getSource)
-
-{-# INLINE takeUntil #-}
-takeUntil :: Word8 -> ByteString -> ByteString
-takeUntil c bs =
-    case S.elemIndex c bs of
-       Just !idx -> SU.unsafeTake idx bs
-       Nothing -> bs
 
 {-# INLINE parseFirst #-} -- FIXME is this inline necessary? the function is only called from one place and not exported
 parseFirst :: ByteString
