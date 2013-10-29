@@ -28,6 +28,9 @@ idxHost             = 5
 requestMaxIndex :: Int
 requestMaxIndex     = 5
 
+defaultIndexRequestHeader :: IndexedHeader
+defaultIndexRequestHeader = array (0,requestMaxIndex) [(i,Nothing)|i<-[0..requestMaxIndex]]
+
 ----------------------------------------------------------------
 
 traverseHeader :: [Header] -> Int -> IndexedHeader

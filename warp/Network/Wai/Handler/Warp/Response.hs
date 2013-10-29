@@ -12,6 +12,7 @@ import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTe
 import Control.Applicative
 import Control.Exception
 import Control.Monad.IO.Class (liftIO)
+import Data.Array ((!))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
@@ -20,17 +21,18 @@ import Data.Conduit.Blaze (builderToByteString)
 import qualified Data.Conduit.List as CL
 import Data.Maybe (isJust, listToMaybe)
 import Data.Monoid (mappend)
+import Network.HTTP.Attoparsec (parseByteRanges)
 import qualified Network.HTTP.Types as H
 import Network.Wai
-import Network.Wai.Internal
+import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ReadInt
-import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.ResponseHeader as RH
+import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import qualified System.PosixCompat.Files as P
-import Network.HTTP.Attoparsec (parseByteRanges)
+import Network.Wai.Internal
 import Numeric (showInt)
+import qualified System.PosixCompat.Files as P
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -38,12 +40,13 @@ import Numeric (showInt)
 sendResponse :: Settings
              -> InternalInfo -> Request -> Connection
              -> (forall a. IO a -> IO a) -- ^ restore masking state
+             -> IndexedHeader
              -> Response
              -> IO Bool
 
 ----------------------------------------------------------------
 
-sendResponse settings ii req conn restore (ResponseFile s0 hs0 path mpart0) =
+sendResponse settings ii req conn restore reqidxhdr (ResponseFile s0 hs0 path mpart0) =
     restore $ headerAndLength >>= sendResponse'
   where
     hs = addAccept hs0
@@ -60,14 +63,13 @@ sendResponse settings ii req conn restore (ResponseFile s0 hs0 path mpart0) =
         let (s, addRange, beg, end) =
                 case mpart0 of
                     Just part -> (s0, id, filePartOffset part, filePartByteCount part)
-                    Nothing ->
-                        case lookup H.hRange (requestHeaders req) >>= parseByteRanges >>= listToMaybe of
-                            Just range | s0 == H.status200 ->
-                                case range of
-                                    H.ByteRangeFrom from -> rangeRes cl from (cl - 1)
-                                    H.ByteRangeFromTo from to -> rangeRes cl from to
-                                    H.ByteRangeSuffix count -> rangeRes cl (cl - count) (cl - 1)
-                            _ -> (s0, id, 0, cl)
+                    Nothing   -> case reqidxhdr ! idxRange >>= parseByteRanges >>= listToMaybe of
+                        Just range | s0 == H.status200 ->
+                            case range of
+                                H.ByteRangeFrom from -> rangeRes cl from (cl - 1)
+                                H.ByteRangeFromTo from to -> rangeRes cl from to
+                                H.ByteRangeSuffix count -> rangeRes cl (cl - count) (cl - 1)
+                        _ -> (s0, id, 0, cl)
             hs'
                 | hadLength = hs
                 | otherwise = addLength end hs
@@ -95,16 +97,16 @@ sendResponse settings ii req conn restore (ResponseFile s0 hs0 path mpart0) =
           return isPersist -- FIXME isKeepAlive?
       where
         version = httpVersion req
-        (isPersist,_) = infoFromRequest req
+        (isPersist,_) = infoFromRequest req reqidxhdr
 
     sendResponse' (Left (_ :: SomeException)) =
-        sendResponse settings ii req conn restore notFound
+        sendResponse settings ii req conn restore reqidxhdr notFound
       where
         notFound = responseLBS H.status404 [(H.hContentType, "text/plain")] "File not found"
 
 ----------------------------------------------------------------
 
-sendResponse settings ii req conn restore (ResponseBuilder s hs b)
+sendResponse settings ii req conn restore reqidxhdr (ResponseBuilder s hs b)
   | hasBody s req = restore $ do
       header <- composeHeaderBuilder settings version s hs needsChunked
       let body
@@ -122,12 +124,12 @@ sendResponse settings ii req conn restore (ResponseBuilder s hs b)
   where
     th = threadHandle ii
     version = httpVersion req
-    reqinfo@(isPersist,_) = infoFromRequest req
+    reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
     (isKeepAlive, needsChunked) = infoFromResponse hs reqinfo
 
 ----------------------------------------------------------------
 
-sendResponse settings ii req conn restore (ResponseSource s hs withBodyFlush)
+sendResponse settings ii req conn restore reqidxhdr (ResponseSource s hs withBodyFlush)
   | hasBody s req = withBodyFlush $ \bodyFlush -> restore $ do
       header <- liftIO $ composeHeaderBuilder settings version s hs needsChunked
       let src = CL.sourceList [header] `mappend` cbody bodyFlush
@@ -152,7 +154,7 @@ sendResponse settings ii req conn restore (ResponseSource s hs withBodyFlush)
     chunk :: Conduit Builder IO Builder
     chunk = await >>= maybe (yield chunkedTransferTerminator) (\x -> yield (chunkedTransferEncoding x) >> chunk)
     version = httpVersion req
-    reqinfo@(isPersist,_) = infoFromRequest req
+    reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
     (isKeepAlive, needsChunked) = infoFromResponse hs reqinfo
 
 ----------------------------------------------------------------
@@ -177,16 +179,16 @@ connSink Connection { connSendAll = send } th =
 
 ----------------------------------------------------------------
 
-infoFromRequest :: Request -> (Bool,Bool)
-infoFromRequest req = (checkPersist req, checkChunk req)
+infoFromRequest :: Request -> IndexedHeader -> (Bool,Bool)
+infoFromRequest req reqidxhdr = (checkPersist req reqidxhdr, checkChunk req)
 
-checkPersist :: Request -> Bool
-checkPersist req
+checkPersist :: Request -> IndexedHeader -> Bool
+checkPersist req reqidxhdr
     | ver == H.http11 = checkPersist11 conn
     | otherwise       = checkPersist10 conn
   where
     ver = httpVersion req
-    conn = lookup H.hConnection $ requestHeaders req
+    conn = reqidxhdr ! idxConnection
     checkPersist11 (Just x)
         | CI.foldCase x == "close"      = False
     checkPersist11 _                    = True

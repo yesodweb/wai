@@ -52,6 +52,9 @@ module Network.Wai.Handler.Warp (
     -- ** Data types
   , InternalInfo
     -- ** Request and response
+  , HeaderValue
+  , IndexedHeader
+  , defaultIndexRequestHeader
   , recvRequest
   , sendResponse
 #if TEST
@@ -71,3 +74,4 @@ import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Header

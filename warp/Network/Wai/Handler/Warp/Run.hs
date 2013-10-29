@@ -21,13 +21,14 @@ import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import qualified Network.Wai.Handler.Warp.FdCache as F
+import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
+import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Handler.Warp.SendFile
 
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
@@ -217,14 +218,14 @@ serveConnection timeoutHandle settings ii app conn remoteHost' =
     th = threadHandle ii
 
     send500 = void $ mask $ \restore ->
-        sendResponse settings ii dummyreq conn restore internalError
+        sendResponse settings ii dummyreq conn restore defaultIndexRequestHeader internalError
 
     dummyreq = defaultRequest { remoteHost = remoteHost' }
 
     internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
     serveConnection'' fromClient = do
-        (env, getSource) <- recvRequest conn timeoutHandle remoteHost' fromClient
+        (env, idxhdr, getSource) <- recvRequest conn timeoutHandle remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
                 -- Let the application run for as long as it wants
@@ -236,7 +237,7 @@ serveConnection timeoutHandle settings ii app conn remoteHost' =
                 keepAlive <- mask $ \restore -> do
                     res <- restore $ app env
                     liftIO $ T.resume th
-                    sendResponse settings ii env conn restore res
+                    sendResponse settings ii env conn restore idxhdr res
 
                 -- We just send a Response and it takes a time to
                 -- receive a Request again. If we immediately call recv,

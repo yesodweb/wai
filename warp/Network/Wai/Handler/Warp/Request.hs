@@ -43,6 +43,7 @@ recvRequest :: Connection
             -> SockAddr
             -> Source IO ByteString
             -> IO (Request
+                  ,IndexedHeader
                   ,IO (ResumableSource IO ByteString))
 recvRequest conn timeoutHandle addr src0 = do
     (src, hdrlines) <- src0 $$+ headerLines
@@ -67,7 +68,7 @@ recvRequest conn timeoutHandle addr src0 = do
           , vault             = mempty
           , requestBodyLength = bodyLength
           }
-    return (req, getSource)
+    return (req, idxhdr, getSource)
 
 ----------------------------------------------------------------
 
