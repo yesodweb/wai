@@ -212,7 +212,7 @@ serveConnection :: T.Handle
                 -> InternalInfo
                 -> Application -> Connection -> SockAddr-> IO ()
 serveConnection timeoutHandle settings ii app conn remoteHost' =
-    (serveConnection'' $ connSource conn th) `onException` send500
+    serveConnection'' (connSource conn th) `onException` send500
   where
     th = threadHandle ii
 

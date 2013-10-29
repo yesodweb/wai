@@ -29,7 +29,7 @@ composeHeader !httpversion !status !responseHeaders = create len $ \ptr -> do
 
 {-# INLINE copy #-}
 copy :: Ptr Word8 -> ByteString -> IO (Ptr Word8)
-copy !ptr !(PS fp o l) = withForeignPtr fp $ \p -> do
+copy !ptr (PS fp o l) = withForeignPtr fp $ \p -> do
     memcpy ptr (p `plusPtr` o) (fromIntegral l)
     return $! ptr `plusPtr` l
 
