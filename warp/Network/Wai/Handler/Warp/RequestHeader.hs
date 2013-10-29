@@ -3,7 +3,7 @@
 module Network.Wai.Handler.Warp.RequestHeader (parseHeaderLines) where
 
 import Control.Exception.Lifted (throwIO)
-import Data.ByteString (ByteString)
+import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as B (unpack)
 import qualified Data.CaseInsensitive as CI

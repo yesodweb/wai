@@ -31,6 +31,7 @@ Flag allow-sendfilefd
 
 Library
   Build-Depends:     base                      >= 3        && < 5
+                   , array
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , blaze-builder-conduit     >= 0.5      && < 1.1
                    , bytestring                >= 0.9.1.4
@@ -55,6 +56,7 @@ Library
                      Network.Wai.Handler.Warp.Timeout
   Other-modules:     Network.Wai.Handler.Warp.Conduit
                      Network.Wai.Handler.Warp.FdCache
+                     Network.Wai.Handler.Warp.Header
                      Network.Wai.Handler.Warp.ReadInt
                      Network.Wai.Handler.Warp.Recv
                      Network.Wai.Handler.Warp.Request
@@ -94,6 +96,7 @@ Test-Suite spec
 
     Ghc-Options:     -Wall
     Build-Depends:   base >= 4 && < 5
+                   , array
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , blaze-builder-conduit     >= 0.5
                    , bytestring                >= 0.9.1.4

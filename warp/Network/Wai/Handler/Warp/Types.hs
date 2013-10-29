@@ -8,11 +8,11 @@ import Control.Exception
 import Data.ByteString (ByteString)
 import Data.Typeable (Typeable)
 import Data.Version (showVersion)
-import Network.Socket (Socket)
 import Network.HTTP.Types.Header
-import qualified Paths_warp
-import qualified Network.Wai.Handler.Warp.Timeout as T
+import Network.Socket (Socket)
 import qualified Network.Wai.Handler.Warp.FdCache as F
+import qualified Network.Wai.Handler.Warp.Timeout as T
+import qualified Paths_warp
 
 ----------------------------------------------------------------
 
@@ -25,6 +25,8 @@ warpVersion = showVersion Paths_warp.version
 type Port = Int
 
 ----------------------------------------------------------------
+
+type HeaderValue = ByteString
 
 hTransferEncoding :: HeaderName
 hTransferEncoding = "Transfer-Encoding"

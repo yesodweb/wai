@@ -10,6 +10,7 @@ module Network.Wai.Handler.Warp.Request (
 import Control.Applicative
 import Control.Exception.Lifted (throwIO)
 import Control.Monad.IO.Class (liftIO)
+import Data.Array ((!))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as SU
@@ -21,6 +22,7 @@ import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.Conduit
+import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.RequestHeader
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout
@@ -43,9 +45,12 @@ recvRequest :: Connection
             -> IO (Request, IO (ResumableSource IO ByteString))
 recvRequest conn timeoutHandle remoteHost' src0 = do
     (src, hdrlines) <- src0 $$+ headerLines
-    (method, rpath, gets, httpversion, hdr') <- parseHeaderLines hdrlines
-    hdr <- liftIO $ handleExpect conn httpversion id hdr'
-    (rbody, bodyLength, getSource) <- bodyAndSource src hdr
+    (method, rpath, gets, httpversion, hdr) <- parseHeaderLines hdrlines
+    let idxhdr = indexRequestHeader hdr
+    liftIO $ handleExpect conn httpversion (idxhdr ! idxExpect)
+    (rbody, bodyLength, getSource) <- bodyAndSource src
+                                                    (idxhdr ! idxContentLength)
+                                                    (idxhdr ! idxTransferEncoding)
 
     return (Request
             { requestMethod = method
@@ -72,41 +77,42 @@ headerLines =
 
 handleExpect :: Connection
              -> H.HttpVersion
-             -> (H.RequestHeaders -> H.RequestHeaders)
-             -> H.RequestHeaders
-             -> IO H.RequestHeaders
-handleExpect _ _ front [] = return $ front []
-handleExpect conn hv front (("expect", "100-continue"):rest) = do
-    connSendAll conn $
-        if hv == H.http11
-            then "HTTP/1.1 100 Continue\r\n\r\n"
-            else "HTTP/1.0 100 Continue\r\n\r\n"
-    return $ front rest
-handleExpect conn hv front (x:xs) = handleExpect conn hv (front . (x:)) xs
+             -> Maybe HeaderValue
+             -> IO ()
+handleExpect conn ver (Just "100-continue") = connSendAll conn continue
+  where
+    continue
+      | ver == H.http11 = "HTTP/1.1 100 Continue\r\n\r\n"
+      | otherwise       = "HTTP/1.0 100 Continue\r\n\r\n"
+handleExpect _    _   _                     = return ()
 
 ----------------------------------------------------------------
 
 bodyAndSource :: ResumableSource IO ByteString
-              -> H.RequestHeaders
+              -> Maybe HeaderValue
+              -> Maybe HeaderValue
               -> IO (Source IO ByteString
                     ,RequestBodyLength
                     ,IO (ResumableSource IO ByteString))
-bodyAndSource src hdr
+bodyAndSource src cl te
   | chunked = do
       ref <- I.newIORef (src, NeedLen)
       return (chunkedSource ref, ChunkedBody, fst <$> I.readIORef ref)
   | otherwise = do
-      ibs <- IsolatedBSSource <$> I.newIORef (len0, src)
+      ibs <- IsolatedBSSource <$> I.newIORef (len, src)
       return (ibsIsolate ibs, bodyLen, ibsDone ibs)
   where
-    len0 = case lookup H.hContentLength hdr of
-        Nothing -> 0
-        Just bs -> readInt bs
-    bodyLen = KnownLength $ fromIntegral len0
-    chunked = isChunked hdr
+    len = toLength cl
+    bodyLen = KnownLength $ fromIntegral len
+    chunked = isChunked te
 
-isChunked :: H.RequestHeaders -> Bool
-isChunked hdr = maybe False ((== "chunked") . CI.foldCase) $ lookup hTransferEncoding hdr
+toLength :: Maybe HeaderValue -> Int
+toLength Nothing   = 0
+toLength (Just bs) = readInt bs
+
+isChunked :: Maybe HeaderValue -> Bool
+isChunked (Just bs) = CI.foldCase bs == "chunked"
+isChunked _         = False
 
 ----------------------------------------------------------------
 
