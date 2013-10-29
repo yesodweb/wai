@@ -42,30 +42,32 @@ recvRequest :: Connection
             -> Timeout.Handle
             -> SockAddr
             -> Source IO ByteString
-            -> IO (Request, IO (ResumableSource IO ByteString))
-recvRequest conn timeoutHandle remoteHost' src0 = do
+            -> IO (Request
+                  ,IO (ResumableSource IO ByteString))
+recvRequest conn timeoutHandle addr src0 = do
     (src, hdrlines) <- src0 $$+ headerLines
     (method, rpath, gets, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
-    liftIO $ handleExpect conn httpversion (idxhdr ! idxExpect)
-    (rbody, bodyLength, getSource) <- bodyAndSource src
-                                                    (idxhdr ! idxContentLength)
-                                                    (idxhdr ! idxTransferEncoding)
-
-    return (Request
-            { requestMethod = method
-            , httpVersion = httpversion
-            , pathInfo = H.decodePathSegments rpath
-            , rawPathInfo = rpath
-            , rawQueryString = gets
-            , queryString = H.parseQuery gets
-            , requestHeaders = hdr
-            , isSecure = False
-            , remoteHost = remoteHost'
-            , requestBody = timeoutBody timeoutHandle rbody
-            , vault = mempty
-            , requestBodyLength = bodyLength
-            }, getSource)
+        expect = idxhdr ! idxExpect
+        cl = idxhdr ! idxContentLength
+        te = idxhdr ! idxTransferEncoding
+    liftIO $ handleExpect conn httpversion expect
+    (rbody, bodyLength, getSource) <- bodyAndSource src cl te
+    let req = Request {
+            requestMethod     = method
+          , httpVersion       = httpversion
+          , pathInfo          = H.decodePathSegments rpath
+          , rawPathInfo       = rpath
+          , rawQueryString    = gets
+          , queryString       = H.parseQuery gets
+          , requestHeaders    = hdr
+          , isSecure          = False
+          , remoteHost        = addr
+          , requestBody       = timeoutBody timeoutHandle rbody
+          , vault             = mempty
+          , requestBodyLength = bodyLength
+          }
+    return (req, getSource)
 
 ----------------------------------------------------------------
 
