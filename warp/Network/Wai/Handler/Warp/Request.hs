@@ -40,11 +40,15 @@ maxTotalHeaderLength = 50 * 1024
 
 recvRequest :: Connection
             -> Timeout.Handle
-            -> SockAddr
-            -> Source IO ByteString
+            -> SockAddr -- ^ Peer's address.
+            -> Source IO ByteString -- ^ Where HTTP request comes from.
             -> IO (Request
                   ,IndexedHeader
-                  ,IO (ResumableSource IO ByteString))
+                  ,IO (ResumableSource IO ByteString)) -- ^
+            -- 'Request' passed to 'Application',
+            -- 'IndexedHeader' of HTTP request for internal use, and
+            -- leftover source (i.e. HTTP pipelining).
+
 recvRequest conn timeoutHandle addr src0 = do
     (src, hdrlines) <- src0 $$+ headerLines
     (method, rpath, gets, httpversion, hdr) <- parseHeaderLines hdrlines
