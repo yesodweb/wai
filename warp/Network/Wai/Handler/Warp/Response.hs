@@ -75,7 +75,7 @@ sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mpart0) =
                 | otherwise = addLength len hs
         return (s, addRange hs', beg, len)
 
-    rangeRes cl from to = (H.status206, (("Content-Range", rangeHeader cl from to):), from, to - from + 1)
+    rangeRes cl from to = (H.status206, ((hContentRange, rangeHeader cl from to):), from, to - from + 1)
 
     rangeHeader total from to = B.pack
       $ 'b' : 'y': 't' : 'e' : 's' : ' '

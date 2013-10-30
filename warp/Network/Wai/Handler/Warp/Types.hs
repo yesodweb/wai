@@ -33,6 +33,9 @@ type HeaderValue = ByteString
 hTransferEncoding :: HeaderName
 hTransferEncoding = "Transfer-Encoding"
 
+hContentRange :: HeaderName
+hContentRange = "Content-Range"
+
 hAcceptRanges :: HeaderName
 hAcceptRanges = "Accept-Ranges"
 
