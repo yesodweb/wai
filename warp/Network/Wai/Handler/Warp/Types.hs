@@ -16,16 +16,18 @@ import qualified Paths_warp
 
 ----------------------------------------------------------------
 
+-- | The version of Warp.
 warpVersion :: String
 warpVersion = showVersion Paths_warp.version
 
 ----------------------------------------------------------------
 
--- | TCP port number
+-- | TCP port number.
 type Port = Int
 
 ----------------------------------------------------------------
 
+-- | The type for header value used with 'HeaderName'.
 type HeaderValue = ByteString
 
 hTransferEncoding :: HeaderName

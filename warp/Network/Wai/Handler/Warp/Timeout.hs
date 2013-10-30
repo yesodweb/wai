@@ -97,6 +97,7 @@ initialize timeout = do
 
 ----------------------------------------------------------------
 
+-- | Stopping timeout manager.
 stopManager :: Manager -> IO ()
 stopManager (Manager ref) = E.mask_ $ do
     !handles <- breakForever ref
