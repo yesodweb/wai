@@ -60,7 +60,7 @@ sendResponse settings ii req conn restore reqidxhdr (ResponseFile s0 hs0 path mp
                         Just part -> return (False, fromIntegral $ filePartByteCount part)
                         Nothing -> (False, ) . fromIntegral . P.fileSize
                                <$> P.getFileStatus path
-        let (s, addRange, beg, end) =
+        let (s, addRange, beg, len) =
                 case mpart0 of
                     Just part -> (s0, id, filePartOffset part, filePartByteCount part)
                     Nothing   -> case reqidxhdr ! idxRange >>= parseByteRanges >>= listToMaybe of
@@ -72,8 +72,8 @@ sendResponse settings ii req conn restore reqidxhdr (ResponseFile s0 hs0 path mp
                         _ -> (s0, id, 0, cl)
             hs'
                 | hadLength = hs
-                | otherwise = addLength end hs
-        return (s, addRange hs', beg, end)
+                | otherwise = addLength len hs
+        return (s, addRange hs', beg, len)
 
     rangeRes cl from to = (H.status206, (("Content-Range", rangeHeader cl from to):), from, to - from + 1)
 
@@ -85,10 +85,10 @@ sendResponse settings ii req conn restore reqidxhdr (ResponseFile s0 hs0 path mp
       ( '/'
       : showInt total ""))
 
-    sendResponse' (Right (s, lengthyHeaders, beg, end))
+    sendResponse' (Right (s, lengthyHeaders, beg, len))
       | hasBody s req = liftIO $ do
           lheader <- composeHeader settings version s lengthyHeaders
-          connSendFile conn path beg end (T.tickle th) [lheader]
+          connSendFile conn path beg len (T.tickle th) [lheader]
           T.tickle th
           return isPersist
       | otherwise = liftIO $ do
