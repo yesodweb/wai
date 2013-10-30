@@ -5,7 +5,7 @@
 module Network.Wai.Handler.Warp.Types where
 
 import Control.Exception
-import Data.ByteString (ByteString)
+import Data.ByteString.Char8 (ByteString, pack)
 import Data.Typeable (Typeable)
 import Data.Version (showVersion)
 import Network.HTTP.Types.Header
@@ -33,11 +33,14 @@ type HeaderValue = ByteString
 hTransferEncoding :: HeaderName
 hTransferEncoding = "Transfer-Encoding"
 
+hAcceptRanges :: HeaderName
+hAcceptRanges = "Accept-Ranges"
+
 hServer :: HeaderName
 hServer = "Server"
 
-hAcceptRanges :: HeaderName
-hAcceptRanges = "Accept-Ranges"
+defaultServerValue :: HeaderValue
+defaultServerValue = pack $ "Warp/" ++ warpVersion
 
 ----------------------------------------------------------------
 

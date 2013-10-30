@@ -2,7 +2,6 @@ module Network.Wai.Handler.Warp.Settings where
 
 import Control.Exception
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
 import Data.Conduit
 import Data.Conduit.Network (HostPreference (HostIPv4))
 import GHC.IO.Exception (IOErrorType(..))
@@ -36,12 +35,6 @@ data Settings = Settings
       -- Default: do nothing.
       --
       -- Since 1.3.6
-    , settingsServerName :: S.ByteString
-      -- ^ Server name to be sent in the Server header.
-      --
-      -- Default: Warp\//version/
-      --
-      -- Since 1.3.8
     }
 
 -- | The default settings for the Warp server. See the individual settings for
@@ -58,7 +51,6 @@ defaultSettings = Settings
     , settingsManager = Nothing
     , settingsFdCacheDuration = 10
     , settingsBeforeMainLoop = return ()
-    , settingsServerName = S8.pack $ "Warp/" ++ warpVersion
     }
 
 defaultExceptionHandler :: Maybe Request -> SomeException -> IO ()

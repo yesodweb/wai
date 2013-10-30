@@ -27,7 +27,6 @@ import Network.Wai
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ReadInt
 import qualified Network.Wai.Handler.Warp.ResponseHeader as RH
-import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
@@ -37,8 +36,7 @@ import qualified System.PosixCompat.Files as P
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-sendResponse :: Settings
-             -> InternalInfo -> Request -> Connection
+sendResponse :: InternalInfo -> Request -> Connection
              -> (forall a. IO a -> IO a) -- ^ restore masking state
              -> IndexedHeader
              -> Response
@@ -46,7 +44,7 @@ sendResponse :: Settings
 
 ----------------------------------------------------------------
 
-sendResponse settings ii req conn restore reqidxhdr (ResponseFile s0 hs0 path mpart0) =
+sendResponse ii req conn restore reqidxhdr (ResponseFile s0 hs0 path mpart0) =
     restore $ headerAndLength >>= sendResponse'
   where
     hs = addAccept hs0
@@ -87,12 +85,12 @@ sendResponse settings ii req conn restore reqidxhdr (ResponseFile s0 hs0 path mp
 
     sendResponse' (Right (s, lengthyHeaders, beg, len))
       | hasBody s req = liftIO $ do
-          lheader <- composeHeader settings version s lengthyHeaders
+          lheader <- composeHeader version s lengthyHeaders
           connSendFile conn path beg len (T.tickle th) [lheader]
           T.tickle th
           return isPersist
       | otherwise = liftIO $ do
-          composeHeader settings version s hs >>= connSendAll conn
+          composeHeader version s hs >>= connSendAll conn
           T.tickle th
           return isPersist -- FIXME isKeepAlive?
       where
@@ -100,15 +98,15 @@ sendResponse settings ii req conn restore reqidxhdr (ResponseFile s0 hs0 path mp
         (isPersist,_) = infoFromRequest req reqidxhdr
 
     sendResponse' (Left (_ :: SomeException)) =
-        sendResponse settings ii req conn restore reqidxhdr notFound
+        sendResponse ii req conn restore reqidxhdr notFound
       where
         notFound = responseLBS H.status404 [(H.hContentType, "text/plain")] "File not found"
 
 ----------------------------------------------------------------
 
-sendResponse settings ii req conn restore reqidxhdr (ResponseBuilder s hs b)
+sendResponse ii req conn restore reqidxhdr (ResponseBuilder s hs b)
   | hasBody s req = restore $ do
-      header <- composeHeaderBuilder settings version s hs needsChunked
+      header <- composeHeaderBuilder version s hs needsChunked
       let body
             | needsChunked = header `mappend` chunkedTransferEncoding b
                                     `mappend` chunkedTransferTerminator
@@ -118,7 +116,7 @@ sendResponse settings ii req conn restore reqidxhdr (ResponseBuilder s hs b)
           T.tickle th
       return isKeepAlive
   | otherwise = restore $ do
-      composeHeader settings version s hs >>= connSendAll conn
+      composeHeader version s hs >>= connSendAll conn
       T.tickle th
       return isPersist
   where
@@ -129,14 +127,14 @@ sendResponse settings ii req conn restore reqidxhdr (ResponseBuilder s hs b)
 
 ----------------------------------------------------------------
 
-sendResponse settings ii req conn restore reqidxhdr (ResponseSource s hs withBodyFlush)
+sendResponse ii req conn restore reqidxhdr (ResponseSource s hs withBodyFlush)
   | hasBody s req = withBodyFlush $ \bodyFlush -> restore $ do
-      header <- liftIO $ composeHeaderBuilder settings version s hs needsChunked
+      header <- liftIO $ composeHeaderBuilder version s hs needsChunked
       let src = CL.sourceList [header] `mappend` cbody bodyFlush
       src $$ builderToByteString =$ connSink conn th
       return isKeepAlive
   | otherwise = withBodyFlush $ \_bodyFlush -> restore $ do -- make sure any cleanup is called
-      composeHeader settings version s hs >>= connSendAll conn
+      composeHeader version s hs >>= connSendAll conn
       T.tickle th
       return isPersist
   where
@@ -231,27 +229,22 @@ addAccept hdrs = (hAcceptRanges, "bytes") : hdrs
 addEncodingHeader :: H.ResponseHeaders -> H.ResponseHeaders
 addEncodingHeader hdrs = (hTransferEncoding, "chunked") : hdrs
 
-addServerHeader :: Settings -> H.ResponseHeaders -> H.ResponseHeaders
-addServerHeader settings hdrs = case lookup hServer hdrs of
-    Nothing -> warpVersionHeader settings : hdrs
+addServerHeader :: H.ResponseHeaders -> H.ResponseHeaders
+addServerHeader hdrs = case lookup hServer hdrs of
+    Nothing -> (hServer, defaultServerValue) : hdrs
     Just _  -> hdrs
-
-warpVersionHeader :: Settings -> H.Header
-warpVersionHeader settings = (hServer, settingsServerName settings)
 
 ----------------------------------------------------------------
 
-composeHeader :: Settings
-              -> H.HttpVersion
+composeHeader :: H.HttpVersion
               -> H.Status
               -> H.ResponseHeaders
               -> IO ByteString
-composeHeader settings version s hs =
-    RH.composeHeader version s
-  $ addServerHeader settings hs
+composeHeader version s hs =
+    RH.composeHeader version s $ addServerHeader hs
 
-composeHeaderBuilder :: Settings -> H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> IO Builder
-composeHeaderBuilder settings ver s hs True =
-    fromByteString <$> composeHeader settings ver s (addEncodingHeader hs)
-composeHeaderBuilder settings ver s hs False =
-    fromByteString <$> composeHeader settings ver s hs
+composeHeaderBuilder :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> IO Builder
+composeHeaderBuilder ver s hs True =
+    fromByteString <$> composeHeader ver s (addEncodingHeader hs)
+composeHeaderBuilder ver s hs False =
+    fromByteString <$> composeHeader ver s hs
