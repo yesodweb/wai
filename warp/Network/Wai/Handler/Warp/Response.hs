@@ -141,11 +141,9 @@ sendResponse settings ii req conn restore reqidxhdr (ResponseSource s hs withBod
       return isPersist
   where
     th = threadHandle ii
-    cbody bodyFlush =
-        if needsChunked then body $= chunk else body
+    cbody bodyFlush = if needsChunked then body $= chunk else body
       where
-        body =
-               mapOutput (\x -> case x of
+        body = mapOutput (\x -> case x of
                         Flush -> flush
                         Chunk builder -> builder)
                bodyFlush
