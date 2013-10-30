@@ -214,7 +214,7 @@ serveConnection :: Connection
                 -> Settings
                 -> Application
                 -> IO ()
-serveConnection conn ii remoteHost' settings app =
+serveConnection conn ii addr settings app =
     recvSendLoop (connSource conn th) `onException` send500
   where
     th = threadHandle ii
@@ -222,12 +222,12 @@ serveConnection conn ii remoteHost' settings app =
     send500 = void $ mask $ \restore ->
         sendResponse conn ii restore dummyreq defaultIndexRequestHeader internalError
 
-    dummyreq = defaultRequest { remoteHost = remoteHost' }
+    dummyreq = defaultRequest { remoteHost = addr }
 
     internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
     recvSendLoop fromClient = do
-        (req, idxhdr, getSource) <- recvRequest conn th remoteHost' fromClient
+        (req, idxhdr, getSource) <- recvRequest conn ii addr fromClient
         case settingsIntercept settings req of
             Nothing -> do
                 -- Let the application run for as long as it wants
