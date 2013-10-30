@@ -38,11 +38,11 @@ import qualified System.PosixCompat.Files as P
 
 sendResponse :: Connection
              -> InternalInfo
-             -> (forall a. IO a -> IO a) -- ^ Restore masking state
-             -> Request
-             -> IndexedHeader -- ^ Indexed header of HTTP request
-             -> Response -- ^ HTTP response including status code and response header
-             -> IO Bool -- ^ Returing True if the connection is persistent
+             -> (forall a. IO a -> IO a) -- ^ Restore masking state.
+             -> Request -- ^ HTTP request.
+             -> IndexedHeader -- ^ Indexed header of HTTP request.
+             -> Response -- ^ HTTP response including status code and response header.
+             -> IO Bool -- ^ Returing True if the connection is persistent.
 
 ----------------------------------------------------------------
 
