@@ -213,7 +213,7 @@ serveConnection :: T.Handle
                 -> InternalInfo
                 -> Application -> Connection -> SockAddr-> IO ()
 serveConnection timeoutHandle settings ii app conn remoteHost' =
-    serveConnection'' (connSource conn th) `onException` send500
+    serveConnection' (connSource conn th) `onException` send500
   where
     th = threadHandle ii
 
@@ -224,7 +224,7 @@ serveConnection timeoutHandle settings ii app conn remoteHost' =
 
     internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
-    serveConnection'' fromClient = do
+    serveConnection' fromClient = do
         (env, idxhdr, getSource) <- recvRequest conn timeoutHandle remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
@@ -252,7 +252,7 @@ serveConnection timeoutHandle settings ii app conn remoteHost' =
                 requestBody env $$ CL.sinkNull
                 ResumableSource fromClient' _ <- liftIO getSource
 
-                when keepAlive $ serveConnection'' fromClient'
+                when keepAlive $ serveConnection' fromClient'
             Just intercept -> do
                 liftIO $ T.pause th
                 ResumableSource fromClient' _ <- liftIO getSource
