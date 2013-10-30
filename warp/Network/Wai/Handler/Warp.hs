@@ -25,6 +25,7 @@ module Network.Wai.Handler.Warp (
     -- * Settings
   , Settings
   , defaultSettings
+    -- * Accessors
   , settingsPort
   , settingsHost
   , settingsOnException
@@ -45,16 +46,18 @@ module Network.Wai.Handler.Warp (
   , Connection (..)
   , socketConnection
     -- * Internal
+    -- ** Version
+  , warpVersion
+    -- ** Data types
+  , InternalInfo (..)
+  , HeaderValue
+  , IndexedHeader
+  , defaultIndexRequestHeader
     -- ** Time out manager
   , module Network.Wai.Handler.Warp.Timeout
     -- ** File descriptor cache
   , module Network.Wai.Handler.Warp.FdCache
-    -- ** Data types
-  , InternalInfo
     -- ** Request and response
-  , HeaderValue
-  , IndexedHeader
-  , defaultIndexRequestHeader
   , recvRequest
   , sendResponse
 #if TEST
@@ -62,8 +65,6 @@ module Network.Wai.Handler.Warp (
   , parseFirst
   , readInt
 #endif
-    -- ** Version
-  , warpVersion
   ) where
 
 import Data.Conduit.Network (HostPreference(..))
