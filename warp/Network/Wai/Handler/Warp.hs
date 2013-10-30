@@ -25,7 +25,7 @@ module Network.Wai.Handler.Warp (
     -- * Settings
   , Settings
   , defaultSettings
-    -- * Accessors
+    -- ** Accessors
   , settingsPort
   , settingsHost
   , settingsOnException
