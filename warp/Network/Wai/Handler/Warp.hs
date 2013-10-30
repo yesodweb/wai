@@ -53,6 +53,7 @@ module Network.Wai.Handler.Warp (
   , HeaderValue
   , IndexedHeader
   , defaultIndexRequestHeader
+  , requestMaxIndex
     -- ** Time out manager
   , module Network.Wai.Handler.Warp.Timeout
     -- ** File descriptor cache

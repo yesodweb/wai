@@ -9,6 +9,7 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
+-- | Array for a set of HTTP headers.
 type IndexedHeader = Array Int (Maybe HeaderValue)
 
 ----------------------------------------------------------------
@@ -25,9 +26,14 @@ idxConnection       = 3
 idxRange            = 4
 idxHost             = 5
 
+-- | The size for 'IndexedHeader' for HTTP Request.
 requestMaxIndex :: Int
 requestMaxIndex     = 5
 
+-- | Default 'IndexedHeader' for HTTP Request.
+--   All valuers are 'Nothing' by default.
+--   They correspond to \"Content-Length\", \"Transfer-Encoding\",
+--   \"Expect\", \"Connection\", \"Range\", and \"Host\".
 defaultIndexRequestHeader :: IndexedHeader
 defaultIndexRequestHeader = array (0,requestMaxIndex) [(i,Nothing)|i<-[0..requestMaxIndex]]
 

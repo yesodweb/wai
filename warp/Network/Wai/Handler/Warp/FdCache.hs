@@ -38,6 +38,7 @@ data Status = Active | Inactive
 
 newtype MutableStatus = MutableStatus (IORef Status)
 
+-- | An action to activate a Fd cache entry.
 type Refresh = IO ()
 
 status :: MutableStatus -> IO Status
@@ -65,6 +66,8 @@ newFdEntry path = FdEntry path
 
 type Hash = Int
 type FdCache = MMap Hash FdEntry
+
+-- | Mutable Fd cacher.
 newtype MutableFdCache = MutableFdCache (IORef FdCache)
 
 fdCache :: MutableFdCache -> IO FdCache
@@ -93,6 +96,8 @@ look mfc path key = searchWith key check <$> fdCache mfc
 
 ----------------------------------------------------------------
 
+-- | Creating 'MutableFdCache' and executing the action in the second
+--   argument. The first argument is a cache duration in second.
 withFdCache :: Int -> (Maybe MutableFdCache -> IO a) -> IO a
 withFdCache duration action = bracket (initialize duration)
                                       terminate
@@ -100,6 +105,7 @@ withFdCache duration action = bracket (initialize duration)
 
 ----------------------------------------------------------------
 
+-- The first argument is a cache duration in second.
 initialize :: Int -> IO (Maybe MutableFdCache)
 initialize 0 = return Nothing
 initialize duration = do
@@ -142,6 +148,7 @@ terminate (Just (MutableFdCache ref)) = mask_ $ do
 
 ----------------------------------------------------------------
 
+-- | Getting 'Fd' and 'Refresh' from the mutable Fd cacher.
 getFd :: MutableFdCache -> FilePath -> IO (Fd, Refresh)
 getFd mfc path = look mfc path key >>= getFd'
   where

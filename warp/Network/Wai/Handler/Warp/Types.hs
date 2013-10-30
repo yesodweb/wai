@@ -51,7 +51,11 @@ instance Exception InvalidRequest
 
 ----------------------------------------------------------------
 
-data ConnSendFileOverride = NotOverride | Override Socket
+-- | Whether or not 'ConnSendFileOverride' in 'Connection' can be
+--   overridden. This is a kind of hack to keep the signature of
+--   'Connection' clean.
+data ConnSendFileOverride = NotOverride     -- ^ Don't override
+                          | Override Socket -- ^ Override with this 'Socket'
 
 ----------------------------------------------------------------
 
