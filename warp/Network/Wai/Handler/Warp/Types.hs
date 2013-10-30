@@ -39,14 +39,13 @@ hServer = "Server"
 ----------------------------------------------------------------
 
 -- | Error types for bad 'Request'.
-data InvalidRequest =
-    NotEnoughLines [String]
-    | BadFirstLine String
-    | NonHttp
-    | IncompleteHeaders
-    | ConnectionClosedByPeer
-    | OverLargeHeader
-    deriving (Eq, Show, Typeable)
+data InvalidRequest = NotEnoughLines [String]
+                    | BadFirstLine String
+                    | NonHttp
+                    | IncompleteHeaders
+                    | ConnectionClosedByPeer
+                    | OverLargeHeader
+                    deriving (Eq, Show, Typeable)
 
 instance Exception InvalidRequest
 
