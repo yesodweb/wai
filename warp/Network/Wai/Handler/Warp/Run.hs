@@ -187,7 +187,7 @@ runSettingsConnectionMaker set getConnMaker app = do
                     bracket_ onOpen onClose $
 
                     -- Actually serve this connection.
-                    serveConnection th set ii app conn addr
+                    serveConnection conn ii addr set app
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
     getConnLoop = getConnMaker `E.catch` \(e :: IOException) -> do
@@ -208,11 +208,13 @@ runSettingsConnectionMaker set getConnMaker app = do
                 f
             Just tm -> f tm
 
-serveConnection :: T.Handle
-                -> Settings
+serveConnection :: Connection
                 -> InternalInfo
-                -> Application -> Connection -> SockAddr-> IO ()
-serveConnection timeoutHandle settings ii app conn remoteHost' =
+                -> SockAddr
+                -> Settings
+                -> Application
+                -> IO ()
+serveConnection conn ii remoteHost' settings app =
     recvSendLoop (connSource conn th) `onException` send500
   where
     th = threadHandle ii
@@ -225,7 +227,7 @@ serveConnection timeoutHandle settings ii app conn remoteHost' =
     internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
     recvSendLoop fromClient = do
-        (req, idxhdr, getSource) <- recvRequest conn timeoutHandle remoteHost' fromClient
+        (req, idxhdr, getSource) <- recvRequest conn th remoteHost' fromClient
         case settingsIntercept settings req of
             Nothing -> do
                 -- Let the application run for as long as it wants
