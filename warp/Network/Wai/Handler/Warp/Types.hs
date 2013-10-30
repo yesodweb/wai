@@ -36,6 +36,9 @@ hTransferEncoding = "Transfer-Encoding"
 hServer :: HeaderName
 hServer = "Server"
 
+hAcceptRanges :: HeaderName
+hAcceptRanges = "Accept-Ranges"
+
 ----------------------------------------------------------------
 
 -- | Error types for bad 'Request'.

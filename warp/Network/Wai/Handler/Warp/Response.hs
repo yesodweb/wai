@@ -226,7 +226,7 @@ addLength :: Integer -> H.ResponseHeaders -> H.ResponseHeaders
 addLength cl hdrs = (H.hContentLength, B.pack $ show cl) : hdrs
 
 addAccept :: H.ResponseHeaders -> H.ResponseHeaders
-addAccept = (("Accept-Ranges", "bytes"):)
+addAccept hdrs = (hAcceptRanges, "bytes") : hdrs
 
 addEncodingHeader :: H.ResponseHeaders -> H.ResponseHeaders
 addEncodingHeader hdrs = (hTransferEncoding, "chunked") : hdrs
