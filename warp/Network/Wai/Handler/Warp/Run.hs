@@ -225,8 +225,8 @@ serveConnection timeoutHandle settings ii app conn remoteHost' =
     internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
     recvSendLoop fromClient = do
-        (env, idxhdr, getSource) <- recvRequest conn timeoutHandle remoteHost' fromClient
-        case settingsIntercept settings env of
+        (req, idxhdr, getSource) <- recvRequest conn timeoutHandle remoteHost' fromClient
+        case settingsIntercept settings req of
             Nothing -> do
                 -- Let the application run for as long as it wants
                 liftIO $ T.pause th
@@ -235,9 +235,9 @@ serveConnection timeoutHandle settings ii app conn remoteHost' =
                 -- creating the request, we need to make sure that we don't get
                 -- an async exception before calling the ResponseSource.
                 keepAlive <- mask $ \restore -> do
-                    res <- restore $ app env
+                    res <- restore $ app req
                     liftIO $ T.resume th
-                    sendResponse conn ii restore env idxhdr res
+                    sendResponse conn ii restore req idxhdr res
 
                 -- We just send a Response and it takes a time to
                 -- receive a Request again. If we immediately call recv,
@@ -249,7 +249,7 @@ serveConnection timeoutHandle settings ii app conn remoteHost' =
                 -- the number of cores is small.
                 Conc.yield
                 -- flush the rest of the request body
-                requestBody env $$ CL.sinkNull
+                requestBody req $$ CL.sinkNull
                 ResumableSource fromClient' _ <- liftIO getSource
 
                 when keepAlive $ recvSendLoop fromClient'
