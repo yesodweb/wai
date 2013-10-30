@@ -33,9 +33,6 @@ type HeaderValue = ByteString
 hTransferEncoding :: HeaderName
 hTransferEncoding = "Transfer-Encoding"
 
-hHost :: HeaderName
-hHost = "Host"
-
 hServer :: HeaderName
 hServer = "Server"
 
