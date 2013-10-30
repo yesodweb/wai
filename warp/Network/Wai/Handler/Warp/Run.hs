@@ -218,7 +218,7 @@ serveConnection timeoutHandle settings ii app conn remoteHost' =
     th = threadHandle ii
 
     send500 = void $ mask $ \restore ->
-        sendResponse ii dummyreq conn restore defaultIndexRequestHeader internalError
+        sendResponse conn ii restore dummyreq defaultIndexRequestHeader internalError
 
     dummyreq = defaultRequest { remoteHost = remoteHost' }
 
@@ -237,7 +237,7 @@ serveConnection timeoutHandle settings ii app conn remoteHost' =
                 keepAlive <- mask $ \restore -> do
                     res <- restore $ app env
                     liftIO $ T.resume th
-                    sendResponse ii env conn restore idxhdr res
+                    sendResponse conn ii restore env idxhdr res
 
                 -- We just send a Response and it takes a time to
                 -- receive a Request again. If we immediately call recv,

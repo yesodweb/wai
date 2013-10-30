@@ -36,15 +36,17 @@ import qualified System.PosixCompat.Files as P
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-sendResponse :: InternalInfo -> Request -> Connection
+sendResponse :: Connection
+             -> InternalInfo
              -> (forall a. IO a -> IO a) -- ^ restore masking state
-             -> IndexedHeader
+             -> Request
+             -> IndexedHeader -- ^ Indexed header of HTTP request
              -> Response
              -> IO Bool
 
 ----------------------------------------------------------------
 
-sendResponse ii req conn restore reqidxhdr (ResponseFile s0 hs0 path mpart0) =
+sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mpart0) =
     restore $ headerAndLength >>= sendResponse'
   where
     hs = addAccept hs0
@@ -98,13 +100,13 @@ sendResponse ii req conn restore reqidxhdr (ResponseFile s0 hs0 path mpart0) =
         (isPersist,_) = infoFromRequest req reqidxhdr
 
     sendResponse' (Left (_ :: SomeException)) =
-        sendResponse ii req conn restore reqidxhdr notFound
+        sendResponse conn ii restore req reqidxhdr notFound
       where
         notFound = responseLBS H.status404 [(H.hContentType, "text/plain")] "File not found"
 
 ----------------------------------------------------------------
 
-sendResponse ii req conn restore reqidxhdr (ResponseBuilder s hs b)
+sendResponse conn ii restore req reqidxhdr (ResponseBuilder s hs b)
   | hasBody s req = restore $ do
       header <- composeHeaderBuilder version s hs needsChunked
       let body
@@ -127,7 +129,7 @@ sendResponse ii req conn restore reqidxhdr (ResponseBuilder s hs b)
 
 ----------------------------------------------------------------
 
-sendResponse ii req conn restore reqidxhdr (ResponseSource s hs withBodyFlush)
+sendResponse conn ii restore req reqidxhdr (ResponseSource s hs withBodyFlush)
   | hasBody s req = withBodyFlush $ \bodyFlush -> restore $ do
       header <- liftIO $ composeHeaderBuilder version s hs needsChunked
       let src = CL.sourceList [header] `mappend` cbody bodyFlush
