@@ -8,6 +8,7 @@ module Network.Wai.Handler.Warp.Request (
   ) where
 
 import Control.Applicative
+import qualified Control.Concurrent as Conc (yield)
 import Control.Exception.Lifted (throwIO)
 import Control.Monad.IO.Class (liftIO)
 import Data.Array ((!))
@@ -86,7 +87,9 @@ handleExpect :: Connection
              -> H.HttpVersion
              -> Maybe HeaderValue
              -> IO ()
-handleExpect conn ver (Just "100-continue") = connSendAll conn continue
+handleExpect conn ver (Just "100-continue") = do
+    connSendAll conn continue
+    Conc.yield
   where
     continue
       | ver == H.http11 = "HTTP/1.1 100 Continue\r\n\r\n"
