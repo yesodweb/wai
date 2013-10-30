@@ -34,6 +34,49 @@ import Numeric (showInt)
 import qualified System.PosixCompat.Files as P
 
 ----------------------------------------------------------------
+
+fileRange :: IndexedHeader
+          -> H.Status -> H.ResponseHeaders
+          -> FilePath -> Maybe FilePart
+          -> IO (Either SomeException
+                        (H.Status, H.ResponseHeaders, Integer, Integer))
+fileRange reqidxhdr s0 hs0 path mpart0 = liftIO . try $ do
+    -- If mpart0 is not Nothing, Content-Range must exist.
+    (hadLength, total) <- handleLength
+    let (s, addRangeFunc, beg, len) = handleRange total
+        hs1 | hadLength = hs0
+            | otherwise = addContentLength len hs0
+        hs2 = addRangeFunc hs1
+    return (s, hs2, beg, len)
+ where
+    -- 1) If Content-Length does not exist in HTTP response header,
+    --     we need to add it.
+    -- 2) Total length is necessary, anyway.
+    handleLength = case checkLength hs0 of
+        Just cl -> return (True, readInt cl)
+        Nothing -> case mpart0 of
+            Just part -> return (False, fromIntegral $ filePartByteCount part)
+            Nothing   -> do
+                size <- fromIntegral . P.fileSize <$> P.getFileStatus path
+                return (False, size)
+    -- 1) Status. We should return 206 if partial.
+    -- 2) A function to add Content-Range.
+    -- 3) Offset.
+    -- 4) Length.
+    handleRange total = case mpart0 of
+        Just part -> (s0, id, filePartOffset part, filePartByteCount part)
+        Nothing   -> case reqidxhdr ! idxRange >>= parseByteRanges >>= listToMaybe of
+            Just range | s0 == H.status200 -> case range of
+                H.ByteRangeFrom   from    -> fromRange total from (total - 1)
+                H.ByteRangeFromTo from to -> fromRange total from to
+                H.ByteRangeSuffix count   -> fromRange total (total - count) (total - 1)
+            _                             -> (s0, id, 0, total)
+
+    fromRange total from to = (H.status206
+                              ,addContentRange total from to
+                              ,from
+                              ,to - from + 1)
+
 ----------------------------------------------------------------
 
 sendResponse :: Connection
@@ -47,45 +90,11 @@ sendResponse :: Connection
 ----------------------------------------------------------------
 
 sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mpart0) =
-    restore $ headerAndLength >>= sendResponse'
+    restore $ fileRange reqidxhdr s0 hs path mpart0 >>= sendResponseEither
   where
-    hs = addAccept hs0
+    hs = addAcceptRanges hs0
     th = threadHandle ii
-    headerAndLength = liftIO . try $ do
-        (hadLength, cl) <-
-            case readInt <$> checkLength hs of
-                Just cl -> return (True, cl)
-                Nothing ->
-                    case mpart0 of
-                        Just part -> return (False, fromIntegral $ filePartByteCount part)
-                        Nothing -> (False, ) . fromIntegral . P.fileSize
-                               <$> P.getFileStatus path
-        let (s, addRange, beg, len) =
-                case mpart0 of
-                    Just part -> (s0, id, filePartOffset part, filePartByteCount part)
-                    Nothing   -> case reqidxhdr ! idxRange >>= parseByteRanges >>= listToMaybe of
-                        Just range | s0 == H.status200 ->
-                            case range of
-                                H.ByteRangeFrom from -> rangeRes cl from (cl - 1)
-                                H.ByteRangeFromTo from to -> rangeRes cl from to
-                                H.ByteRangeSuffix count -> rangeRes cl (cl - count) (cl - 1)
-                        _ -> (s0, id, 0, cl)
-            hs'
-                | hadLength = hs
-                | otherwise = addLength len hs
-        return (s, addRange hs', beg, len)
-
-    rangeRes cl from to = (H.status206, ((hContentRange, rangeHeader cl from to):), from, to - from + 1)
-
-    rangeHeader total from to = B.pack
-      $ 'b' : 'y': 't' : 'e' : 's' : ' '
-      : showInt from
-      ( '-'
-      : showInt to
-      ( '/'
-      : showInt total ""))
-
-    sendResponse' (Right (s, lengthyHeaders, beg, len))
+    sendResponseEither (Right (s, lengthyHeaders, beg, len))
       | hasBody s req = liftIO $ do
           lheader <- composeHeader version s lengthyHeaders
           connSendFile conn path beg len (T.tickle th) [lheader]
@@ -99,7 +108,7 @@ sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mpart0) =
         version = httpVersion req
         (isPersist,_) = infoFromRequest req reqidxhdr
 
-    sendResponse' (Left (_ :: SomeException)) =
+    sendResponseEither (Left (SomeException _)) =
         sendResponse conn ii restore req reqidxhdr notFound
       where
         notFound = responseLBS H.status404 [(H.hContentType, "text/plain")] "File not found"
@@ -222,19 +231,31 @@ hasBody s req = sc /= 204
 
 ----------------------------------------------------------------
 
-addLength :: Integer -> H.ResponseHeaders -> H.ResponseHeaders
-addLength cl hdrs = (H.hContentLength, B.pack $ show cl) : hdrs
+addContentLength :: Integer -> H.ResponseHeaders -> H.ResponseHeaders
+addContentLength cl hdrs = (H.hContentLength, B.pack $ show cl) : hdrs
 
-addAccept :: H.ResponseHeaders -> H.ResponseHeaders
-addAccept hdrs = (hAcceptRanges, "bytes") : hdrs
+addAcceptRanges :: H.ResponseHeaders -> H.ResponseHeaders
+addAcceptRanges hdrs = (hAcceptRanges, "bytes") : hdrs
 
-addEncodingHeader :: H.ResponseHeaders -> H.ResponseHeaders
-addEncodingHeader hdrs = (hTransferEncoding, "chunked") : hdrs
+addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
+addTransferEncoding hdrs = (hTransferEncoding, "chunked") : hdrs
 
-addServerHeader :: H.ResponseHeaders -> H.ResponseHeaders
-addServerHeader hdrs = case lookup hServer hdrs of
+addServer :: H.ResponseHeaders -> H.ResponseHeaders
+addServer hdrs = case lookup hServer hdrs of
     Nothing -> (hServer, defaultServerValue) : hdrs
     Just _  -> hdrs
+
+addContentRange :: Integer -> Integer -> Integer -> H.ResponseHeaders -> H.ResponseHeaders
+addContentRange total from to hdrs = (hContentRange, range) : hdrs
+  where
+    range = B.pack
+      -- building with ShowS
+      $ 'b' : 'y': 't' : 'e' : 's' : ' '
+      : showInt from
+      ( '-'
+      : showInt to
+      ( '/'
+      : showInt total ""))
 
 ----------------------------------------------------------------
 
@@ -243,10 +264,10 @@ composeHeader :: H.HttpVersion
               -> H.ResponseHeaders
               -> IO ByteString
 composeHeader version s hs =
-    RH.composeHeader version s $ addServerHeader hs
+    RH.composeHeader version s $ addServer hs
 
 composeHeaderBuilder :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> IO Builder
 composeHeaderBuilder ver s hs True =
-    fromByteString <$> composeHeader ver s (addEncodingHeader hs)
+    fromByteString <$> composeHeader ver s (addTransferEncoding hs)
 composeHeaderBuilder ver s hs False =
     fromByteString <$> composeHeader ver s hs
