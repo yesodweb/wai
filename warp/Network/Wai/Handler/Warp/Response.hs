@@ -231,6 +231,10 @@ checkChunk req = httpVersion req == H.http11
 
 ----------------------------------------------------------------
 
+-- Used for ResponseBuilder and ResponseSource.
+-- Don't use this for ResponseFile since this logic does not fit
+-- for ResponseFile. For instance, isKeepAlive should be True in some cases
+-- even if the response header does not have Content-Length.
 infoFromResponse :: H.ResponseHeaders -> (Bool,Bool) -> (Bool,Bool)
 infoFromResponse hs (isPersist,isChunked) = (isKeepAlive, needsChunked)
   where
