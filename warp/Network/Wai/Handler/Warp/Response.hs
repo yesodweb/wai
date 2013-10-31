@@ -35,14 +35,6 @@ import qualified System.PosixCompat.Files as P
 
 ----------------------------------------------------------------
 
--- If an application know the file size, it should be
--- specified using FilePart (Just).
--- If it is Nothing, disk access occurs to obtain its file size.
--- Content-Length and Content-Range (if necessary) are automatically
--- added into the HTTP response header.
--- If Content-Length and Content-Range exist in the HTTP response header,
--- they will cause consistency.
--- Status is also changed if necessary.
 fileRange :: H.Status -> H.ResponseHeaders -> FilePath
            -> Maybe FilePart -> Maybe HeaderValue
           -> IO (Either SomeException
@@ -89,6 +81,23 @@ checkPartRange fileSize mPart mRange = checkPart mPart mRange
         isEntire = beg == 0 && len == fileSize
 
 ----------------------------------------------------------------
+
+-- | Sending a HTTP response to 'Connection' according to 'Response'.
+--
+--   ['ResponseFile']
+--     HTTP response body is sent by sendfile().
+--     If an application know the file size, it should be
+--     specified using FilePart (Just).
+--     If it is Nothing, disk access occurs to obtain its file size.
+--     Content-Length and Content-Range (if necessary) are automatically
+--     added into the HTTP response header.
+--     If Content-Length and Content-Range exist in the HTTP response header,
+--     they will cause inconsistency.
+--     Status is also changed to 206 if necessary.
+--
+--   ['ResponseBuilder'] TBD
+--
+--   ['ResponseSource']  TBD
 
 sendResponse :: Connection
              -> InternalInfo
