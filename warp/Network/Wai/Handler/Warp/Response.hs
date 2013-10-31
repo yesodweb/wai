@@ -69,7 +69,9 @@ checkPartRange fileSize mPart mRange = checkPart mPart mRange
         -- Range is broken
         Nothing              -> (0, fileSize - 1, fileSize, True)
         Just hrange          -> checkRange hrange
-    -- Ignore Range if FilePart is specified
+    -- Ignore Range if FilePart is specified.
+    -- We assume that an application handled Range and specified
+    -- FilePart.
     checkPart (Just part) _   = (beg, end, len, isEntire)
       where
         beg = filePartOffset part
