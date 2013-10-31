@@ -43,15 +43,15 @@ fileRange :: IndexedHeader -> IndexedHeader
           -> FilePath -> Maybe FilePart
           -> IO (Either SomeException
                         (H.Status, H.ResponseHeaders, Integer, Integer))
-fileRange reqidxhdr rspidxhdr s0 hs0 path mpart = liftIO . try $
-    tryContentLength s0 hs0
+fileRange reqidxhdr rspidxhdr s0 hs0 path mpart =
+    liftIO . try $ checkContentLength s0 hs0
  where
     mRange         = reqidxhdr ! idxRange
     mContentLength = rspidxhdr ! idxContentLength
     mContentRange  = rspidxhdr ! idxContentRange
 
-    tryContentLength s' hdr' = do
-        quad@(s, hdr, beg, len) <- tryMpart s' hdr' mpart
+    checkContentLength s' hdr' = do
+        quad@(s, hdr, beg, len) <- checkMpart s' hdr' mpart
         -- We respect Content-Length if exists.
         -- The validity of Content-Length's value is Applications's
         -- responsibility.
@@ -59,25 +59,25 @@ fileRange reqidxhdr rspidxhdr s0 hs0 path mpart = liftIO . try $
             Nothing -> return (s, addContentLength len hdr, beg, len)
             _       -> return quad
 
-    tryMpart s hdr Nothing     = do
+    checkMpart s hdr Nothing     = do
         -- We don't know the size of the file.
         -- Content-Length cannot help.
         -- Let's obtain it first.
         fileSize <- fromIntegral . P.fileSize <$> P.getFileStatus path
         -- Then, let's manipulate Range in HTTP request.
-        return $ tryRange s hdr mRange fileSize
+        return $ checkRange s hdr mRange fileSize
     -- We respect Status.
     -- The validity of Status's value is Applications's responsibility.
-    tryMpart s hdr (Just part) = return (s, hdr', beg, len)
+    checkMpart s hdr (Just part) = return (s, hdr', beg, len)
       where
         beg = filePartOffset part
         len = filePartByteCount part
-        hdr' = addRange mContentRange
-        addRange Nothing = addContentRange len beg (beg + len - 1) hdr
-        addRange _       = hdr
+        end = beg + len - 1
+        fileSize = filePartFileSize part
+        hdr' = addRange hdr fileSize beg end mContentRange
 
-    tryRange s hdr Nothing      fileSize = (s, hdr, 0, fileSize)
-    tryRange s hdr (Just range) fileSize = case mhrange of
+    checkRange s hdr Nothing      fileSize = (s, hdr, 0, fileSize)
+    checkRange s hdr (Just range) fileSize = case mhrange of
         Nothing     -> (s, hdr, 0, fileSize)
         -- FIXME: original code checks if s is 200.
         Just hrange -> case hrange of
@@ -87,10 +87,17 @@ fileRange reqidxhdr rspidxhdr s0 hs0 path mpart = liftIO . try $
       where
         mhrange = parseByteRanges range >>= listToMaybe
 
-    fromRange hdr total from to = (H.status206
-                                  ,addContentRange total from to hdr
-                                  ,from
-                                  ,to - from + 1)
+    fromRange hdr fileSize from to = (status, hdr', beg, len)
+      where
+        status = H.status206
+        hdr' = addRange hdr fileSize from to mContentRange
+        beg  = from
+        len  = to - from + 1
+
+    -- We respect Content-Range.
+    -- The validity of Content-Range's value is Applications's responsibility.
+    addRange hdr fileSize from to Nothing = addContentRange fileSize from to hdr
+    addRange hdr _        _   _   _       = hdr
 
 ----------------------------------------------------------------
 

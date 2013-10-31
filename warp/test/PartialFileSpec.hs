@@ -42,11 +42,12 @@ testRange range out crange = it title $ withApp defaultSettings app $ \port -> d
             (x, ':':y) -> Just (x, dropWhile (== ' ') y)
             _ -> Nothing
 
-testPartial :: Integer -- ^ offset
+testPartial :: Integer -- ^ file size
+            -> Integer -- ^ offset
             -> Integer -- ^ byte count
             -> String -- ^ expected output
             -> Spec
-testPartial offset count out = it title $ withApp defaultSettings app $ \port -> do
+testPartial size offset count out = it title $ withApp defaultSettings app $ \port -> do
     handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
     S.hPutStr handle "GET / HTTP/1.0\r\n\r\n"
     hFlush handle
@@ -57,7 +58,7 @@ testPartial offset count out = it title $ withApp defaultSettings app $ \port ->
     let hs = mapMaybe toHeader bss
     lookup "Content-Length" hs `shouldBe` Just (show $ length $ last bss)
   where
-    app _ = return $ responseFile status200 [] "attic/hex" $ Just $ FilePart offset count
+    app _ = return $ responseFile status200 [] "attic/hex" $ Just $ FilePart offset count size
     title = show (offset, count, out)
     toHeader s =
         case break (== ':') s of
@@ -72,6 +73,6 @@ spec = do
         testRange "5-8" "5678" "5-8/16"
         testRange "-3" "def" "13-15/16"
     describe "partial files" $ do
-        testPartial 2 2 "23"
-        testPartial 0 2 "01"
-        testPartial 3 8 "3456789a"
+        testPartial 16 2 2 "23"
+        testPartial 16 0 2 "01"
+        testPartial 16 3 8 "3456789a"

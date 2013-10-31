@@ -110,7 +110,7 @@ responseToSource (ResponseBuilder s h b) =
     (s, h, ($ CL.sourceList [C.Chunk b]))
 
 sourceFilePart :: IO.Handle -> FilePart -> C.Source IO B.ByteString
-sourceFilePart handle (FilePart offset count) =
+sourceFilePart handle (FilePart offset count _) =
     CB.sourceHandleRange handle (Just offset) (Just count)
 
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response

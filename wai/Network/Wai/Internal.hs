@@ -101,4 +101,5 @@ data RequestBodyLength = ChunkedBody | KnownLength Word64
 data FilePart = FilePart
     { filePartOffset    :: Integer
     , filePartByteCount :: Integer
+    , filePartFileSize  :: Integer
     } deriving Show
