@@ -39,6 +39,8 @@ maxTotalHeaderLength = 50 * 1024
 
 ----------------------------------------------------------------
 
+-- | Receiving a HTTP request from 'Connection' and parsing its header
+--   to create 'Request'.
 recvRequest :: Connection
             -> InternalInfo
             -> SockAddr -- ^ Peer's address.
@@ -48,7 +50,7 @@ recvRequest :: Connection
                   ,IO (ResumableSource IO ByteString)) -- ^
             -- 'Request' passed to 'Application',
             -- 'IndexedHeader' of HTTP request for internal use, and
-            -- leftover source (i.e. HTTP pipelining).
+            -- leftover source (i.e. body and other HTTP reqeusts in HTTP pipelining).
 
 recvRequest conn ii addr src0 = do
     (src, hdrlines) <- src0 $$+ headerLines
