@@ -51,18 +51,16 @@ defaultIndexRequestHeader = array (0,requestMaxIndex) [(i,Nothing)|i<-[0..reques
 indexResponseHeader :: ResponseHeaders -> IndexedHeader
 indexResponseHeader hdr = traverseHeader hdr responseMaxIndex responseKeyIndex
 
-idxContentRange,idxServer :: Int
+idxServer :: Int
 --idxContentLength = 0
-idxContentRange  = 1
-idxServer        = 2
+idxServer        = 1
 
 -- | The size for 'IndexedHeader' for HTTP Response.
 responseMaxIndex :: Int
-responseMaxIndex = 2
+responseMaxIndex = 1
 
 responseKeyIndex :: HeaderName -> Int
 responseKeyIndex "content-length" = idxContentLength
-responseKeyIndex "content-range"  = idxContentRange
 responseKeyIndex "server"         = idxServer
 responseKeyIndex _                = -1
 
