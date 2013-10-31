@@ -216,7 +216,8 @@ connSink Connection { connSendAll = send } th =
 
 ----------------------------------------------------------------
 
-infoFromRequest :: Request -> IndexedHeader -> (Bool,Bool)
+infoFromRequest :: Request -> IndexedHeader -> (Bool  -- isPersist
+                                               ,Bool) -- isChunked
 infoFromRequest req reqidxhdr = (checkPersist req reqidxhdr, checkChunk req)
 
 checkPersist :: Request -> IndexedHeader -> Bool
@@ -242,6 +243,9 @@ checkChunk req = httpVersion req == H.http11
 -- Don't use this for ResponseFile since this logic does not fit
 -- for ResponseFile. For instance, isKeepAlive should be True in some cases
 -- even if the response header does not have Content-Length.
+--
+-- Content-Length is specified by a reverse proxy.
+-- Note that CGI does not specify Content-Length.
 infoFromResponse :: IndexedHeader -> (Bool,Bool) -> (Bool,Bool)
 infoFromResponse rspidxhdr (isPersist,isChunked) = (isKeepAlive, needsChunked)
   where
