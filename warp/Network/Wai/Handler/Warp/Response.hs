@@ -105,19 +105,17 @@ sendResponse :: Connection
 sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mpart) =
     restore $ fileRange reqidxhdr rspidxhdr s0 hs path mpart >>= sendResponseEither
   where
-    rspidxhdr = indexResponseHeader hs0
     hs = addServer rspidxhdr $ addAcceptRanges hs0
+    rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
+
     sendResponseEither (Right (s, lengthyHeaders, beg, len))
       | hasBody s req = liftIO $ do
           lheader <- composeHeader version s lengthyHeaders
           connSendFile conn path beg len (T.tickle th) [lheader]
           T.tickle th
           return isPersist
-      | otherwise = liftIO $ do
-          composeHeader version s hs >>= connSendAll conn
-          T.tickle th
-          return isPersist -- FIXME isKeepAlive?
+      | otherwise = liftIO $ sendResponseNoBody conn th version s hs isPersist
       where
         version = httpVersion req
         (isPersist,_) = infoFromRequest req reqidxhdr
@@ -140,13 +138,10 @@ sendResponse conn ii restore req reqidxhdr (ResponseBuilder s hs0 b)
           connSendAll conn bs
           T.tickle th
       return isKeepAlive
-  | otherwise = restore $ do
-      composeHeader version s hs >>= connSendAll conn
-      T.tickle th
-      return isPersist
+  | otherwise = restore $ sendResponseNoBody conn th version s hs isPersist
   where
-    rspidxhdr = indexResponseHeader hs0
     hs = addServer rspidxhdr hs0
+    rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
     version = httpVersion req
     reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
@@ -160,14 +155,16 @@ sendResponse conn ii restore req reqidxhdr (ResponseSource s hs0 withBodyFlush)
       let src = CL.sourceList [header] `mappend` cbody bodyFlush
       src $$ builderToByteString =$ connSink conn th
       return isKeepAlive
-  | otherwise = withBodyFlush $ \_bodyFlush -> restore $ do -- make sure any cleanup is called
-      composeHeader version s hs >>= connSendAll conn
-      T.tickle th
-      return isPersist
+  | otherwise = withBodyFlush $ \_bodyFlush ->
+      -- make sure any cleanup is called
+      restore $ sendResponseNoBody conn th version s hs isPersist
   where
-    rspidxhdr = indexResponseHeader hs0
     hs = addServer rspidxhdr hs0
+    rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
+    version = httpVersion req
+    reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
+    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
     cbody bodyFlush = if needsChunked then body $= chunk else body
       where
         body = mapOutput (\x -> case x of
@@ -178,9 +175,16 @@ sendResponse conn ii restore req reqidxhdr (ResponseSource s hs0 withBodyFlush)
     -- functions below. Should lessen greatly the GC burden (I hope)
     chunk :: Conduit Builder IO Builder
     chunk = await >>= maybe (yield chunkedTransferTerminator) (\x -> yield (chunkedTransferEncoding x) >> chunk)
-    version = httpVersion req
-    reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
-    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
+
+----------------------------------------------------------------
+
+sendResponseNoBody :: Connection -> T.Handle
+                   -> H.HttpVersion -> H.Status -> H.ResponseHeaders
+                   -> Bool -> IO Bool
+sendResponseNoBody conn th version s hs isPersist = do
+    composeHeader version s hs >>= connSendAll conn
+    T.tickle th
+    return isPersist
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
