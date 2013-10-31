@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module PartialFileSpec (main, spec) where
+module ResponseSpec (main, spec) where
 
 import Control.Concurrent (threadDelay)
 import qualified Data.ByteString as S

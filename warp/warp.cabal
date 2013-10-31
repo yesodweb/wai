@@ -85,10 +85,10 @@ Test-Suite spec
                      ExceptionSpec
                      FdCacheSpec
                      MultiMapSpec
-                     PartialFileSpec
                      ReadIntSpec
                      RequestSpec
                      ResponseHeaderSpec
+                     ResponseSpec
                      RunSpec
                      ThreadSpec
     Hs-Source-Dirs:  test, .
