@@ -84,20 +84,32 @@ checkPartRange fileSize mPart mRange = checkPart mPart mRange
 
 -- | Sending a HTTP response to 'Connection' according to 'Response'.
 --
+--   The Server header is added if not exist in HTTP response header.
+--
 --   ['ResponseFile']
 --     HTTP response body is sent by sendfile().
---     If an application know the file size, it should be
---     specified using FilePart (Just).
---     If it is Nothing, disk access occurs to obtain its file size.
+--     Applications are categorized into simple and sophisticated.
+--     Simple applications should specify 'Nothing' to
+--     'Maybe' 'FilePart'. The size of the specified file is obtained
+--     by disk access. Then Range is handled.
+--     Sophisticated applications should specify 'Just' to
+--     'Maybe' 'FilePart'. They should treat Range (and If-Range) by
+--     thierselves. In both cases,
 --     Content-Length and Content-Range (if necessary) are automatically
 --     added into the HTTP response header.
 --     If Content-Length and Content-Range exist in the HTTP response header,
---     they will cause inconsistency.
+--     they would cause inconsistency.
 --     Status is also changed to 206 if necessary.
 --
---   ['ResponseBuilder'] TBD
+--   ['ResponseSource']
+--     HTTP response body is created from 'Source'.
+--     Typically, Transfer-Encoding: chunked is used.
+--     If Content-Length is specified, Transfer-Encoding: chunked is not used.
 --
---   ['ResponseSource']  TBD
+--   ['ResponseBuilder']
+--     HTTP response body is created from 'Builder'.
+--     Typically, Transfer-Encoding: chunked is used.
+--     If Content-Length is specified, Transfer-Encoding: chunked is not used.
 
 sendResponse :: Connection
              -> InternalInfo
