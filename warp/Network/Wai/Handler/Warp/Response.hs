@@ -25,7 +25,7 @@ import Network.HTTP.Attoparsec (parseByteRanges)
 import qualified Network.HTTP.Types as H
 import Network.Wai
 import Network.Wai.Handler.Warp.Header
-import qualified Network.Wai.Handler.Warp.ResponseHeader as RH
+import Network.Wai.Handler.Warp.ResponseHeader
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
@@ -114,9 +114,9 @@ sendResponse :: Connection
 sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mpart) =
     restore $ fileRange reqidxhdr rspidxhdr s0 hs path mpart >>= sendResponseEither
   where
-    hs = addAcceptRanges hs0
-    th = threadHandle ii
     rspidxhdr = indexResponseHeader hs0
+    hs = addServer rspidxhdr $ addAcceptRanges hs0
+    th = threadHandle ii
     sendResponseEither (Right (s, lengthyHeaders, beg, len))
       | hasBody s req = liftIO $ do
           lheader <- composeHeader version s lengthyHeaders
@@ -138,7 +138,7 @@ sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mpart) =
 
 ----------------------------------------------------------------
 
-sendResponse conn ii restore req reqidxhdr (ResponseBuilder s hs b)
+sendResponse conn ii restore req reqidxhdr (ResponseBuilder s hs0 b)
   | hasBody s req = restore $ do
       header <- composeHeaderBuilder version s hs needsChunked
       let body
@@ -154,14 +154,16 @@ sendResponse conn ii restore req reqidxhdr (ResponseBuilder s hs b)
       T.tickle th
       return isPersist
   where
+    rspidxhdr = indexResponseHeader hs0
+    hs = addServer rspidxhdr hs0
     th = threadHandle ii
     version = httpVersion req
     reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
-    (isKeepAlive, needsChunked) = infoFromResponse hs reqinfo
+    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
 
 ----------------------------------------------------------------
 
-sendResponse conn ii restore req reqidxhdr (ResponseSource s hs withBodyFlush)
+sendResponse conn ii restore req reqidxhdr (ResponseSource s hs0 withBodyFlush)
   | hasBody s req = withBodyFlush $ \bodyFlush -> restore $ do
       header <- liftIO $ composeHeaderBuilder version s hs needsChunked
       let src = CL.sourceList [header] `mappend` cbody bodyFlush
@@ -172,6 +174,8 @@ sendResponse conn ii restore req reqidxhdr (ResponseSource s hs withBodyFlush)
       T.tickle th
       return isPersist
   where
+    rspidxhdr = indexResponseHeader hs0
+    hs = addServer rspidxhdr hs0
     th = threadHandle ii
     cbody bodyFlush = if needsChunked then body $= chunk else body
       where
@@ -185,7 +189,7 @@ sendResponse conn ii restore req reqidxhdr (ResponseSource s hs withBodyFlush)
     chunk = await >>= maybe (yield chunkedTransferTerminator) (\x -> yield (chunkedTransferEncoding x) >> chunk)
     version = httpVersion req
     reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
-    (isKeepAlive, needsChunked) = infoFromResponse hs reqinfo
+    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -235,15 +239,12 @@ checkChunk req = httpVersion req == H.http11
 -- Don't use this for ResponseFile since this logic does not fit
 -- for ResponseFile. For instance, isKeepAlive should be True in some cases
 -- even if the response header does not have Content-Length.
-infoFromResponse :: H.ResponseHeaders -> (Bool,Bool) -> (Bool,Bool)
-infoFromResponse hs (isPersist,isChunked) = (isKeepAlive, needsChunked)
+infoFromResponse :: IndexedHeader -> (Bool,Bool) -> (Bool,Bool)
+infoFromResponse rspidxhdr (isPersist,isChunked) = (isKeepAlive, needsChunked)
   where
     needsChunked = isChunked && not hasLength
     isKeepAlive = isPersist && (isChunked || hasLength)
-    hasLength = isJust $ checkLength hs
-
-checkLength :: H.ResponseHeaders -> Maybe ByteString
-checkLength = lookup H.hContentLength
+    hasLength = isJust $ rspidxhdr ! idxContentLength
 
 ----------------------------------------------------------------
 
@@ -267,8 +268,8 @@ addAcceptRanges hdrs = (hAcceptRanges, "bytes") : hdrs
 addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
 addTransferEncoding hdrs = (hTransferEncoding, "chunked") : hdrs
 
-addServer :: H.ResponseHeaders -> H.ResponseHeaders
-addServer hdrs = case lookup hServer hdrs of
+addServer :: IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
+addServer rspidxhdr hdrs = case rspidxhdr ! idxServer of
     Nothing -> (hServer, defaultServerValue) : hdrs
     Just _  -> hdrs
 
@@ -285,13 +286,6 @@ addContentRange total from to hdrs = (hContentRange, range) : hdrs
       : showInt total ""))
 
 ----------------------------------------------------------------
-
-composeHeader :: H.HttpVersion
-              -> H.Status
-              -> H.ResponseHeaders
-              -> IO ByteString
-composeHeader version s hs =
-    RH.composeHeader version s $ addServer hs
 
 composeHeaderBuilder :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> IO Builder
 composeHeaderBuilder ver s hs True =
