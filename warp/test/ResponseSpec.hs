@@ -57,6 +57,7 @@ testPartial size offset count out = it title $ withApp defaultSettings app $ \po
     out `shouldBe` last bss
     let hs = mapMaybe toHeader bss
     lookup "Content-Length" hs `shouldBe` Just (show $ length $ last bss)
+    lookup "Content-Range" hs `shouldBe` Just range
   where
     app _ = return $ responseFile status200 [] "attic/hex" $ Just $ FilePart offset count size
     title = show (offset, count, out)
@@ -64,7 +65,7 @@ testPartial size offset count out = it title $ withApp defaultSettings app $ \po
         case break (== ':') s of
             (x, ':':y) -> Just (x, dropWhile (== ' ') y)
             _ -> Nothing
-
+    range = "bytes " ++ show offset ++ "-" ++ show (offset + count - 1) ++ "/" ++ show size
 spec :: Spec
 spec = do
     describe "range requests" $ do
