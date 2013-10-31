@@ -6,9 +6,10 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Data.Maybe (mapMaybe)
 import Network (connectTo, PortID (PortNumber))
-import Network.HTTP.Types (status200)
+import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp.Response
 import RunSpec (withApp)
 import System.IO (hClose, hFlush)
 import Test.Hspec
@@ -66,6 +67,19 @@ testPartial size offset count out = it title $ withApp defaultSettings app $ \po
             (x, ':':y) -> Just (x, dropWhile (== ' ') y)
             _ -> Nothing
     range = "bytes " ++ show offset ++ "-" ++ show (offset + count - 1) ++ "/" ++ show size
+
+testFileRange :: String
+              -> Status -> ResponseHeaders -> FilePath
+              -> Maybe FilePart -> Maybe HeaderValue
+              -> Either String (Status, ResponseHeaders, Integer, Integer)
+              -> Spec
+testFileRange desc s rsphdr file mPart mRange ans = it desc $ do
+    eres <- fileRange s rsphdr file mPart mRange
+    let res = case eres of
+            Left  e   -> Left $ show e
+            Right r   -> Right r
+    res `shouldBe` ans
+
 spec :: Spec
 spec = do
     describe "range requests" $ do
@@ -73,7 +87,38 @@ spec = do
         testRange "5-" "56789abcdef" "5-15/16"
         testRange "5-8" "5678" "5-8/16"
         testRange "-3" "def" "13-15/16"
+
     describe "partial files" $ do
         testPartial 16 2 2 "23"
         testPartial 16 0 2 "01"
         testPartial 16 3 8 "3456789a"
+
+    describe "fileRange" $ do
+        testFileRange
+            "gets a file size from file system"
+            status200 [] "attic/hex" Nothing Nothing
+            $ Right (status200,[("Content-Length","16")],0,16)
+        testFileRange
+            "gets an error if a file does not exist"
+            status200 [] "attic/nonexist" Nothing Nothing
+            $ Left "attic/nonexist: getFileStatus: does not exist (No such file or directory)"
+        testFileRange
+            "changes status if FileParts is specified"
+            status200 [] "attic/hex" (Just (FilePart 2 10 16)) Nothing
+            $ Right (status206,[("Content-Range", "bytes 2-11/16"),("Content-Length","10")],2,10)
+        testFileRange
+            "does not change status and does not add Content-Range if FileParts means the entire"
+            status200 [] "attic/hex" (Just (FilePart 0 16 16)) Nothing
+            $ Right (status200,[("Content-Length","16")],0,16)
+        testFileRange
+            "gets a file size from file system and handles Range and returns Partical Content"
+            status200 [] "attic/hex" Nothing (Just "bytes=2-14")
+            $ Right (status206,[("Content-Range","bytes 2-14/16"),("Content-Length","13")],2,13)
+        testFileRange
+            "gets a file size from file system and handles Range and returns OK if Range means the entire"
+            status200 [] "attic/hex" Nothing (Just "bytes=0-15")
+            $ Right (status200,[("Content-Length","16")],0,16)
+        testFileRange
+            "igores Range if FilePart is specified"
+            status200 [] "attic/hex" (Just (FilePart 2 10 16)) (Just "bytes=8-9")
+            $ Right (status206,[("Content-Range", "bytes 2-11/16"),("Content-Length","10")],2,10)

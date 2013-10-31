@@ -5,6 +5,7 @@
 
 module Network.Wai.Handler.Warp.Response (
     sendResponse
+  , fileRange -- for testing
   ) where
 
 import Blaze.ByteString.Builder (fromByteString, Builder, toByteStringIO, flush)
@@ -34,61 +35,56 @@ import qualified System.PosixCompat.Files as P
 
 ----------------------------------------------------------------
 
--- Application should just specify FilePart.
--- Content-Length and Content-Range are automatically added.
--- Application should not be specify Content-Length and Content-Range
--- to avoid inconsistency.
-fileRange :: IndexedHeader -> IndexedHeader
-          -> H.Status -> H.ResponseHeaders
-          -> FilePath -> Maybe FilePart
+-- If an application know the file size, it should be
+-- specified using FilePart (Just).
+-- If it is Nothing, disk access occurs to obtain its file size.
+-- Content-Length and Content-Range (if necessary) are automatically
+-- added into the HTTP response header.
+-- If Content-Length and Content-Range exist in the HTTP response header,
+-- they will cause consistency.
+-- Status is also changed if necessary.
+fileRange :: H.Status -> H.ResponseHeaders -> FilePath
+           -> Maybe FilePart -> Maybe HeaderValue
           -> IO (Either SomeException
                         (H.Status, H.ResponseHeaders, Integer, Integer))
-fileRange reqidxhdr rspidxhdr s0 hs0 path mpart =
-    liftIO . try $ checkContentLength s0 hs0
+fileRange s0 hs0 path mPart mRange = liftIO . try $ do
+    fileSize <- checkFileSize mPart
+    let (beg, end, len, isEntire) = checkPartRange fileSize mPart mRange
+    let hs1 = addContentLength len hs0
+        hs | isEntire  = hs1
+           | otherwise = addContentRange beg end fileSize hs1
+        s  | isEntire  = s0
+           | otherwise = H.status206
+    return (s, hs, beg, len)
  where
-    mRange         = reqidxhdr ! idxRange
+    checkFileSize Nothing = fromIntegral . P.fileSize <$> P.getFileStatus path
+    checkFileSize (Just part) = return $ filePartFileSize part
 
-    checkContentLength s' hdr' = do
-        (s, hdr, beg, len) <- checkMpart s' hdr' mpart
-        -- We respect Content-Length if exists.
-        -- The validity of Content-Length's value is Applications's
-        -- responsibility.
-        return (s, addContentLength rspidxhdr len hdr, beg, len)
-
-    checkMpart s hdr Nothing     = do
-        -- We don't know the size of the file.
-        -- Content-Length cannot help.
-        -- Let's obtain it first.
-        fileSize <- fromIntegral . P.fileSize <$> P.getFileStatus path
-        -- Then, let's manipulate Range in HTTP request.
-        return $ checkRange s hdr mRange fileSize
-    -- We respect Status.
-    -- The validity of Status's value is Applications's responsibility.
-    checkMpart s hdr (Just part) = return (s, hdr', beg, len)
+checkPartRange :: Integer -> Maybe FilePart -> Maybe HeaderValue
+               -> (Integer, Integer, Integer, Bool)
+checkPartRange fileSize mPart mRange = checkPart mPart mRange
+  where
+    checkPart Nothing Nothing = (0, fileSize - 1, fileSize, True)
+    checkPart Nothing (Just range) = case parseByteRanges range >>= listToMaybe of
+        -- Range is broken
+        Nothing              -> (0, fileSize - 1, fileSize, True)
+        Just hrange          -> checkRange hrange
+    -- Ignore Range if FilePart is specified
+    checkPart (Just part) _   = (beg, end, len, isEntire)
       where
         beg = filePartOffset part
         len = filePartByteCount part
         end = beg + len - 1
-        fileSize = filePartFileSize part
-        hdr' = addContentRange rspidxhdr fileSize beg end hdr
+        isEntire = beg == 0 && len == fileSize
 
-    checkRange s hdr Nothing      fileSize = (s, hdr, 0, fileSize)
-    checkRange s hdr (Just range) fileSize = case mhrange of
-        Nothing     -> (s, hdr, 0, fileSize)
-        -- FIXME: original code checks if s is 200.
-        Just hrange -> case hrange of
-            H.ByteRangeFrom   from    -> fromRange hdr fileSize from (fileSize - 1)
-            H.ByteRangeFromTo from to -> fromRange hdr fileSize from to
-            H.ByteRangeSuffix count   -> fromRange hdr fileSize (fileSize - count) (fileSize - 1)
-      where
-        mhrange = parseByteRanges range >>= listToMaybe
+    checkRange (H.ByteRangeFrom   beg)     = fromRange beg (fileSize - 1)
+    checkRange (H.ByteRangeFromTo beg end) = fromRange beg end
+    checkRange (H.ByteRangeSuffix count)   = fromRange (fileSize - count) (fileSize - 1)
 
-    fromRange hdr fileSize from to = (status, hdr', beg, len)
+    fromRange beg end = (beg, end, len, isEntire)
       where
-        status = H.status206
-        hdr' = addContentRange rspidxhdr fileSize from to hdr
-        beg  = from
-        len  = to - from + 1
+        len = end - beg + 1
+        isEntire = beg == 0 && len == fileSize
 
 ----------------------------------------------------------------
 
@@ -102,12 +98,13 @@ sendResponse :: Connection
 
 ----------------------------------------------------------------
 
-sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mpart) =
-    restore $ fileRange reqidxhdr rspidxhdr s0 hs path mpart >>= sendResponseEither
+sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mPart) =
+    restore $ fileRange s0 hs path mPart mRange >>= sendResponseEither
   where
     hs = addServer rspidxhdr $ addAcceptRanges hs0
     rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
+    mRange = reqidxhdr ! idxRange
 
     sendResponseEither (Right (s, lengthyHeaders, beg, len))
       | hasBody s req = liftIO $ do
@@ -260,31 +257,30 @@ addAcceptRanges hdrs = (hAcceptRanges, "bytes") : hdrs
 addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
 addTransferEncoding hdrs = (hTransferEncoding, "chunked") : hdrs
 
-addContentLength :: IndexedHeader -> Integer -> H.ResponseHeaders -> H.ResponseHeaders
-addContentLength rspidxhdr cl hdrs = case rspidxhdr ! idxContentLength of
-    Nothing -> (H.hContentLength, B.pack $ show cl) : hdrs
-    _       -> hdrs
+addContentLength :: Integer -> H.ResponseHeaders -> H.ResponseHeaders
+addContentLength cl hdrs = (H.hContentLength, len) : hdrs
+  where
+    len = B.pack $ show cl
+
+addContentRange :: Integer -> Integer -> Integer
+                -> H.ResponseHeaders -> H.ResponseHeaders
+addContentRange beg end total hdrs = (hContentRange, range) : hdrs
+  where
+    range = B.pack
+      -- building with ShowS
+      $ 'b' : 'y': 't' : 'e' : 's' : ' '
+      : showInt beg
+      ( '-'
+      : showInt end
+      ( '/'
+      : showInt total ""))
+
+----------------------------------------------------------------
 
 addServer :: IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
 addServer rspidxhdr hdrs = case rspidxhdr ! idxServer of
     Nothing -> (hServer, defaultServerValue) : hdrs
     _       -> hdrs
-
-addContentRange :: IndexedHeader
-                -> Integer -> Integer -> Integer
-                -> H.ResponseHeaders -> H.ResponseHeaders
-addContentRange rspidxhdr total from to hdrs = case rspidxhdr ! idxContentRange of
-    Nothing -> (hContentRange, range) : hdrs
-    _       -> hdrs
-  where
-    range = B.pack
-      -- building with ShowS
-      $ 'b' : 'y': 't' : 'e' : 's' : ' '
-      : showInt from
-      ( '-'
-      : showInt to
-      ( '/'
-      : showInt total ""))
 
 ----------------------------------------------------------------
 
