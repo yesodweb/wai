@@ -47,16 +47,13 @@ fileRange reqidxhdr rspidxhdr s0 hs0 path mpart =
     liftIO . try $ checkContentLength s0 hs0
  where
     mRange         = reqidxhdr ! idxRange
-    mContentLength = rspidxhdr ! idxContentLength
 
     checkContentLength s' hdr' = do
-        quad@(s, hdr, beg, len) <- checkMpart s' hdr' mpart
+        (s, hdr, beg, len) <- checkMpart s' hdr' mpart
         -- We respect Content-Length if exists.
         -- The validity of Content-Length's value is Applications's
         -- responsibility.
-        case mContentLength of
-            Nothing -> return (s, addContentLength len hdr, beg, len)
-            _       -> return quad
+        return (s, addContentLength rspidxhdr len hdr, beg, len)
 
     checkMpart s hdr Nothing     = do
         -- We don't know the size of the file.
@@ -253,14 +250,16 @@ hasBody s req = sc /= 204
 
 ----------------------------------------------------------------
 
-addContentLength :: Integer -> H.ResponseHeaders -> H.ResponseHeaders
-addContentLength cl hdrs = (H.hContentLength, B.pack $ show cl) : hdrs
-
 addAcceptRanges :: H.ResponseHeaders -> H.ResponseHeaders
 addAcceptRanges hdrs = (hAcceptRanges, "bytes") : hdrs
 
 addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
 addTransferEncoding hdrs = (hTransferEncoding, "chunked") : hdrs
+
+addContentLength :: IndexedHeader -> Integer -> H.ResponseHeaders -> H.ResponseHeaders
+addContentLength rspidxhdr cl hdrs = case rspidxhdr ! idxContentLength of
+    Nothing -> (H.hContentLength, B.pack $ show cl) : hdrs
+    _       -> hdrs
 
 addServer :: IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
 addServer rspidxhdr hdrs = case rspidxhdr ! idxServer of
