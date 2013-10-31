@@ -48,7 +48,6 @@ fileRange reqidxhdr rspidxhdr s0 hs0 path mpart =
  where
     mRange         = reqidxhdr ! idxRange
     mContentLength = rspidxhdr ! idxContentLength
-    mContentRange  = rspidxhdr ! idxContentRange
 
     checkContentLength s' hdr' = do
         quad@(s, hdr, beg, len) <- checkMpart s' hdr' mpart
@@ -74,7 +73,7 @@ fileRange reqidxhdr rspidxhdr s0 hs0 path mpart =
         len = filePartByteCount part
         end = beg + len - 1
         fileSize = filePartFileSize part
-        hdr' = addRange hdr fileSize beg end mContentRange
+        hdr' = addContentRange rspidxhdr fileSize beg end hdr
 
     checkRange s hdr Nothing      fileSize = (s, hdr, 0, fileSize)
     checkRange s hdr (Just range) fileSize = case mhrange of
@@ -90,14 +89,9 @@ fileRange reqidxhdr rspidxhdr s0 hs0 path mpart =
     fromRange hdr fileSize from to = (status, hdr', beg, len)
       where
         status = H.status206
-        hdr' = addRange hdr fileSize from to mContentRange
+        hdr' = addContentRange rspidxhdr fileSize from to hdr
         beg  = from
         len  = to - from + 1
-
-    -- We respect Content-Range.
-    -- The validity of Content-Range's value is Applications's responsibility.
-    addRange hdr fileSize from to Nothing = addContentRange fileSize from to hdr
-    addRange hdr _        _   _   _       = hdr
 
 ----------------------------------------------------------------
 
@@ -271,10 +265,14 @@ addTransferEncoding hdrs = (hTransferEncoding, "chunked") : hdrs
 addServer :: IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
 addServer rspidxhdr hdrs = case rspidxhdr ! idxServer of
     Nothing -> (hServer, defaultServerValue) : hdrs
-    Just _  -> hdrs
+    _       -> hdrs
 
-addContentRange :: Integer -> Integer -> Integer -> H.ResponseHeaders -> H.ResponseHeaders
-addContentRange total from to hdrs = (hContentRange, range) : hdrs
+addContentRange :: IndexedHeader
+                -> Integer -> Integer -> Integer
+                -> H.ResponseHeaders -> H.ResponseHeaders
+addContentRange rspidxhdr total from to hdrs = case rspidxhdr ! idxContentRange of
+    Nothing -> (hContentRange, range) : hdrs
+    _       -> hdrs
   where
     range = B.pack
       -- building with ShowS
