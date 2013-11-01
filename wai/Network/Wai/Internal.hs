@@ -75,6 +75,9 @@ type WithSource m a b = (C.Source m a -> m b) -> m b
 -- Since 1.4.0
 data RequestBodyLength = ChunkedBody | KnownLength Word64
 
+-- | Information on which part to be sent.
+--   Sophisticated application handles Range (and If-Range) then
+--   create 'FilePart'.
 data FilePart = FilePart
     { filePartOffset    :: Integer
     , filePartByteCount :: Integer
