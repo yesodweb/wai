@@ -22,16 +22,16 @@ parseHeaderLines :: [ByteString]
                        )
 parseHeaderLines [] = throwIO $ NotEnoughLines []
 parseHeaderLines (firstLine:otherLines) = do
-    (method, path', query, httpversion) <- parseFirst firstLine
+    (method, path', query, httpversion) <- parseRequestLine firstLine
     let path = parseRpath path'
-        hdr = map parseHeaderNoAttr otherLines
+        hdr = map parseHeader otherLines
     return (method, path, query, httpversion, hdr)
 
 ----------------------------------------------------------------
 
-parseFirst :: ByteString
+parseRequestLine :: ByteString
            -> IO (ByteString, ByteString, ByteString, H.HttpVersion)
-parseFirst s =
+parseRequestLine s =
     case filter (not . S.null) $ S.splitWith (\c -> c == 32 || c == 9) s of  -- ' '
         (method:query:http'') -> do
             let http' = S.concat http''
@@ -48,16 +48,16 @@ parseFirst s =
 
 ----------------------------------------------------------------
 
-parseHeaderNoAttr :: ByteString -> H.Header
-parseHeaderNoAttr s =
-    let (k, rest) = S.breakByte 58 s -- ':'
-        rest' = S.dropWhile (\c -> c == 32 || c == 9) $ S.drop 1 rest
-     in (CI.mk k, rest')
-
-----------------------------------------------------------------
-
 parseRpath :: ByteString -> ByteString
 parseRpath rpath'
   | S.null rpath' = "/"
   | "http://" `S.isPrefixOf` rpath' = snd $ S.breakByte 47 $ S.drop 7 rpath'
   | otherwise = rpath'
+
+----------------------------------------------------------------
+
+parseHeader :: ByteString -> H.Header
+parseHeader s =
+    let (k, rest) = S.breakByte 58 s -- ':'
+        rest' = S.dropWhile (\c -> c == 32 || c == 9) $ S.drop 1 rest
+     in (CI.mk k, rest')
