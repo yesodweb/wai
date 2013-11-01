@@ -38,6 +38,8 @@ parseHeaderLines (firstLine:otherLines) = do
 -- ("GET","/","",HTTP/1.1)
 -- >>> parseRequestLine "POST  /cgi/search.cgi?key=foo  HTTP/1.0"
 -- ("POST","/cgi/search.cgi","?key=foo",HTTP/1.0)
+-- >>> parseRequestLine "Broken"
+-- *** Exception: BadFirstLine "Broken"
 parseRequestLine :: ByteString
            -> IO (ByteString, ByteString, ByteString, H.HttpVersion)
 parseRequestLine s =
