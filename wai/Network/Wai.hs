@@ -84,6 +84,8 @@ import           Network.Socket               (SockAddr (SockAddrInet))
 import           Network.Wai.Internal
 import qualified System.IO                    as IO
 
+----------------------------------------------------------------
+
 -- | Creating 'Response' from a file.
 responseFile :: H.Status -> H.ResponseHeaders -> FilePath -> Maybe FilePart -> Response
 responseFile = ResponseFile
@@ -118,6 +120,13 @@ responseBuilder = ResponseBuilder
 responseSource :: H.Status -> H.ResponseHeaders -> C.Source IO (C.Flush Builder) -> Response
 responseSource st hs src = ResponseSource st hs ($ src)
 
+-- | Creating 'Response' from 'L.ByteString'. This is a wrapper for
+--   'responseBuilder'.
+responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
+responseLBS s h = ResponseBuilder s h . fromLazyByteString
+
+----------------------------------------------------------------
+
 -- | Accessing 'H.Status' in 'Response'.
 responseStatus :: Response -> H.Status
 responseStatus (ResponseFile    s _ _ _) = s
@@ -139,10 +148,7 @@ sourceFilePart :: IO.Handle -> FilePart -> C.Source IO B.ByteString
 sourceFilePart handle (FilePart offset count _) =
     CB.sourceHandleRange handle (Just offset) (Just count)
 
--- | Creating 'Response' from 'L.ByteString'. This is a wrapper for
---   'responseBuilder'.
-responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
-responseLBS s h = ResponseBuilder s h . fromLazyByteString
+----------------------------------------------------------------
 
 -- | The WAI application.
 type Application = Request -> IO Response
