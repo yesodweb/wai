@@ -5,20 +5,12 @@
 module Network.Wai.Handler.Warp.Types where
 
 import Control.Exception
-import Data.ByteString.Char8 (ByteString, pack)
+import Data.ByteString (ByteString)
 import Data.Typeable (Typeable)
-import Data.Version (showVersion)
 import Network.HTTP.Types.Header
 import Network.Socket (Socket)
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.Timeout as T
-import qualified Paths_warp
-
-----------------------------------------------------------------
-
--- | The version of Warp.
-warpVersion :: String
-warpVersion = showVersion Paths_warp.version
 
 ----------------------------------------------------------------
 
@@ -41,9 +33,6 @@ hAcceptRanges = "Accept-Ranges"
 
 hServer :: HeaderName
 hServer = "Server"
-
-defaultServerValue :: HeaderValue
-defaultServerValue = pack $ "Warp/" ++ warpVersion
 
 ----------------------------------------------------------------
 

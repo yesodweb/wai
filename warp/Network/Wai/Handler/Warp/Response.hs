@@ -6,6 +6,8 @@
 module Network.Wai.Handler.Warp.Response (
     sendResponse
   , fileRange -- for testing
+  , warpVersion
+  , defaultServerValue
   ) where
 
 import Blaze.ByteString.Builder (fromByteString, Builder, toByteStringIO, flush)
@@ -22,6 +24,7 @@ import Data.Conduit.Blaze (builderToByteString)
 import qualified Data.Conduit.List as CL
 import Data.Maybe (isJust, listToMaybe)
 import Data.Monoid (mappend)
+import Data.Version (showVersion)
 import Network.HTTP.Attoparsec (parseByteRanges)
 import qualified Network.HTTP.Types as H
 import Network.Wai
@@ -31,6 +34,7 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
 import Numeric (showInt)
+import qualified Paths_warp
 import qualified System.PosixCompat.Files as P
 
 ----------------------------------------------------------------
@@ -305,6 +309,13 @@ addContentRange beg end total hdrs = (hContentRange, range) : hdrs
       : showInt total ""))
 
 ----------------------------------------------------------------
+
+-- | The version of Warp.
+warpVersion :: String
+warpVersion = showVersion Paths_warp.version
+
+defaultServerValue :: HeaderValue
+defaultServerValue = B.pack $ "Warp/" ++ warpVersion
 
 addServer :: IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
 addServer rspidxhdr hdrs = case rspidxhdr ! idxServer of
