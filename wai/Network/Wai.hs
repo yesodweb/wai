@@ -35,9 +35,11 @@ include:
 
 -}
 module Network.Wai
-    ( -- * WAI interface
-      -- ** Request
+    (
+      -- * Request
       Request
+    , defaultRequest
+      -- ** Request accessors
     , requestMethod
     , httpVersion
     , rawPathInfo
@@ -50,23 +52,22 @@ module Network.Wai
     , requestBody
     , vault
     , requestBodyLength
-      -- ** Response
+      -- * Response
     , Response
+      -- ** Response composers
     , responseFile
     , responseBuilder
     , responseSource
     , responseLBS
-      -- ** Other types
+      -- * Response accessors
+    , responseToSource
+    , responseStatus
+      -- * Other types
     , Application
     , Middleware
     , FilePart (..)
     , RequestBodyLength (..)
     , WithSource
-      -- ** Helper functions
-    , responseToSource
-    , responseStatus
-      -- ** Defaults
-    , defaultRequest
     ) where
 
 import           Blaze.ByteString.Builder     (Builder, fromLazyByteString)
@@ -83,12 +84,37 @@ import           Network.Socket               (SockAddr (SockAddrInet))
 import           Network.Wai.Internal
 import qualified System.IO                    as IO
 
+-- | Creating 'Response' from a file.
 responseFile :: H.Status -> H.ResponseHeaders -> FilePath -> Maybe FilePart -> Response
 responseFile = ResponseFile
 
+-- | Creating 'Response' from 'Builder'.
+--
+-- Some questions and answers about the usage of 'Builder' here:
+--
+-- Q1. Shouldn't it be at the user's discretion to use Builders internally and
+-- then create a stream of ByteStrings?
+--
+-- A1. That would be less efficient, as we wouldn't get cheap concatenation
+-- with the response headers.
+--
+-- Q2. Isn't it really inefficient to convert from ByteString to Builder, and
+-- then right back to ByteString?
+--
+-- A2. No. If the ByteStrings are small, then they will be copied into a larger
+-- buffer, which should be a performance gain overall (less system calls). If
+-- they are already large, then blaze-builder uses an InsertByteString
+-- instruction to avoid copying.
+--
+-- Q3. Doesn't this prevent us from creating comet-style servers, since data
+-- will be cached?
+--
+-- A3. You can force blaze-builder to output a ByteString before it is an
+-- optimal size by sending a flush command.
 responseBuilder :: H.Status -> H.ResponseHeaders -> Builder -> Response
 responseBuilder = ResponseBuilder
 
+-- | Creating 'Response' from 'C.Source'.
 responseSource :: H.Status -> H.ResponseHeaders -> C.Source IO (C.Flush Builder) -> Response
 responseSource st hs src = ResponseSource st hs ($ src)
 
@@ -113,9 +139,12 @@ sourceFilePart :: IO.Handle -> FilePart -> C.Source IO B.ByteString
 sourceFilePart handle (FilePart offset count _) =
     CB.sourceHandleRange handle (Just offset) (Just count)
 
+-- | Creating 'Response' from 'L.ByteString'. This is a wrapper for
+--   'responseBuilder'.
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString
 
+-- | The WAI application.
 type Application = Request -> IO Response
 
 -- | Middleware is a component that sits between the server and application. It

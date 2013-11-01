@@ -61,29 +61,6 @@ data Request = Request
   }
   deriving (Typeable)
 
--- |
---
--- Some questions and answers about the usage of 'Builder' here:
---
--- Q1. Shouldn't it be at the user's discretion to use Builders internally and
--- then create a stream of ByteStrings?
---
--- A1. That would be less efficient, as we wouldn't get cheap concatenation
--- with the response headers.
---
--- Q2. Isn't it really inefficient to convert from ByteString to Builder, and
--- then right back to ByteString?
---
--- A2. No. If the ByteStrings are small, then they will be copied into a larger
--- buffer, which should be a performance gain overall (less system calls). If
--- they are already large, then blaze-builder uses an InsertByteString
--- instruction to avoid copying.
---
--- Q3. Doesn't this prevent us from creating comet-style servers, since data
--- will be cached?
---
--- A3. You can force blaze-builder to output a ByteString before it is an
--- optimal size by sending a flush command.
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
