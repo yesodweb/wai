@@ -86,7 +86,9 @@ checkPartRange fileSize mPart mRange = checkPart mPart mRange
 --
 --   The Server header is added if not exist in HTTP response header.
 --
---   ['ResponseFile']
+--   There are three basic APIs to create 'Response':
+--
+--   ['responseFile' :: 'H.Status' -> 'H.ResponseHeaders' -> 'FilePath' -> 'Maybe' 'FilePart' -> 'Response']
 --     HTTP response body is sent by sendfile().
 --     Applications are categorized into simple and sophisticated.
 --     Simple applications should specify 'Nothing' to
@@ -101,12 +103,12 @@ checkPartRange fileSize mPart mRange = checkPart mPart mRange
 --     they would cause inconsistency.
 --     Status is also changed to 206 if necessary.
 --
---   ['ResponseSource']
+--   ['responseBuilder' :: 'H.Status' -> 'H.ResponseHeaders' -> 'Builder' -> 'Response']
 --     HTTP response body is created from 'Source'.
 --     Typically, Transfer-Encoding: chunked is used.
 --     If Content-Length is specified, Transfer-Encoding: chunked is not used.
 --
---   ['ResponseBuilder']
+--   ['responseSource' :: 'H.Status' -> 'H.ResponseHeaders' -> 'Source' 'IO' ('Flush' 'Builder') -> 'Response']
 --     HTTP response body is created from 'Builder'.
 --     Typically, Transfer-Encoding: chunked is used.
 --     If Content-Length is specified, Transfer-Encoding: chunked is not used.
