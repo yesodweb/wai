@@ -89,6 +89,8 @@ parsePath path
 -- ("Accept-Ranges","bytes")
 -- >>> parseHeader "Host:  example.com:8080"
 -- ("Host","example.com:8080")
+-- >>> parseHeader "NoSemiColon"
+-- ("NoSemiColon","")
 
 parseHeader :: ByteString -> H.Header
 parseHeader s =
