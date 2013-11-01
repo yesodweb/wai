@@ -60,8 +60,8 @@ module Network.Wai
     , responseSource
     , responseLBS
       -- * Response accessors
-    , responseToSource
     , responseStatus
+    , responseToSource
       -- * Other types
     , Application
     , Middleware
@@ -118,6 +118,7 @@ responseBuilder = ResponseBuilder
 responseSource :: H.Status -> H.ResponseHeaders -> C.Source IO (C.Flush Builder) -> Response
 responseSource st hs src = ResponseSource st hs ($ src)
 
+-- | Accessing 'H.Status' in 'Response'.
 responseStatus :: Response -> H.Status
 responseStatus rsp =
     case rsp of
@@ -125,6 +126,7 @@ responseStatus rsp =
       ResponseBuilder s _ _   -> s
       ResponseSource  s _ _   -> s
 
+-- | Converting the body information in 'Response' to 'Source'.
 responseToSource :: Response
                  -> (H.Status, H.ResponseHeaders, WithSource IO (C.Flush Builder) b)
 responseToSource (ResponseSource s h b) = (s, h, b)
