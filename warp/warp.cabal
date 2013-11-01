@@ -79,6 +79,14 @@ Library
   else
       Build-Depends: unix
 
+Test-Suite doctest
+  Type:                 exitcode-stdio-1.0
+  HS-Source-Dirs:       test
+  Ghc-Options:          -threaded -Wall
+  Main-Is:              doctests.hs
+  Build-Depends:        base
+                      , doctest >= 0.9.3
+
 Test-Suite spec
     Main-Is:         Spec.hs
     Other-modules:   ConduitSpec

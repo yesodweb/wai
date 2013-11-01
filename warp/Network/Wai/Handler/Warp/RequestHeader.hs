@@ -11,6 +11,9 @@ import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.Types
 import Prelude hiding (lines)
 
+-- $setup
+-- >>> :set -XOverloadedStrings
+
 ----------------------------------------------------------------
 
 parseHeaderLines :: [ByteString]
@@ -49,12 +52,23 @@ parseRequestLine s =
 ----------------------------------------------------------------
 
 parseRpath :: ByteString -> ByteString
-parseRpath rpath'
-  | S.null rpath' = "/"
-  | "http://" `S.isPrefixOf` rpath' = snd $ S.breakByte 47 $ S.drop 7 rpath'
-  | otherwise = rpath'
+parseRpath path
+  | S.null path                   = "/"
+  | "http://" `S.isPrefixOf` path = extractPath path
+  | otherwise                     = path
+  where
+    extractPath = snd . S.breakByte 47 . S.drop 7 -- 47 is '/'.
 
 ----------------------------------------------------------------
+
+-- |
+--
+-- >>> parseHeader "Content-Length:47"
+-- ("Content-Length","47")
+-- >>> parseHeader "Accept-Ranges: bytes"
+-- ("Accept-Ranges","bytes")
+-- >>> parseHeader "Host:  example.com:8080"
+-- ("Host","example.com:8080")
 
 parseHeader :: ByteString -> H.Header
 parseHeader s =
