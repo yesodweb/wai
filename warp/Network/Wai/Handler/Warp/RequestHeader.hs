@@ -26,7 +26,7 @@ parseHeaderLines :: [ByteString]
 parseHeaderLines [] = throwIO $ NotEnoughLines []
 parseHeaderLines (firstLine:otherLines) = do
     (method, path', query, httpversion) <- parseRequestLine firstLine
-    let path = parseRpath path'
+    let path = parsePath path'
         hdr = map parseHeader otherLines
     return (method, path, query, httpversion, hdr)
 
@@ -53,18 +53,18 @@ parseRequestLine s =
 
 -- |
 --
--- >>> parseRpath ""
+-- >>> parsePath ""
 -- "/"
--- >>> parseRpath "http://example.com/path"
+-- >>> parsePath "http://example.com:8080/path"
 -- "/path"
--- >>> parseRpath "http://example.com"
+-- >>> parsePath "http://example.com"
 -- ""
--- >>> parseRpath "/path"
+-- >>> parsePath "/path"
 -- "/path"
 
--- FIXME: parseRpath "http://example.com" should be "/"?
-parseRpath :: ByteString -> ByteString
-parseRpath path
+-- FIXME: parsePath "http://example.com" should be "/"?
+parsePath :: ByteString -> ByteString
+parsePath path
   | S.null path                   = "/"
   | "http://" `S.isPrefixOf` path = extractPath path
   | otherwise                     = path
