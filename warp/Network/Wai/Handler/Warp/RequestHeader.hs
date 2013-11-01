@@ -32,6 +32,12 @@ parseHeaderLines (firstLine:otherLines) = do
 
 ----------------------------------------------------------------
 
+-- |
+--
+-- >>> parseRequestLine "GET / HTTP/1.1"
+-- ("GET","/","",HTTP/1.1)
+-- >>> parseRequestLine "POST  /cgi/search.cgi?key=foo  HTTP/1.0"
+-- ("POST","/cgi/search.cgi","?key=foo",HTTP/1.0)
 parseRequestLine :: ByteString
            -> IO (ByteString, ByteString, ByteString, H.HttpVersion)
 parseRequestLine s =
