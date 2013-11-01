@@ -54,7 +54,7 @@ recvRequest :: Connection
 
 recvRequest conn ii addr src0 = do
     (src, hdrlines) <- src0 $$+ headerLines
-    (method, rpath, gets, httpversion, hdr) <- parseHeaderLines hdrlines
+    (method, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
         expect = idxhdr ! idxExpect
         cl = idxhdr ! idxContentLength
@@ -64,10 +64,10 @@ recvRequest conn ii addr src0 = do
     let req = Request {
             requestMethod     = method
           , httpVersion       = httpversion
-          , pathInfo          = H.decodePathSegments rpath
-          , rawPathInfo       = rpath
-          , rawQueryString    = gets
-          , queryString       = H.parseQuery gets
+          , pathInfo          = H.decodePathSegments path
+          , rawPathInfo       = path
+          , rawQueryString    = query
+          , queryString       = H.parseQuery query
           , requestHeaders    = hdr
           , isSecure          = False
           , remoteHost        = addr

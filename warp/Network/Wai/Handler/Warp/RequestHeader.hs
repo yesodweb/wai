@@ -13,13 +13,19 @@ import Prelude hiding (lines)
 
 ----------------------------------------------------------------
 
-parseHeaderLines :: [ByteString] -> IO (ByteString, ByteString, ByteString, H.HttpVersion, H.RequestHeaders)
+parseHeaderLines :: [ByteString]
+                 -> IO (H.Method
+                       ,ByteString  --  Path
+                       ,ByteString  --  Query
+                       ,H.HttpVersion
+                       ,H.RequestHeaders
+                       )
 parseHeaderLines [] = throwIO $ NotEnoughLines []
 parseHeaderLines (firstLine:otherLines) = do
-    (method, rpath', gets, httpversion) <- parseFirst firstLine
-    let rpath = parseRpath rpath'
+    (method, path', query, httpversion) <- parseFirst firstLine
+    let path = parseRpath path'
         hdr = map parseHeaderNoAttr otherLines
-    return (method, rpath, gets, httpversion, hdr)
+    return (method, path, query, httpversion, hdr)
 
 ----------------------------------------------------------------
 
