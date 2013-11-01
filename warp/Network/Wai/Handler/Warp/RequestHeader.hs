@@ -10,6 +10,7 @@ import qualified Data.CaseInsensitive as CI
 import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.Types
 import Prelude hiding (lines)
+import Control.Monad
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -36,26 +37,26 @@ parseHeaderLines (firstLine:otherLines) = do
 --
 -- >>> parseRequestLine "GET / HTTP/1.1"
 -- ("GET","/","",HTTP/1.1)
--- >>> parseRequestLine "POST  /cgi/search.cgi?key=foo  HTTP/1.0"
+-- >>> parseRequestLine "POST /cgi/search.cgi?key=foo HTTP/1.0"
 -- ("POST","/cgi/search.cgi","?key=foo",HTTP/1.0)
--- >>> parseRequestLine "Broken"
--- *** Exception: BadFirstLine "Broken"
+-- >>> parseRequestLine "GET /NoHTTPVersion"
+-- *** Exception: BadFirstLine "GET /NoHTTPVersion"
+-- >>> parseRequestLine "GET /NotHTTP UNKNOWN/1.1"
+-- *** Exception: NonHttp
 parseRequestLine :: ByteString
            -> IO (ByteString, ByteString, ByteString, H.HttpVersion)
-parseRequestLine s =
-    case filter (not . S.null) $ S.splitWith (\c -> c == 32 || c == 9) s of  -- ' '
-        (method:query:http'') -> do
-            let http' = S.concat http''
-                (hfirst, hsecond) = S.splitAt 5 http'
-            if hfirst == "HTTP/"
-               then let (rpath, qstring) = S.breakByte 63 query  -- '?'
-                        hv =
-                            case hsecond of
-                                "1.1" -> H.http11
-                                _ -> H.http10
-                    in return (method, rpath, qstring, hv)
-               else throwIO NonHttp
-        _ -> throwIO $ BadFirstLine $ B.unpack s
+parseRequestLine requestLine = do
+    let (method,rest) = S.breakByte 32 requestLine -- ' '
+        (pathQuery,httpVer') = S.breakByte 32 (S.drop 1 rest) -- ' '
+        httpVer = S.drop 1 httpVer'
+    when (rest == "" || httpVer == "") $
+        throwIO $ BadFirstLine $ B.unpack requestLine
+    let (path,query) = S.breakByte 63 pathQuery -- '?'
+        (http,ver)   = S.breakByte 47 httpVer -- '/'
+    when (http /= "HTTP") $ throwIO NonHttp
+    let hv | ver == "/1.1" = H.http11
+           | otherwise     = H.http10
+    return $ (method,path,query,hv)
 
 ----------------------------------------------------------------
 
