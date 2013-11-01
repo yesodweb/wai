@@ -120,11 +120,9 @@ responseSource st hs src = ResponseSource st hs ($ src)
 
 -- | Accessing 'H.Status' in 'Response'.
 responseStatus :: Response -> H.Status
-responseStatus rsp =
-    case rsp of
-      ResponseFile    s _ _ _ -> s
-      ResponseBuilder s _ _   -> s
-      ResponseSource  s _ _   -> s
+responseStatus (ResponseFile    s _ _ _) = s
+responseStatus (ResponseBuilder s _ _  ) = s
+responseStatus (ResponseSource  s _ _  ) = s
 
 -- | Converting the body information in 'Response' to 'Source'.
 responseToSource :: Response
