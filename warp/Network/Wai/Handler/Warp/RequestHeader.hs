@@ -51,6 +51,18 @@ parseRequestLine s =
 
 ----------------------------------------------------------------
 
+-- |
+--
+-- >>> parseRpath ""
+-- "/"
+-- >>> parseRpath "http://example.com/path"
+-- "/path"
+-- >>> parseRpath "http://example.com"
+-- ""
+-- >>> parseRpath "/path"
+-- "/path"
+
+-- FIXME: parseRpath "http://example.com" should be "/"?
 parseRpath :: ByteString -> ByteString
 parseRpath path
   | S.null path                   = "/"
