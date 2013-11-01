@@ -36,9 +36,13 @@ include:
 -}
 module Network.Wai
     (
+      -- * Ttypes
+      Application
+    , Middleware
       -- * Request
-      Request
+    , Request
     , defaultRequest
+    , RequestBodyLength (..)
       -- ** Request accessors
     , requestMethod
     , httpVersion
@@ -54,6 +58,8 @@ module Network.Wai
     , requestBodyLength
       -- * Response
     , Response
+    , FilePart (..)
+    , WithSource
       -- ** Response composers
     , responseFile
     , responseBuilder
@@ -62,12 +68,6 @@ module Network.Wai
       -- * Response accessors
     , responseStatus
     , responseToSource
-      -- * Other types
-    , Application
-    , Middleware
-    , FilePart (..)
-    , RequestBodyLength (..)
-    , WithSource
     ) where
 
 import           Blaze.ByteString.Builder     (Builder, fromLazyByteString)
