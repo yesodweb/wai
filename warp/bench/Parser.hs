@@ -6,11 +6,17 @@ module Main where
 import Control.Exception (throwIO)
 import Control.Monad
 import qualified Data.ByteString as S
-import Data.ByteString.Char8 (ByteString)
+--import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as B (unpack)
 import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.Types
 import Prelude hiding (lines)
+
+import Data.ByteString.Internal
+import Data.Word
+import Foreign.ForeignPtr
+import Foreign.Ptr
+import Foreign.Storable
 
 import Criterion.Main
 
@@ -25,24 +31,91 @@ main = do
     let requestLine2 = "GET http://www.example.com/cgi-path/search.cgi?key=parser HTTP/1.0"
     defaultMain [
         bgroup "requestLine1" [
-             bench "parseRequestLine1" $ parseRequestLine1 requestLine1
+             bench "parseRequestLine2" $ parseRequestLine1 requestLine1
+           , bench "parseRequestLine1" $ parseRequestLine1 requestLine1
            , bench "parseRequestLine0" $ parseRequestLine0 requestLine1
            ]
       , bgroup "requestLine2" [
-             bench "parseRequestLine1" $ parseRequestLine1 requestLine2
+             bench "parseRequestLine2" $ parseRequestLine1 requestLine2
+           , bench "parseRequestLine1" $ parseRequestLine1 requestLine2
            , bench "parseRequestLine0" $ parseRequestLine0 requestLine2
            ]
       ]
 
 ----------------------------------------------------------------
 
+-- |
+--
+-- >>> parseRequestLine2 "GET / HTTP/1.1"
+-- ("GET","/","",HTTP/1.1)
+-- >>> parseRequestLine2 "POST /cgi/search.cgi?key=foo HTTP/1.0"
+-- ("POST","/cgi/search.cgi","?key=foo",HTTP/1.0)
+-- >>> parseRequestLine2 "GET "
+-- *** Exception: BadFirstLine "GET "
+-- >>> parseRequestLine2 "GET /NotHTTP UNKNOWN/1.1"
+-- *** Exception: NonHttp
 parseRequestLine2 :: ByteString
                   -> IO (H.Method
                         ,ByteString -- Path
                         ,ByteString -- Query
                         ,H.HttpVersion)
+parseRequestLine2 requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> do
+    when (len < 14) $ throwIO baderr
+    let methodptr = ptr `plusPtr` off
+        limptr = methodptr `plusPtr` len
+        lim0 = fromIntegral len
 
-parseRequestLine2 requestLine = undefined
+    pathptr0 <- memchr methodptr 32 lim0 -- ' '
+    when (pathptr0 == nullPtr || (limptr `minusPtr` pathptr0) < 11) $
+        throwIO baderr
+    let pathptr = pathptr0 `plusPtr` 1
+        lim1 = fromIntegral (limptr `minusPtr` pathptr0)
+
+    httpptr0 <- memchr pathptr 32 lim1 -- ' '
+    when (httpptr0 == nullPtr || (limptr `minusPtr` httpptr0) < 9) $
+        throwIO baderr
+    let httpptr = httpptr0 `plusPtr` 1
+        lim2 = fromIntegral (httpptr0 `minusPtr` pathptr)
+
+    checkHTTP httpptr
+    hv <- httpVersion httpptr
+    queryptr <- memchr pathptr 63 lim2 -- '?'
+
+    method <- bs methodptr pathptr0
+
+    path <- if queryptr == nullPtr then
+                bs pathptr httpptr0
+            else
+                bs pathptr queryptr
+    query <- if queryptr == nullPtr then
+                 return $ S.empty
+             else
+                 bs queryptr httpptr0
+    return (method,path,query,hv)
+  where
+    baderr = BadFirstLine $ B.unpack requestLine
+    check :: Ptr Word8 -> Int -> Word8 -> IO ()
+    check p n w = do
+        w0 <- peek $ p `plusPtr` n
+        when (w0 /= w) $ throwIO NonHttp
+    checkHTTP httpptr = do
+        check httpptr 0 72 -- 'H'
+        check httpptr 1 84 -- 'T'
+        check httpptr 2 84 -- 'T'
+        check httpptr 3 80 -- 'P'
+        check httpptr 4 47 -- '/'
+        check httpptr 6 46 -- '.'
+    httpVersion httpptr = do
+        major <- peek $ httpptr `plusPtr` 5
+        minor <- peek $ httpptr `plusPtr` 7
+        if major == (49 :: Word8) && minor == (49 :: Word8) then
+            return H.http11
+          else
+            return H.http10
+    bs p0 p1 = do
+        p <- newForeignPtr_ p0
+        let l = p1 `minusPtr` p0
+        return $ PS p 0 l
 
 ----------------------------------------------------------------
 
