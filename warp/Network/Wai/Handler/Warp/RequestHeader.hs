@@ -44,7 +44,10 @@ parseHeaderLines (firstLine:otherLines) = do
 -- >>> parseRequestLine "GET /NotHTTP UNKNOWN/1.1"
 -- *** Exception: NonHttp
 parseRequestLine :: ByteString
-           -> IO (ByteString, ByteString, ByteString, H.HttpVersion)
+                 -> IO (H.Method
+                       ,ByteString -- Path
+                       ,ByteString -- Query
+                       ,H.HttpVersion)
 parseRequestLine requestLine = do
     let (method,rest) = S.breakByte 32 requestLine -- ' '
         (pathQuery,httpVer') = S.breakByte 32 (S.drop 1 rest) -- ' '
