@@ -137,6 +137,16 @@ Test-Suite spec
   --if os(windows)
   --    Cpp-Options:   -DWINDOWS
 
+Benchmark parser
+    Type:           exitcode-stdio-1.0
+    Main-Is:        Parser.hs
+    HS-Source-Dirs: bench .
+    Build-Depends:  base
+                  , bytestring
+                  , criterion
+                  , http-types
+                  , network
+
 Source-Repository head
   Type:     git
   Location: git://github.com/yesodweb/wai.git
