@@ -78,19 +78,17 @@ parseRequestLine2 requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> 
         lim2 = fromIntegral (httpptr0 `minusPtr` pathptr)
 
     checkHTTP httpptr
-    hv <- httpVersion httpptr
+    !hv <- httpVersion httpptr
     queryptr <- memchr pathptr 63 lim2 -- '?'
 
-    method <- bs methodptr pathptr0
+    let !method = bs ptr methodptr pathptr0
+        !path
+          | queryptr == nullPtr = bs ptr pathptr httpptr0
+          | otherwise           = bs ptr pathptr queryptr
+        !query
+          | queryptr == nullPtr = S.empty
+          | otherwise           = bs ptr queryptr httpptr0
 
-    path <- if queryptr == nullPtr then
-                bs pathptr httpptr0
-            else
-                bs pathptr queryptr
-    query <- if queryptr == nullPtr then
-                 return $ S.empty
-             else
-                 bs queryptr httpptr0
     return (method,path,query,hv)
   where
     baderr = BadFirstLine $ B.unpack requestLine
@@ -112,10 +110,10 @@ parseRequestLine2 requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> 
             return H.http11
           else
             return H.http10
-    bs p0 p1 = do
-        p <- newForeignPtr_ p0
-        let l = p1 `minusPtr` p0
-        return $ PS p 0 l
+    bs ptr p0 p1 = PS fptr o l
+      where
+        o = p0 `minusPtr` ptr
+        l = p1 `minusPtr` p0
 
 ----------------------------------------------------------------
 
