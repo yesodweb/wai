@@ -17,6 +17,8 @@ import Criterion.Main
 -- $setup
 -- >>> :set -XOverloadedStrings
 
+----------------------------------------------------------------
+
 main :: IO ()
 main = do
     let requestLine1 = "GET http://www.example.com HTTP/1.1"
@@ -35,10 +37,11 @@ main = do
 ----------------------------------------------------------------
 
 parseRequestLine2 :: ByteString
-                 -> IO (H.Method
-                       ,ByteString -- Path
-                       ,ByteString -- Query
-                       ,H.HttpVersion)
+                  -> IO (H.Method
+                        ,ByteString -- Path
+                        ,ByteString -- Query
+                        ,H.HttpVersion)
+
 parseRequestLine2 requestLine = undefined
 
 ----------------------------------------------------------------
@@ -49,15 +52,15 @@ parseRequestLine2 requestLine = undefined
 -- ("GET","/","",HTTP/1.1)
 -- >>> parseRequestLine1 "POST /cgi/search.cgi?key=foo HTTP/1.0"
 -- ("POST","/cgi/search.cgi","?key=foo",HTTP/1.0)
--- >>> parseRequestLine1 "GET /NoHTTPVersion"
--- *** Exception: BadFirstLine "GET /NoHTTPVersion"
+-- >>> parseRequestLine1 "GET "
+-- *** Exception: BadFirstLine "GET "
 -- >>> parseRequestLine1 "GET /NotHTTP UNKNOWN/1.1"
 -- *** Exception: NonHttp
 parseRequestLine1 :: ByteString
-                 -> IO (H.Method
-                       ,ByteString -- Path
-                       ,ByteString -- Query
-                       ,H.HttpVersion)
+                  -> IO (H.Method
+                        ,ByteString -- Path
+                        ,ByteString -- Query
+                        ,H.HttpVersion)
 parseRequestLine1 requestLine = do
     let (!method,!rest) = S.breakByte 32 requestLine -- ' '
         (!pathQuery,!httpVer') = S.breakByte 32 (S.drop 1 rest) -- ' '
@@ -73,6 +76,16 @@ parseRequestLine1 requestLine = do
 
 ----------------------------------------------------------------
 
+-- |
+--
+-- >>> parseRequestLine0 "GET / HTTP/1.1"
+-- ("GET","/","",HTTP/1.1)
+-- >>> parseRequestLine0 "POST /cgi/search.cgi?key=foo HTTP/1.0"
+-- ("POST","/cgi/search.cgi","?key=foo",HTTP/1.0)
+-- >>> parseRequestLine0 "GET "
+-- *** Exception: BadFirstLine "GET "
+-- >>> parseRequestLine0 "GET /NotHTTP UNKNOWN/1.1"
+-- *** Exception: NonHttp
 parseRequestLine0 :: ByteString
                  -> IO (H.Method
                        ,ByteString -- Path
