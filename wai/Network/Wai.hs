@@ -186,4 +186,5 @@ defaultRequest = Request
     , requestBody = return ()
     , vault = mempty
     , requestBodyLength = KnownLength 0
+    , requestHeaderHost = Nothing
     }

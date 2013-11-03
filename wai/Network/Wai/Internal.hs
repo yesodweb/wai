@@ -58,6 +58,8 @@ data Request = Request
   --
   -- Since 1.4.0
   , requestBodyLength     :: RequestBodyLength
+  -- | The value of the Host header in a HTTP request.
+  , requestHeaderHost     :: Maybe B.ByteString
   }
   deriving (Typeable)
 
