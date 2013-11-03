@@ -88,6 +88,17 @@ checkPartRange fileSize mPart mRange = checkPart mPart mRange
 
 -- | Sending a HTTP response to 'Connection' according to 'Response'.
 --
+--   Applications/middlewares MUST specify a proper 'H.ResponseHeaders'.
+--   so that inconsistency does not happen.
+--   No header is deleted by this function.
+--
+--   Especially, Applications/middlewares MUST take care of
+--   Content-Length, Content-Range, and Transfer-Encoding
+--   because they are inserted, when necessary,
+--   regardless they alredy exist.
+--   This function does not insert Content-Encoding. It's middleware's
+--   responsibility.
+--
 --   The Server header is added if not exist in HTTP response header.
 --
 --   There are three basic APIs to create 'Response':
