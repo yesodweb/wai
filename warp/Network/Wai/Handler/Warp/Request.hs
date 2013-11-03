@@ -74,6 +74,7 @@ recvRequest conn ii addr src0 = do
           , requestBody       = timeoutBody th rbody
           , vault             = mempty
           , requestBodyLength = bodyLength
+          , requestHeaderHost = idxhdr ! idxHost
           }
     return (req, idxhdr, getSource)
   where
