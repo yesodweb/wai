@@ -56,6 +56,7 @@ module Network.Wai
     , requestBody
     , vault
     , requestBodyLength
+    , requestHeaderHost
       -- * Response
     , Response
     , FilePart (..)
