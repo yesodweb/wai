@@ -66,18 +66,19 @@ parseRequestLine s =
 -- >>> parsePath "http://example.com:8080/path"
 -- "/path"
 -- >>> parsePath "http://example.com"
--- ""
+-- "/"
 -- >>> parsePath "/path"
 -- "/path"
 
 -- FIXME: parsePath "http://example.com" should be "/"?
 parsePath :: ByteString -> ByteString
 parsePath path
-  | S.null path                   = "/"
-  | "http://" `S.isPrefixOf` path = extractPath path
-  | otherwise                     = path
+  | "http://" `S.isPrefixOf` path = ensureNonEmpty $ extractPath path
+  | otherwise                     = ensureNonEmpty $ path
   where
     extractPath = snd . S.breakByte 47 . S.drop 7 -- 47 is '/'.
+    ensureNonEmpty "" = "/"
+    ensureNonEmpty p  = p
 
 ----------------------------------------------------------------
 
