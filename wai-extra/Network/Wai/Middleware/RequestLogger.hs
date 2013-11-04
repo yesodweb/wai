@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE CPP #-}
+
+-- NOTE: Due to https://github.com/yesodweb/wai/issues/192, this module should
+-- not use CPP.
 module Network.Wai.Middleware.RequestLogger
     ( -- * Basic stdout logging
       logStdout
@@ -39,11 +41,7 @@ import System.IO.Unsafe
 
 import Data.Default (Default (def))
 import Network.Wai.Logger.Format (apacheFormat, IPAddrSource (..))
-#if MIN_VERSION_fast_logger(0,3,0)
-import System.Date.Cache (ondemandDateCacher)
-#else
-import System.Log.FastLogger.Date (getDate, dateInit, ZonedDate)
-#endif
+import Network.Wai.Middleware.RequestLogger.Internal
 
 data OutputFormat = Apache IPAddrSource
                   | Detailed Bool -- ^ use colors?
@@ -96,13 +94,7 @@ mkRequestLogger RequestLoggerSettings{..} = do
     dateHelper mgetdate = do
         case mgetdate of
             Just x -> return x
-#if MIN_VERSION_fast_logger(0, 3, 0)
-            Nothing -> do
-                (getter,_) <- ondemandDateCacher zonedDateCacheConf
-                return getter
-#else
-            Nothing -> fmap getDate dateInit
-#endif
+            Nothing -> getDateGetter
 
 apacheMiddleware :: Callback -> IPAddrSource -> IO ZonedDate -> Middleware
 apacheMiddleware cb ipsrc getdate = customMiddleware cb getdate $ apacheFormat ipsrc
