@@ -56,22 +56,20 @@ module Network.Wai.Handler.Warp (
   , module Network.Wai.Handler.Warp.Timeout
     -- ** File descriptor cache
   , module Network.Wai.Handler.Warp.FdCache
+    -- ** Date
+  , module Network.Wai.Handler.Warp.Date
     -- ** Request and response
   , recvRequest
   , sendResponse
-#if TEST
-  , takeHeaders
-  , parseFirst
-  , readInt
-#endif
   ) where
 
 import Data.Conduit.Network (HostPreference(..))
+import Network.Wai.Handler.Warp.Date
 import Network.Wai.Handler.Warp.FdCache
+import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Handler.Warp.Header

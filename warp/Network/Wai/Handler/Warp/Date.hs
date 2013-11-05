@@ -22,10 +22,13 @@ import Network.HTTP.Date
 import System.Posix (epochTime)
 #endif
 
+-- | The type of the Date header value.
 type GMTDate = ByteString
 
+-- | The type of the cache of the Date header value.
 data DateCache = DateCache (IORef GMTDate)
 
+-- | Creating 'DateCache' and executing the action.
 withDateCache :: (DateCache -> IO a) -> IO a
 withDateCache action = bracket initialize
                                (\(t,_) -> killThread t)
@@ -39,6 +42,7 @@ initialize = do
         update dc
     return (t, dc)
 
+-- | Getting 'GMTDate' based on 'DateCache'.
 getDate :: DateCache -> IO GMTDate
 getDate (DateCache ref) = readIORef ref
 
