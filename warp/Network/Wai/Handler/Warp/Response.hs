@@ -138,29 +138,25 @@ sendResponse :: Connection
 
 ----------------------------------------------------------------
 
-sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mPart) =
-    restore $ fileRange s0 hs path mPart mRange >>= sendResponseEither
+sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mPart)
+  | hasBody s0 req = restore $ do
+      ex <- fileRange s0 hs path mPart mRange
+      case ex of
+          Left _ -> sendResponse conn ii restore req reqidxhdr notFound
+          Right (s, hs1, beg, len) -> do
+              lheader <- composeHeader version s hs1
+              connSendFile conn path beg len (T.tickle th) [lheader]
+              T.tickle th
+              return isPersist
+  | otherwise = restore $ sendResponseNoBody conn th version s0 hs isPersist
   where
     hs = addServer rspidxhdr $ addAcceptRanges hs0
     rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
+    version = httpVersion req
+    (isPersist,_) = infoFromRequest req reqidxhdr
     mRange = reqidxhdr ! idxRange
-
-    sendResponseEither (Right (s, lengthyHeaders, beg, len))
-      | hasBody s req = do
-          lheader <- composeHeader version s lengthyHeaders
-          connSendFile conn path beg len (T.tickle th) [lheader]
-          T.tickle th
-          return isPersist
-      | otherwise = sendResponseNoBody conn th version s hs isPersist
-      where
-        version = httpVersion req
-        (isPersist,_) = infoFromRequest req reqidxhdr
-
-    sendResponseEither (Left (SomeException _)) =
-        sendResponse conn ii restore req reqidxhdr notFound
-      where
-        notFound = responseLBS H.status404 [(H.hContentType, "text/plain")] "File not found"
+    notFound = responseLBS H.status404 [(H.hContentType, "text/plain")] "File not found"
 
 ----------------------------------------------------------------
 
