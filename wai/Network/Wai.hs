@@ -68,6 +68,7 @@ module Network.Wai
     , responseLBS
       -- * Response accessors
     , responseStatus
+    , responseHeaders
     , responseToSource
     ) where
 
@@ -133,6 +134,12 @@ responseStatus :: Response -> H.Status
 responseStatus (ResponseFile    s _ _ _) = s
 responseStatus (ResponseBuilder s _ _  ) = s
 responseStatus (ResponseSource  s _ _  ) = s
+
+-- | Accessing 'H.Status' in 'Response'.
+responseHeaders :: Response -> H.ResponseHeaders
+responseHeaders (ResponseFile    _ hs _ _) = hs
+responseHeaders (ResponseBuilder _ hs _  ) = hs
+responseHeaders (ResponseSource  _ hs _  ) = hs
 
 -- | Converting the body information in 'Response' to 'Source'.
 responseToSource :: Response
