@@ -3,7 +3,7 @@
 
 module Main where
 
-import Control.Exception (throwIO)
+import Control.Exception (throwIO, throw)
 import Control.Monad
 import qualified Data.ByteString as S
 --import Data.ByteString.Char8 (ByteString)
@@ -31,16 +31,52 @@ main = do
     let requestLine2 = "GET http://www.example.com/cgi-path/search.cgi?key=parser HTTP/1.0"
     defaultMain [
         bgroup "requestLine1" [
-             bench "parseRequestLine2" $ parseRequestLine1 requestLine1
+             bench "parseRequestLine3" $ whnf parseRequestLine3 requestLine1
+           , bench "parseRequestLine2" $ parseRequestLine2 requestLine1
            , bench "parseRequestLine1" $ parseRequestLine1 requestLine1
            , bench "parseRequestLine0" $ parseRequestLine0 requestLine1
            ]
       , bgroup "requestLine2" [
-             bench "parseRequestLine2" $ parseRequestLine1 requestLine2
+             bench "parseRequestLine3" $ whnf parseRequestLine3 requestLine2
+           , bench "parseRequestLine2" $ parseRequestLine2 requestLine2
            , bench "parseRequestLine1" $ parseRequestLine1 requestLine2
            , bench "parseRequestLine0" $ parseRequestLine0 requestLine2
            ]
       ]
+
+----------------------------------------------------------------
+
+-- |
+--
+-- >>> parseRequestLine3 "GET / HTTP/1.1"
+-- ("GET","/","",HTTP/1.1)
+-- >>> parseRequestLine3 "POST /cgi/search.cgi?key=foo HTTP/1.0"
+-- ("POST","/cgi/search.cgi","?key=foo",HTTP/1.0)
+-- >>> parseRequestLine3 "GET "
+-- *** Exception: BadFirstLine "GET "
+-- >>> parseRequestLine3 "GET /NotHTTP UNKNOWN/1.1"
+-- *** Exception: NonHttp
+parseRequestLine3 :: ByteString
+                  -> (H.Method
+                     ,ByteString -- Path
+                     ,ByteString -- Query
+                     ,H.HttpVersion)
+parseRequestLine3 requestLine = ret
+  where
+    (!method,!rest) = S.breakByte 32 requestLine -- ' '
+    (!pathQuery,!httpVer')
+      | rest == "" = throw badmsg
+      | otherwise  = S.breakByte 32 (S.drop 1 rest) -- ' '
+    (!path,!query) = S.breakByte 63 pathQuery -- '?'
+    !httpVer = S.drop 1 httpVer'
+    (!http,!ver)
+      | httpVer == "" = throw badmsg
+      | otherwise     = S.breakByte 47 httpVer -- '/'
+    !hv | http /= "HTTP" = throw NonHttp
+        | ver == "/1.1"  = H.http11
+        | otherwise      = H.http10
+    !ret = (method,path,query,hv)
+    badmsg = BadFirstLine $ B.unpack requestLine
 
 ----------------------------------------------------------------
 
