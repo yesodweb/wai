@@ -27,6 +27,8 @@ idxRange            = 4
 idxHost             = 5
 
 -- | The size for 'IndexedHeader' for HTTP Request.
+--   From 0 to this corresponds to \"Content-Length\", \"Transfer-Encoding\",
+--   \"Expect\", \"Connection\", \"Range\", and \"Host\".
 requestMaxIndex :: Int
 requestMaxIndex     = 5
 
@@ -39,10 +41,6 @@ requestKeyIndex "range"             = idxRange
 requestKeyIndex "host"              = idxHost
 requestKeyIndex _                   = -1
 
--- | Default 'IndexedHeader' for HTTP Request.
---   All valuers are 'Nothing' by default.
---   They correspond to \"Content-Length\", \"Transfer-Encoding\",
---   \"Expect\", \"Connection\", \"Range\", and \"Host\".
 defaultIndexRequestHeader :: IndexedHeader
 defaultIndexRequestHeader = array (0,requestMaxIndex) [(i,Nothing)|i<-[0..requestMaxIndex]]
 
