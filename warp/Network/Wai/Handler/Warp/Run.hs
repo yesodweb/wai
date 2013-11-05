@@ -20,6 +20,7 @@ import qualified Network.HTTP.Types as H
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
+import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Recv
@@ -140,6 +141,7 @@ runSettingsConnectionMaker set getConnMaker app = do
     -- First mask all exceptions in the main loop. This is necessary to ensure
     -- that no async exception is throw between the call to getConnLoop and the
     -- registering of connClose.
+    D.withDateCache $ \dc -> do
     F.withFdCache (settingsFdCacheDuration set * 1000000) $ \fc -> do
     withTimeoutManager $ \tm -> mask_ . forever $ do
         -- Allow async exceptions before receiving the next connection maker.
@@ -173,7 +175,7 @@ runSettingsConnectionMaker set getConnMaker app = do
             -- We need to register a timeout handler for this thread, and
             -- cancel that handler as soon as we exit.
             bracket (T.registerKillThread tm) T.cancel $ \th ->
-                let ii = InternalInfo th fc
+                let ii = InternalInfo th fc dc
                     conn = setSendFile conn' fc
                     -- We now have fully registered a connection close handler
                     -- in the case of all exceptions, so it is safe to one

@@ -22,12 +22,15 @@ import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import Data.Conduit.Blaze (builderToByteString)
 import qualified Data.Conduit.List as CL
+import Data.Function (on)
+import Data.List (deleteBy)
 import Data.Maybe (isJust, listToMaybe)
 import Data.Monoid (mappend)
 import Data.Version (showVersion)
 import Network.HTTP.Attoparsec (parseByteRanges)
 import qualified Network.HTTP.Types as H
 import Network.Wai
+import qualified Network.Wai.Handler.Warp.Date as D
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ResponseHeader
 import qualified Network.Wai.Handler.Warp.Timeout as T
@@ -36,6 +39,9 @@ import Network.Wai.Internal
 import Numeric (showInt)
 import qualified Paths_warp
 import qualified System.PosixCompat.Files as P
+
+-- $setup
+-- >>> :set -XOverloadedStrings
 
 ----------------------------------------------------------------
 
@@ -135,69 +141,81 @@ sendResponse :: Connection
              -> IndexedHeader -- ^ Indexed header of HTTP request.
              -> Response -- ^ HTTP response including status code and response header.
              -> IO Bool -- ^ Returing True if the connection is persistent.
-
-----------------------------------------------------------------
-
-sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mPart)
-  | hasBody s0 req = restore $ do
-      ex <- fileRange s0 hs path mPart mRange
-      case ex of
-          Left _ -> sendResponse conn ii restore req reqidxhdr notFound
-          Right (s, hs1, beg, len) -> do
-              lheader <- composeHeader version s hs1
-              connSendFile conn path beg len (T.tickle th) [lheader]
-              T.tickle th
-              return isPersist
-  | otherwise = restore $ sendResponseNoBody conn th version s0 hs isPersist
+sendResponse conn ii restore req reqidxhdr response = restore $ do
+    hs <- addServerAndDate hs0
+    if hasBody s req then do
+        sendRsp conn ver s hs rsp
+        T.tickle th
+        return ret
+      else do
+        sendResponseNoBody conn ver s hs response
+        T.tickle th
+        return isPersist
   where
-    hs = addServer rspidxhdr $ addAcceptRanges hs0
+    ver = httpVersion req
+    s = responseStatus response
+    hs0 = responseHeaders response
     rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
-    version = httpVersion req
-    (isPersist,_) = infoFromRequest req reqidxhdr
+    dc = dateCacher ii
+    addServerAndDate = addDate dc . addServer rspidxhdr
     mRange = reqidxhdr ! idxRange
-    notFound = responseLBS H.status404 [(H.hContentType, "text/plain")] "File not found"
+    reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
+    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
+    rsp = case response of
+        ResponseFile _ _ path mPart -> RspFile path mPart mRange (T.tickle th)
+        ResponseBuilder _ _ b       -> RspBuilder b needsChunked
+        ResponseSource _ _ fb       -> RspSource fb needsChunked th
+    ret = case response of
+        ResponseFile _ _ _ _  -> isPersist
+        ResponseBuilder _ _ _ -> isKeepAlive
+        ResponseSource _ _ _  -> isKeepAlive
 
 ----------------------------------------------------------------
 
-sendResponse conn ii restore req reqidxhdr (ResponseBuilder s hs0 b)
-  | hasBody s req = restore $ do
-      header <- composeHeaderBuilder version s hs needsChunked
-      let body
-            | needsChunked = header `mappend` chunkedTransferEncoding b
-                                    `mappend` chunkedTransferTerminator
-            | otherwise    = header `mappend` b
-      flip toByteStringIO body $ \bs -> do
-          connSendAll conn bs
-          T.tickle th
-      return isKeepAlive
-  | otherwise = restore $ sendResponseNoBody conn th version s hs isPersist
-  where
-    hs = addServer rspidxhdr hs0
-    rspidxhdr = indexResponseHeader hs0
-    th = threadHandle ii
-    version = httpVersion req
-    reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
-    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
+data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) (IO ())
+         | RspBuilder Builder Bool
+         | RspSource (forall b. WithSource IO (Flush Builder) b) Bool T.Handle
 
 ----------------------------------------------------------------
 
-sendResponse conn ii restore req reqidxhdr (ResponseSource s hs0 withBodyFlush)
-  | hasBody s req = withBodyFlush $ \bodyFlush -> restore $ do
-      header <- composeHeaderBuilder version s hs needsChunked
-      let src = CL.sourceList [header] `mappend` cbody bodyFlush
-      src $$ builderToByteString =$ connSink conn th
-      return isKeepAlive
-  | otherwise = withBodyFlush $ \_bodyFlush ->
-      -- make sure any cleanup is called
-      restore $ sendResponseNoBody conn th version s hs isPersist
+sendRsp :: Connection
+        -> H.HttpVersion
+        -> H.Status
+        -> H.ResponseHeaders
+        -> Rsp
+        -> IO ()
+sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
+    ex <- fileRange s0 hs path mPart mRange
+    case ex of
+        Left _ -> sendRsp conn ver s2 hs2 (RspBuilder body True)
+        Right (s, hs1, beg, len) -> do
+            lheader <- composeHeader ver s hs1
+            connSendFile conn path beg len hook [lheader]
   where
-    hs = addServer rspidxhdr hs0
-    rspidxhdr = indexResponseHeader hs0
-    th = threadHandle ii
-    version = httpVersion req
-    reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
-    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
+    hs = addAcceptRanges hs0
+    s2 = H.status404
+    hs2 =  replaceHeader H.hContentType "text/plain" hs0
+    body = fromByteString "File not found"
+
+----------------------------------------------------------------
+
+sendRsp conn ver s hs (RspBuilder b needsChunked) = do
+    header <- composeHeaderBuilder ver s hs needsChunked
+    let body
+         | needsChunked = header `mappend` chunkedTransferEncoding b
+                                 `mappend` chunkedTransferTerminator
+         | otherwise    = header `mappend` b
+    flip toByteStringIO body $ \bs -> do
+        connSendAll conn bs
+
+----------------------------------------------------------------
+
+sendRsp conn ver s hs (RspSource withBodyFlush needsChunked th) = withBodyFlush $ \bodyFlush -> do
+    header <- composeHeaderBuilder ver s hs needsChunked
+    let src = CL.sourceList [header] `mappend` cbody bodyFlush
+    src $$ builderToByteString =$ connSink conn th
+  where
     cbody bodyFlush = if needsChunked then body $= chunk else body
       where
         body = mapOutput (\x -> case x of
@@ -211,21 +229,24 @@ sendResponse conn ii restore req reqidxhdr (ResponseSource s hs0 withBodyFlush)
 
 ----------------------------------------------------------------
 
-sendResponseNoBody :: Connection -> T.Handle
-                   -> H.HttpVersion -> H.Status -> H.ResponseHeaders
-                   -> Bool -> IO Bool
-sendResponseNoBody conn th version s hs isPersist = do
-    composeHeader version s hs >>= connSendAll conn
-    T.tickle th
-    return isPersist
+sendResponseNoBody :: Connection
+                   -> H.HttpVersion
+                   -> H.Status
+                   -> H.ResponseHeaders
+                   -> Response
+                   -> IO ()
+sendResponseNoBody conn ver s hs (ResponseSource _ _ withBodyFlush) =
+    withBodyFlush $ \_bodyFlush ->
+       composeHeader ver s hs >>= connSendAll conn
+sendResponseNoBody conn ver s hs _ =
+    composeHeader ver s hs >>= connSendAll conn
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
 connSink :: Connection -> T.Handle -> Sink ByteString IO ()
-connSink Connection { connSendAll = send } th =
-    sink
+connSink Connection { connSendAll = send } th = sink
   where
     sink = await >>= maybe close push
     close = liftIO (T.resume th)
@@ -315,6 +336,11 @@ addContentRange beg end total hdrs = (hContentRange, range) : hdrs
       ( '/'
       : showInt total ""))
 
+addDate :: D.DateCache -> H.ResponseHeaders -> IO H.ResponseHeaders
+addDate dc hdrs = do
+    gmtdate <- D.getDate dc
+    return $ (H.hDate, gmtdate) : hdrs
+
 ----------------------------------------------------------------
 
 -- | The version of Warp.
@@ -328,6 +354,15 @@ addServer :: IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
 addServer rspidxhdr hdrs = case rspidxhdr ! idxServer of
     Nothing -> (hServer, defaultServerValue) : hdrs
     _       -> hdrs
+
+----------------------------------------------------------------
+
+-- |
+--
+-- >>> replaceHeader "Content-Type" "new" [("content-type","old")]
+-- [("Content-Type","new")]
+replaceHeader :: H.HeaderName -> HeaderValue -> H.ResponseHeaders -> H.ResponseHeaders
+replaceHeader k v hdrs = (k,v) : deleteBy ((==) `on` fst) (k,v) hdrs
 
 ----------------------------------------------------------------
 

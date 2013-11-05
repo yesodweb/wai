@@ -9,6 +9,7 @@ import Data.ByteString (ByteString)
 import Data.Typeable (Typeable)
 import Network.HTTP.Types.Header
 import Network.Socket (Socket)
+import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.Timeout as T
 
@@ -73,4 +74,5 @@ data Connection = Connection
 data InternalInfo = InternalInfo {
     threadHandle :: T.Handle
   , fdCacher :: Maybe F.MutableFdCache
+  , dateCacher :: D.DateCache
   }
