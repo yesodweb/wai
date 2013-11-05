@@ -203,40 +203,6 @@ spec = do
                 headers `shouldBe`
                     [ ("foo", "bar")
                     ]
-        it "extra spaces in first line" $ do
-            iheaders <- I.newIORef []
-            let app req = do
-                    liftIO $ I.writeIORef iheaders $ requestHeaders req
-                    return $ responseLBS status200 [] ""
-            withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-                let input = S.concat
-                        [ "GET    /    HTTP/1.1\r\nfoo: bar\r\n\r\n"
-                        ]
-                hPutStr handle input
-                hFlush handle
-                hClose handle
-                threadDelay 1000
-                headers <- I.readIORef iheaders
-                headers `shouldBe`
-                    [ ("foo", "bar")
-                    ]
-        it "spaces in http version" $ do
-            iversion <- I.newIORef $ error "Version not parsed"
-            let app req = do
-                    liftIO $ I.writeIORef iversion $ httpVersion req
-                    return $ responseLBS status200 [] ""
-            withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-                let input = S.concat
-                        [ "GET    /    HTTP\t/  1 .   1  \r\nfoo: bar\r\n\r\n"
-                        ]
-                hPutStr handle input
-                hFlush handle
-                hClose handle
-                threadDelay 1000
-                version <- I.readIORef iversion
-                version `shouldBe` http11
 
     describe "chunked bodies" $ do
         it "works" $ do
