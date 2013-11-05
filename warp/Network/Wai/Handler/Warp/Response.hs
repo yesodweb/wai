@@ -206,8 +206,7 @@ sendRsp conn ver s hs (RspBuilder b needsChunked) = do
          | needsChunked = header `mappend` chunkedTransferEncoding b
                                  `mappend` chunkedTransferTerminator
          | otherwise    = header `mappend` b
-    flip toByteStringIO body $ \bs -> do
-        connSendAll conn bs
+    flip toByteStringIO body $ \bs -> connSendAll conn bs
 
 ----------------------------------------------------------------
 

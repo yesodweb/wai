@@ -125,7 +125,7 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
 parsePath :: ByteString -> ByteString
 parsePath path
   | "http://" `S.isPrefixOf` path = ensureNonEmpty $ extractPath path
-  | otherwise                     = ensureNonEmpty $ path
+  | otherwise                     = ensureNonEmpty path
   where
     extractPath = snd . S.breakByte 47 . S.drop 7 -- 47 is '/'.
     ensureNonEmpty "" = "/"
