@@ -55,6 +55,7 @@ Library
   Exposed-modules:   Network.Wai.Handler.Warp
                      Network.Wai.Handler.Warp.Timeout
   Other-modules:     Network.Wai.Handler.Warp.Conduit
+                     Network.Wai.Handler.Warp.Date
                      Network.Wai.Handler.Warp.FdCache
                      Network.Wai.Handler.Warp.Header
                      Network.Wai.Handler.Warp.ReadInt
@@ -76,8 +77,11 @@ Library
       Other-modules: Network.Wai.Handler.Warp.MultiMap
   if os(windows)
       Cpp-Options:   -DWINDOWS
+      Build-Depends: time
+                   , old-locale
   else
       Build-Depends: unix
+                   , http-date
 
 Test-Suite doctest
   Type:                 exitcode-stdio-1.0
@@ -126,6 +130,8 @@ Test-Suite spec
                    , QuickCheck
                    , hspec                    >= 1.3
                    , resourcet
+                   , time
+                   , old-locale
 
     -- Yes, this means that the test suite will no longer work on Windows.
     -- Unfortunately there is a bug in older versions of cabal, and this conditional
@@ -133,7 +139,8 @@ Test-Suite spec
   --if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
     Cpp-Options:   -DSENDFILEFD
     Build-Depends: unix
-                   , hashable
+                 , hashable
+                 , http-date
   --if os(windows)
   --    Cpp-Options:   -DWINDOWS
 
