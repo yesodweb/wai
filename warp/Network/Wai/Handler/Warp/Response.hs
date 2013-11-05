@@ -43,7 +43,7 @@ fileRange :: H.Status -> H.ResponseHeaders -> FilePath
            -> Maybe FilePart -> Maybe HeaderValue
           -> IO (Either SomeException
                         (H.Status, H.ResponseHeaders, Integer, Integer))
-fileRange s0 hs0 path mPart mRange = liftIO . try $ do
+fileRange s0 hs0 path mPart mRange = try $ do
     fileSize <- checkFileSize mPart
     let (beg, end, len, isEntire) = checkPartRange fileSize mPart mRange
     let hs1 = addContentLength len hs0
@@ -147,12 +147,12 @@ sendResponse conn ii restore req reqidxhdr (ResponseFile s0 hs0 path mPart) =
     mRange = reqidxhdr ! idxRange
 
     sendResponseEither (Right (s, lengthyHeaders, beg, len))
-      | hasBody s req = liftIO $ do
+      | hasBody s req = do
           lheader <- composeHeader version s lengthyHeaders
           connSendFile conn path beg len (T.tickle th) [lheader]
           T.tickle th
           return isPersist
-      | otherwise = liftIO $ sendResponseNoBody conn th version s hs isPersist
+      | otherwise = sendResponseNoBody conn th version s hs isPersist
       where
         version = httpVersion req
         (isPersist,_) = infoFromRequest req reqidxhdr
@@ -188,7 +188,7 @@ sendResponse conn ii restore req reqidxhdr (ResponseBuilder s hs0 b)
 
 sendResponse conn ii restore req reqidxhdr (ResponseSource s hs0 withBodyFlush)
   | hasBody s req = withBodyFlush $ \bodyFlush -> restore $ do
-      header <- liftIO $ composeHeaderBuilder version s hs needsChunked
+      header <- composeHeaderBuilder version s hs needsChunked
       let src = CL.sourceList [header] `mappend` cbody bodyFlush
       src $$ builderToByteString =$ connSink conn th
       return isKeepAlive
