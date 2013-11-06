@@ -233,14 +233,14 @@ serveConnection conn ii addr settings app =
         case settingsIntercept settings req of
             Nothing -> do
                 -- Let the application run for as long as it wants
-                liftIO $ T.pause th
+                T.pause th
 
                 -- In the event that some scarce resource was acquired during
                 -- creating the request, we need to make sure that we don't get
                 -- an async exception before calling the ResponseSource.
                 keepAlive <- mask $ \restore -> do
                     res <- restore $ app req
-                    liftIO $ T.resume th
+                    T.resume th
                     sendResponse conn ii restore req idxhdr res
 
                 -- We just send a Response and it takes a time to
@@ -254,12 +254,12 @@ serveConnection conn ii addr settings app =
                 Conc.yield
                 -- flush the rest of the request body
                 requestBody req $$ CL.sinkNull
-                ResumableSource fromClient' _ <- liftIO getSource
+                ResumableSource fromClient' _ <- getSource
 
                 when keepAlive $ recvSendLoop fromClient'
             Just intercept -> do
-                liftIO $ T.pause th
-                ResumableSource fromClient' _ <- liftIO getSource
+                T.pause th
+                ResumableSource fromClient' _ <- getSource
                 intercept fromClient' conn
 
 connSource :: Connection -> T.Handle -> Source IO ByteString
