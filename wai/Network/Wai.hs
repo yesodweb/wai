@@ -64,8 +64,9 @@ module Network.Wai
       -- ** Response composers
     , responseFile
     , responseBuilder
-    , responseSource
     , responseLBS
+    , responseSource
+    , responseSourceBracket
       -- * Response accessors
     , responseStatus
     , responseHeaders
@@ -74,6 +75,7 @@ module Network.Wai
 
 import           Blaze.ByteString.Builder     (Builder, fromLazyByteString)
 import           Blaze.ByteString.Builder     (fromByteString)
+import           Control.Exception            (bracket, bracketOnError)
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as L
 import           Data.ByteString.Lazy.Char8   ()
@@ -118,14 +120,35 @@ responseFile = ResponseFile
 responseBuilder :: H.Status -> H.ResponseHeaders -> Builder -> Response
 responseBuilder = ResponseBuilder
 
--- | Creating 'Response' from 'C.Source'.
-responseSource :: H.Status -> H.ResponseHeaders -> C.Source IO (C.Flush Builder) -> Response
-responseSource st hs src = ResponseSource st hs ($ src)
-
 -- | Creating 'Response' from 'L.ByteString'. This is a wrapper for
 --   'responseBuilder'.
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString
+
+-- | Creating 'Response' from 'C.Source'.
+responseSource :: H.Status -> H.ResponseHeaders -> C.Source IO (C.Flush Builder) -> Response
+responseSource st hs src = ResponseSource st hs ($ src)
+
+-- | Creating 'Response' with allocated resource safely released.
+--
+--   * The first argument is an action to allocate resource.
+--
+--   * The second argument is a function to release the resource.
+--
+--   * The third argument is a function to create
+--     ('H.Status','H.ResponseHeaders','C.Source' 'IO' ('C.Flush' 'Builder'))
+--     from the resource.
+responseSourceBracket :: IO a
+                      -> (a -> IO ())
+                      -> (a -> IO (H.Status
+                                  ,H.ResponseHeaders
+                                  ,C.Source IO (C.Flush Builder)))
+                      -> IO Response
+responseSourceBracket setup teardown action =
+    bracketOnError setup teardown $ \resource -> do
+        (st,hdr,src) <- action resource
+        return $ ResponseSource st hdr $ \f ->
+            bracket (return resource) teardown (\_ -> f src)
 
 ----------------------------------------------------------------
 
