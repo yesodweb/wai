@@ -43,7 +43,6 @@ import qualified Data.PEM as PEM
 import Data.Conduit.Network (sourceSocket, sinkSocket, acceptSafe)
 import Data.Maybe (fromMaybe)
 import qualified Data.IORef as I
-import Crypto.Random.AESCtr (makeSystem)
 import Control.Exception (Exception, throwIO)
 import Data.Typeable (Typeable)
 import qualified Data.Conduit.Binary as CB
@@ -139,13 +138,14 @@ runTLSSocket TLSSettings {..} set sock app = do
                     let conn = Connection
                             { connSendMany = TLS.sendData ctx . L.fromChunks
                             , connSendAll = TLS.sendData ctx . L.fromChunks . return
-                            , connSendFile = \fp offset len _th headers _cleaner -> do
+                            , connSendFile = \fp offset len _th headers -> do
                                 TLS.sendData ctx $ L.fromChunks headers
                                 C.runResourceT $ sourceFileRange fp (Just offset) (Just len) C.$$ CL.mapM_ (TLS.sendData ctx . L.fromChunks . return)
                             , connClose =
                                 TLS.bye ctx `finally`
                                 TLS.contextClose ctx
                             , connRecv = TLS.recvData ctx
+                            , connSendFileOverride = NotOverride
                             }
                     return conn
                 else

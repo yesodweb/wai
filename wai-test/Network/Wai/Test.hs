@@ -71,22 +71,6 @@ data SResponse = SResponse
 request :: Request -> Session SResponse
 request = srequest . flip SRequest L.empty
 
-defaultRequest :: Request
-defaultRequest = Request
-    { requestMethod = "GET"
-    , httpVersion = H.http11
-    , rawPathInfo = "/"
-    , rawQueryString = ""
-    , requestHeaders = []
-    , isSecure = False
-    , remoteHost = SockAddrInet 0 0
-    , pathInfo = []
-    , queryString = []
-    , requestBody = mempty
-    , vault = mempty
-    , requestBodyLength = KnownLength 0
-    }
-
 -- | Set whole path (request path + query string).
 setPath :: Request -> S8.ByteString -> Request
 setPath req path = req {
