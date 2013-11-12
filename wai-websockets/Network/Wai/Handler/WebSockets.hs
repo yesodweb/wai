@@ -4,15 +4,23 @@ module Network.Wai.Handler.WebSockets
     , interceptWith
     ) where
 
-import Control.Monad.IO.Class (liftIO)
-import Data.ByteString (ByteString)
-import Data.Char (toLower)
-import qualified Data.ByteString.Char8 as S
-import Data.Conduit
-import qualified Data.Enumerator as E
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.WebSockets as WS
+import              Control.Monad                   (forever)
+import              Control.Monad.Trans             (lift)
+import              Control.Concurrent              (forkIO, threadDelay)
+import              Control.Exception               (SomeException (..), handle)
+import              Blaze.ByteString.Builder        (Builder)
+import qualified    Blaze.ByteString.Builder        as Builder
+import              Data.ByteString                 (ByteString)
+import qualified    Data.ByteString.Char8           as BC
+import              Data.Char                       (toLower)
+import              Data.Conduit
+import qualified    Network.Wai                     as Wai
+import qualified    Network.Wai.Handler.Warp        as Warp
+import qualified    Network.WebSockets              as WS
+import qualified    Network.WebSockets.Connection   as WS
+import              System.IO.Streams               (InputStream, OutputStream)
+import qualified    System.IO.Streams               as Streams
+
 
 -- | For use with 'settingsIntercept' from the Warp web server.
 intercept :: WS.Protocol p
