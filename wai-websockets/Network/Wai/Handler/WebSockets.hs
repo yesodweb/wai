@@ -21,62 +21,79 @@ import qualified    Network.WebSockets.Connection   as WS
 import              System.IO.Streams               (InputStream, OutputStream)
 import qualified    System.IO.Streams               as Streams
 
-
+--------------------------------------------------------------------------------
 -- | For use with 'settingsIntercept' from the Warp web server.
-intercept :: WS.Protocol p
-          => (WS.Request -> WS.WebSockets p ())
+intercept :: WS.ServerApp
           -> Wai.Request
           -> Maybe (Source (ResourceT IO) ByteString -> Warp.Connection -> ResourceT IO ())
-intercept = interceptWith WS.defaultWebSocketsOptions
+intercept = interceptWith WS.defaultConnectionOptions
 
+--------------------------------------------------------------------------------
 -- | Variation of 'intercept' which allows custom options.
-interceptWith :: WS.Protocol p
-              => WS.WebSocketsOptions
-              -> (WS.Request -> WS.WebSockets p ())
+interceptWith :: WS.ConnectionOptions
+              -> WS.ServerApp
               -> Wai.Request
               -> Maybe (Source (ResourceT IO) ByteString -> Warp.Connection -> ResourceT IO ())
-interceptWith opts app req = case lookup "upgrade" $ Wai.requestHeaders req of
+interceptWith opts app req = case lookup "upgrade" (Wai.requestHeaders req) of
     Just s
-        | S.map toLower s == "websocket" -> Just $ runWebSockets opts req' app
+        | BC.map toLower s == "websocket" -> Just $ runWebSockets opts req' app
         | otherwise                      -> Nothing
     _                                    -> Nothing
-  where
-    req' = WS.RequestHttpPart (Wai.rawPathInfo req) (Wai.requestHeaders req)
-        (Wai.isSecure req)
+    where
+        req' = WS.RequestHead (Wai.rawPathInfo req) (Wai.requestHeaders req) (Wai.isSecure req)
 
--- | Internal function to run the WebSocket iteratee using the conduit library
-runWebSockets :: WS.Protocol p
-              => WS.WebSocketsOptions
-              -> WS.RequestHttpPart
-              -> (WS.Request -> WS.WebSockets p ())
+--------------------------------------------------------------------------------
+---- | Internal function to run the WebSocket io-streams using the conduit library
+runWebSockets :: WS.ConnectionOptions
+              -> WS.RequestHead
+              -> WS.ServerApp
               -> Source (ResourceT IO) ByteString
               -> Warp.Connection
               -> ResourceT IO ()
 runWebSockets opts req app source conn = do
-    step <- liftIO $ E.runIteratee $ WS.runWebSocketsWith opts req app send
-    source $$ sink (E.returnI step)
-  where
-    send  = iterConnection conn
 
-    sink iter = await >>= maybe (close iter) (push iter)
+    (is, os) <- lift $ connectionToStreams conn
 
-    push iter bs = do
-        step <- liftIO $ E.runIteratee $ E.enumList 1 [bs] E.$$ iter
-        case step of
-            E.Continue _    -> sink $ E.returnI step
-            E.Yield out inp -> maybe (return ()) leftover (streamToMaybe inp) >> return out
-            E.Error e       -> liftIO $ monadThrow e
-    close iter   = do
-        _ <- liftIO $ E.runIteratee $ E.enumEOF E.$$ iter
-        return ()
+    let pc = WS.PendingConnection 
+                { WS.pendingOptions     = opts
+                , WS.pendingRequest     = req
+                , WS.pendingOnAccept    = forkPingThread
+                , WS.pendingIn          = is
+                , WS.pendingOut         = os
+                }
 
-iterConnection :: Warp.Connection -> E.Iteratee ByteString IO ()
-iterConnection c = E.continue go
-  where
-    go (E.Chunks []) = E.continue go
-    go (E.Chunks cs) = E.tryIO (Warp.connSendMany c cs) >> E.continue go
-    go E.EOF         = E.continue go
+    lift $ app pc
 
-streamToMaybe :: E.Stream S.ByteString -> Maybe S.ByteString
-streamToMaybe E.EOF         = Nothing
-streamToMaybe (E.Chunks bs) = Just $ S.concat bs
+--------------------------------------------------------------------------------
+-- | Start a ping thread in the background
+forkPingThread :: WS.Connection -> IO ()
+forkPingThread conn = do
+    _ <- forkIO pingThread
+    return ()
+    where
+        pingThread = handle ignore $ forever $ do
+            WS.sendPing conn (BC.pack "ping")
+            threadDelay $ 30 * 1000 * 1000
+
+        ignore :: SomeException -> IO ()
+        ignore _   = return ()
+
+------------------------------------------------------------------------------
+-- | Converts a 'Connection' to an 'InputStream' \/ 'OutputStream' pair. Note that,
+-- as is usually the case in @io-streams@, writing a 'Nothing' to the generated
+-- 'OutputStream' does not cause the underlying 'Connection' to be closed.
+connectionToStreams :: Warp.Connection
+                -> IO (InputStream ByteString, OutputStream Builder)
+connectionToStreams connection = do
+    is <- Streams.makeInputStream input
+    os <- Streams.makeOutputStream output
+    return $! (is, os)
+    
+    where
+        input = do
+            s <- Warp.connRecv connection
+            return $! if BC.null s then Nothing else Just s
+
+        output Nothing  = return $! ()
+        output (Just s') = if BC.null s then return $! () else Warp.connSendAll connection s
+            where s = Builder.toByteString s'
