@@ -5,7 +5,7 @@ module Network.Wai.Handler.WebSockets
     ) where
 
 import              Control.Monad                   (forever)
-import              Control.Monad.Trans             (lift)
+import              Control.Monad.IO.Class          (liftIO)
 import              Control.Concurrent              (forkIO, threadDelay)
 import              Control.Exception               (SomeException (..), handle)
 import              Blaze.ByteString.Builder        (Builder)
@@ -50,9 +50,9 @@ runWebSockets :: WS.ConnectionOptions
               -> Source (ResourceT IO) ByteString
               -> Warp.Connection
               -> ResourceT IO ()
-runWebSockets opts req app source conn = do
+runWebSockets opts req app _ conn = do
 
-    (is, os) <- lift $ connectionToStreams conn
+    (is, os) <- liftIO $ connectionToStreams conn
 
     let pc = WS.PendingConnection 
                 { WS.pendingOptions     = opts
@@ -62,7 +62,7 @@ runWebSockets opts req app source conn = do
                 , WS.pendingOut         = os
                 }
 
-    lift $ app pc
+    liftIO $ app pc
 
 --------------------------------------------------------------------------------
 -- | Start a ping thread in the background
