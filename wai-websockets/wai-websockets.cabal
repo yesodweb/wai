@@ -1,9 +1,9 @@
 Name:                wai-websockets
-Version:             1.3.1.2
+Version:             1.4.0.0
 Synopsis:            Provide a bridge betweeen WAI and the websockets package.
 License:             MIT
 License-file:        LICENSE
-Author:              Michael Snoyman, Jasper Van der Jeugt
+Author:              Michael Snoyman, Jasper Van der Jeugt, Ting-Yen Lai
 Maintainer:          michael@snoyman.com
 Homepage:            http://github.com/yesodweb/wai
 Category:            Web, Yesod
