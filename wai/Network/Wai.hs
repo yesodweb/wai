@@ -57,6 +57,7 @@ module Network.Wai
     , vault
     , requestBodyLength
     , requestHeaderHost
+    , lazyRequestBody
       -- * Response
     , Response
     , FilePart (..)
@@ -81,6 +82,7 @@ import qualified Data.ByteString.Lazy         as L
 import           Data.ByteString.Lazy.Char8   ()
 import qualified Data.Conduit                 as C
 import qualified Data.Conduit.Binary          as CB
+import           Data.Conduit.Lazy            (lazyConsume)
 import qualified Data.Conduit.List            as CL
 import           Data.Monoid                  (mempty)
 import qualified Network.HTTP.Types           as H
@@ -219,3 +221,10 @@ defaultRequest = Request
     , requestBodyLength = KnownLength 0
     , requestHeaderHost = Nothing
     }
+
+-- | Get the request body as a lazy ByteString. This uses lazy I\/O under the
+-- surface, and therefore all typical warnings regarding lazy I/O apply.
+--
+-- Since 2.0.0
+lazyRequestBody :: Request -> IO L.ByteString
+lazyRequestBody = fmap L.fromChunks . lazyConsume . requestBody
