@@ -42,7 +42,7 @@ module Network.Wai.Handler.Warp.Timeout (
 #if MIN_VERSION_base(4,6,0)
 import Control.Concurrent (mkWeakThreadId, ThreadId)
 #else
-import Control.Concurrent (ThreadId(..))
+import GHC.Conc (ThreadId(..))
 import GHC.Exts (mkWeak#)
 import GHC.IO (IO (IO))
 #endif

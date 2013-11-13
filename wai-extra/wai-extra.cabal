@@ -61,6 +61,7 @@ Library
                      Network.Wai.Middleware.Vhost
                      Network.Wai.Middleware.HttpAuth
                      Network.Wai.Parse
+  other-modules:     Network.Wai.Middleware.RequestLogger.Internal
   ghc-options:       -Wall
 
 
