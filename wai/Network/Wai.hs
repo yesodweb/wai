@@ -45,6 +45,7 @@ module Network.Wai
     , Middleware
     , FilePart (..)
     , RequestBodyLength (..)
+    , lazyRequestBody
       -- * Response body smart constructors
     , responseLBS
     , responseStatus
@@ -55,6 +56,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.Typeable (Typeable)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
+import Data.Conduit.Lazy (lazyConsume)
 import qualified Data.Conduit.Binary as CB
 import Blaze.ByteString.Builder (Builder, fromLazyByteString)
 import Network.Socket (SockAddr)
@@ -197,3 +199,10 @@ type Middleware = Application -> Application
 --
 -- Since 1.4.0
 data RequestBodyLength = ChunkedBody | KnownLength Word64
+
+-- | Get the request body as a lazy ByteString. This uses lazy I\/O under the
+-- surface, and therefore all typical warnings regarding lazy I/O apply.
+--
+-- Since 1.4.1
+lazyRequestBody :: Request -> C.ResourceT IO L.ByteString
+lazyRequestBody = fmap L.fromChunks . lazyConsume . requestBody
