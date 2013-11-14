@@ -225,6 +225,6 @@ defaultRequest = Request
 -- | Get the request body as a lazy ByteString. This uses lazy I\/O under the
 -- surface, and therefore all typical warnings regarding lazy I/O apply.
 --
--- Since 2.0.0
+-- Since 1.4.1
 lazyRequestBody :: Request -> IO L.ByteString
 lazyRequestBody = fmap L.fromChunks . lazyConsume . requestBody
