@@ -24,7 +24,6 @@ import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import Data.Conduit.Blaze (unsafeBuilderToByteString)
-import qualified Data.Conduit.List as CL
 import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Maybe (isJust, listToMaybe)
