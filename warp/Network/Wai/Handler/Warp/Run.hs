@@ -22,6 +22,7 @@ import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
+import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.Request
@@ -43,13 +44,16 @@ import Network.Socket (fdSocket)
 -- | Default action value for 'Connection'.
 socketConnection :: Socket -> IO Connection
 socketConnection s = do
-    buf <- allocateRecvBuffer bytesPerRead
+    rbuf <- allocateBuffer bytesPerRead
+    wbuf <- allocateBuffer bytesPerWrite
+    wBlazeBuf <- toBlazeBuffer wbuf bytesPerWrite
     return Connection {
         connSendMany = Sock.sendMany s
       , connSendAll = Sock.sendAll s
       , connSendFile = defaultSendFile s
-      , connClose = sClose s >> freeRecvBuffer buf
-      , connRecv = receive s buf bytesPerRead
+      , connClose = sClose s >> freeBuffer rbuf >> freeBuffer wbuf
+      , connRecv = receive s rbuf bytesPerRead
+      , connWriteBuffer = wBlazeBuf
       , connSendFileOverride = Override s
       }
 

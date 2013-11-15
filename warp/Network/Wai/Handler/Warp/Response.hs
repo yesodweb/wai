@@ -12,9 +12,6 @@ module Network.Wai.Handler.Warp.Response (
 
 import Blaze.ByteString.Builder (fromByteString, Builder, toByteStringIO, flush)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
-import Blaze.ByteString.Builder.Internal.Buffer (Buffer (..))
-import Foreign.ForeignPtr (newForeignPtr_)
-import Foreign.Ptr (plusPtr)
 import Control.Applicative
 import Control.Exception
 import Control.Monad.IO.Class (liftIO)
@@ -35,7 +32,6 @@ import Network.Wai
 import qualified Network.Wai.Handler.Warp.Date as D
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ResponseHeader
-import Network.Wai.Handler.Warp.Recv
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
@@ -216,13 +212,8 @@ sendRsp conn ver s hs (RspBuilder b needsChunked) = do
 sendRsp conn ver s hs (RspSource withBodyFlush needsChunked th) = withBodyFlush $ \bodyFlush -> do
     header <- composeHeaderBuilder ver s hs needsChunked
     let src = yield header >> cbody bodyFlush
-    bracket (allocateRecvBuffer bytesPerRead) freeRecvBuffer $ \ptr -> do
-        fptr <- newForeignPtr_ ptr
-        let buffer = Buffer fptr
-                            ptr
-                            ptr
-                            (ptr `plusPtr` bytesPerRead)
-        src $$ unsafeBuilderToByteString (return buffer) =$ connSink conn th
+        buffer = connWriteBuffer conn
+    src $$ unsafeBuilderToByteString (return buffer) =$ connSink conn th
   where
     cbody bodyFlush = if needsChunked then body $= chunk else body
       where

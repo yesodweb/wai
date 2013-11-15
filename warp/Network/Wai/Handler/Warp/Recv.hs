@@ -3,11 +3,7 @@
 -- fixme: windows support
 
 module Network.Wai.Handler.Warp.Recv (
-    ReceiveBuffer
-  , receive
-  , allocateRecvBuffer
-  , freeRecvBuffer
-  , bytesPerRead
+    receive
   ) where
 
 import Control.Applicative ((<$>))
@@ -22,19 +18,11 @@ import Foreign.Ptr (Ptr, castPtr)
 import GHC.Conc (threadWaitRead)
 import Network.Socket (Socket, fdSocket)
 import System.Posix.Types (Fd(..))
-import Foreign.Marshal.Alloc (mallocBytes, free)
+import Network.Wai.Handler.Warp.Buffer
 
 ----------------------------------------------------------------
 
-type ReceiveBuffer = Ptr Word8
-
-allocateRecvBuffer :: Int -> IO ReceiveBuffer
-allocateRecvBuffer = mallocBytes
-
-freeRecvBuffer :: ReceiveBuffer -> IO ()
-freeRecvBuffer = free
-
-receive :: Socket -> ReceiveBuffer -> Int -> IO ByteString
+receive :: Socket -> Buffer -> Int -> IO ByteString
 receive sock buf size = do
     bytes <- fromIntegral <$> receiveloop sock' buf' size'
     if bytes == 0 then
@@ -61,10 +49,6 @@ receiveloop sock buf size = do
             throwErrno "receiveloop"
        else
         return bytes
-
--- FIXME come up with good values here
-bytesPerRead :: Int
-bytesPerRead = 4096
 
 -- fixme: the type of the return value
 foreign import ccall unsafe "recv"

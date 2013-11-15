@@ -9,6 +9,7 @@ import Data.ByteString (ByteString)
 import Data.Typeable (Typeable)
 import Network.HTTP.Types.Header
 import Network.Socket (Socket)
+import qualified Blaze.ByteString.Builder.Internal.Buffer as B (Buffer)
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.Timeout as T
@@ -65,6 +66,7 @@ data Connection = Connection
     , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> IO () -- ^ filepath, offset, length, hook action, HTTP headers
     , connClose    :: IO ()
     , connRecv     :: IO ByteString
+    , connWriteBuffer      :: B.Buffer
     , connSendFileOverride :: ConnSendFileOverride
     }
 
