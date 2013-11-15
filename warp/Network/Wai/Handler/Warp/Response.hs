@@ -12,6 +12,9 @@ module Network.Wai.Handler.Warp.Response (
 
 import Blaze.ByteString.Builder (fromByteString, Builder, toByteStringIO, flush)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
+import Blaze.ByteString.Builder.Internal.Buffer (Buffer (..))
+import Foreign.ForeignPtr (newForeignPtr_)
+import Foreign.Ptr (plusPtr)
 import Control.Applicative
 import Control.Exception
 import Control.Monad.IO.Class (liftIO)
@@ -20,7 +23,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
-import Data.Conduit.Blaze (builderToByteString)
+import Data.Conduit.Blaze (unsafeBuilderToByteString)
 import qualified Data.Conduit.List as CL
 import Data.Function (on)
 import Data.List (deleteBy)
@@ -33,6 +36,7 @@ import Network.Wai
 import qualified Network.Wai.Handler.Warp.Date as D
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ResponseHeader
+import Network.Wai.Handler.Warp.Recv
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
@@ -212,8 +216,14 @@ sendRsp conn ver s hs (RspBuilder b needsChunked) = do
 
 sendRsp conn ver s hs (RspSource withBodyFlush needsChunked th) = withBodyFlush $ \bodyFlush -> do
     header <- composeHeaderBuilder ver s hs needsChunked
-    let src = CL.sourceList [header] `mappend` cbody bodyFlush
-    src $$ builderToByteString =$ connSink conn th
+    let src = yield header >> cbody bodyFlush
+    bracket (allocateRecvBuffer bytesPerRead) freeRecvBuffer $ \ptr -> do
+        fptr <- newForeignPtr_ ptr
+        let buffer = Buffer fptr
+                            ptr
+                            ptr
+                            (ptr `plusPtr` bytesPerRead)
+        src $$ unsafeBuilderToByteString (return buffer) =$ connSink conn th
   where
     cbody bodyFlush = if needsChunked then body $= chunk else body
       where
@@ -221,8 +231,6 @@ sendRsp conn ver s hs (RspSource withBodyFlush needsChunked th) = withBodyFlush 
                         Flush -> flush
                         Chunk builder -> builder)
                bodyFlush
-    -- FIXME perhaps alloca a buffer per thread and reuse that in all
-    -- functions below. Should lessen greatly the GC burden (I hope)
     chunk :: Conduit Builder IO Builder
     chunk = await >>= maybe (yield chunkedTransferTerminator) (\x -> yield (chunkedTransferEncoding x) >> chunk)
 

@@ -40,10 +40,6 @@ import System.Posix.IO (FdOption(CloseOnExec), setFdOption)
 import Network.Socket (fdSocket)
 #endif
 
--- FIXME come up with good values here
-bytesPerRead :: Int
-bytesPerRead = 4096
-
 -- | Default action value for 'Connection'.
 socketConnection :: Socket -> IO Connection
 socketConnection s = do

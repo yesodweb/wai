@@ -7,6 +7,7 @@ module Network.Wai.Handler.Warp.Recv (
   , receive
   , allocateRecvBuffer
   , freeRecvBuffer
+  , bytesPerRead
   ) where
 
 import Control.Applicative ((<$>))
@@ -60,6 +61,10 @@ receiveloop sock buf size = do
             throwErrno "receiveloop"
        else
         return bytes
+
+-- FIXME come up with good values here
+bytesPerRead :: Int
+bytesPerRead = 4096
 
 -- fixme: the type of the return value
 foreign import ccall unsafe "recv"
