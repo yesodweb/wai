@@ -212,7 +212,7 @@ sendRsp conn ver s hs (RspBuilder b needsChunked) = do
 sendRsp conn ver s hs (RspSource withBodyFlush needsChunked th) = withBodyFlush $ \bodyFlush -> do
     header <- composeHeaderBuilder ver s hs needsChunked
     let src = yield header >> cbody bodyFlush
-        buffer = connWriteBuffer conn
+        buffer = connBuffer conn
     src $$ unsafeBuilderToByteString (return buffer) =$ connSink conn th
   where
     cbody bodyFlush = if needsChunked then body $= chunk else body

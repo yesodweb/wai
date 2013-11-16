@@ -9,11 +9,8 @@ import Foreign.Ptr (Ptr, plusPtr)
 type Buffer = Ptr Word8
 
 -- FIXME come up with good values here
-bytesPerRead :: Int
-bytesPerRead = 4096
-
-bytesPerWrite :: Int
-bytesPerWrite = 4096
+bufferSize :: Int
+bufferSize = 4096
 
 allocateBuffer :: Int -> IO Buffer
 allocateBuffer = mallocBytes

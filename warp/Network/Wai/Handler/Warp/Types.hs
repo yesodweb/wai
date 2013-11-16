@@ -66,7 +66,7 @@ data Connection = Connection
     , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> IO () -- ^ filepath, offset, length, hook action, HTTP headers
     , connClose    :: IO ()
     , connRecv     :: IO ByteString
-    , connWriteBuffer      :: B.Buffer
+    , connBuffer   :: B.Buffer
     , connSendFileOverride :: ConnSendFileOverride
     }
 

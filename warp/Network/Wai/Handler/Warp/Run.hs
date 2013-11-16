@@ -44,16 +44,15 @@ import Network.Socket (fdSocket)
 -- | Default action value for 'Connection'.
 socketConnection :: Socket -> IO Connection
 socketConnection s = do
-    rbuf <- allocateBuffer bytesPerRead
-    wbuf <- allocateBuffer bytesPerWrite
-    wBlazeBuf <- toBlazeBuffer wbuf bytesPerWrite
+    buf <- allocateBuffer bufferSize
+    blazeBuf <- toBlazeBuffer buf bufferSize
     return Connection {
         connSendMany = Sock.sendMany s
       , connSendAll = Sock.sendAll s
       , connSendFile = defaultSendFile s
-      , connClose = sClose s >> freeBuffer rbuf >> freeBuffer wbuf
-      , connRecv = receive s rbuf bytesPerRead
-      , connWriteBuffer = wBlazeBuf
+      , connClose = sClose s >> freeBuffer buf
+      , connRecv = receive s buf bufferSize
+      , connBuffer = blazeBuf
       , connSendFileOverride = Override s
       }
 
