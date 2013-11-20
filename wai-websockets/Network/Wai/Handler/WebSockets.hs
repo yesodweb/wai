@@ -57,26 +57,12 @@ runWebSockets opts req app _ conn = do
     let pc = WS.PendingConnection 
                 { WS.pendingOptions     = opts
                 , WS.pendingRequest     = req
-                , WS.pendingOnAccept    = forkPingThread
+                , WS.pendingOnAccept    = \_ -> return ()
                 , WS.pendingIn          = is
                 , WS.pendingOut         = os
                 }
 
     liftIO $ app pc
-
---------------------------------------------------------------------------------
--- | Start a ping thread in the background
-forkPingThread :: WS.Connection -> IO ()
-forkPingThread conn = do
-    _ <- forkIO pingThread
-    return ()
-    where
-        pingThread = handle ignore $ forever $ do
-            WS.sendPing conn (BC.pack "ping")
-            threadDelay $ 30 * 1000 * 1000
-
-        ignore :: SomeException -> IO ()
-        ignore _   = return ()
 
 ------------------------------------------------------------------------------
 -- | Converts a 'Connection' to an 'InputStream' \/ 'OutputStream' pair. Note that,
