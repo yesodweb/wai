@@ -48,9 +48,9 @@ import GHC.IO (IO (IO))
 #endif
 import Control.Concurrent (threadDelay, myThreadId, killThread)
 import qualified Control.Exception as E
-import Data.IORef (IORef)
-import qualified Data.IORef as I
 import GHC.Weak (Weak (..))
+import Network.Wai.Handler.Warp.IORef (IORef)
+import qualified Network.Wai.Handler.Warp.IORef as I
 import Network.Wai.Handler.Warp.Thread
 import System.Mem.Weak (deRefWeak)
 
@@ -78,14 +78,14 @@ initialize :: Int -> IO Manager
 initialize timeout = do
     ref' <- forkIOwithBreakableForever [] $ \ref -> do
         threadDelay timeout
-        old <- I.atomicModifyIORef ref (\x -> ([], x))
+        old <- I.atomicModifyIORef' ref (\x -> ([], x))
         merge <- prune old id
-        I.atomicModifyIORef ref (\new -> (merge new, ()))
+        I.atomicModifyIORef' ref (\new -> (merge new, ()))
     return $ Manager ref'
   where
     prune [] front = return front
     prune (m@(Handle onTimeout iactive):rest) front = do
-        state <- I.atomicModifyIORef iactive (\x -> (inactivate x, x))
+        state <- I.atomicModifyIORef' iactive (\x -> (inactivate x, x))
         case state of
             Inactive -> do
                 onTimeout `E.catch` ignoreAll
@@ -115,7 +115,7 @@ register :: Manager -> TimeoutAction -> IO Handle
 register (Manager ref) onTimeout = do
     iactive <- I.newIORef Active
     let h = Handle onTimeout iactive
-    I.atomicModifyIORef ref (\x -> (h : x, ()))
+    I.atomicModifyIORef' ref (\x -> (h : x, ()))
     return h
 
 -- | Registering a timeout action of killing this thread.

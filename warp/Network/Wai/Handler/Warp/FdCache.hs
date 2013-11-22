@@ -26,7 +26,7 @@ import Control.Applicative ((<$>), (<*>))
 import Control.Concurrent (threadDelay)
 import Control.Exception (bracket, mask_)
 import Data.Hashable (hash)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
+import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.MultiMap
 import Network.Wai.Handler.Warp.Thread
 import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
@@ -74,15 +74,13 @@ fdCache :: MutableFdCache -> IO FdCache
 fdCache (MutableFdCache ref) = readIORef ref
 
 swapWithNew :: IORef FdCache -> IO FdCache
-swapWithNew ref = atomicModifyIORef ref (\t -> (empty, t))
+swapWithNew ref = atomicModifyIORef' ref $ \t -> (empty, t)
 
 update :: MutableFdCache -> (FdCache -> FdCache) -> IO ()
 update (MutableFdCache ref) = update' ref
 
 update' :: IORef FdCache -> (FdCache -> FdCache) -> IO ()
-update' ref f = do
-    !_  <- atomicModifyIORef ref $ \t -> let !new = f t in (new, ())
-    return ()
+update' ref f = atomicModifyIORef' ref $ \t -> (f t, ())
 
 look :: MutableFdCache -> FilePath -> Hash -> IO (Maybe FdEntry)
 look mfc path key = searchWith key check <$> fdCache mfc
