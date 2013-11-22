@@ -130,7 +130,6 @@ Test-Suite spec
                    , HUnit
                    , QuickCheck
                    , hspec                     >= 1.3
-                   , resourcet
                    , time
                    , old-locale
 
