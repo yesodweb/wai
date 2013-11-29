@@ -67,6 +67,11 @@ data TLSSettings = TLSSettings
       -- Default: 'TLS.defaultLogging'.
       --
       -- Since 1.4.0
+    , tlsAllowedVersions :: [TLS.Version]
+      -- ^ The TLS versions this server accepts.
+      --
+      -- Default: '[TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]'.
+      --
     }
 
 -- | An action when a plain HTTP comes to HTTP over TLS/SSL port.
@@ -89,6 +94,7 @@ defaultTlsSettings = TLSSettings
     , keyFile = "key.pem"
     , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
     , tlsLogging = TLS.defaultLogging
+    , tlsAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
     }
 
 -- | Running 'Application' with 'TLSSettings' and 'Settings' using
@@ -101,7 +107,7 @@ runTLSSocket TLSSettings {..} set sock app = do
             TLS.updateServerParams
                 (\sp -> sp { TLS.serverWantClientCert = False }) $
             TLS.defaultParamsServer
-            { TLS.pAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
+            { TLS.pAllowedVersions = tlsAllowedVersions
             , TLS.pCiphers         = ciphers
             , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
             , TLS.pLogging         = tlsLogging
