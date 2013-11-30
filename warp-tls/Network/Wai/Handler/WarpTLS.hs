@@ -71,10 +71,14 @@ data TLSSettings = TLSSettings
       -- ^ The TLS versions this server accepts.
       --
       -- Default: '[TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]'.
+      --
+      -- Since 1.4.2
     , tlsCiphers :: [TLS.Cipher]
       -- ^ The TLS ciphers this server accepts.
       --
       -- Default: '[TLSExtra.cipher_AES128_SHA1, TLSExtra.cipher_AES256_SHA1, TLSExtra.cipher_RC4_128_MD5, TLSExtra.cipher_RC4_128_SHA1]'
+      --
+      -- Since 1.4.2
     }
 
 -- | An action when a plain HTTP comes to HTTP over TLS/SSL port.
