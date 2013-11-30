@@ -4,10 +4,7 @@ module Network.Wai.Handler.WebSockets
     , interceptWith
     ) where
 
-import              Control.Monad                   (forever)
 import              Control.Monad.IO.Class          (liftIO)
-import              Control.Concurrent              (forkIO, threadDelay)
-import              Control.Exception               (SomeException (..), handle)
 import              Blaze.ByteString.Builder        (Builder)
 import qualified    Blaze.ByteString.Builder        as Builder
 import              Data.ByteString                 (ByteString)
