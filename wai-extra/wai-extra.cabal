@@ -33,9 +33,8 @@ Library
                    , text                      >= 0.7      && < 0.12
                    , case-insensitive          >= 0.2
                    , data-default
-                   , date-cache                >= 0.3      && < 0.4
-                   , fast-logger               >= 0.2      && < 0.4
-                   , wai-logger                >= 0.2      && < 0.4
+                   , fast-logger               >= 2.0      && < 2.1
+                   , wai-logger                >= 2.0      && < 2.1
                    , conduit                   >= 1.0      && < 1.1
                    , zlib-conduit              >= 0.5      && < 1.1
                    , blaze-builder-conduit     >= 0.5      && < 1.1

@@ -5,16 +5,7 @@
 module Network.Wai.Middleware.RequestLogger.Internal where
 
 import Data.ByteString (ByteString)
-import System.Log.FastLogger
-#if MIN_VERSION_fast_logger(0,3,0)
-import System.Date.Cache (ondemandDateCacher)
-#else
-import System.Log.FastLogger.Date (getDate, dateInit, ZonedDate)
-#endif
+import Network.Wai.Logger (clockDateCacher)
 
 getDateGetter :: IO (IO ByteString)
-#if MIN_VERSION_fast_logger(0, 3, 0)
-getDateGetter = fmap fst $ ondemandDateCacher zonedDateCacheConf
-#else
-getDateGetter = fmap getDate dateInit
-#endif
+getDateGetter = fmap fst clockDateCacher

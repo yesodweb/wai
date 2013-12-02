@@ -3,6 +3,8 @@ module WaiExtraTest (specs) where
 
 import Test.Hspec
 import Test.HUnit hiding (Test)
+import Data.Monoid (mappend, mempty)
+import Blaze.ByteString.Builder (toByteString)
 
 import Network.Wai
 import Network.Wai.Test
@@ -544,21 +546,19 @@ caseDebugRequestBody = do
     getOutput params' = T.pack $ "GET /location\nAccept: \nGET " ++ show params' ++ "\nStatus: 200 OK. /location\n"
 
     debugApp output' req = do
-        iactual <- liftIO $ I.newIORef []
+        iactual <- liftIO $ I.newIORef mempty
         middleware <- liftIO $ mkRequestLogger def
-            { destination = Callback $ \strs -> I.modifyIORef iactual $ (++ strs)
+            { destination = Callback $ \strs -> I.modifyIORef iactual $ (`mappend` strs)
             , outputFormat = Detailed False
             }
         res <- middleware (\_req -> return $ responseLBS status200 [ ] "") req
         actual <- liftIO $ I.readIORef iactual
-        liftIO $ assertEqual "debug" output $ logsToBs actual
+        liftIO $ assertEqual "debug" output $ logToBs actual
         return res
       where
         output = TE.encodeUtf8 $ T.toStrict output'
-        logsToBs = S.concat . map logToBs
 
-        logToBs (LB bs) = bs
-        logToBs (LS s) = S8.pack s
+        logToBs = toByteString . logStrBuilder
 
     {-debugApp = debug $ \req -> do-}
         {-return $ responseLBS status200 [ ] ""-}

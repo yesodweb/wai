@@ -24,14 +24,17 @@ import System.IO (Handle, stdout)
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack, unpack)
 import Control.Monad.IO.Class (liftIO)
-import Network.Wai (Request(..), Middleware, responseStatus, Response)
+import Network.Wai (Request(..), Middleware, responseStatus, Response, responseHeaders)
 import System.Log.FastLogger
 import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe)
 import Control.Monad.Trans.Resource (withInternalState)
+import Data.Monoid (mconcat)
+import Blaze.ByteString.Builder (toByteString)
 
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, getRequestBodyType)
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Char8 as S8
 
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
@@ -41,20 +44,20 @@ import Data.IORef.Lifted
 import System.IO.Unsafe
 
 import Data.Default (Default (def))
-import Network.Wai.Logger.Format (apacheFormat, IPAddrSource (..))
+import Network.Wai.Logger
 import Network.Wai.Middleware.RequestLogger.Internal
 
 data OutputFormat = Apache IPAddrSource
                   | Detailed Bool -- ^ use colors?
                   | CustomOutputFormat OutputFormatter
 
-type OutputFormatter = ZonedDate -> Request -> Status -> Maybe Integer -> [LogStr]
+type OutputFormatter = ZonedDate -> Request -> Status -> Maybe Integer -> LogStr
 
 data Destination = Handle Handle
-                 | Logger Logger
+                 | Logger LoggerSet
                  | Callback Callback
 
-type Callback = [LogStr] -> IO ()
+type Callback = LogStr -> IO ()
 
 data RequestLoggerSettings = RequestLoggerSettings
     {
@@ -77,28 +80,31 @@ instance Default RequestLoggerSettings where
 
 mkRequestLogger :: RequestLoggerSettings -> IO Middleware
 mkRequestLogger RequestLoggerSettings{..} = do
-    (callback, mgetdate) <-
+    callback <-
         case destination of
-            Handle h -> fmap fromLogger $ mkLogger autoFlush h
-            Logger l -> return $ fromLogger l
-            Callback c -> return (c, Nothing)
+            Handle h -> return $ BS.hPutStr h . toByteString . logStrBuilder
+            Logger l -> return $ pushLogStr l
+            Callback c -> return c
     case outputFormat of
         Apache ipsrc -> do
-            getdate <- dateHelper mgetdate
-            return $ apacheMiddleware callback ipsrc getdate
+            getdate <- getDateGetter
+            apache <- initLogger ipsrc (LogCallback callback (return ())) getdate
+            return $ apacheMiddleware apache
         Detailed useColors -> detailedMiddleware callback useColors
         CustomOutputFormat formatter -> do
-            getdate <- dateHelper mgetdate
+            getdate <- getDateGetter
             return $ customMiddleware callback getdate formatter
-  where
-    fromLogger l = (loggerPutStr l, Just $ loggerDate l)
-    dateHelper mgetdate = do
-        case mgetdate of
-            Just x -> return x
-            Nothing -> getDateGetter
 
-apacheMiddleware :: Callback -> IPAddrSource -> IO ZonedDate -> Middleware
-apacheMiddleware cb ipsrc getdate = customMiddleware cb getdate $ apacheFormat ipsrc
+apacheMiddleware :: ApacheLoggerActions -> Middleware
+apacheMiddleware ala app req = do
+    res <- app req
+    let msize = lookup "content-length" (responseHeaders res) >>= readInt'
+        readInt' bs =
+            case S8.readInteger bs of
+                Just (i, "") -> Just i
+                _ -> Nothing
+    apacheLogger ala req (responseStatus res) msize
+    return res
 
 customMiddleware :: Callback -> IO ZonedDate -> OutputFormatter -> Middleware
 customMiddleware cb getdate formatter app req = do
@@ -222,7 +228,7 @@ detailedMiddleware' cb getAddColor app req = do
     addColor <- getAddColor
 
     -- log the request immediately.
-    liftIO $ cb $ map LB $ addColor (requestMethod req) ++
+    liftIO $ cb $ mconcat $ map toLogStr $ addColor (requestMethod req) ++
         [ " "
         , rawPathInfo req
         , "\n"
@@ -238,7 +244,7 @@ detailedMiddleware' cb getAddColor app req = do
     -- log the status of the response
     -- this is color coordinated with the request logging
     -- also includes the request path to connect it to the request
-    liftIO $ cb $ map LB $ addColor "Status: " ++ [
+    liftIO $ cb $ mconcat $ map toLogStr $ addColor "Status: " ++ [
           statusBS rsp
         , " "
         , msgBS rsp
