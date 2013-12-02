@@ -95,19 +95,21 @@ runGeneric vars inputH outputH xsendfile app = do
                 a:_ -> addrAddress a
                 [] -> error $ "Invalid REMOTE_ADDR or REMOTE_HOST: " ++ remoteHost'
     mask $ \restore -> do
-        let env = Request
+        let reqHeaders = map (cleanupVarName *** B.pack) vars
+            env = Request
                 { requestMethod = rmethod
                 , rawPathInfo = B.pack pinfo
                 , pathInfo = H.decodePathSegments $ B.pack pinfo
                 , rawQueryString = B.pack qstring
                 , queryString = H.parseQuery $ B.pack qstring
-                , requestHeaders = map (cleanupVarName *** B.pack) vars
+                , requestHeaders = reqHeaders
                 , isSecure = isSecure'
                 , remoteHost = addr
                 , httpVersion = H.http11 -- FIXME
                 , requestBody = inputH contentLength
                 , vault = mempty
                 , requestBodyLength = KnownLength $ fromIntegral contentLength
+                , requestHeaderHost = lookup "host" reqHeaders
                 }
         -- FIXME worry about exception?
         res <- restore $ app env
