@@ -103,7 +103,7 @@ runTest expected app chunks = do
         handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
         forM_ chunks $ \chunk -> hPutStr handle chunk >> hFlush handle
         _ <- hGetSome handle 4096
-        threadDelay 1000
+        threadDelay 30000
         res <- I.readIORef ref
         case res of
             Left s -> error s
