@@ -4,7 +4,8 @@
 module RunSpec (main, spec, withApp) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
-import Control.Monad (forM_)
+import Control.Monad (forM_, replicateM_)
+import System.Timeout (timeout)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString, hPutStr, hGetSome)
 import qualified Data.ByteString as S
@@ -102,8 +103,7 @@ runTest expected app chunks = do
     withApp defaultSettings (app ref) $ \port -> do
         handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
         forM_ chunks $ \chunk -> hPutStr handle chunk >> hFlush handle
-        _ <- hGetSome handle 4096
-        threadDelay 30000
+        _ <- timeout 100000 $ replicateM_ expected $ hGetSome handle 4096
         res <- I.readIORef ref
         case res of
             Left s -> error s
