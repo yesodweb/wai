@@ -75,6 +75,7 @@ recvRequest conn ii addr src0 = do
           , vault             = mempty
           , requestBodyLength = bodyLength
           , requestHeaderHost = idxhdr ! idxHost
+          , requestHeaderRange = idxhdr ! idxRange
           }
     return (req, idxhdr, getSource)
   where
