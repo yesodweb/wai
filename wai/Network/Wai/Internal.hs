@@ -22,8 +22,10 @@ import           Network.Socket               (SockAddr)
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
-data Request = Request
-  {  requestMethod        :: H.Method
+data Request = Request {
+  -- | Request method such as GET.
+     requestMethod        :: H.Method
+  -- | HTTP version such as 1.1.
   ,  httpVersion          :: H.HttpVersion
   -- | Extra path information sent by the client. The meaning varies slightly
   -- depending on backend; in a standalone server setting, this is most likely
@@ -35,6 +37,7 @@ data Request = Request
   -- /will/ include the leading question mark.
   -- Do not modify this raw value- modify queryString instead.
   ,  rawQueryString       :: B.ByteString
+  -- | A list of header (a pair of key and value) in an HTTP request.
   ,  requestHeaders       :: H.RequestHeaders
   -- | Was this request made over an SSL connection?
   --
@@ -51,6 +54,7 @@ data Request = Request
   ,  pathInfo             :: [Text]
   -- | Parsed query string information
   ,  queryString          :: H.Query
+  -- | A request body provided as 'Source'.
   ,  requestBody          :: C.Source IO B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.
   , vault                 :: Vault
@@ -59,8 +63,12 @@ data Request = Request
   -- Since 1.4.0
   , requestBodyLength     :: RequestBodyLength
   -- | The value of the Host header in a HTTP request.
+  --
+  -- Since 2.0.0
   , requestHeaderHost     :: Maybe B.ByteString
   -- | The value of the Range header in a HTTP request.
+  --
+  -- Since 2.0.0
   , requestHeaderRange   :: Maybe B.ByteString
   }
   deriving (Typeable)
@@ -81,6 +89,7 @@ data Response
     | ResponseSource H.Status H.ResponseHeaders (forall b. WithSource IO (C.Flush Builder) b)
   deriving Typeable
 
+-- | Auxiliary type for 'ResponseSource'.
 type WithSource m a b = (C.Source m a -> m b) -> m b
 
 -- | The size of the request body. In the case of chunked bodies, the size will
