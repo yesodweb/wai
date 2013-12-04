@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             2.0.0
+Version:             2.0.0.1
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             MIT
@@ -30,7 +30,7 @@ Library
                    , transformers              >= 0.2.2    && < 0.4
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , http-types                >= 0.7
-                   , text                      >= 0.7      && < 0.12
+                   , text                      >= 0.7
                    , case-insensitive          >= 0.2
                    , data-default
                    , fast-logger               >= 2.0      && < 2.1
