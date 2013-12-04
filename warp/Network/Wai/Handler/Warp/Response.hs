@@ -100,7 +100,7 @@ checkPartRange fileSize mPart mRange = checkPart mPart mRange
 --   Especially, Applications/middlewares MUST take care of
 --   Content-Length, Content-Range, and Transfer-Encoding
 --   because they are inserted, when necessary,
---   regardless they alredy exist.
+--   regardless they already exist.
 --   This function does not insert Content-Encoding. It's middleware's
 --   responsibility.
 --
