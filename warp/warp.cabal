@@ -53,9 +53,9 @@ Library
   else
       Build-Depends: network               >= 2.3
   Exposed-modules:   Network.Wai.Handler.Warp
+                     Network.Wai.Handler.Warp.Buffer
                      Network.Wai.Handler.Warp.Timeout
-  Other-modules:     Network.Wai.Handler.Warp.Buffer
-                     Network.Wai.Handler.Warp.Conduit
+  Other-modules:     Network.Wai.Handler.Warp.Conduit
                      Network.Wai.Handler.Warp.Date
                      Network.Wai.Handler.Warp.FdCache
                      Network.Wai.Handler.Warp.Header

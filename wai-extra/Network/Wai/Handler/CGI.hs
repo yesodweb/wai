@@ -110,6 +110,7 @@ runGeneric vars inputH outputH xsendfile app = do
                 , vault = mempty
                 , requestBodyLength = KnownLength $ fromIntegral contentLength
                 , requestHeaderHost = lookup "host" reqHeaders
+                , requestHeaderRange = lookup "range" reqHeaders
                 }
         -- FIXME worry about exception?
         res <- restore $ app env

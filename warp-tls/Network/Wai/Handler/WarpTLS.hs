@@ -49,6 +49,7 @@ import qualified Data.Conduit.Binary as CB
 #if MIN_VERSION_tls(1, 1, 3)
 import qualified Crypto.Random.AESCtr
 #endif
+import Network.Wai.Handler.Warp.Buffer
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -149,6 +150,8 @@ runTLSSocket TLSSettings {..} set sock app = do
                         params
                         gen
                     TLS.handshake ctx
+                    buf <- allocateBuffer bufferSize
+                    blazeBuf <- toBlazeBuffer buf bufferSize
                     let conn = Connection
                             { connSendMany = TLS.sendData ctx . L.fromChunks
                             , connSendAll = TLS.sendData ctx . L.fromChunks . return
@@ -160,6 +163,7 @@ runTLSSocket TLSSettings {..} set sock app = do
                                 TLS.contextClose ctx
                             , connRecv = TLS.recvData ctx
                             , connSendFileOverride = NotOverride
+                            , connBuffer = blazeBuf
                             }
                     return conn
                 else

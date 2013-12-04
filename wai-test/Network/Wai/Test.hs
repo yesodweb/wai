@@ -22,7 +22,6 @@ module Network.Wai.Test
     ) where
 
 import Network.Wai
-import Network.Wai.Internal (Request (Request))
 import qualified Test.HUnit.Base as H
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.State (StateT, evalStateT)
@@ -43,8 +42,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import Data.Monoid (mempty)
-import Network.Socket.Internal (SockAddr (SockAddrInet))
 
 type Session = ReaderT Application (StateT ClientState IO)
 
