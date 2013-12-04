@@ -60,6 +60,8 @@ data Request = Request
   , requestBodyLength     :: RequestBodyLength
   -- | The value of the Host header in a HTTP request.
   , requestHeaderHost     :: Maybe B.ByteString
+  -- | The value of the Range header in a HTTP request.
+  , requestHeaderRange   :: Maybe B.ByteString
   }
   deriving (Typeable)
 

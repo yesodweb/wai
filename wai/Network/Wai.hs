@@ -57,6 +57,7 @@ module Network.Wai
     , vault
     , requestBodyLength
     , requestHeaderHost
+    , requestHeaderRange
     , lazyRequestBody
       -- * Response
     , Response
@@ -220,6 +221,7 @@ defaultRequest = Request
     , vault = mempty
     , requestBodyLength = KnownLength 0
     , requestHeaderHost = Nothing
+    , requestHeaderRange = Nothing
     }
 
 -- | Get the request body as a lazy ByteString. This uses lazy I\/O under the
