@@ -54,7 +54,7 @@ Now we redefine `responseBody` to refer to that file:
 app2 :: Application
 app2 _ = return index
 
-index = ResponseFile
+index = responseFile
     status200
     [("Content-Type", "text/html")]
     "index.html"
@@ -79,7 +79,7 @@ app3 request = case rawPathInfo request of
     "/raw/" -> return plainIndex
     _       -> return notFound
 
-plainIndex = ResponseFile
+plainIndex = responseFile
     status200
     [("Content-Type", "text/plain")]
     "index.html"
