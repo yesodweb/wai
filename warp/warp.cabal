@@ -134,16 +134,13 @@ Test-Suite spec
                    , time
                    , old-locale
 
-    -- Yes, this means that the test suite will no longer work on Windows.
-    -- Unfortunately there is a bug in older versions of cabal, and this conditional
-    -- will therefore break older systems.
-  --if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
+  if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
     Cpp-Options:   -DSENDFILEFD
     Build-Depends: unix
                  , hashable
                  , http-date
-  --if os(windows)
-  --    Cpp-Options:   -DWINDOWS
+  if os(windows)
+      Cpp-Options:   -DWINDOWS
 
 Benchmark parser
     Type:           exitcode-stdio-1.0

@@ -1,10 +1,13 @@
+{-# LANGUAGE CPP #-}
+
 module FdCacheSpec where
 
+import Test.Hspec
+#ifdef SENDFILEFD
 import Data.IORef
 import Network.Wai.Handler.Warp.FdCache
 import System.Posix.IO (fdRead)
 import System.Posix.Types (Fd(..))
-import Test.Hspec
 
 main :: IO ()
 main = hspec spec
@@ -18,3 +21,7 @@ spec = describe "withFdCache" $ do
             writeIORef ref fd
         nfd <- readIORef ref
         fdRead nfd 1 `shouldThrow` anyIOException
+#else
+spec :: Spec
+spec = return ()
+#endif
