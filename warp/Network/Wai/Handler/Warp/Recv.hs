@@ -1,6 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
-
--- fixme: windows support
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Recv (
     receive
@@ -20,6 +19,10 @@ import Network.Socket (Socket, fdSocket)
 import System.Posix.Types (Fd(..))
 import Network.Wai.Handler.Warp.Buffer
 
+#ifdef mingw32_HOST_OS
+import GHC.IO.FD (FD(..), readRawBufferPtr)
+#endif
+
 ----------------------------------------------------------------
 
 receive :: Socket -> Buffer -> Int -> IO ByteString
@@ -37,9 +40,17 @@ receive sock buf size = do
     buf' = castPtr buf
     size' = fromIntegral size
 
+#ifdef mingw32_HOST_OS
+receiveloop :: CInt -> Ptr Word8 -> CSize -> IO CInt
+#else
 receiveloop :: CInt -> Ptr CChar -> CSize -> IO CInt
+#endif
 receiveloop sock buf size = do
+#ifdef mingw32_HOST_OS
+    bytes <- fmap fromIntegral $ readRawBufferPtr "recv" (FD sock 1) buf 0 size
+#else
     bytes <- c_recv sock buf size 0
+#endif
     if bytes == -1 then do
         errno <- getErrno
         if errno == eAGAIN then do
