@@ -19,7 +19,7 @@ import qualified Crypto.Classes as CR
 import Crypto.Hash.CryptoAPI (hash', MD5)
 import qualified Data.ByteString.Base64 as B64
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
-import System.FilePath (pathSeparator)
+import System.FilePath (isPathSeparator)
 
 -- | Serve the list of path/content pairs directly from memory.
 embeddedSettings :: [(Prelude.FilePath, ByteString)] -> StaticSettings
@@ -68,7 +68,7 @@ toEmbedded fps =
         --
         -- We want to separate on the forward slash on *all* OSes, and on
         -- Windows, also separate on a backslash.
-        let (y, z) = break (\c -> c == '/' || c == pathSeparator) x
+        let (y, z) = break isPathSeparator x
          in unsafeToPiece (T.pack y) : toPieces' (drop 1 z)
 
     go :: [(Pieces, ByteString)] -> Embedded
