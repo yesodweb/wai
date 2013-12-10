@@ -19,6 +19,7 @@ import qualified Crypto.Classes as CR
 import Crypto.Hash.CryptoAPI (hash', MD5)
 import qualified Data.ByteString.Base64 as B64
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
+import System.FilePath (pathSeparator)
 
 -- | Serve the list of path/content pairs directly from memory.
 embeddedSettings :: [(Prelude.FilePath, ByteString)] -> StaticSettings
@@ -63,7 +64,11 @@ toEmbedded fps =
     texts = map (\(x, y) -> (filter (not . T.null . fromPiece) $ toPieces' x, y)) fps
     toPieces' "" = []
     toPieces' x =
-        let (y, z) = break (== '/') x
+        -- See https://github.com/yesodweb/yesod/issues/626
+        --
+        -- We want to separate on the forward slash on *all* OSes, and on
+        -- Windows, also separate on a backslash.
+        let (y, z) = break (\c -> c == '/' || c == pathSeparator) x
          in unsafeToPiece (T.pack y) : toPieces' (drop 1 z)
 
     go :: [(Pieces, ByteString)] -> Embedded
