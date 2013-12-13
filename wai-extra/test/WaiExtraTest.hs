@@ -31,11 +31,12 @@ import Codec.Compression.GZip (decompress)
 
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import Data.Conduit.Binary (sourceFile)
+import Data.Conduit.Binary (sourceHandle)
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (parseSimpleQuery, status200)
 import System.Log.FastLogger
+import System.IO (withFile, IOMode (ReadMode))
 
 import qualified Data.IORef as I
 
@@ -117,14 +118,13 @@ caseParseHttpAccept = do
         expected = ["text/html;charset=utf-8", "text/x-c", "text/x-dvi", "text/*", "text/plain"]
     expected @=? parseHttpAccept input
 
-parseRequestBody' :: BackEnd L.ByteString
+parseRequestBody' :: BackEnd file
                   -> SRequest
-                  -> IO ([(S.ByteString, S.ByteString)], [(S.ByteString, FileInfo L.ByteString)])
+                  -> IO ([(S.ByteString, S.ByteString)], [(S.ByteString, FileInfo file)])
 parseRequestBody' sink (SRequest req bod) =
     case getRequestBodyType req of
         Nothing -> return ([], [])
-        Just rbt -> runResourceT $ withInternalState $ \is ->
-                    CL.sourceList (L.toChunks bod) C.$$ sinkRequestBody is sink rbt
+        Just rbt -> CL.sourceList (L.toChunks bod) C.$$ sinkRequestBody sink rbt
 
 caseParseRequestBody :: Assertion
 caseParseRequestBody =
@@ -218,7 +218,8 @@ caseMultipartAttrs = do
 
 caseUrlEncPlus :: Assertion
 caseUrlEncPlus = do
-    result <- parseRequestBody' lbsBackEnd $ toRequest ctype content
+    result <- runResourceT $ withInternalState $ \state ->
+              parseRequestBody' (tempFileBackEnd state) $ toRequest ctype content
     liftIO $ result @?= ([("email", "has+plus")], [])
   where
     content = S8.pack $ "email=has%2Bplus"
@@ -514,10 +515,8 @@ dalvikHelper includeLength = do
     (params, files) <-
         case getRequestBodyType request' of
             Nothing -> return ([], [])
-            Just rbt -> C.runResourceT $ do
-                internalState <- getInternalState
-                sourceFile "test/requests/dalvik-request"
-                       C.$$ C.transPipe liftIO (sinkRequestBody internalState lbsBackEnd rbt)
+            Just rbt -> withFile "test/requests/dalvik-request" ReadMode $ \h ->
+                sourceHandle h C.$$ sinkRequestBody lbsBackEnd rbt
     lookup "scannedTime" params @?= Just "1.298590056748E9"
     lookup "geoLong" params @?= Just "0"
     lookup "geoLat" params @?= Just "0"
