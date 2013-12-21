@@ -23,7 +23,7 @@ import Data.Conduit.List            (sourceList)
 -- then it changes the request-method to the value of that
 -- parameter.
 --
--- * This middlware only applies when the initial request method is POST.
+-- * This middleware only applies when the initial request method is POST.
 --
 methodOverridePost :: Middleware
 methodOverridePost app req = case (requestMethod req, lookup "Content-Type" (requestHeaders req)) of
