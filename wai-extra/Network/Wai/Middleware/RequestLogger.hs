@@ -30,7 +30,6 @@ import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe)
 import Control.Monad.Trans.Resource (withInternalState)
 import Data.Monoid (mconcat)
-import Blaze.ByteString.Builder (toByteString)
 
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, getRequestBodyType)
 import qualified Data.ByteString.Lazy as LBS
