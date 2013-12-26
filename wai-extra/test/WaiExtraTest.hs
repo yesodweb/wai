@@ -557,7 +557,7 @@ caseDebugRequestBody = do
       where
         output = TE.encodeUtf8 $ T.toStrict output'
 
-        logToBs = toByteString . logStrBuilder
+        logToBs = fromLogStr
 
     {-debugApp = debug $ \req -> do-}
         {-return $ responseLBS status200 [ ] ""-}

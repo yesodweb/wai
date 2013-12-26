@@ -81,7 +81,7 @@ mkRequestLogger :: RequestLoggerSettings -> IO Middleware
 mkRequestLogger RequestLoggerSettings{..} = do
     callback <-
         case destination of
-            Handle h -> return $ BS.hPutStr h . toByteString . logStrBuilder
+            Handle h -> return $ BS.hPutStr h . logToByteString
             Logger l -> return $ pushLogStr l
             Callback c -> return c
     case outputFormat of

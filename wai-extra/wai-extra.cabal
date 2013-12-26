@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             2.0.1.1
+Version:             2.0.1.2
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             MIT
@@ -33,8 +33,8 @@ Library
                    , text                      >= 0.7
                    , case-insensitive          >= 0.2
                    , data-default
-                   , fast-logger               >= 2.0      && < 2.1
-                   , wai-logger                >= 2.0      && < 2.1
+                   , fast-logger               >= 2.0      && < 2.2
+                   , wai-logger                >= 2.0      && < 2.2
                    , conduit                   >= 1.0      && < 1.1
                    , zlib-conduit              >= 0.5      && < 1.1
                    , blaze-builder-conduit     >= 0.5      && < 1.1
@@ -86,7 +86,7 @@ test-suite tests
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , data-default
                    , conduit
-                   , fast-logger
+                   , fast-logger               >= 2.1
                    , resourcet
     ghc-options:       -Wall
 
