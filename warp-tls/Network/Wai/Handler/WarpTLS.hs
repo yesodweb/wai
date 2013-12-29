@@ -188,7 +188,7 @@ instance Exception WarpTLSException
 
 -- | Running 'Application' with 'TLSSettings' and 'Settings'.
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
-runTLS tset set app =
+runTLS tset set app = withSocketsDo $
     bracket
         (bindPort (settingsPort set) (settingsHost set))
         sClose
