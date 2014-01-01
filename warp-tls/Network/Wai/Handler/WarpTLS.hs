@@ -31,7 +31,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.Conduit.Binary (sourceFileRange)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import Control.Exception (bracket, finally)
+import Control.Exception (bracket, finally, handle)
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.Certificate.X509 as X509
 import qualified Data.ByteString as B
@@ -161,7 +161,15 @@ runTLSSocket TLSSettings {..} set sock app = do
                             , connClose =
                                 TLS.bye ctx `finally`
                                 TLS.contextClose ctx
-                            , connRecv = TLS.recvData ctx
+                            , connRecv =
+                                let onEOF TLS.Error_EOF = return B.empty
+                                    onEOF e = throwIO e
+                                    go = handle onEOF $ do
+                                        x <- TLS.recvData ctx
+                                        if B.null x
+                                            then go
+                                            else return x
+                                 in go
                             , connSendFileOverride = NotOverride
                             , connBuffer = blazeBuf
                             }
