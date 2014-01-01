@@ -12,8 +12,8 @@ import Network.HTTP.Conduit
 
 main = do
     putStrLn "https://localhost:3009/"
-    manager <- newManager def
-    runTLS (tlsSettings  "config/tls-cert" "config/tls-key") defaultSettings { settingsPort = 3009 } app
+    --manager <- newManager def
+    runTLS (tlsSettings  "certificate.pem" "key.pem") defaultSettings { settingsPort = 3009 } app
 
 app req = return $
     case rawPathInfo req of
@@ -25,33 +25,33 @@ app req = return $
         "/source/nolen" -> sourceNoLen
         x -> index x
 
-builderWithLen = ResponseBuilder
+builderWithLen = responseBuilder
     status200
     [ ("Content-Type", "text/plain")
     , ("Content-Length", "4")
     ]
     $ copyByteString "PONG"
 
-builderNoLen = ResponseBuilder
+builderNoLen = responseBuilder
     status200
     [ ("Content-Type", "text/plain")
     ]
     $ copyByteString "PONG"
 
-sourceWithLen = ResponseSource
+sourceWithLen = responseSource
     status200
     [ ("Content-Type", "text/plain")
     , ("Content-Length", "4")
     ]
     $ CL.sourceList [C.Chunk $ copyByteString "PONG"]
 
-sourceNoLen = ResponseSource
+sourceNoLen = responseSource
     status200
     [ ("Content-Type", "text/plain")
     ]
     $ CL.sourceList [C.Chunk $ copyByteString "PONG"]
 
-fileWithLen = ResponseFile
+fileWithLen = responseFile
     status200
     [ ("Content-Type", "text/plain")
     , ("Content-Length", "4")
@@ -59,14 +59,14 @@ fileWithLen = ResponseFile
     "pong.txt"
     Nothing
 
-fileNoLen = ResponseFile
+fileNoLen = responseFile
     status200
     [ ("Content-Type", "text/plain")
     ]
     "pong.txt"
     Nothing
 
-index p = ResponseBuilder status200 [("Content-Type", "text/html")] $ mconcat $ map copyByteString
+index p = responseBuilder status200 [("Content-Type", "text/html")] $ mconcat $ map copyByteString
     [ "<p><a href='/builder/withlen'>builder withlen</a></p>\n"
     , "<p><a href='/builder/nolen'>builder nolen</a></p>\n"
     , "<p><a href='/file/withlen'>file withlen</a></p>\n"
