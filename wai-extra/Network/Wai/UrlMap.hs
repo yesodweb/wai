@@ -2,6 +2,8 @@
 {- | This module gives you a way to mount applications under sub-URIs.
 For example:
 
+> bugsApp, helpdeskApp, apiV1, apiV2, mainApp :: Application
+>
 > myApp :: Application
 > myApp = mapUrls $
 >       mount "bugs"     bugsApp
