@@ -623,6 +623,6 @@ casesUrlMap = [pair1, pair2, pair3, pair4]
     assertHeader "X-rawPathInfo" "/issues/11"         res3
     assertHeader "X-pathInfo"    (s ["issues", "11"]) res3
 
-  pair4 = makePair "should 500 if none match" $ do
+  pair4 = makePair "should 404 if none match" $ do
     res4 <- get "/api/v3"
-    assertStatus 500 res4
+    assertStatus 404 res4

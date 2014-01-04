@@ -91,10 +91,9 @@ instance ToApplication UrlMap where
                           }
             Nothing ->
                 return $ responseLBS
-                    status500
+                    status404
                     [("content-type", "text/plain")]
-                    ("WaiUrlMapper: no routes matched. Consider using \
-                     \mountRoot for the last mapping in the 'do' block.\n")
+                    "Not found\n"
 
         where
         makeRaw :: [Text] -> B.ByteString
