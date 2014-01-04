@@ -9,6 +9,7 @@ import Blaze.ByteString.Builder (toByteString)
 import Network.Wai
 import Network.Wai.Test
 import Network.Wai.Parse
+import Network.Wai.UrlMap
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -17,6 +18,7 @@ import qualified Data.Text.Lazy as T
 import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
 import Control.Arrow
+import Control.Applicative
 import Control.Monad.Trans.Resource (getInternalState, withInternalState, runResourceT)
 
 import Network.Wai.Middleware.Jsonp
@@ -42,6 +44,9 @@ import qualified Data.IORef as I
 
 specs :: Spec
 specs = do
+  describe "Network.Wai.UrlMap" $ do
+    mapM_ (uncurry it) casesUrlMap
+
   describe "Network.Wai.Parse" $ do
     describe "parseContentType" $ do
         let go (x, y, z) = it (TS.unpack $ TE.decodeUtf8 x) $ parseContentType x `shouldBe` (y, z)
@@ -561,3 +566,63 @@ caseDebugRequestBody = do
 
     {-debugApp = debug $ \req -> do-}
         {-return $ responseLBS status200 [ ] ""-}
+
+urlMapTestApp :: Application
+urlMapTestApp = mapUrls $
+        mount "bugs"     bugsApp
+    <|> mount "helpdesk" helpdeskApp
+    <|> mount "api"
+            (   mount "v1" apiV1
+            <|> mount "v2" apiV2
+            )
+    <|> mountRoot mainApp
+
+  where
+  trivialApp :: S.ByteString -> Application
+  trivialApp name req =
+    return $
+      responseLBS
+        status200
+        [ ("content-type", "text/plain")
+        , ("X-pathInfo",    S8.pack . show . pathInfo $ req)
+        , ("X-rawPathInfo", rawPathInfo req)
+        , ("X-appName",     name)
+        ]
+        ""
+
+  bugsApp     = trivialApp "bugs"
+  helpdeskApp = trivialApp "helpdesk"
+  apiV1       = trivialApp "apiv1"
+  apiV2       = trivialApp "apiv2"
+  mainApp     = trivialApp "main"
+
+casesUrlMap :: [(String, Assertion)]
+casesUrlMap = [pair1, pair2, pair3, pair4]
+  where
+  makePair name session = (name, runSession session urlMapTestApp)
+  get reqPath = request $ setPath defaultRequest reqPath
+  s = S8.pack . show :: [TS.Text] -> S.ByteString
+
+  pair1 = makePair "should mount root" $ do
+    res1 <- get "/"
+    assertStatus 200 res1
+    assertHeader "X-rawPathInfo" "/"      res1
+    assertHeader "X-pathInfo"    (s []) res1
+    assertHeader "X-appName"     "main"   res1
+
+  pair2 = makePair "should mount apps" $ do
+    res2 <- get "/bugs"
+    assertStatus 200 res2
+    assertHeader "X-rawPathInfo" "/"      res2
+    assertHeader "X-pathInfo"    (s []) res2
+    assertHeader "X-appName"     "bugs"   res2
+
+  pair3 = makePair "should preserve extra path info" $ do
+    res3 <- get "/helpdesk/issues/11"
+    assertStatus 200 res3
+    assertHeader "X-rawPathInfo" "/issues/11"         res3
+    assertHeader "X-pathInfo"    (s ["issues", "11"]) res3
+
+  pair4 = makePair "should 500 if none match" $ do
+    res4 <- get "/api/v3"
+    assertStatus 500 res4
