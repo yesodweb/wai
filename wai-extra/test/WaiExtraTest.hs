@@ -606,16 +606,16 @@ casesUrlMap = [pair1, pair2, pair3, pair4]
   pair1 = makePair "should mount root" $ do
     res1 <- get "/"
     assertStatus 200 res1
-    assertHeader "X-rawPathInfo" "/"      res1
+    assertHeader "X-rawPathInfo" "/"    res1
     assertHeader "X-pathInfo"    (s []) res1
-    assertHeader "X-appName"     "main"   res1
+    assertHeader "X-appName"     "main" res1
 
   pair2 = makePair "should mount apps" $ do
     res2 <- get "/bugs"
     assertStatus 200 res2
-    assertHeader "X-rawPathInfo" "/"      res2
+    assertHeader "X-rawPathInfo" "/"    res2
     assertHeader "X-pathInfo"    (s []) res2
-    assertHeader "X-appName"     "bugs"   res2
+    assertHeader "X-appName"     "bugs" res2
 
   pair3 = makePair "should preserve extra path info" $ do
     res3 <- get "/helpdesk/issues/11"
