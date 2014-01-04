@@ -1,8 +1,23 @@
 {-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances #-}
+{- | This module gives you a way to mount applications under sub-URIs.
+For example:
+
+> myApp :: Application
+> myApp = mapUrls $
+>       mount "bugs"     bugsApp
+>   <|> mount "helpdesk" helpdeskApp
+>   <|> mount "api"
+>           (   mount "v1" apiV1
+>           <|> mount "v2" apiV2
+>           )
+>   <|> mountRoot mainApp
+
+-}
 module Network.Wai.UrlMap (
+    UrlMap',
     UrlMap,
-    mount,
     mount',
+    mount,
     mountRoot,
     mapUrls
 ) where
@@ -34,17 +49,19 @@ instance Alternative UrlMap' where
 
 type UrlMap = UrlMap' Application
 
--- | Mount an application under a given path.
+-- | Mount an application under a given path. The ToApplication typeclass gives
+-- you the option to pass either an 'Network.Wai.Application' or an 'UrlMap'
+-- as the second argument.
 mount' :: ToApplication a => Path -> a -> UrlMap
 mount' prefix thing = UrlMap' [(prefix, toApplication thing)]
 
--- A little helper function, since most of the time, apps are mounted under
--- a single path segment.
+-- | A convenience function like mount', but for mounting things under a single
+-- path segment.
 mount :: ToApplication a => Text -> a -> UrlMap
 mount prefix thing = mount' [prefix] thing
 
--- Another little helper function. Use this for the last mounted
--- application in the block, to avoid 500 errors from none matching.
+-- | Mount something at the root. Use this for the last application in the
+-- block, to avoid 500 errors from none of the applications matching.
 mountRoot :: ToApplication a => a -> UrlMap
 mountRoot = mount' []
 
