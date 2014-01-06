@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Response (
     sendResponse
@@ -24,7 +25,11 @@ import Data.Conduit.Blaze (unsafeBuilderToByteString)
 import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Maybe (isJust, listToMaybe)
+#if MIN_VERSION_base(4,5,0)
+import Data.Monoid ((<>))
+#else
 import Data.Monoid (mappend)
+#endif
 import Data.Version (showVersion)
 import Network.HTTP.Attoparsec (parseByteRanges)
 import qualified Network.HTTP.Types as H
@@ -38,6 +43,11 @@ import Network.Wai.Internal
 import Numeric (showInt)
 import qualified Paths_warp
 import qualified System.PosixCompat.Files as P
+
+#if !MIN_VERSION_base(4,5,0)
+(<>) :: Monoid m => m -> m -> m
+(<>) = mappend
+#endif
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -199,13 +209,13 @@ sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
 
 ----------------------------------------------------------------
 
-sendRsp conn ver s hs (RspBuilder b needsChunked) = do
+sendRsp conn ver s hs (RspBuilder body needsChunked) = do
     header <- composeHeaderBuilder ver s hs needsChunked
-    let body
-         | needsChunked = header `mappend` chunkedTransferEncoding b
-                                 `mappend` chunkedTransferTerminator
-         | otherwise    = header `mappend` b
-    flip toByteStringIO body $ \bs -> connSendAll conn bs
+    let hdrBdy
+         | needsChunked = header <> chunkedTransferEncoding body
+                                 <> chunkedTransferTerminator
+         | otherwise    = header <> body
+    flip toByteStringIO hdrBdy $ connSendAll conn
 
 ----------------------------------------------------------------
 
