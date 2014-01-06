@@ -7,9 +7,10 @@ import Foreign.Marshal.Alloc (mallocBytes, free)
 import Foreign.Ptr (Ptr, plusPtr)
 
 type Buffer = Ptr Word8
+type BufSize = Int
 
 -- FIXME come up with good values here
-bufferSize :: Int
+bufferSize :: BufSize
 bufferSize = 4096
 
 allocateBuffer :: Int -> IO Buffer
@@ -18,7 +19,7 @@ allocateBuffer = mallocBytes
 freeBuffer :: Buffer -> IO ()
 freeBuffer = free
 
-toBlazeBuffer :: Buffer -> Int -> IO B.Buffer
+toBlazeBuffer :: Buffer -> BufSize -> IO B.Buffer
 toBlazeBuffer ptr size = do
     fptr <- newForeignPtr_ ptr
     return $ B.Buffer fptr ptr ptr (ptr `plusPtr` size)

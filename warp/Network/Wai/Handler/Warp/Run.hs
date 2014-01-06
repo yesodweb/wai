@@ -45,14 +45,14 @@ import Network.Socket (fdSocket)
 socketConnection :: Socket -> IO Connection
 socketConnection s = do
     buf <- allocateBuffer bufferSize
-    blazeBuf <- toBlazeBuffer buf bufferSize
     return Connection {
         connSendMany = Sock.sendMany s
       , connSendAll = Sock.sendAll s
       , connSendFile = defaultSendFile s
       , connClose = sClose s >> freeBuffer buf
       , connRecv = receive s buf bufferSize
-      , connBuffer = blazeBuf
+      , connBuffer = buf
+      , connBufferSize = bufferSize
       , connSendFileOverride = Override s
       }
 

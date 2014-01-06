@@ -59,6 +59,7 @@ Library
                      Network.Wai.Handler.Warp.Date
                      Network.Wai.Handler.Warp.FdCache
                      Network.Wai.Handler.Warp.Header
+                     Network.Wai.Handler.Warp.IO
                      Network.Wai.Handler.Warp.IORef
                      Network.Wai.Handler.Warp.ReadInt
                      Network.Wai.Handler.Warp.Recv

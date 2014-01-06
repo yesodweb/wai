@@ -11,7 +11,7 @@ module Network.Wai.Handler.Warp.Response (
   , defaultServerValue
   ) where
 
-import Blaze.ByteString.Builder (fromByteString, Builder, toByteStringIO, flush)
+import Blaze.ByteString.Builder (fromByteString, Builder, flush)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 import Control.Applicative
 import Control.Exception
@@ -36,6 +36,8 @@ import qualified Network.HTTP.Types as H
 import Network.Wai
 import qualified Network.Wai.Handler.Warp.Date as D
 import Network.Wai.Handler.Warp.Header
+import Network.Wai.Handler.Warp.Buffer (toBlazeBuffer)
+import Network.Wai.Handler.Warp.IO (toBufIOWith)
 import Network.Wai.Handler.Warp.ResponseHeader
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
@@ -215,14 +217,16 @@ sendRsp conn ver s hs (RspBuilder body needsChunked) = do
          | needsChunked = header <> chunkedTransferEncoding body
                                  <> chunkedTransferTerminator
          | otherwise    = header <> body
-    flip toByteStringIO hdrBdy $ connSendAll conn
+        buffer = connBuffer conn
+        size = connBufferSize conn
+    toBufIOWith buffer size (connSendAll conn) hdrBdy
 
 ----------------------------------------------------------------
 
 sendRsp conn ver s hs (RspSource withBodyFlush needsChunked th) = withBodyFlush $ \bodyFlush -> do
     header <- composeHeaderBuilder ver s hs needsChunked
     let src = yield header >> cbody bodyFlush
-        buffer = connBuffer conn
+    buffer <- toBlazeBuffer (connBuffer conn) (connBufferSize conn)
     src $$ unsafeBuilderToByteString (return buffer) =$ connSink conn th
   where
     cbody bodyFlush = if needsChunked then body $= chunk else body
