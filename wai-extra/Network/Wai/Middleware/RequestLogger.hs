@@ -177,12 +177,13 @@ detailedMiddleware cb useColors = do
                     return $ ansiColor color
             else return (return return)
     return $ detailedMiddleware' cb getAddColor
-  where
-    ansiColor color bs = [
-        pack $ setSGRCode [SetColor Foreground Vivid color]
-      , bs
-      , pack $ setSGRCode [Reset]
-      ]
+
+ansiColor :: Color -> BS.ByteString -> [BS.ByteString]
+ansiColor color bs = [
+    pack $ setSGRCode [SetColor Foreground Vivid color]
+  , bs
+  , pack $ setSGRCode [Reset]
+  ]
 
 detailedMiddleware' :: Callback
                     -> IO (BS.ByteString -> [BS.ByteString])
@@ -225,14 +226,14 @@ detailedMiddleware' cb getAddColor app req = do
     let getParams = map emptyGetParam $ queryString req
 
     addColor <- getAddColor
+    let accept = fromMaybe "" $ lookup "Accept" $ requestHeaders req
 
     -- log the request immediately.
     liftIO $ cb $ mconcat $ map toLogStr $ addColor (requestMethod req) ++
         [ " "
         , rawPathInfo req
-        , "\n"
-        , "Accept: "
-        , fromMaybe "" $ lookup "Accept" $ requestHeaders req
+        , " | "
+        , accept
         , paramsToBS  "GET " getParams
         , paramsToBS "POST " postParams
         , "\n"
@@ -243,14 +244,14 @@ detailedMiddleware' cb getAddColor app req = do
     -- log the status of the response
     -- this is color coordinated with the request logging
     -- also includes the request path to connect it to the request
-    liftIO $ cb $ mconcat $ map toLogStr $ addColor "Status: " ++ [
-          statusBS rsp
-        , " "
+    liftIO $ cb $ mconcat $ map toLogStr $
+        addColor "Status: " ++ statusBS rsp ++
+        [ " "
         , msgBS rsp
         , ". "
         , rawPathInfo req -- if you need help matching the 2 logging statements
         , "\n"
-      ]
+        ]
     return rsp
   where
     paramsToBS prefix params =
@@ -275,8 +276,12 @@ detailedMiddleware' cb getAddColor app req = do
             (i, _):_ -> Just (i :: Int)
             [] -> Nothing
 
-statusBS :: Response -> BS.ByteString
-statusBS = pack . show . statusCode . responseStatus
+statusBS :: Response -> [BS.ByteString]
+statusBS rsp =
+    if status > 400 then ansiColor Red bs else [bs]
+  where
+    bs = pack $ show status
+    status = statusCode $ responseStatus rsp
 
 msgBS :: Response -> BS.ByteString
 msgBS = statusMessage . responseStatus
