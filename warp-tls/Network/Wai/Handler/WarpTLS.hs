@@ -151,7 +151,6 @@ runTLSSocket TLSSettings {..} set sock app = do
                         gen
                     TLS.handshake ctx
                     buf <- allocateBuffer bufferSize
-                    blazeBuf <- toBlazeBuffer buf bufferSize
                     let conn = Connection
                             { connSendMany = TLS.sendData ctx . L.fromChunks
                             , connSendAll = TLS.sendData ctx . L.fromChunks . return
@@ -171,7 +170,8 @@ runTLSSocket TLSSettings {..} set sock app = do
                                             else return x
                                  in go
                             , connSendFileOverride = NotOverride
-                            , connBuffer = blazeBuf
+                            , connBuffer = buf
+                            , connBufferSize = bufferSize
                             }
                     return conn
                 else
