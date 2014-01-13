@@ -82,7 +82,9 @@ mkRequestLogger RequestLoggerSettings{..} = do
     callback <-
         case destination of
             Handle h -> return $ BS.hPutStr h . logToByteString
-            Logger l -> return $ pushLogStr l
+            Logger l -> return $ \msg -> do
+                pushLogStr l msg
+                flushLogStr l
             Callback c -> return c
     case outputFormat of
         Apache ipsrc -> do
