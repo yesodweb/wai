@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.Wai.Middleware.Vhost (vhost, redirectWWW, redirectTo, redirectLogged) where
+module Network.Wai.Middleware.Vhost (vhost, redirectWWW, redirectTo, redirectToLogged) where
 
 import Network.Wai
 
