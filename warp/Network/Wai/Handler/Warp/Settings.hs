@@ -1,10 +1,14 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Network.Wai.Handler.Warp.Settings where
 
 import Control.Exception
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Conduit
 import Data.Conduit.Network (HostPreference (HostIPv4))
 import GHC.IO.Exception (IOErrorType(..))
+import qualified Network.HTTP.Types as H
 import Network.Wai
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
@@ -21,6 +25,12 @@ data Settings = Settings
     { settingsPort :: Int -- ^ Port to listen on. Default value: 3000
     , settingsHost :: HostPreference -- ^ Default value: HostIPv4
     , settingsOnException :: Maybe Request -> SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
+    , settingsOnExceptionResponse :: SomeException -> Response
+      -- ^ A function to create `Response` when an exception occurs.
+      --
+      -- Default: 500, text/plain, \"Something went wrong\"
+      --
+      -- Since 2.0.3
     , settingsOnOpen :: IO () -- ^ What to do when a connection is open. Default: do nothing.
     , settingsOnClose :: IO ()  -- ^ What to do when a connection is close. Default: do nothing.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
@@ -52,6 +62,7 @@ defaultSettings = Settings
     { settingsPort = 3000
     , settingsHost = HostIPv4
     , settingsOnException = defaultExceptionHandler
+    , settingsOnExceptionResponse = defaultExceptionResponse
     , settingsOnOpen = return ()
     , settingsOnClose = return ()
     , settingsTimeout = 30
@@ -83,3 +94,10 @@ defaultExceptionHandler _ e = throwIO e `catches` handlers
 
     sh :: SomeException -> IO ()
     sh x = hPrint stderr x
+
+defaultExceptionResponse :: SomeException -> Response
+defaultExceptionResponse _ = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
+
+-- | Default implementation of 'settingsOnExceptionResponse' for the debugging purpose. 500, text/plain, a showed exception.
+exceptionResponseForDebug :: SomeException -> Response
+exceptionResponseForDebug e = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] (L8.pack $ "Exception: " ++ show e)

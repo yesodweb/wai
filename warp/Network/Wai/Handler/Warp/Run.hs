@@ -16,7 +16,6 @@ import Data.Conduit.Internal (ResumableSource (..))
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network (bindPort)
 import Network (sClose, Socket)
-import qualified Network.HTTP.Types as H
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
@@ -218,18 +217,21 @@ serveConnection :: Connection
                 -> IO ()
 serveConnection conn ii addr settings app = do
     istatus <- newIORef False
-    recvSendLoop istatus (connSource conn th istatus) `onException` send500 istatus
+    recvSendLoop istatus (connSource conn th istatus) `E.catch` \e -> do
+        sendErrorResponse istatus e
+        throwIO (e :: SomeException)
+
   where
     th = threadHandle ii
 
-    send500 istatus = do
+    sendErrorResponse istatus e = do
         status <- readIORef istatus
         when status $ void $ mask $ \restore ->
-            sendResponse conn ii restore dummyreq defaultIndexRequestHeader internalError
+            sendResponse conn ii restore dummyreq defaultIndexRequestHeader (errorResponse e)
 
     dummyreq = defaultRequest { remoteHost = addr }
 
-    internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
+    errorResponse e = settingsOnExceptionResponse settings e
 
     recvSendLoop istatus fromClient = do
         (req, idxhdr, getSource) <- recvRequest settings conn ii addr fromClient
