@@ -37,7 +37,10 @@ interceptWith opts app req = case lookup "upgrade" (Wai.requestHeaders req) of
         | otherwise                      -> Nothing
     _                                    -> Nothing
     where
-        req' = WS.RequestHead (Wai.rawPathInfo req) (Wai.requestHeaders req) (Wai.isSecure req)
+        req' = WS.RequestHead
+            (Wai.rawPathInfo req `S.append` Wai.rawQueryString req)
+            (Wai.requestHeaders req)
+            (Wai.isSecure req)
 
 --------------------------------------------------------------------------------
 ---- | Internal function to run the WebSocket io-streams using the conduit library
