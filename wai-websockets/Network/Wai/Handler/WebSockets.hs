@@ -38,7 +38,7 @@ interceptWith opts app req = case lookup "upgrade" (Wai.requestHeaders req) of
     _                                    -> Nothing
     where
         req' = WS.RequestHead
-            (Wai.rawPathInfo req `S.append` Wai.rawQueryString req)
+            (Wai.rawPathInfo req `BC.append` Wai.rawQueryString req)
             (Wai.requestHeaders req)
             (Wai.isSecure req)
 
