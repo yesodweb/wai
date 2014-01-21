@@ -79,21 +79,19 @@ instance Default RequestLoggerSettings where
 
 mkRequestLogger :: RequestLoggerSettings -> IO Middleware
 mkRequestLogger RequestLoggerSettings{..} = do
-    callback <-
-        case destination of
-            Handle h -> return $ BS.hPutStr h . logToByteString
-            Logger l -> return $ \msg -> do
-                pushLogStr l msg
-                flushLogStr l
-            Callback c -> return c
+    let (callback, flusher) =
+            case destination of
+                Handle h -> (BS.hPutStr h . logToByteString, return ())
+                Logger l -> (pushLogStr l, flushLogStr l)
+                Callback c -> (c, return ())
     case outputFormat of
         Apache ipsrc -> do
-            getdate <- getDateGetter
+            getdate <- getDateGetter flusher
             apache <- initLogger ipsrc (LogCallback callback (return ())) getdate
             return $ apacheMiddleware apache
         Detailed useColors -> detailedMiddleware callback useColors
         CustomOutputFormat formatter -> do
-            getdate <- getDateGetter
+            getdate <- getDateGetter flusher
             return $ customMiddleware callback getdate formatter
 
 apacheMiddleware :: ApacheLoggerActions -> Middleware

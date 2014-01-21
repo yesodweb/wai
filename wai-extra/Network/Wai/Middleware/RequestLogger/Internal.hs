@@ -9,6 +9,8 @@ module Network.Wai.Middleware.RequestLogger.Internal
 
 import Data.ByteString (ByteString)
 import Network.Wai.Logger (clockDateCacher)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Monad (forever)
 
 #if MIN_VERSION_fast_logger(2, 1, 0)
 import System.Log.FastLogger (LogStr, fromLogStr)
@@ -36,5 +38,12 @@ logToByteString = toByteString . logStrBuilder
 
 #endif
 
-getDateGetter :: IO (IO ByteString)
-getDateGetter = fmap fst clockDateCacher
+getDateGetter :: IO () -- ^ flusher
+              -> IO (IO ByteString)
+getDateGetter flusher = do
+    (getter, updater) <- clockDateCacher
+    _ <- forkIO $ forever $ do
+        threadDelay 1000000
+        updater
+        flusher
+    return getter
