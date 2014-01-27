@@ -33,18 +33,15 @@ import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Control.Exception (bracket, finally, handle)
 import qualified Network.TLS.Extra as TLSExtra
-import qualified Data.Certificate.X509 as X509
 import qualified Data.ByteString as B
-import qualified Data.Certificate.KeyRSA as KeyRSA
 import Data.Conduit.Network (bindPort)
-import Data.Either (rights)
 import Control.Applicative ((<$>))
-import qualified Data.PEM as PEM
 import Data.Conduit.Network (sourceSocket, sinkSocket, acceptSafe)
 import Data.Maybe (fromMaybe)
 import qualified Data.IORef as I
 import Control.Exception (Exception, throwIO)
 import Data.Typeable (Typeable)
+import Data.Default.Class
 import qualified Data.Conduit.Binary as CB
 #if MIN_VERSION_tls(1, 1, 3)
 import qualified Crypto.Random.AESCtr
@@ -100,7 +97,7 @@ defaultTlsSettings = TLSSettings
     { certFile = "certificate.pem"
     , keyFile = "key.pem"
     , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
-    , tlsLogging = TLS.defaultLogging
+    , tlsLogging = def
     , tlsAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
     , tlsCiphers = ciphers
     }
@@ -109,16 +106,16 @@ defaultTlsSettings = TLSSettings
 --   specified 'Socket'.
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket TLSSettings {..} set sock app = do
-    certs   <- readCertificates certFile
-    pk      <- readPrivateKey keyFile
-    let params =
-            TLS.updateServerParams
-                (\sp -> sp { TLS.serverWantClientCert = False }) $
-            TLS.defaultParamsServer
-            { TLS.pAllowedVersions = tlsAllowedVersions
-            , TLS.pCiphers         = tlsCiphers
-            , TLS.pCertificates    = zip certs $ (Just pk):repeat Nothing
-            , TLS.pLogging         = tlsLogging
+    credential <- either error id <$> TLS.credentialLoadX509 certFile keyFile
+    let params = def
+            { TLS.serverWantClientCert = False
+            , TLS.serverSupported = def
+                { TLS.supportedVersions = tlsAllowedVersions
+                , TLS.supportedCiphers  = tlsCiphers
+                }
+            , TLS.serverShared = def
+                { TLS.sharedCredentials = TLS.Credentials [credential]
+                }
             }
     runSettingsConnectionMaker set (getter params) app
   where
@@ -149,6 +146,7 @@ runTLSSocket TLSSettings {..} set sock app = do
                             }
                         params
                         gen
+                    TLS.contextHookSetLogging ctx tlsLogging
                     TLS.handshake ctx
                     buf <- allocateBuffer bufferSize
                     let conn = Connection
@@ -210,24 +208,3 @@ ciphers =
     , TLSExtra.cipher_RC4_128_MD5
     , TLSExtra.cipher_RC4_128_SHA1
     ]
-
-readCertificates :: FilePath -> IO [X509.X509]
-readCertificates filepath = do
-    certs <- rights . parseCerts . PEM.pemParseBS <$> B.readFile filepath
-    case certs of
-        []-> error "no valid certificate found"
-        x -> return x
-    where parseCerts (Right pems) = map (X509.decodeCertificate . L.fromChunks . (:[]) . PEM.pemContent)
-                                  $ filter (flip elem ["CERTIFICATE", "TRUSTED CERTIFICATE"] . PEM.pemName) pems
-          parseCerts (Left err) = error $ "cannot parse PEM file: " ++ err
-
-readPrivateKey :: FilePath -> IO TLS.PrivateKey
-readPrivateKey filepath = do
-    pk <- rights . parseKey . PEM.pemParseBS <$> B.readFile filepath
-    case pk of
-        []    -> error "no valid RSA key found"
-        (x:_) -> return x
-
-    where parseKey (Right pems) = map (fmap (TLS.PrivRSA . snd) . KeyRSA.decodePrivate . L.fromChunks . (:[]) . PEM.pemContent)
-                                $ filter ((== "RSA PRIVATE KEY") . PEM.pemName) pems
-          parseKey (Left err) = error $ "Cannot parse PEM file: " ++ err
