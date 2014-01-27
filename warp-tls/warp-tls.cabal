@@ -1,5 +1,5 @@
 Name:                warp-tls
-Version:             2.0.1
+Version:             2.0.2
 Synopsis:            HTTP over SSL/TLS support for Warp via the TLS package
 License:             MIT
 License-file:        LICENSE
