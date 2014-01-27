@@ -21,7 +21,7 @@ Library
                    , conduit                       >= 0.5      && < 1.1
                    , network-conduit               >= 0.6      && < 1.1
                    , data-default-class            >= 0.0.1
-                   , tls                           >= 1.2
+                   , tls                           >= 1.2.1
                    , network                       >= 2.2.1
                    , cprng-aes                     >= 0.5.0
   Exposed-modules:   Network.Wai.Handler.WarpTLS
