@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             2.0.3.2
+Version:             2.0.3.3
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             MIT
@@ -45,7 +45,7 @@ Library
                    , containers
                    , base64-bytestring
                    , word8
-                   , lifted-base
+                   , lifted-base               >= 0.1.2
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
