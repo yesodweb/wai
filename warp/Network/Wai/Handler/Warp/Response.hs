@@ -31,7 +31,6 @@ import Data.Monoid ((<>))
 import Data.Monoid (mappend)
 #endif
 import Data.Version (showVersion)
-import Network.HTTP.Attoparsec (parseByteRanges)
 import qualified Network.HTTP.Types as H
 import Network.Wai
 import qualified Network.Wai.Handler.Warp.Date as D
@@ -39,6 +38,7 @@ import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Buffer (toBlazeBuffer)
 import Network.Wai.Handler.Warp.IO (toBufIOWith)
 import Network.Wai.Handler.Warp.ResponseHeader
+import Network.Wai.Handler.Warp.RequestHeader (parseByteRanges)
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
