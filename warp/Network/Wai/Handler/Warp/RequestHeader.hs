@@ -1,7 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 
-module Network.Wai.Handler.Warp.RequestHeader (parseHeaderLines) where
+module Network.Wai.Handler.Warp.RequestHeader (
+      parseHeaderLines
+    , parseByteRanges
+    ) where
 
 import Control.Exception (throwIO)
 import Control.Monad (when)
@@ -15,7 +18,9 @@ import Foreign.Ptr (Ptr, plusPtr, minusPtr, nullPtr)
 import Foreign.Storable (peek)
 import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.Types
-
+import qualified Network.HTTP.Types.Header as HH
+import qualified Data.Attoparsec.ByteString.Char8  as A8
+import           Control.Applicative ((<|>), (<$>))
 -- $setup
 -- >>> :set -XOverloadedStrings
 
@@ -149,3 +154,35 @@ parseHeader s =
     let (k, rest) = S.breakByte 58 s -- ':'
         rest' = S.dropWhile (\c -> c == 32 || c == 9) $ S.drop 1 rest
      in (CI.mk k, rest')
+
+byteRangesParser :: A8.Parser HH.ByteRanges
+byteRangesParser = do
+    _ <- A8.string "bytes="
+    br <- range
+    rest <- maybeMoreRanges 
+    return $ br:rest
+    where
+        range = rangeFromTo <|> rangeSuffix
+        rangeFromTo = do
+            f <- A8.decimal
+            _ <- A8.char '-'
+            mt <- Just <$> A8.decimal <|> return Nothing
+            
+            return $ case mt of
+                Just t -> HH.ByteRangeFromTo f t
+                Nothing -> HH.ByteRangeFrom f
+        rangeSuffix = do
+            _ <- A8.char '-'
+            s <- A8.decimal
+            return $ HH.ByteRangeSuffix s
+        maybeMoreRanges = moreRanges <|> return []
+        moreRanges = do
+            _ <- A8.char ','
+            r <- range
+            rest <- maybeMoreRanges
+            return $ r:rest
+       
+parseByteRanges :: S.ByteString -> Maybe HH.ByteRanges
+parseByteRanges bs = case A8.parseOnly byteRangesParser bs of
+    Left _ -> Nothing
+    Right br -> Just br
