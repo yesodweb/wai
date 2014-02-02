@@ -9,7 +9,7 @@ module Network.Wai.Handler.Warp.RequestHeader (
 import Control.Exception (throwIO)
 import Control.Monad (when)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as B (unpack)
+import qualified Data.ByteString.Char8 as B (unpack, readInteger)
 import Data.ByteString.Internal (ByteString(..), memchr)
 import qualified Data.CaseInsensitive as CI
 import Data.Word (Word8)
@@ -19,8 +19,6 @@ import Foreign.Storable (peek)
 import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.Types
 import qualified Network.HTTP.Types.Header as HH
-import qualified Data.Attoparsec.ByteString.Char8  as A8
-import           Control.Applicative ((<|>), (<$>))
 -- $setup
 -- >>> :set -XOverloadedStrings
 
@@ -155,34 +153,30 @@ parseHeader s =
         rest' = S.dropWhile (\c -> c == 32 || c == 9) $ S.drop 1 rest
      in (CI.mk k, rest')
 
-byteRangesParser :: A8.Parser HH.ByteRanges
-byteRangesParser = do
-    _ <- A8.string "bytes="
-    br <- range
-    rest <- maybeMoreRanges 
-    return $ br:rest
-    where
-        range = rangeFromTo <|> rangeSuffix
-        rangeFromTo = do
-            f <- A8.decimal
-            _ <- A8.char '-'
-            mt <- Just <$> A8.decimal <|> return Nothing
-            
-            return $ case mt of
-                Just t -> HH.ByteRangeFromTo f t
-                Nothing -> HH.ByteRangeFrom f
-        rangeSuffix = do
-            _ <- A8.char '-'
-            s <- A8.decimal
-            return $ HH.ByteRangeSuffix s
-        maybeMoreRanges = moreRanges <|> return []
-        moreRanges = do
-            _ <- A8.char ','
-            r <- range
-            rest <- maybeMoreRanges
-            return $ r:rest
-       
 parseByteRanges :: S.ByteString -> Maybe HH.ByteRanges
-parseByteRanges bs = case A8.parseOnly byteRangesParser bs of
-    Left _ -> Nothing
-    Right br -> Just br
+parseByteRanges bs1 = do
+    bs2 <- stripPrefix "bytes=" bs1
+    (r, bs3) <- range bs2
+    ranges (r:) bs3
+  where
+    range bs2 =
+        case stripPrefix "-" bs2 of
+            Just bs3 -> do
+                (i, bs4) <- B.readInteger bs3
+                Just (HH.ByteRangeSuffix i, bs4)
+            Nothing -> do
+                (i, bs3) <- B.readInteger bs2
+                bs4 <- stripPrefix "-" bs3
+                case B.readInteger bs4 of
+                    Nothing -> Just (HH.ByteRangeFrom i, bs4)
+                    Just (j, bs5) -> Just (HH.ByteRangeFromTo i j, bs5)
+    ranges front bs3 =
+        case stripPrefix "," bs3 of
+            Nothing -> Just (front [])
+            Just bs4 -> do
+                (r, bs5) <- range bs4
+                ranges (front . (r:)) bs5
+
+    stripPrefix x y
+        | x `S.isPrefixOf` y = Just (S.drop (S.length x) y)
+        | otherwise = Nothing
