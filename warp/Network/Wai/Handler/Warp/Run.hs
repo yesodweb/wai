@@ -228,7 +228,7 @@ serveConnection conn ii addr settings app =
     internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
     recvSendLoop fromClient = do
-        (req, idxhdr, getSource) <- recvRequest conn ii addr fromClient
+        (req, idxhdr, getSource) <- recvRequest settings conn ii addr fromClient
         case settingsIntercept settings req of
             Nothing -> do
                 -- Let the application run for as long as it wants

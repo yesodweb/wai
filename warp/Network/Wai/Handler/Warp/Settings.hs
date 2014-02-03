@@ -35,6 +35,14 @@ data Settings = Settings
       -- Default: do nothing.
       --
       -- Since 1.3.6
+    , settingsNoParsePath :: Bool
+      -- ^ Perform no parsing on the rawPathInfo.
+      --
+      -- This is useful for writing HTTP proxies.
+      --
+      -- Default: False
+      --
+      -- Since 2.0.3
     }
 
 -- | The default settings for the Warp server. See the individual settings for
@@ -51,6 +59,7 @@ defaultSettings = Settings
     , settingsManager = Nothing
     , settingsFdCacheDuration = 10
     , settingsBeforeMainLoop = return ()
+    , settingsNoParsePath = False
     }
 
 defaultExceptionHandler :: Maybe Request -> SomeException -> IO ()

@@ -36,6 +36,7 @@ module Network.Wai.Handler.Warp (
   , settingsManager
   , settingsFdCacheDuration
   , settingsBeforeMainLoop
+  , settingsNoParsePath
     -- * Data types
   , HostPreference (..)
   , Port

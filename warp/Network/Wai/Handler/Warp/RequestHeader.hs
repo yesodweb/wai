@@ -27,6 +27,7 @@ import qualified Network.HTTP.Types.Header as HH
 parseHeaderLines :: [ByteString]
                  -> IO (H.Method
                        ,ByteString  --  Path
+                       ,ByteString  --  Path, parsed
                        ,ByteString  --  Query
                        ,H.HttpVersion
                        ,H.RequestHeaders
@@ -36,7 +37,7 @@ parseHeaderLines (firstLine:otherLines) = do
     (method, path', query, httpversion) <- parseRequestLine firstLine
     let path = parsePath path'
         hdr = map parseHeader otherLines
-    return (method, path, query, httpversion, hdr)
+    return (method, path', path, query, httpversion, hdr)
 
 ----------------------------------------------------------------
 

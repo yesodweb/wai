@@ -26,6 +26,7 @@ import Network.Wai.Handler.Warp.Conduit
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.RequestHeader
+import Network.Wai.Handler.Warp.Settings (Settings, settingsNoParsePath)
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
@@ -41,7 +42,8 @@ maxTotalHeaderLength = 50 * 1024
 
 -- | Receiving a HTTP request from 'Connection' and parsing its header
 --   to create 'Request'.
-recvRequest :: Connection
+recvRequest :: Settings
+            -> Connection
             -> InternalInfo
             -> SockAddr -- ^ Peer's address.
             -> Source IO ByteString -- ^ Where HTTP request comes from.
@@ -52,9 +54,9 @@ recvRequest :: Connection
             -- 'IndexedHeader' of HTTP request for internal use, and
             -- leftover source (i.e. body and other HTTP reqeusts in HTTP pipelining).
 
-recvRequest conn ii addr src0 = do
+recvRequest settings conn ii addr src0 = do
     (src, hdrlines) <- src0 $$+ headerLines
-    (method, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
+    (method, unparsedPath, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
         expect = idxhdr ! idxExpect
         cl = idxhdr ! idxContentLength
@@ -65,7 +67,7 @@ recvRequest conn ii addr src0 = do
             requestMethod     = method
           , httpVersion       = httpversion
           , pathInfo          = H.decodePathSegments path
-          , rawPathInfo       = path
+          , rawPathInfo       = if settingsNoParsePath settings then unparsedPath else path
           , rawQueryString    = query
           , queryString       = H.parseQuery query
           , requestHeaders    = hdr
