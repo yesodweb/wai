@@ -27,6 +27,7 @@ import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 
 -- Sock.recv first tries to call recvfrom() optimistically.
 -- If EAGAIN returns, it polls incoming data with epoll/kqueue.
@@ -234,19 +235,20 @@ serveConnection :: T.Handle
                 -> Settings
                 -> Cleaner
                 -> Port -> Application -> Connection -> SockAddr-> IO ()
-serveConnection timeoutHandle settings cleaner port app conn remoteHost' =
-    respondOnException settings cleaner conn remoteHost' $
-        runResourceT serveConnection'
+serveConnection timeoutHandle settings cleaner port app conn remoteHost' = do
+    istatus <- newIORef False
+    respondOnException istatus settings cleaner conn remoteHost' $
+        runResourceT (serveConnection' istatus)
   where
     innerRunResourceT
         | settingsResourceTPerRequest settings = lift . runResourceT
         | otherwise = id
     th = threadHandle cleaner
 
-    serveConnection' :: ResourceT IO ()
-    serveConnection' = serveConnection'' $ connSource conn th
+    serveConnection' :: IORef Bool -> ResourceT IO ()
+    serveConnection' istatus = serveConnection'' istatus $ connSource istatus conn th
 
-    serveConnection'' fromClient = do
+    serveConnection'' istatus fromClient = do
         (env, getSource) <- parseRequestInternal conn timeoutHandle port remoteHost' fromClient
         case settingsIntercept settings env of
             Nothing -> do
@@ -256,33 +258,39 @@ serveConnection timeoutHandle settings cleaner port app conn remoteHost' =
                     res <- app env
 
                     liftIO $ T.resume th
+                    writeIORef istatus False
                     sendResponse settings cleaner env conn res
 
                 -- flush the rest of the request body
                 requestBody env $$ CL.sinkNull
                 ResumableSource fromClient' _ <- liftIO getSource
 
-                when keepAlive $ serveConnection'' fromClient'
+                when keepAlive $ serveConnection'' istatus fromClient'
             Just intercept -> do
                 liftIO $ T.pause th
                 ResumableSource fromClient' _ <- liftIO getSource
                 intercept fromClient' conn
 
-respondOnException :: Settings -> Cleaner -> Connection -> SockAddr -> IO () -> IO ()
-respondOnException settings cleaner conn remoteHost' io = io `E.catch` \e@(SomeException _) -> do
-    _ <- runResourceT $ sendResponse settings cleaner blankRequest conn internalError
+respondOnException :: IORef Bool -> Settings -> Cleaner -> Connection -> SockAddr -> IO () -> IO ()
+respondOnException istatus settings cleaner conn remoteHost' io = io `E.catch` \e@(SomeException _) -> do
+    status <- readIORef istatus
+    when status $ do
+        _ <- runResourceT $ sendResponse settings cleaner blankRequest conn internalError
+        return ()
     throwIO e
   where
     blankRequest = Request H.methodGet H.http10 mempty mempty mempty 0 [] False remoteHost' [] [] (return mempty) mempty (KnownLength 0)
     internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
-connSource :: Connection -> T.Handle -> Source (ResourceT IO) ByteString
-connSource Connection { connRecv = recv } th = src
+connSource :: Connection -> T.Handle -> IORef Bool -> Source (ResourceT IO) ByteString
+connSource Connection { connRecv = recv } th istatus = src
   where
     src = do
         bs <- liftIO recv
         unless (S.null bs) $ do
-            when (S.length bs >= 2048) $ liftIO $ T.tickle th
+            liftIO $ do
+                writeIORef istatus True
+                when (S.length bs >= 2048) $ T.tickle th
             yield bs
             src
 
