@@ -31,6 +31,7 @@ import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
@@ -215,19 +216,22 @@ serveConnection :: Connection
                 -> Settings
                 -> Application
                 -> IO ()
-serveConnection conn ii addr settings app =
-    recvSendLoop (connSource conn th) `onException` send500
+serveConnection conn ii addr settings app = do
+    istatus <- newIORef False
+    recvSendLoop istatus (connSource conn th istatus) `onException` send500 istatus
   where
     th = threadHandle ii
 
-    send500 = void $ mask $ \restore ->
-        sendResponse conn ii restore dummyreq defaultIndexRequestHeader internalError
+    send500 istatus = do
+        status <- readIORef istatus
+        when status $ void $ mask $ \restore ->
+            sendResponse conn ii restore dummyreq defaultIndexRequestHeader internalError
 
     dummyreq = defaultRequest { remoteHost = addr }
 
     internalError = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
 
-    recvSendLoop fromClient = do
+    recvSendLoop istatus fromClient = do
         (req, idxhdr, getSource) <- recvRequest settings conn ii addr fromClient
         case settingsIntercept settings req of
             Nothing -> do
@@ -240,6 +244,7 @@ serveConnection conn ii addr settings app =
                 keepAlive <- mask $ \restore -> do
                     res <- restore $ app req
                     T.resume th
+                    writeIORef istatus False
                     sendResponse conn ii restore req idxhdr res
 
                 -- We just send a Response and it takes a time to
@@ -255,19 +260,21 @@ serveConnection conn ii addr settings app =
                 requestBody req $$ CL.sinkNull
                 ResumableSource fromClient' _ <- getSource
 
-                when keepAlive $ recvSendLoop fromClient'
+                when keepAlive $ recvSendLoop istatus fromClient'
             Just intercept -> do
                 T.pause th
                 ResumableSource fromClient' _ <- getSource
                 intercept fromClient' conn
 
-connSource :: Connection -> T.Handle -> Source IO ByteString
-connSource Connection { connRecv = recv } th = src
+connSource :: Connection -> T.Handle -> IORef Bool -> Source IO ByteString
+connSource Connection { connRecv = recv } th istatus = src
   where
     src = do
         bs <- liftIO recv
         unless (S.null bs) $ do
-            when (S.length bs >= 2048) $ liftIO $ T.tickle th
+            liftIO $ do
+                writeIORef istatus True
+                when (S.length bs >= 2048) $ T.tickle th
             yield bs
             src
 
