@@ -246,7 +246,7 @@ serveConnection timeoutHandle settings cleaner port app conn remoteHost' = do
     th = threadHandle cleaner
 
     serveConnection' :: IORef Bool -> ResourceT IO ()
-    serveConnection' istatus = serveConnection'' istatus $ connSource istatus conn th
+    serveConnection' istatus = serveConnection'' istatus $ connSource conn th istatus
 
     serveConnection'' istatus fromClient = do
         (env, getSource) <- parseRequestInternal conn timeoutHandle port remoteHost' fromClient
@@ -257,11 +257,12 @@ serveConnection timeoutHandle settings cleaner port app conn remoteHost' = do
                 keepAlive <- innerRunResourceT $ do
                     res <- app env
 
-                    liftIO $ T.resume th
-                    -- FIXME consider forcing evaluation of the res here to
-                    -- send more meaningful error messages to the user.
-                    -- However, it may affect performance.
-                    writeIORef istatus False
+                    liftIO $ do
+                        T.resume th
+                        -- FIXME consider forcing evaluation of the res here to
+                        -- send more meaningful error messages to the user.
+                        -- However, it may affect performance.
+                        writeIORef istatus False
                     sendResponse settings cleaner env conn res
 
                 -- flush the rest of the request body
