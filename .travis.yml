@@ -1,7 +1,7 @@
 language: haskell
 
 install:
-    - cabal unpack wai-logger-0.3.0
+    - cabal unpack wai-logger
     - cp sources-travis.txt sources.txt
     - cabal install mega-sdist hspec cabal-meta cabal-src
     - cabal-meta install --force-reinstalls

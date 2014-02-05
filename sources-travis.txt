@@ -11,4 +11,4 @@
 ./wai-websockets
 ./wai-eventsource
 ./mime-types
-./wai-logger-0.3.0
+./wai-logger
