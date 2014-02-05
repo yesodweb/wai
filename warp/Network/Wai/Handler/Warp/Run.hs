@@ -258,6 +258,9 @@ serveConnection timeoutHandle settings cleaner port app conn remoteHost' = do
                     res <- app env
 
                     liftIO $ T.resume th
+                    -- FIXME consider forcing evaluation of the res here to
+                    -- send more meaningful error messages to the user.
+                    -- However, it may affect performance.
                     writeIORef istatus False
                     sendResponse settings cleaner env conn res
 
