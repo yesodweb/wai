@@ -244,6 +244,9 @@ serveConnection conn ii addr settings app = do
                 keepAlive <- mask $ \restore -> do
                     res <- restore $ app req
                     T.resume th
+                    -- FIXME consider forcing evaluation of the res here to
+                    -- send more meaningful error messages to the user.
+                    -- However, it may affect performance.
                     writeIORef istatus False
                     sendResponse conn ii restore req idxhdr res
 
