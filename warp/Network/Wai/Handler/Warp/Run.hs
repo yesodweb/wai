@@ -185,7 +185,7 @@ runSettingsConnectionMaker set getConnMaker app = do
                     handle (onE Nothing) .
 
                     -- Call the user-supplied code for connection open and close events
-                    bracket (onOpen addr) (const onClose) $ \goingon ->
+                    bracket (onOpen addr) (const $ onClose addr) $ \goingon ->
 
                     -- Actually serve this connection.
                     -- onnClose above ensures the termination of the connection.
