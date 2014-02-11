@@ -5,7 +5,7 @@
 This module defines a generic web application interface. It is a common
 protocol between web servers and web applications.
 
-The overriding design principles here are performance and generality . To
+The overriding design principles here are performance and generality. To
 address performance, this library is built on top of the conduit and
 blaze-builder packages.  The advantages of conduits over lazy IO have been
 debated elsewhere and so will not be addressed here.  However, helper functions
@@ -36,7 +36,7 @@ include:
 -}
 module Network.Wai
     (
-      -- * Ttypes
+      -- * Types
       Application
     , Middleware
       -- * Request
@@ -194,7 +194,7 @@ type Application = Request -> IO Response
 --
 -- As an example of an alternate type for middleware, suppose you write a
 -- function to load up session information. The session information is simply a
--- string map \[(String, String)\]. A logical type signatures for this middleware
+-- string map \[(String, String)\]. A logical type signature for this middleware
 -- might be:
 --
 -- @ loadSession :: ([(String, String)] -> Application) -> Application @

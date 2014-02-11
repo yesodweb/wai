@@ -66,7 +66,7 @@ allowInterrupt = unblock $ return ()
 run :: Port -> Application -> IO ()
 run p = runSettings defaultSettings { settingsPort = p }
 
--- | Run an 'Applicatoin' with the given 'Settings'.
+-- | Run an 'Application' with the given 'Settings'.
 runSettings :: Settings -> Application -> IO ()
 #if WINDOWS
 runSettings set app = withSocketsDo $ do
