@@ -197,7 +197,10 @@ runSettingsConnectionMaker set getConnMaker app = do
         -- Wait a second hoping that resource will be available.
         threadDelay 1000000
         getConnLoop
-    onE = settingsOnException set
+    onE mreq e =
+        case fromException e of
+            Just (NotEnoughLines []) -> return ()
+            _ -> settingsOnException set mreq e
     onOpen = settingsOnOpen set
     onClose = settingsOnClose set
 

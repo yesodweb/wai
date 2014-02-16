@@ -87,7 +87,7 @@ recvRequest settings conn ii addr src0 = do
 
 headerLines :: Sink ByteString IO [ByteString]
 headerLines =
-    await >>= maybe (throwIO ConnectionClosedByPeer) (push (THStatus 0 id id))
+    await >>= maybe (throwIO (NotEnoughLines [])) (push (THStatus 0 id id))
 
 ----------------------------------------------------------------
 
