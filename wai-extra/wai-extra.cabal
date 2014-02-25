@@ -39,7 +39,7 @@ Library
                    , zlib-conduit              >= 0.5      && < 1.1
                    , blaze-builder-conduit     >= 0.5      && < 1.1
                    , ansi-terminal
-                   , resourcet                 >= 0.3      && < 0.5
+                   , resourcet                 >= 0.4.6    && < 0.5
                    , void                      >= 0.5
                    , stringsearch              >= 0.3      && < 0.4
                    , containers
