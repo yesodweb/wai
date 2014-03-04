@@ -10,7 +10,6 @@ import           Blaze.ByteString.Builder     (Builder)
 import qualified Data.ByteString              as B
 import qualified Data.Conduit                 as C
 import           Data.Text                    (Text)
-import           Data.Typeable                (Typeable)
 #if MIN_VERSION_vault(0,3,0)
 import Data.Vault.Lazy (Vault)
 #else
@@ -22,7 +21,7 @@ import           Network.Socket               (SockAddr)
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
-data Request = Request {
+data RequestM m = Request {
   -- | Request method such as GET.
      requestMethod        :: H.Method
   -- | HTTP version such as 1.1.
@@ -55,7 +54,7 @@ data Request = Request {
   -- | Parsed query string information
   ,  queryString          :: H.Query
   -- | A request body provided as 'Source'.
-  ,  requestBody          :: C.Source IO B.ByteString
+  ,  requestBody          :: C.Source m B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.
   , vault                 :: Vault
   -- | The size of the request body. In the case of a chunked request body, this may be unknown.
@@ -71,7 +70,8 @@ data Request = Request {
   -- Since 2.0.0
   , requestHeaderRange   :: Maybe B.ByteString
   }
-  deriving (Typeable)
+
+type Request = RequestM IO
 
 -- | The strange structure of the third field or ResponseSource is to allow for
 -- exception-safe resource allocation. As an example:
@@ -83,11 +83,12 @@ data Request = Request {
 -- >     (\_ -> f $ do
 -- >         yield $ Chunk $ fromByteString "Hello "
 -- >         yield $ Chunk $ fromByteString "World!")
-data Response
+data ResponseM m
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
-    | ResponseSource H.Status H.ResponseHeaders (forall b. WithSource IO (C.Flush Builder) b)
-  deriving Typeable
+    | ResponseSource H.Status H.ResponseHeaders (forall b. WithSource m (C.Flush Builder) b)
+
+type Response = ResponseM IO
 
 -- | Auxiliary type for 'ResponseSource'.
 type WithSource m a b = (C.Source m a -> m b) -> m b

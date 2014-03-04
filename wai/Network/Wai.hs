@@ -37,10 +37,10 @@ include:
 module Network.Wai
     (
       -- * Types
-      Application
+      Application, ApplicationM
     , Middleware
       -- * Request
-    , Request
+    , RequestM, Request
     , defaultRequest
     , RequestBodyLength (..)
       -- ** Request accessors
@@ -60,16 +60,16 @@ module Network.Wai
     , requestHeaderRange
     , lazyRequestBody
       -- * Response
-    , Response
+    , Response, ResponseM
     , FilePart (..)
     , WithSource
-      -- ** Response composers
+      -- ** ResponseM composers
     , responseFile
     , responseBuilder
     , responseLBS
     , responseSource
     , responseSourceBracket
-      -- * Response accessors
+      -- * ResponseM accessors
     , responseStatus
     , responseHeaders
     , responseToSource
@@ -94,7 +94,7 @@ import qualified System.IO                    as IO
 ----------------------------------------------------------------
 
 -- | Creating 'Response' from a file.
-responseFile :: H.Status -> H.ResponseHeaders -> FilePath -> Maybe FilePart -> Response
+responseFile :: H.Status -> H.ResponseHeaders -> FilePath -> Maybe FilePart -> ResponseM m
 responseFile = ResponseFile
 
 -- | Creating 'Response' from 'Builder'.
@@ -120,16 +120,16 @@ responseFile = ResponseFile
 --
 -- A3. You can force blaze-builder to output a ByteString before it is an
 -- optimal size by sending a flush command.
-responseBuilder :: H.Status -> H.ResponseHeaders -> Builder -> Response
+responseBuilder :: H.Status -> H.ResponseHeaders -> Builder -> ResponseM m
 responseBuilder = ResponseBuilder
 
 -- | Creating 'Response' from 'L.ByteString'. This is a wrapper for
 --   'responseBuilder'.
-responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
+responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> ResponseM m
 responseLBS s h = ResponseBuilder s h . fromLazyByteString
 
 -- | Creating 'Response' from 'C.Source'.
-responseSource :: H.Status -> H.ResponseHeaders -> C.Source IO (C.Flush Builder) -> Response
+responseSource :: H.Status -> H.ResponseHeaders -> C.Source m (C.Flush Builder) -> ResponseM m
 responseSource st hs src = ResponseSource st hs ($ src)
 
 -- | Creating 'Response' with allocated resource safely released.
@@ -146,7 +146,7 @@ responseSourceBracket :: IO a
                       -> (a -> IO (H.Status
                                   ,H.ResponseHeaders
                                   ,C.Source IO (C.Flush Builder)))
-                      -> IO Response
+                      -> IO (ResponseM IO)
 responseSourceBracket setup teardown action =
     bracketOnError setup teardown $ \resource -> do
         (st,hdr,src) <- action resource
@@ -156,19 +156,19 @@ responseSourceBracket setup teardown action =
 ----------------------------------------------------------------
 
 -- | Accessing 'H.Status' in 'Response'.
-responseStatus :: Response -> H.Status
+responseStatus :: ResponseM m -> H.Status
 responseStatus (ResponseFile    s _ _ _) = s
 responseStatus (ResponseBuilder s _ _  ) = s
 responseStatus (ResponseSource  s _ _  ) = s
 
 -- | Accessing 'H.Status' in 'Response'.
-responseHeaders :: Response -> H.ResponseHeaders
+responseHeaders :: ResponseM m -> H.ResponseHeaders
 responseHeaders (ResponseFile    _ hs _ _) = hs
 responseHeaders (ResponseBuilder _ hs _  ) = hs
 responseHeaders (ResponseSource  _ hs _  ) = hs
 
 -- | Converting the body information in 'Response' to 'Source'.
-responseToSource :: Response
+responseToSource :: ResponseM IO
                  -> (H.Status, H.ResponseHeaders, WithSource IO (C.Flush Builder) b)
 responseToSource (ResponseSource s h b) = (s, h, b)
 responseToSource (ResponseFile s h fp (Just part)) =
@@ -185,7 +185,9 @@ sourceFilePart handle (FilePart offset count _) =
 ----------------------------------------------------------------
 
 -- | The WAI application.
-type Application = Request -> IO Response
+type ApplicationM m = RequestM m -> m (ResponseM m)
+
+type Application = ApplicationM IO
 
 -- | Middleware is a component that sits between the server and application. It
 -- can do such tasks as GZIP encoding or response caching. What follows is the
@@ -194,19 +196,21 @@ type Application = Request -> IO Response
 --
 -- As an example of an alternate type for middleware, suppose you write a
 -- function to load up session information. The session information is simply a
--- string map \[(String, String)\]. A logical type signature for this middleware
+-- string map \[(String, String)\]. A logical type signatures for this middleware
 -- might be:
 --
 -- @ loadSession :: ([(String, String)] -> Application) -> Application @
 --
 -- Here, instead of taking a standard 'Application' as its first argument, the
 -- middleware takes a function which consumes the session information as well.
-type Middleware = Application -> Application
+type MiddlewareM m = ApplicationM m -> ApplicationM m
+
+type Middleware = MiddlewareM IO
 
 -- | A default, blank request.
 --
 -- Since 2.0.0
-defaultRequest :: Request
+defaultRequest :: Monad m => RequestM m
 defaultRequest = Request
     { requestMethod = H.methodGet
     , httpVersion = H.http10
@@ -228,5 +232,6 @@ defaultRequest = Request
 -- surface, and therefore all typical warnings regarding lazy I/O apply.
 --
 -- Since 1.4.1
-lazyRequestBody :: Request -> IO L.ByteString
+lazyRequestBody :: RequestM IO -> IO L.ByteString
 lazyRequestBody = fmap L.fromChunks . lazyConsume . requestBody
+
