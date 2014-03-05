@@ -78,7 +78,7 @@ actual server. For this purpose, we use the simple server provided by
 >     state <- newMVar newServerState
 >     Warp.runSettings Warp.defaultSettings
 >       { Warp.settingsPort = 9160
->       , Warp.settingsIntercept = WaiWS.intercept (application state)
+>       , Warp.settingsIntercept = return . WaiWS.intercept (application state)
 >       } staticApp
 
 > staticApp :: Network.Wai.Application
