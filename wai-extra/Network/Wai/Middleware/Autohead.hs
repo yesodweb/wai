@@ -11,9 +11,10 @@ autohead :: Middleware
 autohead app req
     | requestMethod req == "HEAD" = do
         res <- app req { requestMethod = "GET" }
-        case res of
-            ResponseFile s hs _ _ -> return $ ResponseBuilder s hs mempty
-            ResponseBuilder s hs _ -> return $ ResponseBuilder s hs mempty
-            ResponseSource s hs _ -> return $ ResponseBuilder s hs mempty
+        let go (ResponseFile s hs _ _) = ResponseBuilder s hs mempty
+            go (ResponseBuilder s hs _) = ResponseBuilder s hs mempty
+            go (ResponseSource s hs _) = ResponseBuilder s hs mempty
+            go (ResponseRaw raw r) = ResponseRaw raw (go r)
+        return (go res)
     | otherwise = app req
 

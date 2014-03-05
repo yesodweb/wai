@@ -49,13 +49,15 @@ recvRequest :: Settings
             -> Source IO ByteString -- ^ Where HTTP request comes from.
             -> IO (Request
                   ,IndexedHeader
-                  ,IO (ResumableSource IO ByteString)) -- ^
+                  ,IO (ResumableSource IO ByteString)
+                  ,Maybe ByteString) -- ^
             -- 'Request' passed to 'Application',
-            -- 'IndexedHeader' of HTTP request for internal use, and
-            -- leftover source (i.e. body and other HTTP reqeusts in HTTP pipelining).
+            -- 'IndexedHeader' of HTTP request for internal use,
+            -- leftover source (i.e. body and other HTTP reqeusts in HTTP pipelining),
+            -- leftovers from request header parsing (used for raw responses)
 
 recvRequest settings conn ii addr src0 = do
-    (src, hdrlines) <- src0 $$+ headerLines
+    (src, (leftover', hdrlines)) <- src0 $$+ headerLines
     (method, unparsedPath, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
         expect = idxhdr ! idxExpect
@@ -79,13 +81,13 @@ recvRequest settings conn ii addr src0 = do
           , requestHeaderHost = idxhdr ! idxHost
           , requestHeaderRange = idxhdr ! idxRange
           }
-    return (req, idxhdr, getSource)
+    return (req, idxhdr, getSource, leftover')
   where
     th = threadHandle ii
 
 ----------------------------------------------------------------
 
-headerLines :: Sink ByteString IO [ByteString]
+headerLines :: Sink ByteString IO (Maybe ByteString, [ByteString])
 headerLines =
     await >>= maybe (throwIO (NotEnoughLines [])) (push (THStatus 0 id id))
 
@@ -161,7 +163,7 @@ data THStatus = THStatus
 close :: Sink ByteString IO a
 close = throwIO IncompleteHeaders
 
-push :: THStatus -> ByteString -> Sink ByteString IO [ByteString]
+push :: THStatus -> ByteString -> Sink ByteString IO (Maybe ByteString, [ByteString])
 push (THStatus len lines prepend) bs
         -- Too many bytes
         | len > maxTotalHeaderLength = throwIO OverLargeHeader
@@ -205,7 +207,7 @@ push (THStatus len lines prepend) bs
                                      Just (SU.unsafeDrop start bs)
                                    else
                                      Nothing
-                       in maybe (return ()) leftover rest >> return lines'
+                       in maybe (return ()) leftover rest >> return (rest, lines')
       -- more headers
       | otherwise   = let len' = len + start
                           lines' = lines . (line:)

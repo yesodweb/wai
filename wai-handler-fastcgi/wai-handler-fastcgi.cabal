@@ -15,7 +15,7 @@ description:     Calls out to the libfcgi C library.
 
 library
     build-depends:   base              >= 4           && < 5
-                   , wai               >= 2.0         && < 2.1
+                   , wai               >= 2.0         && < 2.2
                    , wai-extra         >= 2.0         && < 2.1
                    , bytestring        >= 0.9.1.4
     exposed-modules: Network.Wai.Handler.FastCGI

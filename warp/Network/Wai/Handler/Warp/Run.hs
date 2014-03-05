@@ -231,14 +231,14 @@ serveConnection conn ii addr settings app = do
     sendErrorResponse istatus e = do
         status <- readIORef istatus
         when status $ void $ mask $ \restore ->
-            sendResponse conn ii restore dummyreq defaultIndexRequestHeader (errorResponse e)
+            sendResponse conn ii restore dummyreq defaultIndexRequestHeader Nothing (errorResponse e)
 
     dummyreq = defaultRequest { remoteHost = addr }
 
     errorResponse e = settingsOnExceptionResponse settings e
 
     recvSendLoop istatus fromClient = do
-        (req, idxhdr, getSource) <- recvRequest settings conn ii addr fromClient
+        (req, idxhdr, getSource, leftover') <- recvRequest settings conn ii addr fromClient
         intercept' <- settingsIntercept settings req
         case intercept' of
             Nothing -> do
@@ -255,7 +255,7 @@ serveConnection conn ii addr settings app = do
                     -- send more meaningful error messages to the user.
                     -- However, it may affect performance.
                     writeIORef istatus False
-                    sendResponse conn ii restore req idxhdr res
+                    sendResponse conn ii restore req idxhdr leftover' res
 
                 -- We just send a Response and it takes a time to
                 -- receive a Request again. If we immediately call recv,
@@ -266,11 +266,12 @@ serveConnection conn ii addr settings app = do
                 -- This improves performance at least when
                 -- the number of cores is small.
                 Conc.yield
-                -- flush the rest of the request body
-                requestBody req $$ CL.sinkNull
-                ResumableSource fromClient' _ <- getSource
 
-                when keepAlive $ recvSendLoop istatus fromClient'
+                when keepAlive $ do
+                    -- flush the rest of the request body
+                    requestBody req $$ CL.sinkNull
+                    ResumableSource fromClient' _ <- getSource
+                    recvSendLoop istatus fromClient'
             Just intercept -> do
                 T.pause th
                 ResumableSource fromClient' _ <- getSource

@@ -69,6 +69,7 @@ module Network.Wai
     , responseLBS
     , responseSource
     , responseSourceBracket
+    , responseRaw
       -- * Response accessors
     , responseStatus
     , responseHeaders
@@ -153,6 +154,19 @@ responseSourceBracket setup teardown action =
         return $ ResponseSource st hdr $ \f ->
             bracket (return resource) teardown (\_ -> f src)
 
+-- | Create a response for a raw application. This is useful for \"upgrade\"
+-- situations such as WebSockets, where an application requests for the server
+-- to grant it raw network access.
+--
+-- This function requires a backup response to be provided, for the case where
+-- the handler in question does not support such upgrading (e.g., CGI apps).
+--
+-- Since 2.1.0
+responseRaw :: (C.Source IO B.ByteString -> C.Sink B.ByteString IO () -> IO ())
+            -> Response
+            -> Response
+responseRaw = ResponseRaw
+
 ----------------------------------------------------------------
 
 -- | Accessing 'H.Status' in 'Response'.
@@ -160,12 +174,14 @@ responseStatus :: Response -> H.Status
 responseStatus (ResponseFile    s _ _ _) = s
 responseStatus (ResponseBuilder s _ _  ) = s
 responseStatus (ResponseSource  s _ _  ) = s
+responseStatus (ResponseRaw _ res      ) = responseStatus res
 
 -- | Accessing 'H.Status' in 'Response'.
 responseHeaders :: Response -> H.ResponseHeaders
 responseHeaders (ResponseFile    _ hs _ _) = hs
 responseHeaders (ResponseBuilder _ hs _  ) = hs
 responseHeaders (ResponseSource  _ hs _  ) = hs
+responseHeaders (ResponseRaw _ res)        = responseHeaders res
 
 -- | Converting the body information in 'Response' to 'Source'.
 responseToSource :: Response
@@ -177,6 +193,7 @@ responseToSource (ResponseFile s h fp Nothing) =
     (s, h, \f -> IO.withFile fp IO.ReadMode $ \handle -> f $ CB.sourceHandle handle C.$= CL.map (C.Chunk . fromByteString))
 responseToSource (ResponseBuilder s h b) =
     (s, h, ($ CL.sourceList [C.Chunk b]))
+responseToSource (ResponseRaw _ res) = responseToSource res
 
 sourceFilePart :: IO.Handle -> FilePart -> C.Source IO B.ByteString
 sourceFilePart handle (FilePart offset count _) =

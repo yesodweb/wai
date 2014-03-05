@@ -87,6 +87,7 @@ data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
     | ResponseSource H.Status H.ResponseHeaders (forall b. WithSource IO (C.Flush Builder) b)
+    | ResponseRaw (C.Source IO B.ByteString -> C.Sink B.ByteString IO () -> IO ()) Response
   deriving Typeable
 
 -- | Auxiliary type for 'ResponseSource'.

@@ -23,9 +23,9 @@ spec :: Spec
 spec = do
   describe "headerLines" $ do
     it "takes until blank" $
-        blankSafe >>= (`shouldBe` ["foo", "bar", "baz"])
+        blankSafe >>= (`shouldBe` (Nothing, ["foo", "bar", "baz"]))
     it "ignored leading whitespace in bodies" $
-        whiteSafe >>= (`shouldBe` ["foo", "bar", "baz"])
+        whiteSafe >>= (`shouldBe` (Just " hi there", ["foo", "bar", "baz"]))
     it "throws OverLargeHeader when too many" $
         tooMany `shouldThrow` overLargeHeader
     it "throws OverLargeHeader when too large" $

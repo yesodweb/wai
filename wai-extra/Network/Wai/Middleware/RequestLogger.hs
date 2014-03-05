@@ -28,7 +28,6 @@ import Network.Wai (Request(..), Middleware, responseStatus, Response, responseH
 import System.Log.FastLogger
 import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe)
-import Control.Monad.Trans.Resource (withInternalState)
 import Data.Monoid (mconcat)
 
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, getRequestBodyType)

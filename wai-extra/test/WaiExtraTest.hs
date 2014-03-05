@@ -4,7 +4,6 @@ module WaiExtraTest (specs) where
 import Test.Hspec
 import Test.HUnit hiding (Test)
 import Data.Monoid (mappend, mempty)
-import Blaze.ByteString.Builder (toByteString)
 
 import Network.Wai
 import Network.Wai.Test
@@ -19,7 +18,7 @@ import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
 import Control.Arrow
 import Control.Applicative
-import Control.Monad.Trans.Resource (getInternalState, withInternalState, runResourceT)
+import Control.Monad.Trans.Resource (withInternalState, runResourceT)
 
 import Network.Wai.Middleware.Jsonp
 import Network.Wai.Middleware.Gzip

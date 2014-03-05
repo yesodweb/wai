@@ -4,7 +4,9 @@
 -- https://github.com/yesodweb/wai/issues/192
 module Network.Wai.Middleware.RequestLogger.Internal
     ( module Network.Wai.Middleware.RequestLogger.Internal
+#if !MIN_VERSION_fast_logger(2, 1, 0)
     , logToByteString
+#endif
     ) where
 
 import Data.ByteString (ByteString)

@@ -18,9 +18,12 @@ import Control.Exception
 import Control.Monad.IO.Class (liftIO)
 import Data.Array ((!))
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as S
+import Control.Monad (unless)
 import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
+import qualified Data.Conduit.List as CL
 import Data.Conduit.Blaze (unsafeBuilderToByteString)
 import Data.Function (on)
 import Data.List (deleteBy)
@@ -150,9 +153,10 @@ sendResponse :: Connection
              -> (forall a. IO a -> IO a) -- ^ Restore masking state.
              -> Request -- ^ HTTP request.
              -> IndexedHeader -- ^ Indexed header of HTTP request.
+             -> Maybe ByteString -- ^ leftovers from header parsing
              -> Response -- ^ HTTP response including status code and response header.
              -> IO Bool -- ^ Returing True if the connection is persistent.
-sendResponse conn ii restore req reqidxhdr response = restore $ do
+sendResponse conn ii restore req reqidxhdr leftover' response = restore $ do
     hs <- addServerAndDate hs0
     if hasBody s req then do
         sendRsp conn ver s hs rsp
@@ -177,16 +181,19 @@ sendResponse conn ii restore req reqidxhdr response = restore $ do
         ResponseFile _ _ path mPart -> RspFile path mPart mRange (T.tickle th)
         ResponseBuilder _ _ b       -> RspBuilder b needsChunked
         ResponseSource _ _ fb       -> RspSource fb needsChunked th
+        ResponseRaw raw _           -> RspRaw raw leftover'
     ret = case response of
         ResponseFile _ _ _ _  -> isPersist
         ResponseBuilder _ _ _ -> isKeepAlive
         ResponseSource _ _ _  -> isKeepAlive
+        ResponseRaw _ _       -> False
 
 ----------------------------------------------------------------
 
 data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) (IO ())
          | RspBuilder Builder Bool
          | RspSource (forall b. WithSource IO (Flush Builder) b) Bool T.Handle
+         | RspRaw (Source IO ByteString -> Sink ByteString IO () -> IO ()) (Maybe ByteString)
 
 ----------------------------------------------------------------
 
@@ -237,6 +244,20 @@ sendRsp conn ver s hs (RspSource withBodyFlush needsChunked th) = withBodyFlush 
                bodyFlush
     chunk :: Conduit Builder IO Builder
     chunk = await >>= maybe (yield chunkedTransferTerminator) (\x -> yield (chunkedTransferEncoding x) >> chunk)
+
+----------------------------------------------------------------
+
+sendRsp conn _ _ _ (RspRaw app mbs) =
+    app src sink
+  where
+    sink = CL.mapM_ (connSendAll conn)
+    src = do
+        maybe (return ()) yield mbs
+        loop
+      where
+        loop = do
+            bs <- liftIO $ connRecv conn
+            unless (S.null bs) $ yield bs >> loop
 
 ----------------------------------------------------------------
 

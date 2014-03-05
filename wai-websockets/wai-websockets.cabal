@@ -1,5 +1,5 @@
 Name:                wai-websockets
-Version:             2.0.1
+Version:             2.1.0
 Synopsis:            Provide a bridge betweeen WAI and the websockets package.
 License:             MIT
 License-file:        LICENSE
@@ -20,14 +20,14 @@ Library
   Build-Depends:     base               >= 3        && < 5
                    , bytestring         >= 0.9.1.4
                    , conduit            >= 0.5      && < 1.1
-                   , wai                >= 2.0      && < 2.1
+                   , wai                >= 2.1      && < 2.2
                    , blaze-builder      >= 0.2.1.4  && < 0.4
                    , case-insensitive   >= 0.2
                    , network            >= 2.2.1.5
                    , transformers       >= 0.2      && < 0.4
                    , websockets         >= 0.8
-                   , warp               >= 2.0      && < 2.2
                    , io-streams         >= 1.1      && < 1.2
+                   , http-types
   Exposed-modules:   Network.Wai.Handler.WebSockets
   ghc-options:       -Wall
 
@@ -51,6 +51,7 @@ Executable           wai-websockets-example
                    , text
                    , file-embed
                    , io-streams
+                   , http-types
 
   ghc-options:       -Wall -threaded
   main-is:           server.lhs

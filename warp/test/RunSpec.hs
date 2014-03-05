@@ -11,7 +11,7 @@ import Data.ByteString (ByteString, hPutStr, hGetSome)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
-import Data.Conduit (($$))
+import Data.Conduit (($$), (=$))
 import qualified Data.Conduit.List
 import qualified Data.IORef as I
 import Network (connectTo, PortID (PortNumber))
@@ -293,3 +293,20 @@ spec = do
                 threadDelay 5000000
                 front <- I.readIORef ifront
                 S.concat (front []) `shouldBe` bs
+    describe "raw body" $ do
+        it "works" $ do
+            let app _req = do
+                    let backup = responseLBS status200 [] "Not raw"
+                    return $ flip responseRaw backup $ \src sink ->
+                        src
+                            $$ Data.Conduit.List.map doubleBS
+                            =$ sink
+                doubleBS = S.concatMap $ \w -> S.pack [w, w]
+            withApp defaultSettings app $ \port -> do
+                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                hPutStr handle "POST / HTTP/1.1\r\n\r\n12345"
+                hFlush handle
+                timeout 100000 (S.hGet handle 10) >>= (`shouldBe` Just "1122334455")
+                hPutStr handle "67890"
+                hFlush handle
+                timeout 100000 (S.hGet handle 10) >>= (`shouldBe` Just "6677889900")
