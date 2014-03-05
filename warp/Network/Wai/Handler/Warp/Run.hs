@@ -239,7 +239,8 @@ serveConnection conn ii addr settings app = do
 
     recvSendLoop istatus fromClient = do
         (req, idxhdr, getSource) <- recvRequest settings conn ii addr fromClient
-        case settingsIntercept settings req of
+        intercept' <- settingsIntercept settings req
+        case intercept' of
             Nothing -> do
                 -- Let the application run for as long as it wants
                 T.pause th

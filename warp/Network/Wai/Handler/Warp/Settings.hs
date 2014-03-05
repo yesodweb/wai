@@ -35,7 +35,7 @@ data Settings = Settings
     , settingsOnOpen :: SockAddr -> IO Bool -- ^ What to do when a connection is open. When 'False' is returned, the connection is closed immediately. Otherwise, the connection is going on. Default: always returns 'True'.
     , settingsOnClose :: SockAddr -> IO ()  -- ^ What to do when a connection is close. Default: do nothing.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
-    , settingsIntercept :: Request -> Maybe (Source IO S.ByteString -> Connection -> IO ())
+    , settingsIntercept :: Request -> IO (Maybe (Source IO S.ByteString -> Connection -> IO ()))
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     , settingsFdCacheDuration :: Int -- ^ Cache duratoin time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 10
     , settingsBeforeMainLoop :: IO ()
@@ -67,7 +67,7 @@ defaultSettings = Settings
     , settingsOnOpen = const $ return True
     , settingsOnClose = const $ return ()
     , settingsTimeout = 30
-    , settingsIntercept = const Nothing
+    , settingsIntercept = const (return Nothing)
     , settingsManager = Nothing
     , settingsFdCacheDuration = 10
     , settingsBeforeMainLoop = return ()
