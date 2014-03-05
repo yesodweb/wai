@@ -9,6 +9,7 @@ import Data.Conduit
 import Data.Conduit.Network (HostPreference (HostIPv4))
 import GHC.IO.Exception (IOErrorType(..))
 import qualified Network.HTTP.Types as H
+import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
@@ -31,8 +32,8 @@ data Settings = Settings
       -- Default: 500, text/plain, \"Something went wrong\"
       --
       -- Since 2.0.3
-    , settingsOnOpen :: IO () -- ^ What to do when a connection is open. Default: do nothing.
-    , settingsOnClose :: IO ()  -- ^ What to do when a connection is close. Default: do nothing.
+    , settingsOnOpen :: SockAddr -> IO Bool -- ^ What to do when a connection is open. When 'False' is returned, the connection is closed immediately. Otherwise, the connection is going on. Default: always returns 'True'.
+    , settingsOnClose :: SockAddr -> IO ()  -- ^ What to do when a connection is close. Default: do nothing.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
     , settingsIntercept :: Request -> Maybe (Source IO S.ByteString -> Connection -> IO ())
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
@@ -63,8 +64,8 @@ defaultSettings = Settings
     , settingsHost = HostIPv4
     , settingsOnException = defaultExceptionHandler
     , settingsOnExceptionResponse = defaultExceptionResponse
-    , settingsOnOpen = return ()
-    , settingsOnClose = return ()
+    , settingsOnOpen = const $ return True
+    , settingsOnClose = const $ return ()
     , settingsTimeout = 30
     , settingsIntercept = const Nothing
     , settingsManager = Nothing

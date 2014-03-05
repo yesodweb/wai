@@ -185,10 +185,11 @@ runSettingsConnectionMaker set getConnMaker app = do
                     handle (onE Nothing) .
 
                     -- Call the user-supplied code for connection open and close events
-                    bracket_ onOpen onClose $
+                    bracket (onOpen addr) (const $ onClose addr) $ \goingon ->
 
                     -- Actually serve this connection.
-                    serveConnection conn ii addr set app
+                    -- onnClose above ensures the termination of the connection.
+                    when goingon $ serveConnection conn ii addr set app
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
     getConnLoop = getConnMaker `E.catch` \(e :: IOException) -> do
