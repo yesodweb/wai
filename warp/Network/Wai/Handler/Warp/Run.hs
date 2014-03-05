@@ -271,6 +271,7 @@ serveConnection conn ii addr settings app = do
                     -- flush the rest of the request body
                     requestBody req $$ CL.sinkNull
                     ResumableSource fromClient' _ <- getSource
+                    T.resume th
                     recvSendLoop istatus fromClient'
             Just intercept -> do
                 T.pause th
