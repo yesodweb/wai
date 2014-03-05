@@ -54,6 +54,7 @@ Library
   Exposed-modules:   Network.Wai.Handler.Warp
                      Network.Wai.Handler.Warp.Buffer
                      Network.Wai.Handler.Warp.Timeout
+                     Network.Wai.Handler.Warp.Internal
   Other-modules:     Network.Wai.Handler.Warp.Conduit
                      Network.Wai.Handler.Warp.Date
                      Network.Wai.Handler.Warp.FdCache
