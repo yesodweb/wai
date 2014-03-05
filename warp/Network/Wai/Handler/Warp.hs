@@ -38,6 +38,19 @@ module Network.Wai.Handler.Warp (
   , settingsFdCacheDuration
   , settingsBeforeMainLoop
   , settingsNoParsePath
+    -- ** Setters
+  , setPort
+  , setHost
+  , setOnException
+  , setOnExceptionResponse
+  , setOnOpen
+  , setOnClose
+  , setTimeout
+  , setIntercept
+  , setManager
+  , setFdCacheDuration
+  , setBeforeMainLoop
+  , setNoParsePath
     -- ** Debugging
   , exceptionResponseForDebug
     -- * Data types
@@ -77,3 +90,16 @@ import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
+
+setPort x y = y { settingsPort = x }
+setHost x y = y { settingsHost = x }
+setOnException x y = y { settingsOnException = x }
+setOnExceptionResponse x y = y { settingsOnExceptionResponse = x }
+setOnOpen x y = y { settingsOnOpen = x }
+setOnClose x y = y { settingsOnClose = x }
+setTimeout x y = y { settingsTimeout = x }
+setIntercept x y = y { settingsIntercept = x }
+setManager x y = y { settingsManager = x }
+setFdCacheDuration x y = y { settingsFdCacheDuration = x }
+setBeforeMainLoop x y = y { settingsBeforeMainLoop = x }
+setNoParsePath x y = y { settingsNoParsePath = x }
