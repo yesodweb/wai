@@ -2,6 +2,9 @@
 module Network.Wai.Handler.WebSockets
     ( websocketsApp
     , websocketsOr
+    , isWebSocketsReq
+    , getRequestHead
+    , runWebSockets
     ) where
 
 import              Data.ByteString                 (ByteString)
@@ -15,6 +18,11 @@ import qualified    Network.WebSockets              as WS
 import qualified    Network.WebSockets.Connection   as WS
 import              System.IO.Streams               (InputStream, OutputStream)
 import qualified    System.IO.Streams               as Streams
+
+--------------------------------------------------------------------------------
+isWebSocketsReq :: Wai.Request -> Bool
+isWebSocketsReq req =
+    fmap CI.mk (lookup "upgrade" $ Wai.requestHeaders req) == Just "websocket"
 
 --------------------------------------------------------------------------------
 websocketsOr :: WS.ConnectionOptions
@@ -32,26 +40,30 @@ websocketsApp :: WS.ConnectionOptions
               -> Wai.Request
               -> Maybe Wai.Response
 websocketsApp opts app req
-    | fmap CI.mk (lookup "upgrade" $ Wai.requestHeaders req) == Just "websocket" =
+    | isWebSocketsReq req =
         Just $ flip Wai.responseRaw backup $ \src sink ->
             runWebSockets opts req' app src sink
     | otherwise = Nothing
   where
-    req' = WS.RequestHead
-        (Wai.rawPathInfo req `BC.append` Wai.rawQueryString req)
-        (Wai.requestHeaders req)
-        (Wai.isSecure req)
+    req' = getRequestHead req
     backup = Wai.responseLBS status500 [("Content-Type", "text/plain")]
                 "The web application attempted to send a WebSockets response, but WebSockets are not supported by your WAI handler."
+
+--------------------------------------------------------------------------------
+getRequestHead :: Wai.Request -> WS.RequestHead
+getRequestHead req = WS.RequestHead
+    (Wai.rawPathInfo req `BC.append` Wai.rawQueryString req)
+    (Wai.requestHeaders req)
+    (Wai.isSecure req)
 
 --------------------------------------------------------------------------------
 ---- | Internal function to run the WebSocket io-streams using the conduit library
 runWebSockets :: WS.ConnectionOptions
               -> WS.RequestHead
-              -> WS.ServerApp
+              -> (WS.PendingConnection -> IO a)
               -> Source IO ByteString
               -> Sink ByteString IO ()
-              -> IO ()
+              -> IO a
 runWebSockets opts req app src sink = do
 
     is <- srcToInput src
