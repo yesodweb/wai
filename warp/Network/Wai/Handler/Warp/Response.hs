@@ -156,14 +156,14 @@ sendResponse :: Connection
              -> Maybe ByteString -- ^ leftovers from header parsing
              -> Response -- ^ HTTP response including status code and response header.
              -> IO Bool -- ^ Returing True if the connection is persistent.
-sendResponse conn ii restore req reqidxhdr leftover' response = restore $ do
+sendResponse conn ii restore req reqidxhdr leftover' response = do
     hs <- addServerAndDate hs0
     if hasBody s req then do
-        sendRsp conn ver s hs rsp
+        sendRsp conn ver s hs restore rsp
         T.tickle th
         return ret
       else do
-        sendResponseNoBody conn ver s hs response
+        sendResponseNoBody conn ver s hs restore response
         T.tickle th
         return isPersist
   where
@@ -201,12 +201,13 @@ sendRsp :: Connection
         -> H.HttpVersion
         -> H.Status
         -> H.ResponseHeaders
+        -> (forall a. IO a -> IO a) -- ^ restore
         -> Rsp
         -> IO ()
-sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
+sendRsp conn ver s0 hs0 restore (RspFile path mPart mRange hook) = restore $ do
     ex <- fileRange s0 hs path mPart mRange
     case ex of
-        Left _ -> sendRsp conn ver s2 hs2 (RspBuilder body True)
+        Left _ -> sendRsp conn ver s2 hs2 id (RspBuilder body True)
         Right (s, hs1, beg, len) -> do
             lheader <- composeHeader ver s hs1
             connSendFile conn path beg len hook [lheader]
@@ -218,7 +219,7 @@ sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
 
 ----------------------------------------------------------------
 
-sendRsp conn ver s hs (RspBuilder body needsChunked) = do
+sendRsp conn ver s hs restore (RspBuilder body needsChunked) = restore $ do
     header <- composeHeaderBuilder ver s hs needsChunked
     let hdrBdy
          | needsChunked = header <> chunkedTransferEncoding body
@@ -230,7 +231,8 @@ sendRsp conn ver s hs (RspBuilder body needsChunked) = do
 
 ----------------------------------------------------------------
 
-sendRsp conn ver s hs (RspSource withBodyFlush needsChunked th) = withBodyFlush $ \bodyFlush -> do
+sendRsp conn ver s hs restore (RspSource withBodyFlush needsChunked th) =
+  withBodyFlush $ \bodyFlush -> restore $ do
     header <- composeHeaderBuilder ver s hs needsChunked
     let src = yield header >> cbody bodyFlush
     buffer <- toBlazeBuffer (connBuffer conn) (connBufferSize conn)
@@ -247,8 +249,8 @@ sendRsp conn ver s hs (RspSource withBodyFlush needsChunked th) = withBodyFlush 
 
 ----------------------------------------------------------------
 
-sendRsp conn _ _ _ (RspRaw withApp mbs) =
-    withApp $ \app -> app src sink
+sendRsp conn _ _ _ restore (RspRaw withApp mbs) =
+    withApp $ \app -> restore $ app src sink
   where
     sink = CL.mapM_ (connSendAll conn)
     src = do
@@ -265,13 +267,19 @@ sendResponseNoBody :: Connection
                    -> H.HttpVersion
                    -> H.Status
                    -> H.ResponseHeaders
+                   -> (forall a. IO a -> IO a) -- ^ restore
                    -> Response
                    -> IO ()
-sendResponseNoBody conn ver s hs (ResponseSource _ _ withBodyFlush) =
+sendResponseNoBody conn ver s hs restore (ResponseSource _ _ withBodyFlush) =
     withBodyFlush $ \_bodyFlush ->
-       composeHeader ver s hs >>= connSendAll conn
-sendResponseNoBody conn ver s hs _ =
-    composeHeader ver s hs >>= connSendAll conn
+       restore $ composeHeader ver s hs >>= connSendAll conn
+sendResponseNoBody conn ver s hs restore (ResponseRaw withRaw _) =
+    withRaw $ \_raw ->
+       restore $ composeHeader ver s hs >>= connSendAll conn
+sendResponseNoBody conn ver s hs restore ResponseBuilder{} =
+    restore $ composeHeader ver s hs >>= connSendAll conn
+sendResponseNoBody conn ver s hs restore ResponseFile{} =
+    restore $ composeHeader ver s hs >>= connSendAll conn
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
