@@ -545,8 +545,8 @@ caseDebugRequestBody = do
   where
     params = [("foo", "bar"), ("baz", "bin")]
     -- FIXME change back once we include post parameter output in logging postOutput = T.pack $ "POST \nAccept: \nPOST " ++ (show params)
-    postOutput = T.pack $ "POST / | \nStatus: 200 OK. /\n"
-    getOutput params' = T.pack $ "GET /location | \nGET " ++ show params' ++ "\nStatus: 200 OK. /location\n"
+    postOutput = T.pack $ "POST / :: \nStatus: 200 OK. /\n"
+    getOutput params' = T.pack $ "GET /location :: \nGET " ++ show params' ++ "\nStatus: 200 OK. /location\n"
 
     debugApp output' req = do
         iactual <- liftIO $ I.newIORef mempty
