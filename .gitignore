@@ -1,9 +1,9 @@
 dist/
 *.swp
-cabal-dev
-.virthualenv
 *.hi
 *.o
 tarballs/
 /.hsenv
 /.shelly
+.cabal-sandbox/
+cabal.sandbox.config

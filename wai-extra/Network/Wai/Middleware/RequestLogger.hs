@@ -233,7 +233,7 @@ detailedMiddleware' cb getAddColor app req = do
     liftIO $ cb $ mconcat $ map toLogStr $ addColor (requestMethod req) ++
         [ " "
         , rawPathInfo req
-        , " | "
+        , " :: "
         , accept
         , paramsToBS  "GET " getParams
         , paramsToBS "POST " postParams
