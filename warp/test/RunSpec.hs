@@ -86,11 +86,11 @@ withApp :: Settings -> Application -> (Int -> IO a) -> IO a
 withApp settings app f = do
     port <- getPort
     baton <- newEmptyMVar
+    let settings' = setPort port
+                  $ setBeforeMainLoop (putMVar baton ())
+                    settings
     bracket
-        (forkIO $ runSettings settings
-            { settingsPort = port
-            , settingsBeforeMainLoop = putMVar baton ()
-            } app `onException` putMVar baton ())
+        (forkIO $ runSettings settings' app `onException` putMVar baton ())
         killThread
         (const $ takeMVar baton >> f port)
 
@@ -117,9 +117,8 @@ runTerminateTest :: InvalidRequest
                  -> IO ()
 runTerminateTest expected input = do
     ref <- I.newIORef Nothing
-    withApp defaultSettings
-      { settingsOnException = \_ e -> I.writeIORef ref $ Just e
-      } dummyApp $ \port -> do
+    let onExc _ = I.writeIORef ref . Just
+    withApp (setOnException onExc defaultSettings) dummyApp $ \port -> do
         handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
         hPutStr handle input
         hFlush handle
@@ -276,7 +275,7 @@ spec = do
                         I.atomicModifyIORef ifront (\front -> (front . ("threadDelay interrupted":), ()))
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
                     return $ responseLBS status200 [] ""
-            withApp defaultSettings { settingsTimeout = 1 } app $ \port -> do
+            withApp (setTimeout 1 defaultSettings) app $ \port -> do
                 let bs1 = S.replicate 2048 88
                     bs2 = "This is short"
                     bs = S.append bs1 bs2

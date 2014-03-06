@@ -102,3 +102,16 @@ defaultExceptionResponse _ = responseLBS H.internalServerError500 [(H.hContentTy
 -- | Default implementation of 'settingsOnExceptionResponse' for the debugging purpose. 500, text/plain, a showed exception.
 exceptionResponseForDebug :: SomeException -> Response
 exceptionResponseForDebug e = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] (L8.pack $ "Exception: " ++ show e)
+
+{-# DEPRECATED settingsPort "Use setPort instead" #-}
+{-# DEPRECATED settingsHost "Use setHost instead" #-}
+{-# DEPRECATED settingsOnException "Use setOnException instead" #-}
+{-# DEPRECATED settingsOnExceptionResponse "Use setOnExceptionResponse instead" #-}
+{-# DEPRECATED settingsOnOpen "Use setOnOpen instead" #-}
+{-# DEPRECATED settingsOnClose "Use setOnClose instead" #-}
+{-# DEPRECATED settingsTimeout "Use setTimeout instead" #-}
+{-# DEPRECATED settingsIntercept "Use setIntercept instead" #-}
+{-# DEPRECATED settingsManager "Use setManager instead" #-}
+{-# DEPRECATED settingsFdCacheDuration "Use setFdCacheDuration instead" #-}
+{-# DEPRECATED settingsBeforeMainLoop "Use setBeforeMainLoop instead" #-}
+{-# DEPRECATED settingsNoParsePath "Use setNoParsePath instead" #-}

@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 ---------------------------------------------------------
 --
@@ -25,6 +26,19 @@ module Network.Wai.Handler.Warp (
     -- * Settings
   , Settings
   , defaultSettings
+    -- ** Setters
+  , setPort
+  , setHost
+  , setOnException
+  , setOnExceptionResponse
+  , setOnOpen
+  , setOnClose
+  , setTimeout
+  , setIntercept
+  , setManager
+  , setFdCacheDuration
+  , setBeforeMainLoop
+  , setNoParsePath
     -- ** Accessors
     -- | Note: these accessors are deprecated, please use the @set@ versions instead.
   , settingsPort
@@ -39,19 +53,6 @@ module Network.Wai.Handler.Warp (
   , settingsFdCacheDuration
   , settingsBeforeMainLoop
   , settingsNoParsePath
-    -- ** Setters
-  , setPort
-  , setHost
-  , setOnException
-  , setOnExceptionResponse
-  , setOnOpen
-  , setOnClose
-  , setTimeout
-  , setIntercept
-  , setManager
-  , setFdCacheDuration
-  , setBeforeMainLoop
-  , setNoParsePath
     -- ** Debugging
   , exceptionResponseForDebug
     -- * Data types
