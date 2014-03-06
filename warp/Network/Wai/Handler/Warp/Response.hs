@@ -193,7 +193,7 @@ sendResponse conn ii restore req reqidxhdr leftover' response = restore $ do
 data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) (IO ())
          | RspBuilder Builder Bool
          | RspSource (forall b. WithSource IO (Flush Builder) b) Bool T.Handle
-         | RspRaw (Source IO ByteString -> Sink ByteString IO () -> IO ()) (Maybe ByteString)
+         | RspRaw (forall b. WithRawApp b) (Maybe ByteString)
 
 ----------------------------------------------------------------
 
@@ -247,8 +247,8 @@ sendRsp conn ver s hs (RspSource withBodyFlush needsChunked th) = withBodyFlush 
 
 ----------------------------------------------------------------
 
-sendRsp conn _ _ _ (RspRaw app mbs) =
-    app src sink
+sendRsp conn _ _ _ (RspRaw withApp mbs) =
+    withApp $ \app -> app src sink
   where
     sink = CL.mapM_ (connSendAll conn)
     src = do

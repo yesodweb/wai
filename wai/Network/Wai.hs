@@ -161,11 +161,14 @@ responseSourceBracket setup teardown action =
 -- This function requires a backup response to be provided, for the case where
 -- the handler in question does not support such upgrading (e.g., CGI apps).
 --
+-- In the event that you read from the request body before returning a
+-- @responseRaw@, behavior is undefined.
+--
 -- Since 2.1.0
 responseRaw :: (C.Source IO B.ByteString -> C.Sink B.ByteString IO () -> IO ())
             -> Response
             -> Response
-responseRaw = ResponseRaw
+responseRaw rawApp fallback = ResponseRaw ($ rawApp) fallback
 
 ----------------------------------------------------------------
 
