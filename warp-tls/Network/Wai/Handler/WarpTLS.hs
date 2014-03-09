@@ -43,9 +43,7 @@ import Control.Exception (Exception, throwIO)
 import Data.Typeable (Typeable)
 import Data.Default.Class
 import qualified Data.Conduit.Binary as CB
-#if MIN_VERSION_tls(1, 1, 3)
 import qualified Crypto.Random.AESCtr
-#endif
 import Network.Wai.Handler.Warp.Buffer
 
 data TLSSettings = TLSSettings
@@ -132,11 +130,7 @@ runTLSSocket TLSSettings {..} set sock app = do
                     return bs
             if maybe False ((== 0x16) . fst) (firstBS >>= B.uncons)
                 then do
-#if MIN_VERSION_tls(1, 1, 3)
                     gen <- Crypto.Random.AESCtr.makeSystem
-#else
-                    gen <- makeSystem
-#endif
                     ctx <- TLS.contextNew
                         TLS.Backend
                             { TLS.backendFlush = return ()
