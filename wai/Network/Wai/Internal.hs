@@ -11,11 +11,7 @@ import qualified Data.ByteString              as B
 import qualified Data.Conduit                 as C
 import           Data.Text                    (Text)
 import           Data.Typeable                (Typeable)
-#if MIN_VERSION_vault(0,3,0)
 import Data.Vault.Lazy (Vault)
-#else
-import Data.Vault (Vault)
-#endif
 import           Data.Word                    (Word64)
 import qualified Network.HTTP.Types           as H
 import           Network.Socket               (SockAddr)
