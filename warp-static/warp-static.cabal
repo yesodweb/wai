@@ -17,7 +17,7 @@ Executable warp
   Build-depends: base            >= 4                  && < 5
                , warp            >= 2.0                && < 2.2
                , wai-app-static  >= 2.0                && < 2.1
-               , wai-extra       >= 2.0                && < 2.1
+               , wai-extra       >= 2.0                && < 2.2
                , cmdargs         >= 0.6.7
                , directory       >= 1.0
                , containers      >= 0.2
