@@ -181,7 +181,7 @@ sendResponse conn ii restore req reqidxhdr leftover' response = do
         ResponseFile _ _ path mPart -> RspFile path mPart mRange (T.tickle th)
         ResponseBuilder _ _ b       -> RspBuilder b needsChunked
         ResponseSource _ _ fb       -> RspSource fb needsChunked th
-        ResponseRaw raw _           -> RspRaw raw leftover'
+        ResponseRaw raw _           -> RspRaw raw leftover' (T.tickle th)
     ret = case response of
         ResponseFile _ _ _ _  -> isPersist
         ResponseBuilder _ _ _ -> isKeepAlive
@@ -193,7 +193,7 @@ sendResponse conn ii restore req reqidxhdr leftover' response = do
 data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) (IO ())
          | RspBuilder Builder Bool
          | RspSource (forall b. WithSource IO (Flush Builder) b) Bool T.Handle
-         | RspRaw (forall b. WithRawApp b) (Maybe ByteString)
+         | RspRaw (forall b. WithRawApp b) (Maybe ByteString) (IO ())
 
 ----------------------------------------------------------------
 
@@ -249,17 +249,19 @@ sendRsp conn ver s hs restore (RspSource withBodyFlush needsChunked th) =
 
 ----------------------------------------------------------------
 
-sendRsp conn _ _ _ restore (RspRaw withApp mbs) =
+sendRsp conn _ _ _ restore (RspRaw withApp mbs tickle) =
     withApp $ \app -> restore $ app src sink
   where
-    sink = CL.mapM_ (connSendAll conn)
+    sink = CL.mapM_ (\bs -> connSendAll conn bs >> tickle)
     src = do
         maybe (return ()) yield mbs
         loop
       where
         loop = do
             bs <- liftIO $ connRecv conn
-            unless (S.null bs) $ yield bs >> loop
+            unless (S.null bs) $ do
+                liftIO tickle
+                yield bs >> loop
 
 ----------------------------------------------------------------
 
