@@ -77,14 +77,14 @@ getPort = do
     port <- I.atomicModifyIORef nextPort $ \p -> (p + 1, p)
     esocket <- try $ bindPort port HostIPv4
     case esocket of
-        Left (_ :: IOException) -> getPort
+        Left (_ :: IOException) -> RunSpec.getPort
         Right socket -> do
             sClose socket
             return port
 
 withApp :: Settings -> Application -> (Int -> IO a) -> IO a
 withApp settings app f = do
-    port <- getPort
+    port <- RunSpec.getPort
     baton <- newEmptyMVar
     let settings' = setPort port
                   $ setBeforeMainLoop (putMVar baton ())
