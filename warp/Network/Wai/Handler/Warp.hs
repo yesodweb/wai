@@ -39,6 +39,9 @@ module Network.Wai.Handler.Warp (
   , setFdCacheDuration
   , setBeforeMainLoop
   , setNoParsePath
+    -- ** Getters
+  , getPort
+  , getHost
     -- ** Accessors
     -- | Note: these accessors are deprecated, please use the @set@ versions instead.
   , settingsPort
@@ -186,3 +189,15 @@ setBeforeMainLoop x y = y { settingsBeforeMainLoop = x }
 -- Since 2.1.0
 setNoParsePath :: Bool -> Settings -> Settings
 setNoParsePath x y = y { settingsNoParsePath = x }
+
+-- | Get the listening port.
+--
+-- Since 2.1.1
+getPort :: Settings -> Int
+getPort = settingsPort
+
+-- | Get the interface to bind to.
+--
+-- Since 2.1.1
+getHost :: Settings -> HostPreference
+getHost = settingsHost
