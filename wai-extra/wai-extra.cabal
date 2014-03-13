@@ -47,6 +47,11 @@ Library
                    , word8
                    , lifted-base               >= 0.1.2
 
+  if os(windows)
+      cpp-options:   -DWINDOWS
+  else
+      build-depends: unix
+
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Middleware.AcceptOverride
                      Network.Wai.Middleware.Autohead

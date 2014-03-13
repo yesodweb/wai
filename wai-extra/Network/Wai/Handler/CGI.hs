@@ -13,7 +13,6 @@ module Network.Wai.Handler.CGI
 import Network.Wai
 import Network.Wai.Internal
 import Network.Socket (getAddrInfo, addrAddress)
-import System.Environment (getEnvironment)
 import Data.Maybe (fromMaybe)
 import Control.Exception (mask)
 import qualified Data.ByteString.Char8 as B
@@ -34,6 +33,15 @@ import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import Data.Monoid (mappend)
 import Data.Conduit
+
+#if WINDOWS
+import System.Environment (getEnvironment)
+#else
+import qualified System.Posix.Env.ByteString as Env
+
+getEnvironment :: IO [(String, String)]
+getEnvironment = map (B.unpack *** B.unpack) `fmap` Env.getEnvironment
+#endif
 
 safeRead :: Read a => a -> String -> a
 safeRead d s =
