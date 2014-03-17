@@ -12,7 +12,7 @@ data Devel = Devel
 
 main :: IO ()
 main = do
-    Devel p m f <- cmdArgs Devel
+    Devel p m f <- cmdArgs $ Devel
         { port = 3000 &= argPos 0 &= typ "PORT"
         , moduleName = "" &= argPos 1 &= typ "MODULE"
         , function = "" &= argPos 2 &= typ "FUNCTION"
