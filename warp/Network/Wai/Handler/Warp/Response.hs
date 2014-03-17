@@ -119,7 +119,8 @@ checkPartRange fileSize mPart mRange = checkPart mPart mRange
 --   This function does not insert Content-Encoding. It's middleware's
 --   responsibility.
 --
---   The Server header is added if not exist in HTTP response header.
+--   The Date and Server header is added if not exist
+--   in HTTP response header.
 --
 --   There are three basic APIs to create 'Response':
 --
