@@ -25,6 +25,7 @@ import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
 import Control.Exception.Lifted (bracket, try, IOException, onException)
 import Data.Conduit.Network (bindPort)
 import Network.Socket (sClose)
+import qualified Network.HTTP as HTTP
 
 main :: IO ()
 main = hspec spec
@@ -309,3 +310,15 @@ spec = do
                 hPutStr handle "67890"
                 hFlush handle
                 timeout 100000 (S.hGet handle 10) >>= (`shouldBe` Just "6677889900")
+
+    it "only one date and server header" $ do
+        let app _ = return $ responseLBS status200
+                [ ("server", "server")
+                , ("date", "date")
+                ] ""
+        withApp defaultSettings app $ \port -> do
+            Right res <- HTTP.simpleHTTP (HTTP.getRequest $ "http://127.0.0.1:" ++ show port)
+            map HTTP.hdrValue (HTTP.retrieveHeaders HTTP.HdrServer res)
+                `shouldBe` ["server"]
+            map HTTP.hdrValue (HTTP.retrieveHeaders HTTP.HdrDate res)
+                `shouldBe` ["date"]

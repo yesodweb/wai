@@ -173,7 +173,7 @@ sendResponse conn ii restore req reqidxhdr leftover' response = do
     rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
     dc = dateCacher ii
-    addServerAndDate = addDate dc . addServer rspidxhdr
+    addServerAndDate = addDate dc rspidxhdr . addServer rspidxhdr
     mRange = reqidxhdr ! idxRange
     reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
@@ -378,10 +378,12 @@ addContentRange beg end total hdrs = (hContentRange, range) : hdrs
       ( '/'
       : showInt total ""))
 
-addDate :: D.DateCache -> H.ResponseHeaders -> IO H.ResponseHeaders
-addDate dc hdrs = do
-    gmtdate <- D.getDate dc
-    return $ (H.hDate, gmtdate) : hdrs
+addDate :: D.DateCache -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
+addDate dc rspidxhdr hdrs = case rspidxhdr ! idxDate of
+    Nothing -> do
+        gmtdate <- D.getDate dc
+        return $ (H.hDate, gmtdate) : hdrs
+    Just _ -> return hdrs
 
 ----------------------------------------------------------------
 
