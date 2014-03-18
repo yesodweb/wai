@@ -25,9 +25,9 @@ import WaiAppStatic.Listing
 import Network.Mime
 import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime, isRegularFile)
 import Data.Maybe (catMaybes)
-import qualified Crypto.Conduit
-import Data.Serialize (encode)
-import Crypto.Hash.CryptoAPI (MD5)
+import qualified Crypto.Hash.Conduit (hashFile)
+import Data.Byteable (toBytes)
+import Crypto.Hash (MD5, Digest)
 import qualified Data.ByteString.Base64 as B64
 
 -- | Construct a new path from a root and some @Pieces@.
@@ -117,8 +117,8 @@ webAppLookup hashFunc prefix pieces =
 -- exists.
 hashFile :: FilePath -> IO ByteString
 hashFile fp = do
-    h <- Crypto.Conduit.hashFile (F.encodeString fp)
-    return $ B64.encode $ encode (h :: MD5)
+    h <- Crypto.Hash.Conduit.hashFile (F.encodeString fp)
+    return $ B64.encode $ toBytes (h :: Digest MD5)
 
 hashFileIfExists :: ETagLookup
 hashFileIfExists fp = do

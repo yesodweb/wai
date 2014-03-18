@@ -37,15 +37,14 @@ library
                    , text                      >= 0.7
                    , blaze-builder             >= 0.2.1.4
                    , base64-bytestring         >= 0.1
-                   , crypto-api                >= 0.12.2
-                   , cryptohash-cryptoapi      >= 0.1.0
+                   , byteable
+                   , cryptohash                >= 0.11
+                   , cryptohash-conduit        >= 0.1.0
                    , system-filepath           >= 0.4
                    , system-fileio             >= 0.3
                    , http-date
                    , blaze-html                >= 0.5
                    , blaze-markup              >= 0.5.1
-                   , crypto-conduit            >= 0.4
-                   , cereal                    >= 0.3.5
                    , mime-types                >= 0.1      && < 0.2
                    , unordered-containers      >= 0.2
                    , template-haskell          >= 2.7
