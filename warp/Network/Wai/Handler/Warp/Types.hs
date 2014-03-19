@@ -45,7 +45,15 @@ data InvalidRequest = NotEnoughLines [String]
                     | IncompleteHeaders
                     | ConnectionClosedByPeer
                     | OverLargeHeader
-                    deriving (Eq, Show, Typeable)
+                    deriving (Eq, Typeable)
+
+instance Show InvalidRequest where
+    show (NotEnoughLines xs) = "Warp: Incomplete request headers, received: " ++ show xs
+    show (BadFirstLine s) = "Warp: Invalid first line of request: " ++ show s
+    show NonHttp = "Warp: Request line specified a non-HTTP request"
+    show IncompleteHeaders = "Warp: Request headers did not finish transmission"
+    show ConnectionClosedByPeer = "Warp: Client closed connection prematurely"
+    show OverLargeHeader = "Warp: Request headers too large, possible memory attack detected. Closing connection."
 
 instance Exception InvalidRequest
 

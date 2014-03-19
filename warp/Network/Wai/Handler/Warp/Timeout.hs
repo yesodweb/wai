@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE UnboxedTuples, MagicHash #-}
 
 -- |
@@ -46,13 +47,14 @@ import GHC.Conc (ThreadId(..))
 import GHC.Exts (mkWeak#)
 import GHC.IO (IO (IO))
 #endif
-import Control.Concurrent (threadDelay, myThreadId, killThread)
+import Control.Concurrent (threadDelay, myThreadId)
 import qualified Control.Exception as E
 import GHC.Weak (Weak (..))
 import Network.Wai.Handler.Warp.IORef (IORef)
 import qualified Network.Wai.Handler.Warp.IORef as I
 import Network.Wai.Handler.Warp.Thread
 import System.Mem.Weak (deRefWeak)
+import Data.Typeable (Typeable)
 
 ----------------------------------------------------------------
 
@@ -130,7 +132,13 @@ registerKillThread m = do
 -- deRefWeak checks if ThreadId referenced by the weak reference
 -- exists. If exists, it means that the thread is alive.
 killIfExist :: Weak ThreadId -> TimeoutAction
-killIfExist wtid = deRefWeak wtid >>= maybe (return ()) killThread
+killIfExist wtid = deRefWeak wtid >>= maybe (return ()) (flip E.throwTo TimeoutThread)
+
+data TimeoutThread = TimeoutThread
+    deriving Typeable
+instance E.Exception TimeoutThread
+instance Show TimeoutThread where
+    show TimeoutThread = "Thread killed by Warp's timeout reaper"
 
 #if !MIN_VERSION_base(4,6,0)
 mkWeakThreadId :: ThreadId -> IO (Weak ThreadId)
