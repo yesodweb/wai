@@ -48,9 +48,9 @@ parseHeaderLines (firstLine:otherLines) = do
 -- >>> parseRequestLine "POST /cgi/search.cgi?key=foo HTTP/1.0"
 -- ("POST","/cgi/search.cgi","?key=foo",HTTP/1.0)
 -- >>> parseRequestLine "GET "
--- *** Exception: BadFirstLine "GET "
+-- *** Exception: Warp: Invalid first line of request: "GET "
 -- >>> parseRequestLine "GET /NotHTTP UNKNOWN/1.1"
--- *** Exception: NonHttp
+-- *** Exception: Warp: Request line specified a non-HTTP request
 parseRequestLine :: ByteString
                  -> IO (H.Method
                        ,ByteString -- Path
