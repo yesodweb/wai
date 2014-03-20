@@ -1,5 +1,5 @@
 name:            wai-test
-version:         2.0.0.2
+version:         2.0.1
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -23,10 +23,10 @@ library
                    , conduit                   >= 0.5      && < 1.1
                    , blaze-builder-conduit     >= 0.5      && < 1.1
                    , cookie                    >= 0.2      && < 0.5
-                   , HUnit                     >= 1.2      && < 1.3
                    , http-types                >= 0.7
                    , case-insensitive          >= 0.2
                    , network
+                   , deepseq
     exposed-modules: Network.Wai.Test
     ghc-options:     -Wall
 

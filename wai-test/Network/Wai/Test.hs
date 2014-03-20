@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 module Network.Wai.Test
     ( -- * Session
       Session
@@ -19,13 +20,17 @@ module Network.Wai.Test
     , assertBodyContains
     , assertHeader
     , assertNoHeader
+    , WaiTestFailure (..)
     ) where
 
 import Network.Wai
-import qualified Test.HUnit.Base as H
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.State (StateT, evalStateT)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
+import Control.Monad (unless)
+import Control.DeepSeq (deepseq)
+import Control.Exception (throwIO, Exception)
+import Data.Typeable (Typeable)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.ByteString (ByteString)
@@ -108,10 +113,17 @@ runResponse res = do
     toBuilder C.Flush = flush
 
 assertBool :: String -> Bool -> Session ()
-assertBool s b = liftIO $ H.assertBool s b
+assertBool s b = unless b $ assertFailure s
 
 assertString :: String -> Session ()
-assertString s = liftIO $ H.assertString s
+assertString s = unless (null s) $ assertFailure s
+
+assertFailure :: String -> Session ()
+assertFailure msg = msg `deepseq` liftIO (throwIO (WaiTestFailure msg))
+
+data WaiTestFailure = WaiTestFailure String
+    deriving (Show, Eq, Typeable)
+instance Exception WaiTestFailure
 
 assertContentType :: ByteString -> SResponse -> Session ()
 assertContentType ct SResponse{simpleHeaders = h} =
