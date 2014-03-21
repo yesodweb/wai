@@ -1,5 +1,5 @@
 name:            wai-app-static
-version:         2.0.0.4
+version:         2.0.0.5
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -64,6 +64,20 @@ library
 
     if flag(print)
       cpp-options:  -DPRINT
+
+Executable warp
+  Main-is:        warp-static.hs
+  hs-source-dirs: app
+  Build-depends: base            >= 4                  && < 5
+               , warp            >= 2.0                && < 2.2
+               , wai-app-static  >= 2.0                && < 2.1
+               , wai-extra       >= 2.0                && < 2.2
+               , cmdargs         >= 0.6.7
+               , directory       >= 1.0
+               , containers      >= 0.2
+               , bytestring      >= 0.9.1.4
+               , text            >= 0.7
+               , mime-types      >= 0.1                && < 0.2
 
 test-suite runtests
     hs-source-dirs: test
