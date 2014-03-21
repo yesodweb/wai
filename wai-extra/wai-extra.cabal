@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             2.1.0.1
+Version:             2.1.1
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             MIT
@@ -53,6 +53,7 @@ Library
       build-depends: unix
 
   Exposed-modules:   Network.Wai.Handler.CGI
+                     Network.Wai.Handler.SCGI
                      Network.Wai.Middleware.AcceptOverride
                      Network.Wai.Middleware.Autohead
                      Network.Wai.Middleware.CleanPath

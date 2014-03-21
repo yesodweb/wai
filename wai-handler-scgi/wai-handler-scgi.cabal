@@ -1,16 +1,16 @@
 name:            wai-handler-scgi
-version:         2.0.0.1
+version:         2.0.0.2
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
 maintainer:      Michael Snoyman <michael@snoyman.com>
-synopsis:        Wai handler to SCGI
+synopsis:        Wai handler to SCGI (deprecated)
 category:        Web
 stability:       stable
 cabal-version:   >= 1.6
 build-type:      Simple
 homepage:        http://www.yesodweb.com/book/web-application-interface
-description:     Wai handler to SCGI
+description:     Moved to wai-extra
 
 library
     build-depends:   base                >= 4           && < 5
