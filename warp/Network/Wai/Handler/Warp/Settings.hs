@@ -4,6 +4,8 @@ module Network.Wai.Handler.Warp.Settings where
 
 import Control.Exception
 import qualified Data.ByteString as S
+import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Conduit
 import Data.Conduit.Network (HostPreference (HostIPv4))
@@ -77,7 +79,7 @@ defaultSettings = Settings
 defaultExceptionHandler :: Maybe Request -> SomeException -> IO ()
 defaultExceptionHandler _ e = throwIO e `catches` handlers
   where
-    handlers = [Handler ah, Handler ih, Handler oh, Handler sh]
+    handlers = [Handler ah, Handler ih, Handler oh, Handler th, Handler sh]
 
     ah :: AsyncException -> IO ()
     ah ThreadKilled = return ()
@@ -93,8 +95,11 @@ defaultExceptionHandler _ e = throwIO e `catches` handlers
       where
         et = ioeGetErrorType x
 
+    th :: TimeoutThread -> IO ()
+    th TimeoutThread = return ()
+
     sh :: SomeException -> IO ()
-    sh x = hPrint stderr x
+    sh = TIO.hPutStrLn stderr . T.pack . show
 
 defaultExceptionResponse :: SomeException -> Response
 defaultExceptionResponse _ = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"

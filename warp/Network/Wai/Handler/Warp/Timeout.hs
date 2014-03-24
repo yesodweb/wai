@@ -38,6 +38,8 @@ module Network.Wai.Handler.Warp.Timeout (
   , cancel
   , pause
   , resume
+  -- * Exceptions
+  , TimeoutThread (..)
   ) where
 
 #if MIN_VERSION_base(4,6,0)
