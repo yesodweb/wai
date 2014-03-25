@@ -58,6 +58,7 @@ module Network.Wai.Handler.Warp (
   , settingsNoParsePath
     -- ** Debugging
   , exceptionResponseForDebug
+  , defaultShouldDisplayException
     -- * Data types
   , HostPreference (..)
   , Port

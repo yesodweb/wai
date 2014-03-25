@@ -1,8 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, ViewPatterns #-}
 
 module Network.Wai.Handler.Warp.Settings where
 
 import Control.Exception
+import Control.Monad (when)
 import qualified Data.ByteString as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -76,30 +77,24 @@ defaultSettings = Settings
     , settingsNoParsePath = False
     }
 
+-- | Apply the logic provided by 'defaultExceptionHandler' to determine if an
+-- exception should be shown or not. The goal is to hide exceptions which occur
+-- under the normal course of the web server running.
+--
+-- Since 2.1.3
+defaultShouldDisplayException :: SomeException -> Bool
+defaultShouldDisplayException se
+    | Just ThreadKilled <- fromException se = False
+    | Just (_ :: InvalidRequest) <- fromException se = False
+    | Just (ioeGetErrorType -> et) <- fromException se
+        , et == ResourceVanished || et == InvalidArgument = False
+    | Just TimeoutThread <- fromException se = False
+    | otherwise = True
+
 defaultExceptionHandler :: Maybe Request -> SomeException -> IO ()
-defaultExceptionHandler _ e = throwIO e `catches` handlers
-  where
-    handlers = [Handler ah, Handler ih, Handler oh, Handler th, Handler sh]
-
-    ah :: AsyncException -> IO ()
-    ah ThreadKilled = return ()
-    ah x            = hPrint stderr x
-
-    ih :: InvalidRequest -> IO ()
-    ih _ = return ()
-
-    oh :: IOException -> IO ()
-    oh x
-      | et == ResourceVanished || et == InvalidArgument = return ()
-      | otherwise         = hPrint stderr x
-      where
-        et = ioeGetErrorType x
-
-    th :: TimeoutThread -> IO ()
-    th TimeoutThread = return ()
-
-    sh :: SomeException -> IO ()
-    sh = TIO.hPutStrLn stderr . T.pack . show
+defaultExceptionHandler _ e =
+    when (defaultShouldDisplayException e)
+        $ TIO.hPutStrLn stderr $ T.pack $ show e
 
 defaultExceptionResponse :: SomeException -> Response
 defaultExceptionResponse _ = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
