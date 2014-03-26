@@ -1,6 +1,6 @@
 Name:                wai-handler-devel
-Version:             2.0.0.1
-Synopsis:            WAI server that automatically reloads code after modification.
+Version:             2.0.0.2
+Synopsis:            WAI server that automatically reloads code after modification. (deprecated)
 Description:         This handler automatically reloads your source code upon any changes. It works by using the hint package, essentially embedding GHC inside the handler. The handler (both the executable and library) takes three arguments: the port to listen on, the module name containing the application function, and the name of the function.
                      .
                      One major note: the type of the application is most likely not what you expect. A common case for WAI applications is having a withApplication function, and this library assumes this is the case. Therefore, the type signature of your application function must be:
