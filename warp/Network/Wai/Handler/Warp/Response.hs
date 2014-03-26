@@ -66,7 +66,7 @@ mapRight f eith = case eith of
 
 fileRange :: H.Status -> H.ResponseHeaders -> FilePath
            -> Maybe FilePart -> Maybe HeaderValue
-          -> IO (Either SomeException
+          -> IO (Either IOException
                         (H.Status, H.ResponseHeaders, Integer, Integer))
 fileRange s0 hs0 path mPart mRange =
     mapRight (fileRangeSized . fromIntegral . P.fileSize) <$>
