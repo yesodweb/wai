@@ -1,5 +1,5 @@
 name:            wai-app-static
-version:         2.0.0.6
+version:         2.0.1
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -50,12 +50,16 @@ library
                    , template-haskell          >= 2.7
                    , zlib                      >= 0.5
                    , filepath
+                   , wai-extra                 >= 2.0      && < 2.2
+                   , optparse-applicative      >= 0.7
+                   , warp                      >= 2.0      && < 2.2
 
     exposed-modules: Network.Wai.Application.Static
                      WaiAppStatic.Storage.Filesystem
                      WaiAppStatic.Storage.Embedded
                      WaiAppStatic.Listing
                      WaiAppStatic.Types
+                     WaiAppStatic.CmdLine
     other-modules:   Util
                      WaiAppStatic.Storage.Embedded.Runtime
                      WaiAppStatic.Storage.Embedded.TH
@@ -69,15 +73,12 @@ Executable warp
   Main-is:        warp-static.hs
   hs-source-dirs: app
   Build-depends: base            >= 4                  && < 5
-               , warp            >= 2.0                && < 2.2
                , wai-app-static  >= 2.0                && < 2.1
-               , wai-extra       >= 2.0                && < 2.2
                , directory       >= 1.0
                , containers      >= 0.2
                , bytestring      >= 0.9.1.4
                , text            >= 0.7
                , mime-types      >= 0.1                && < 0.2
-               , optparse-applicative >= 0.7
 
 test-suite runtests
     hs-source-dirs: test
