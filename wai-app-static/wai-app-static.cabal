@@ -1,5 +1,5 @@
 name:            wai-app-static
-version:         2.0.0.5
+version:         2.0.0.6
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -72,12 +72,12 @@ Executable warp
                , warp            >= 2.0                && < 2.2
                , wai-app-static  >= 2.0                && < 2.1
                , wai-extra       >= 2.0                && < 2.2
-               , cmdargs         >= 0.6.7
                , directory       >= 1.0
                , containers      >= 0.2
                , bytestring      >= 0.9.1.4
                , text            >= 0.7
                , mime-types      >= 0.1                && < 0.2
+               , optparse-applicative >= 0.7
 
 test-suite runtests
     hs-source-dirs: test
