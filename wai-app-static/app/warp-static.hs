@@ -75,9 +75,6 @@ args = Args
     defIndex [] = ["index.html", "index.htm"]
     defIndex x = x
 
-defaultArgs :: Args
-defaultArgs = Args "." ["index.html", "index.htm"] 3000 False False False [] "*"
-
 main :: IO ()
 main = do
     Args {..} <- execParser $ info (helper <*> args) fullDesc
