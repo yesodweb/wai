@@ -215,9 +215,9 @@ sendRsp :: Connection
 sendRsp conn ver s0 hs0 restore (RspFile path mPart mRange hook) = restore $ do
     ex <- fileRange s0 hs path mPart mRange
     case ex of
-        Left _ex -> do
+        Left _ex ->
 #ifdef WARP_DEBUG
-          print _ex
+          print _ex >>
 #endif
           sendRsp conn ver s2 hs2 id (RspBuilder body True)
         Right (s, hs1, beg, len) -> do
