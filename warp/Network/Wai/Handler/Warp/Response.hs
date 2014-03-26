@@ -57,24 +57,31 @@ import qualified System.PosixCompat.Files as P
 -- $setup
 -- >>> :set -XOverloadedStrings
 
+mapRight :: (b -> c) -> Either a b -> Either a c
+mapRight f eith = case eith of
+    Right x -> Right (f x)
+    Left l -> Left l
+
 ----------------------------------------------------------------
 
 fileRange :: H.Status -> H.ResponseHeaders -> FilePath
            -> Maybe FilePart -> Maybe HeaderValue
           -> IO (Either SomeException
                         (H.Status, H.ResponseHeaders, Integer, Integer))
-fileRange s0 hs0 path mPart mRange = try $ do
-    fileSize <- checkFileSize mPart
-    let (beg, end, len, isEntire) = checkPartRange fileSize mPart mRange
-    let hs1 = addContentLength len hs0
-        hs | isEntire  = hs1
-           | otherwise = addContentRange beg end fileSize hs1
-        s  | isEntire  = s0
-           | otherwise = H.status206
-    return (s, hs, beg, len)
+fileRange s0 hs0 path mPart mRange =
+    mapRight (fileRangeSized . fromIntegral . P.fileSize) <$>
+        try (P.getFileStatus path)
  where
-    checkFileSize Nothing = fromIntegral . P.fileSize <$> P.getFileStatus path
-    checkFileSize (Just part) = return $ filePartFileSize part
+    fileRangeSized :: Integer -> (H.Status, H.ResponseHeaders, Integer, Integer)
+    fileRangeSized fileSize =
+        let (beg, end, len, isEntire) = checkPartRange fileSize mPart mRange
+            hs1 = addContentLength len hs0
+            hs | isEntire  = hs1
+               | otherwise = addContentRange beg end fileSize hs1
+            s  | isEntire  = s0
+               | otherwise = H.status206
+        in  (s, hs, beg, len)
+
 
 checkPartRange :: Integer -> Maybe FilePart -> Maybe HeaderValue
                -> (Integer, Integer, Integer, Bool)
