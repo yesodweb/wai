@@ -85,7 +85,7 @@ fileRange s0 hs0 path mPart mRange =
 
 checkPartRange :: Integer -> Maybe FilePart -> Maybe HeaderValue
                -> (Integer, Integer, Integer, Bool)
-checkPartRange fileSize mPart mRange = checkPart mPart mRange
+checkPartRange fileSize = checkPart
   where
     checkPart Nothing Nothing = (0, fileSize - 1, fileSize, True)
     checkPart Nothing (Just range) = case parseByteRanges range >>= listToMaybe of
@@ -191,10 +191,10 @@ sendResponse conn ii restore req reqidxhdr leftover' response = do
         ResponseSource _ _ fb       -> RspSource fb needsChunked th
         ResponseRaw raw _           -> RspRaw raw leftover' (T.tickle th)
     ret = case response of
-        ResponseFile _ _ _ _  -> isPersist
-        ResponseBuilder _ _ _ -> isKeepAlive
-        ResponseSource _ _ _  -> isKeepAlive
-        ResponseRaw _ _       -> False
+        ResponseFile    {} -> isPersist
+        ResponseBuilder {} -> isKeepAlive
+        ResponseSource  {} -> isKeepAlive
+        ResponseRaw     {} -> False
 
 ----------------------------------------------------------------
 
