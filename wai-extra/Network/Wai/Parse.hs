@@ -90,8 +90,9 @@ lbsBackEnd _ _ = fmap L.fromChunks CL.consume
 
 -- | Save uploaded files on disk as temporary files
 --
--- Note: starting with version 2.0, it is the responsibility of the caller to
--- remove any temp files created by using this backend.
+-- Note: starting with version 2.0, removal of temp files is registered with
+-- the provided @InternalState@. It is the responsibility of the caller to
+-- ensure that this @InternalState@ gets cleaned up.
 tempFileBackEnd :: InternalState -> ignored1 -> ignored2 -> Sink S.ByteString IO FilePath
 tempFileBackEnd = tempFileBackEndOpts getTemporaryDirectory "webenc.buf"
 
