@@ -15,7 +15,12 @@ import qualified Data.ByteString as S
 import Data.Conduit
 import Data.Conduit.Internal (ResumableSource (..))
 import qualified Data.Conduit.List as CL
+#if MIN_VERSION_conduit(1,1,0)
 import Data.Streaming.Network (bindPortTCP)
+#else
+import Data.Conduit.Network (bindPort)
+#define bindPortTCP bindPort
+#endif
 import Network (sClose, Socket)
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
