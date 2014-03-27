@@ -15,7 +15,7 @@ import qualified Data.ByteString as S
 import Data.Conduit
 import Data.Conduit.Internal (ResumableSource (..))
 import qualified Data.Conduit.List as CL
-import Data.Conduit.Network (bindPort)
+import Data.Streaming.Network (bindPortTCP)
 import Network (sClose, Socket)
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
@@ -74,7 +74,7 @@ runSettings set app = withSocketsDo $ do
     var <- MV.newMVar Nothing
     let clean = MV.modifyMVar_ var $ \s -> maybe (return ()) sClose s >> return Nothing
     void . forkIO $ bracket
-        (bindPort (settingsPort set) (settingsHost set))
+        (bindPortTCP (settingsPort set) (settingsHost set))
         (const clean)
         (\s -> do
             MV.modifyMVar_ var (\_ -> return $ Just s)
@@ -83,7 +83,7 @@ runSettings set app = withSocketsDo $ do
 #else
 runSettings set app =
     bracket
-        (bindPort (settingsPort set) (settingsHost set))
+        (bindPortTCP (settingsPort set) (settingsHost set))
         sClose
         (\socket -> do
             setSocketCloseOnExec socket

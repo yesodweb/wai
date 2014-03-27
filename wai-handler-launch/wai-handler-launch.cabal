@@ -1,5 +1,5 @@
 Name:                wai-handler-launch
-Version:             2.0.1.1
+Version:             2.0.1.2
 Synopsis:            Launch a web app in the default browser.
 Description:         This handles cross-platform launching and inserts Javascript code to ping the server. When the server no longer receives pings, it shuts down.
 License:             MIT
@@ -19,9 +19,10 @@ Library
                    , transformers            >= 0.2.2   && < 0.4
                    , bytestring              >= 0.9.1.4
                    , blaze-builder           >= 0.2.1.4 && < 0.4
-                   , conduit                 >= 0.5     && < 1.1
-                   , blaze-builder-conduit   >= 0.5     && < 1.1
-                   , zlib-conduit            >= 0.5     && < 1.1
+                   , conduit                 >= 0.5     && < 1.2
+                   , conduit-extra           >= 0.0     && < 1.2
+                   , blaze-builder-conduit   >= 0.5     && < 1.2
+                   , zlib-conduit            >= 0.5     && < 1.2
 
     if os(windows)
         c-sources: windows.c

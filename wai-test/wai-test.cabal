@@ -1,5 +1,5 @@
 name:            wai-test
-version:         2.0.1
+version:         2.0.1.1
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -20,8 +20,9 @@ library
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , transformers              >= 0.2.2    && < 0.4
                    , containers                >= 0.2
-                   , conduit                   >= 0.5      && < 1.1
-                   , blaze-builder-conduit     >= 0.5      && < 1.1
+                   , conduit                   >= 0.5      && < 1.2
+                   , conduit-extra
+                   , blaze-builder-conduit     >= 0.5      && < 1.2
                    , cookie                    >= 0.2      && < 0.5
                    , http-types                >= 0.7
                    , case-insensitive          >= 0.2

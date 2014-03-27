@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -23,7 +24,12 @@ import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
 import Control.Exception.Lifted (bracket, try, IOException, onException)
+#if MIN_VERSION_conduit(1,1,0)
+import Data.Streaming.Network (bindPortTCP)
+#define bindPort bindPortTCP
+#else
 import Data.Conduit.Network (bindPort)
+#endif
 import Network.Socket (sClose)
 import qualified Network.HTTP as HTTP
 
@@ -76,7 +82,7 @@ nextPort = unsafePerformIO $ I.newIORef 5000
 getPort :: IO Int
 getPort = do
     port <- I.atomicModifyIORef nextPort $ \p -> (p + 1, p)
-    esocket <- try $ bindPort port HostIPv4
+    esocket <- try $ bindPort port "*4"
     case esocket of
         Left (_ :: IOException) -> RunSpec.getPort
         Right socket -> do
