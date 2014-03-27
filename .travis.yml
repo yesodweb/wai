@@ -1,9 +1,9 @@
 language: haskell
 
 install:
+    - sudo apt-get install libfcgi-dev
     - cabal unpack wai-logger
     - mv wai-logger-* wai-logger
-    - cp sources-travis.txt sources.txt
     - cabal install mega-sdist hspec doctest HTTP cabal-meta cabal-src
     - cabal-meta install --force-reinstalls
 

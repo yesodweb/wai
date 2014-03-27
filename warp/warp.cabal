@@ -1,5 +1,5 @@
 Name:                warp
-Version:             2.1.3.1
+Version:             2.1.3.3
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -39,20 +39,22 @@ Library
   Build-Depends:     base                      >= 3        && < 5
                    , array
                    , blaze-builder             >= 0.3.3  && < 0.4
-                   , blaze-builder-conduit     >= 0.5      && < 1.1
+                   , blaze-builder-conduit     >= 0.5      && < 1.2
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2
-                   , conduit                   >= 0.5      && < 1.1
+                   , conduit                   >= 0.5      && < 1.2
+                   , conduit-extra
                    , ghc-prim
                    , http-types                >= 0.7
                    , lifted-base               >= 0.1
-                   , network-conduit           >= 0.5      && < 1.1
+                   , network-conduit           >= 0.5      && < 1.2
                    , simple-sendfile           >= 0.2.7    && < 0.3
                    , transformers              >= 0.2.2    && < 0.4
                    , unix-compat               >= 0.2
                    , void
                    , wai                       >= 2.1      && < 2.2
                    , text
+                   , streaming-commons
   if flag(network-bytestring)
       Build-Depends: network                   >= 2.2.1.5  && < 2.2.3
                    , network-bytestring        >= 0.1.3    && < 0.1.4
@@ -144,6 +146,8 @@ Test-Suite spec
                    , time
                    , old-locale
                    , text
+                   , conduit-extra
+                   , streaming-commons
 
   if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
     Cpp-Options:   -DSENDFILEFD
@@ -161,6 +165,7 @@ Benchmark parser
                   , bytestring
                   , criterion
                   , http-types
+                  , network
                   , network
 
 Source-Repository head

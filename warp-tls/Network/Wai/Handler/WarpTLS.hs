@@ -29,14 +29,20 @@ import Network.Wai
 import Network.Socket
 import qualified Data.ByteString.Lazy as L
 import Data.Conduit.Binary (sourceFileRange)
+import Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Control.Exception (bracket, finally, handle)
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.ByteString as B
-import Data.Conduit.Network (bindPort)
+#if MIN_VERSION_conduit(1,1,0)
+import Data.Streaming.Network (bindPortTCP, acceptSafe)
+#else
+import Data.Conduit.Network (bindPort, acceptSafe)
+#define bindPortTCP bindPort
+#endif
 import Control.Applicative ((<$>))
-import Data.Conduit.Network (sourceSocket, sinkSocket, acceptSafe)
+import Data.Conduit.Network (sourceSocket, sinkSocket)
 import Data.Maybe (fromMaybe)
 import qualified Data.IORef as I
 import Control.Exception (Exception, throwIO)
@@ -148,7 +154,7 @@ runTLSSocket TLSSettings {..} set sock app = do
                             , connSendAll = TLS.sendData ctx . L.fromChunks . return
                             , connSendFile = \fp offset len _th headers -> do
                                 TLS.sendData ctx $ L.fromChunks headers
-                                C.runResourceT $ sourceFileRange fp (Just offset) (Just len) C.$$ CL.mapM_ (TLS.sendData ctx . L.fromChunks . return)
+                                runResourceT $ sourceFileRange fp (Just offset) (Just len) C.$$ CL.mapM_ (TLS.sendData ctx . L.fromChunks . return)
                             , connClose =
                                 TLS.bye ctx `finally`
                                 TLS.contextClose ctx
@@ -190,7 +196,7 @@ instance Exception WarpTLSException
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
 runTLS tset set app = withSocketsDo $
     bracket
-        (bindPort (settingsPort set) (settingsHost set))
+        (bindPortTCP (settingsPort set) (settingsHost set))
         sClose
         (\sock -> runTLSSocket tset set sock app)
 

@@ -31,6 +31,7 @@ import qualified Data.ByteString as S
 import Data.Default
 import Network.HTTP.Types (Status, Header)
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Resource (runResourceT)
 import System.Directory (doesFileExist, createDirectoryIfMissing)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.Zlib as CZ
@@ -102,7 +103,7 @@ compressFile s hs file cache = do
         else do
             createDirectoryIfMissing True cache
             x <-
-               try $ C.runResourceT $ CB.sourceFile file
+               try $ runResourceT $ CB.sourceFile file
                 C.$$ CZ.gzip C.=$ CB.sinkFile tmpfile
             either onErr (const onSucc) x
   where

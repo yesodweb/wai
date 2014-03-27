@@ -1,5 +1,5 @@
 Name:                warp-tls
-Version:             2.0.3.1
+Version:             2.0.3.2
 Synopsis:            HTTP over SSL/TLS support for Warp via the TLS package
 License:             MIT
 License-file:        LICENSE
@@ -18,12 +18,15 @@ Library
                    , wai                           >= 2.0      && < 2.2
                    , warp                          >= 2.0.2    && < 2.2
                    , transformers                  >= 0.2
-                   , conduit                       >= 0.5      && < 1.1
-                   , network-conduit               >= 0.6      && < 1.1
+                   , conduit                       >= 0.5      && < 1.2
+                   , conduit-extra
+                   , network-conduit               >= 0.6      && < 1.2
                    , data-default-class            >= 0.0.1
                    , tls                           >= 1.2.1
                    , network                       >= 2.2.1
                    , cprng-aes                     >= 0.5.0
+                   , streaming-commons
+                   , resourcet
   Exposed-modules:   Network.Wai.Handler.WarpTLS
   ghc-options:       -Wall
 

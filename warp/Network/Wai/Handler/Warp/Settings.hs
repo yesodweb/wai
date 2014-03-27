@@ -9,7 +9,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Conduit
-import Data.Conduit.Network (HostPreference (HostIPv4))
+import Data.Conduit.Network (HostPreference)
 import GHC.IO.Exception (IOErrorType(..))
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
@@ -64,7 +64,7 @@ data Settings = Settings
 defaultSettings :: Settings
 defaultSettings = Settings
     { settingsPort = 3000
-    , settingsHost = HostIPv4
+    , settingsHost = "*4"
     , settingsOnException = defaultExceptionHandler
     , settingsOnExceptionResponse = defaultExceptionResponse
     , settingsOnOpen = const $ return True

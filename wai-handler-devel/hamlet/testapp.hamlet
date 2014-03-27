@@ -1,9 +1,0 @@
-$doctype 5
-<html>
-    <head>
-        <meta charset=utf-8>
-        <title>Full App
-    <body>
-        <h1>Hello World
-        <p>Counter: #{show x}
-        <p>שלום

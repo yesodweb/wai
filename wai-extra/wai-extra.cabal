@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             2.1.1
+Version:             2.1.1.1
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             MIT
@@ -35,11 +35,12 @@ Library
                    , data-default
                    , fast-logger               >= 2.1      && < 2.2
                    , wai-logger                >= 2.0      && < 2.2
-                   , conduit                   >= 1.0      && < 1.1
-                   , zlib-conduit              >= 0.5      && < 1.1
-                   , blaze-builder-conduit     >= 0.5      && < 1.1
+                   , conduit                   >= 1.0      && < 1.2
+                   , conduit-extra             >= 0.1      && < 1.2
+                   , zlib-conduit              >= 0.5      && < 1.2
+                   , blaze-builder-conduit     >= 0.5      && < 1.2
                    , ansi-terminal
-                   , resourcet                 >= 0.4.6    && < 0.5
+                   , resourcet                 >= 0.4.6    && < 1.2
                    , void                      >= 0.5
                    , stringsearch              >= 0.3      && < 0.4
                    , containers
@@ -95,6 +96,7 @@ test-suite tests
                    , conduit
                    , fast-logger               >= 2.1
                    , resourcet
+                   , conduit-extra
     ghc-options:       -Wall
 
 source-repository head
