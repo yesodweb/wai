@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables, ViewPatterns #-}
+{-# LANGUAGE PatternGuards #-}
 
 module Network.Wai.Handler.Warp.Settings where
 
@@ -16,7 +17,7 @@ import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
-import System.IO (hPrint, stderr)
+import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
 
 -- | Various Warp server settings. This is purposely kept as an abstract data

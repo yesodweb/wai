@@ -216,8 +216,8 @@ push (THStatus len lines prepend) bs'
                           status = THStatus len' lines' id
                       in if start < bsLen then
                              -- more bytes in this chunk, push again
-                             let bs' = SU.unsafeDrop start bs
-                              in push status bs'
+                             let bs'' = SU.unsafeDrop start bs
+                              in push status bs''
                            else
                              -- no more bytes in this chunk, ask for more
                              await >>= maybe close (push status)
