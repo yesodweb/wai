@@ -11,12 +11,10 @@ You want a minimal example? Here it is!
 import Network.Wai
 import Network.HTTP.Types
 import Network.Wai.Handler.Warp (run)
-import Data.ByteString.Lazy.Char8 () -- Just for an orphan instance
-import Control.Monad.IO.Class (liftIO)
 
 app :: Application
 app _ = do
-  liftIO $ putStrLn "I've done some IO here"
+  putStrLn "I've done some IO here"
   return $ responseLBS
     status200
     [("Content-Type", "text/plain")]
@@ -54,6 +52,7 @@ Now we redefine `responseBody` to refer to that file:
 app2 :: Application
 app2 _ = return index
 
+index :: Response
 index = responseFile
     status200
     [("Content-Type", "text/html")]
@@ -79,12 +78,14 @@ app3 request = case rawPathInfo request of
     "/raw/" -> return plainIndex
     _       -> return notFound
 
+plainIndex :: Response
 plainIndex = responseFile
     status200
     [("Content-Type", "text/plain")]
     "index.html"
     Nothing
 
+notFound :: Response
 notFound = responseLBS
     status404
     [("Content-Type", "text/plain")]
