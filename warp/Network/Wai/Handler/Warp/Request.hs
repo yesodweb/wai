@@ -165,11 +165,12 @@ close :: Sink ByteString IO a
 close = throwIO IncompleteHeaders
 
 push :: THStatus -> ByteString -> Sink ByteString IO (Maybe ByteString, [ByteString])
-push (THStatus len lines prepend) bs
+push (THStatus len lines prepend) bs'
         -- Too many bytes
         | len > maxTotalHeaderLength = throwIO OverLargeHeader
         | otherwise = push' mnl
   where
+    bs = prepend bs'
     bsLen = S.length bs
     mnl = do
         nl <- S.elemIndex 10 bs
@@ -191,13 +192,13 @@ push (THStatus len lines prepend) bs
     push' Nothing = await >>= maybe close (push status)
       where
         len' = len + bsLen
-        prepend' = prepend . S.append bs
+        prepend' = S.append bs
         status = THStatus len' lines prepend'
     -- Found a newline, but next line continues as a multiline header
     push' (Just (end, True)) = push status rest
       where
         rest = S.drop (end + 1) bs
-        prepend' = prepend . S.append (SU.unsafeTake (checkCR bs end) bs)
+        prepend' = S.append (SU.unsafeTake (checkCR bs end) bs)
         len' = len + end
         status = THStatus len' lines prepend'
     -- Found a newline at position end.
@@ -222,11 +223,7 @@ push (THStatus len lines prepend) bs
                              await >>= maybe close (push status)
       where
         start = end + 1 -- start of next chunk
-        line
-          -- There were some bytes before the newline, get them
-          | end > 0 = prepend $ SU.unsafeTake (checkCR bs end) bs
-          -- No bytes before the newline
-          | otherwise = prepend S.empty
+        line = SU.unsafeTake (checkCR bs end) bs
 
 {-# INLINE checkCR #-}
 checkCR :: ByteString -> Int -> Int
