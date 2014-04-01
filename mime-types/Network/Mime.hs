@@ -49,9 +49,9 @@ mimeByExt mm def =
 defaultMimeLookup :: FileName -> MimeType
 defaultMimeLookup = mimeByExt defaultMimeMap defaultMimeType
 
--- | Get a list of all of the file name extensions from a piece.
+-- | Get a list of all of the file name extensions.
 --
--- > pieceExtensions "foo.tar.gz" == ["tar.gz", "gz"]
+-- > fileNameExtensions "foo.tar.gz" == ["tar.gz", "gz"]
 fileNameExtensions :: FileName -> [Extension]
 fileNameExtensions =
     go . T.toLower . dropToExt
