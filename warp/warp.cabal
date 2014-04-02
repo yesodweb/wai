@@ -124,7 +124,7 @@ Test-Suite spec
                    , conduit                   >= 0.5
                    , ghc-prim
                    , HTTP
-                   , http-types                >= 0.7
+                   , http-types                >= 0.8.4
                    , lifted-base               >= 0.1
                    , network-conduit
                    , simple-sendfile           >= 0.2.4    && < 0.3

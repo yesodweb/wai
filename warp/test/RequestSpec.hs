@@ -16,9 +16,6 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types.Header as HH
 
-deriving instance Show HH.ByteRange
-deriving instance Eq HH.ByteRange
-
 main :: IO ()
 main = hspec spec
 
