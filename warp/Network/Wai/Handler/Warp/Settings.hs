@@ -8,7 +8,6 @@ import Control.Monad (when)
 import qualified Data.ByteString as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Conduit
 import Data.Conduit.Network (HostPreference)
 import GHC.IO.Exception (IOErrorType(..))
@@ -19,6 +18,8 @@ import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
 import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
 -- type so that new settings can be added without breaking backwards
@@ -98,11 +99,11 @@ defaultExceptionHandler _ e =
         $ TIO.hPutStrLn stderr $ T.pack $ show e
 
 defaultExceptionResponse :: SomeException -> Response
-defaultExceptionResponse _ = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] "Something went wrong"
+defaultExceptionResponse _ = responseLBS H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")] "Something went wrong"
 
 -- | Default implementation of 'settingsOnExceptionResponse' for the debugging purpose. 500, text/plain, a showed exception.
 exceptionResponseForDebug :: SomeException -> Response
-exceptionResponseForDebug e = responseLBS H.internalServerError500 [(H.hContentType, "text/plain")] (L8.pack $ "Exception: " ++ show e)
+exceptionResponseForDebug e = responseLBS H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")] (TLE.encodeUtf8 $ TL.pack $ "Exception: " ++ show e)
 
 {-# DEPRECATED settingsPort "Use setPort instead" #-}
 {-# DEPRECATED settingsHost "Use setHost instead" #-}

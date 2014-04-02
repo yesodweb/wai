@@ -215,7 +215,7 @@ sendRsp conn ver s0 hs0 restore (RspFile path mPart mRange hook) = restore $ do
   where
     hs = addAcceptRanges hs0
     s2 = H.status404
-    hs2 =  replaceHeader H.hContentType "text/plain" hs0
+    hs2 =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
     body = fromByteString "File not found"
 
 ----------------------------------------------------------------
