@@ -13,7 +13,9 @@ import Network.HTTP.Conduit
 main = do
     putStrLn "https://localhost:3009/"
     --manager <- newManager def
-    runTLS (tlsSettings  "certificate.pem" "key.pem") defaultSettings { settingsPort = 3009 } app
+    runTLS (tlsSettings  "certificate.pem" "key.pem")
+        { onInsecure = AllowInsecure
+        } defaultSettings { settingsPort = 3009 } app
 
 app req = return $
     case rawPathInfo req of
@@ -23,6 +25,7 @@ app req = return $
         "/file/nolen" -> fileNoLen
         "/source/withlen" -> sourceWithLen
         "/source/nolen" -> sourceNoLen
+        "/secure" -> responseLBS status200 [] $ if isSecure req then "secure" else "insecure"
         x -> index x
 
 builderWithLen = responseBuilder

@@ -121,7 +121,7 @@ runTLSSocket TLSSettings {..} set sock app = do
                 { TLS.sharedCredentials = TLS.Credentials [credential]
                 }
             }
-    runSettingsConnectionMaker set (getter params) app
+    runSettingsConnectionMakerSecure set (getter params) app
   where
     getter params = do
         (s, sa) <- acceptSafe sock
@@ -171,14 +171,14 @@ runTLSSocket TLSSettings {..} set sock app = do
                             , connBuffer = buf
                             , connBufferSize = bufferSize
                             }
-                    return conn
+                    return (conn, True)
                 else
                     case onInsecure of
                         AllowInsecure -> do
                             conn' <- socketConnection s
-                            return conn'
+                            return (conn'
                                     { connRecv = getNext $ fmap (fromMaybe B.empty) C.await
-                                    }
+                                    }, False)
                         DenyInsecure lbs -> do
                             let src = do
                                     C.yield "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"

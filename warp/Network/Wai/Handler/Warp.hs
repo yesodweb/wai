@@ -23,6 +23,7 @@ module Network.Wai.Handler.Warp (
   , runSettingsSocket
   , runSettingsConnection
   , runSettingsConnectionMaker
+  , runSettingsConnectionMakerSecure
     -- * Settings
   , Settings
   , defaultSettings
