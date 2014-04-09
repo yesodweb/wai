@@ -140,7 +140,8 @@ Test-Suite spec
                    , old-locale
                    , text
                    , conduit-extra
-                   , streaming-commons
+                   , streaming-commons >= 0.1.1
+                   , async
 
   if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
     Cpp-Options:   -DSENDFILEFD

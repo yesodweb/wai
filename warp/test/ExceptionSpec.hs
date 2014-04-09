@@ -13,13 +13,21 @@ import Network.Wai.Internal (Request(..))
 import Network.Wai.Handler.Warp
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
+import Control.Exception
+import qualified Data.Streaming.Network as N
+import Control.Concurrent.Async (withAsync)
+import Network.Socket (sClose)
 
 main :: IO ()
 main = hspec spec
 
-testServer :: IO ()
-testServer =
-    run 2345 testApp
+withTestServer :: (Int -> IO a) -> IO a
+withTestServer inner = bracket
+    (N.bindRandomPortTCP "*4")
+    (sClose . snd)
+    $ \(port, lsocket) -> do
+        withAsync (runSettingsSocket defaultSettings lsocket testApp)
+            $ \_ -> inner port
 
 testApp :: Application
 testApp (Network.Wai.Internal.Request {pathInfo = [x]})
@@ -38,8 +46,7 @@ testApp _ =
         return $ responseLBS ok200 [] "foo"
 
 spec :: Spec
-spec = unsafePerformIO $ (forkIO testServer >> threadDelay 100000 >>) $ return $
-    describe "responds even if there is an exception" $ do
+spec = describe "responds even if there is an exception" $ do
         {- Disabling these tests. We can consider forcing evaluation in Warp.
         it "statusError" $ do
             sc <- rspCode <$> sendGET "http://localhost:2345/statusError"
@@ -54,8 +61,8 @@ spec = unsafePerformIO $ (forkIO testServer >> threadDelay 100000 >>) $ return $
             sc <- rspCode <$> sendGET "http://localhost:2345/bodyError"
             sc `shouldBe` (5,0,0)
         -}
-        it "ioException" $ do
-            sc <- rspCode <$> sendGET "http://localhost:2345/ioException"
+        it "ioException" $ withTestServer $ \port -> do
+            sc <- rspCode <$> sendGET (concat $ ["http://localhost:", show port, "/ioException"])
             sc `shouldBe` (5,0,0)
 
 ----------------------------------------------------------------
