@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 module Network.Wai.Handler.Warp.Run where
@@ -124,10 +125,18 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
       (conn, sa) <- getConn
       return (return conn, sa)
 
+runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
+runSettingsConnectionMaker x y =
+    runSettingsConnectionMakerSecure x (go y)
+  where
+    go = fmap (\(a, b) -> (fmap (, False) a, b))
+
 -- | Allows you to provide a function which will return a function
 -- which will return 'Connection'.
-runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
-runSettingsConnectionMaker set getConnMaker app = do
+--
+-- Since 2.1.4
+runSettingsConnectionMakerSecure :: Settings -> IO (IO (Connection, Bool), SockAddr) -> Application -> IO ()
+runSettingsConnectionMakerSecure set getConnMaker app = do
     settingsBeforeMainLoop set
 
     -- Note that there is a thorough discussion of the exception safety of the
@@ -175,7 +184,7 @@ runSettingsConnectionMaker set getConnMaker app = do
             -- We grab the connection before registering timeouts since the
             -- timeouts will be useless during connection creation, due to the
             -- fact that async exceptions are still masked.
-            bracket mkConn connClose $ \conn' ->
+            bracket mkConn (connClose . fst) $ \(conn', isSecure') ->
 
             -- We need to register a timeout handler for this thread, and
             -- cancel that handler as soon as we exit.
@@ -195,7 +204,7 @@ runSettingsConnectionMaker set getConnMaker app = do
 
                     -- Actually serve this connection.
                     -- onnClose above ensures the termination of the connection.
-                    when goingon $ serveConnection conn ii addr set app
+                    when goingon $ serveConnection conn ii addr isSecure' set app
   where
     -- FIXME: only IOEception is caught. What about other exceptions?
     getConnLoop = getConnMaker `E.catch` \(e :: IOException) -> do
@@ -222,10 +231,11 @@ runSettingsConnectionMaker set getConnMaker app = do
 serveConnection :: Connection
                 -> InternalInfo
                 -> SockAddr
+                -> Bool -- ^ is secure?
                 -> Settings
                 -> Application
                 -> IO ()
-serveConnection conn ii addr settings app = do
+serveConnection conn ii addr isSecure' settings app = do
     istatus <- newIORef False
     recvSendLoop istatus (connSource conn th istatus) `E.catch` \e -> do
         sendErrorResponse istatus e
@@ -244,7 +254,8 @@ serveConnection conn ii addr settings app = do
     errorResponse e = settingsOnExceptionResponse settings e
 
     recvSendLoop istatus fromClient = do
-        (req, idxhdr, getSource, leftover') <- recvRequest settings conn ii addr fromClient
+        (req', idxhdr, getSource, leftover') <- recvRequest settings conn ii addr fromClient
+        let req = req' { isSecure = isSecure' }
         intercept' <- settingsIntercept settings req
         case intercept' of
             Nothing -> do

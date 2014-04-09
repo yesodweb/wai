@@ -46,26 +46,28 @@ data Request = Request {
   ,  isSecure             :: Bool
   -- | The client\'s host information.
   ,  remoteHost           :: SockAddr
-  -- | Path info in individual pieces- the url without a hostname/port and without a query string, split on forward slashes,
+  -- | Path info in individual pieces- the url without a hostname/port and
+  -- without a query string, split on forward slashes.
   ,  pathInfo             :: [Text]
   -- | Parsed query string information
   ,  queryString          :: H.Query
   -- | A request body provided as 'Source'.
   ,  requestBody          :: C.Source IO B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.
-  , vault                 :: Vault
-  -- | The size of the request body. In the case of a chunked request body, this may be unknown.
+  ,  vault                 :: Vault
+  -- | The size of the request body. In the case of a chunked request body,
+  -- this may be unknown.
   --
   -- Since 1.4.0
-  , requestBodyLength     :: RequestBodyLength
+  ,  requestBodyLength     :: RequestBodyLength
   -- | The value of the Host header in a HTTP request.
   --
   -- Since 2.0.0
-  , requestHeaderHost     :: Maybe B.ByteString
+  ,  requestHeaderHost     :: Maybe B.ByteString
   -- | The value of the Range header in a HTTP request.
   --
   -- Since 2.0.0
-  , requestHeaderRange   :: Maybe B.ByteString
+  ,  requestHeaderRange   :: Maybe B.ByteString
   }
   deriving (Typeable)
 
