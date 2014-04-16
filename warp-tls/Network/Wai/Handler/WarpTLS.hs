@@ -13,6 +13,8 @@ module Network.Wai.Handler.WarpTLS (
     , keyFile
     , onInsecure
     , tlsLogging
+    , tlsAllowedVersions
+    , tlsCiphers
     , defaultTlsSettings
     , tlsSettings
     , OnInsecure (..)
