@@ -24,9 +24,13 @@ import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
 import Control.Exception.Lifted (bracket, try, IOException, onException)
-import Data.Streaming.Network (bindPortTCP)
+import Data.Streaming.Network (bindPortTCP, getSocketTCP, safeRecv)
 import Network.Socket (sClose)
 import qualified Network.HTTP as HTTP
+import Data.Conduit (Flush (Chunk), ($=))
+import qualified Data.Conduit.List as CL
+import Blaze.ByteString.Builder (fromByteString)
+import Network.Socket.ByteString (sendAll)
 
 main :: IO ()
 main = hspec spec
@@ -345,3 +349,14 @@ spec = do
                 `shouldBe` ["server"]
             map HTTP.hdrValue (HTTP.retrieveHeaders HTTP.HdrDate res)
                 `shouldBe` ["date"]
+
+    it "streaming echo #249" $ do
+        let app req = return $ responseSource status200 []
+                    $ requestBody req $= CL.map (Chunk . fromByteString)
+        withApp defaultSettings app $ \port -> do
+            (socket, _addr) <- getSocketTCP "127.0.0.1" port
+            sendAll socket "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"
+            threadDelay 10000
+            sendAll socket "5\r\nhello\r\n0\r\n\r\n"
+            bs <- safeRecv socket 4096
+            S.takeWhile (/= 13) bs `shouldBe` "HTTP/1.1 200 OK"
