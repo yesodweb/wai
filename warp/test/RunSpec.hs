@@ -135,6 +135,12 @@ singleGet = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
 singlePostHello :: ByteString
 singlePostHello = "POST /hello HTTP/1.1\r\nHost: localhost\r\nContent-length: 5\r\n\r\nHello"
 
+singleChunkedPostHello :: [ByteString]
+singleChunkedPostHello =
+    [ "POST /hello HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n"
+    , "5\r\nHello\r\n0\r\n"
+    ]
+
 spec :: Spec
 spec = do
     describe "non-pipelining" $ do
@@ -148,6 +154,14 @@ spec = do
             [ singlePostHello
             , singleGet
             ]
+        it "chunked body, read" $ runTest 2 readBody $ concat
+            [ singleChunkedPostHello
+            , [singleGet]
+            ]
+        it "chunked body, ignore" $ runTest 2 ignoreBody $ concat
+            [ singleChunkedPostHello
+            , [singleGet]
+            ]
     describe "pipelining" $ do
         it "no body, read" $ runTest 5 readBody [S.concat $ replicate 5 singleGet]
         it "no body, ignore" $ runTest 5 ignoreBody [S.concat $ replicate 5 singleGet]
@@ -157,6 +171,14 @@ spec = do
             ]
         it "has body, ignore" $ runTest 2 ignoreBody $ return $ S.concat
             [ singlePostHello
+            , singleGet
+            ]
+        it "chunked body, read" $ runTest 2 readBody $ return $ S.concat
+            [ S.concat singleChunkedPostHello
+            , singleGet
+            ]
+        it "chunked body, ignore" $ runTest 2 ignoreBody $ return $ S.concat
+            [ S.concat singleChunkedPostHello
             , singleGet
             ]
     describe "no hanging" $ do
