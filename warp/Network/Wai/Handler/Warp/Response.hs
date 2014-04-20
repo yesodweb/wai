@@ -12,6 +12,7 @@ module Network.Wai.Handler.Warp.Response (
   ) where
 
 import Blaze.ByteString.Builder (fromByteString, Builder, flush)
+import Blaze.ByteString.Builder.Internal (defaultBufferSize)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 import Control.Applicative
 import Control.Exception
@@ -24,7 +25,7 @@ import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import qualified Data.Conduit.List as CL
-import Data.Conduit.Blaze (unsafeBuilderToByteString)
+import Data.Conduit.Blaze (builderToByteStringWith, allocBuffer, reuseBufferStrategy)
 import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Maybe (isJust, listToMaybe)
@@ -38,7 +39,6 @@ import qualified Network.HTTP.Types as H
 import Network.Wai
 import qualified Network.Wai.Handler.Warp.Date as D
 import Network.Wai.Handler.Warp.Header
-import Network.Wai.Handler.Warp.Buffer (toBlazeBuffer)
 import Network.Wai.Handler.Warp.IO (toBufIOWith)
 import Network.Wai.Handler.Warp.ResponseHeader
 import Network.Wai.Handler.Warp.RequestHeader (parseByteRanges)
@@ -247,8 +247,8 @@ sendRsp conn ver s hs restore (RspSource withBodyFlush needsChunked th) =
   withBodyFlush $ \bodyFlush -> restore $ do
     header <- composeHeaderBuilder ver s hs needsChunked
     let src = yield header >> cbody bodyFlush
-    buffer <- toBlazeBuffer (connBuffer conn) (connBufferSize conn)
-    src $$ unsafeBuilderToByteString (return buffer) =$ connSink conn th
+        strategy = reuseBufferStrategy $ allocBuffer defaultBufferSize
+    src $$ builderToByteStringWith strategy =$ connSink conn th
   where
     cbody bodyFlush = if needsChunked then body $= chunk else body
       where
