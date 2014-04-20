@@ -305,9 +305,10 @@ connSink Connection { connSendAll = send } th = sink
     sink = await >>= maybe close push
     close = liftIO (T.resume th)
     push x = do
-        liftIO $ T.resume th
-        liftIO $ send x
-        liftIO $ T.pause th
+        liftIO $ do
+            T.resume th
+            send x
+            T.pause th
         sink
     -- We pause timeouts before passing control back to user code. This ensures
     -- that a timeout will only ever be executed when Warp is in control. We
