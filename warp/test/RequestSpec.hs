@@ -4,17 +4,16 @@
 
 module RequestSpec (main, spec) where
 
-import Data.Conduit
-import qualified Data.Conduit.Binary as CB
-import Data.Conduit.List (sourceList)
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.RequestHeader (parseByteRanges)
 import Network.Wai.Handler.Warp.Types
 import Test.Hspec
 import Test.Hspec.QuickCheck
+import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types.Header as HH
+import Data.IORef
 
 main :: IO ()
 main = hspec spec
@@ -23,9 +22,9 @@ spec :: Spec
 spec = do
   describe "headerLines" $ do
     it "takes until blank" $
-        blankSafe >>= (`shouldBe` (Nothing, ["foo", "bar", "baz"]))
+        blankSafe >>= (`shouldBe` ("", ["foo", "bar", "baz"]))
     it "ignored leading whitespace in bodies" $
-        whiteSafe >>= (`shouldBe` (Just " hi there", ["foo", "bar", "baz"]))
+        whiteSafe >>= (`shouldBe` (" hi there", ["foo", "bar", "baz"]))
     it "throws OverLargeHeader when too many" $
         tooMany `shouldThrow` overLargeHeader
     it "throws OverLargeHeader when too large" $
@@ -35,8 +34,9 @@ spec = do
                 [ "GET / HTTP/1.1\r\nConnection: Close\r"
                 , "\n\r\n"
                 ]
-        (mleftover, actual) <- mapM_ yield chunks $$ headerLines
-        mleftover `shouldBe` Nothing
+        (actual, src) <- headerLinesList' chunks
+        leftover <- readLeftoverSource src
+        leftover `shouldBe` S.empty
         actual `shouldBe` ["GET / HTTP/1.1", "Connection: Close"]
     prop "random chunking" $ \breaks extraS -> do
         let bsFull = "GET / HTTP/1.1\r\nConnection: Close\r\n\r\n" `S8.append` extra
@@ -47,11 +47,9 @@ spec = do
                 bs1 : loop xs bs2
               where
                 (bs1, bs2) = S8.splitAt ((x `mod` 10) + 1) bs
-        (leftover, actual) <- mapM_ yield chunks $$ do
-            (_, actual) <- headerLines
-            x' <- CB.take (length extraS)
-            let x = S8.concat $ L.toChunks x'
-            return (x, actual)
+        (actual, src) <- headerLinesList' chunks
+        leftover <- consumeLen (length extraS) src
+
         actual `shouldBe` ["GET / HTTP/1.1", "Connection: Close"]
         leftover `shouldBe` extra
   describe "parseByteRanges" $ do
@@ -63,10 +61,41 @@ spec = do
     test "foobytes=9500-" Nothing
     test "bytes=0-0,-1" $ Just [HH.ByteRangeFromTo 0 0, HH.ByteRangeSuffix 1]
   where
-    blankSafe = (sourceList ["f", "oo\n", "bar\nbaz\n\r\n"]) $$ headerLines
-    whiteSafe = (sourceList ["foo\r\nbar\r\nbaz\r\n\r\n hi there"]) $$ headerLines
-    tooMany = (sourceList $ repeat "f\n") $$ headerLines
-    tooLarge = (sourceList $ repeat "f") $$ headerLines
+    blankSafe = headerLinesList ["f", "oo\n", "bar\nbaz\n\r\n"]
+    whiteSafe = headerLinesList ["foo\r\nbar\r\nbaz\r\n\r\n hi there"]
+    tooMany = headerLinesList $ repeat "f\n"
+    tooLarge = headerLinesList $ repeat "f"
+
+headerLinesList orig = do
+    (res, src) <- headerLinesList' orig
+    leftover <- readLeftoverSource src
+    return (leftover, res)
+
+headerLinesList' orig = do
+    ref <- newIORef orig
+    let src = do
+            x <- readIORef ref
+            case x of
+                [] -> return S.empty
+                y:z -> do
+                    writeIORef ref z
+                    return y
+    src' <- mkSource src
+    res <- headerLines src'
+    return (res, src')
+
+consumeLen len0 src =
+    loop id len0
+  where
+    loop front len
+        | len <= 0 = return $ S.concat $ front []
+        | otherwise = do
+            bs <- readSource src
+            if S.null bs
+                then loop front 0
+                else do
+                    let (x, y) = S.splitAt len bs
+                    loop (front . (x:)) (len - S.length x)
 
 overLargeHeader :: Selector InvalidRequest
 overLargeHeader e = e == OverLargeHeader

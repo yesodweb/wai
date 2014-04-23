@@ -35,7 +35,6 @@ module Network.Wai.Handler.Warp (
   , setOnOpen
   , setOnClose
   , setTimeout
-  , setIntercept
   , setManager
   , setFdCacheDuration
   , setBeforeMainLoop
@@ -52,7 +51,6 @@ module Network.Wai.Handler.Warp (
   , settingsOnOpen
   , settingsOnClose
   , settingsTimeout
-  , settingsIntercept
   , settingsManager
   , settingsFdCacheDuration
   , settingsBeforeMainLoop
@@ -87,7 +85,6 @@ module Network.Wai.Handler.Warp (
   , sendResponse
   ) where
 
-import Data.Conduit.Network (HostPreference(..))
 import Network.Wai.Handler.Warp.Date
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.Header
@@ -100,8 +97,8 @@ import Network.Wai.Handler.Warp.Types
 import Control.Exception (SomeException)
 import Network.Wai (Request, Response)
 import Network.Socket (SockAddr)
-import Data.Conduit (Source)
 import Data.ByteString (ByteString)
+import Data.Streaming.Network (HostPreference)
 
 -- | Port to listen on. Default value: 3000
 --
@@ -150,16 +147,6 @@ setOnClose x y = y { settingsOnClose = x }
 -- Since 2.1.0
 setTimeout :: Int -> Settings -> Settings
 setTimeout x y = y { settingsTimeout = x }
-
--- | Register some intercept handler to deal with specific requests. Prime use
--- case: websockets.
---
--- Default: always return @Nothing@.
---
--- Since 2.1.0
-setIntercept :: (Request -> IO (Maybe (Source IO ByteString -> Connection -> IO ())))
-             -> Settings -> Settings
-setIntercept x y = y { settingsIntercept = x }
 
 -- | Use an existing timeout manager instead of spawning a new one. If used,
 -- 'settingsTimeout' is ignored.

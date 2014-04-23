@@ -8,8 +8,7 @@ import Control.Monad (when)
 import qualified Data.ByteString as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import Data.Conduit
-import Data.Conduit.Network (HostPreference)
+import Data.Streaming.Network (HostPreference)
 import GHC.IO.Exception (IOErrorType(..))
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
@@ -40,7 +39,6 @@ data Settings = Settings
     , settingsOnOpen :: SockAddr -> IO Bool -- ^ What to do when a connection is open. When 'False' is returned, the connection is closed immediately. Otherwise, the connection is going on. Default: always returns 'True'.
     , settingsOnClose :: SockAddr -> IO ()  -- ^ What to do when a connection is close. Default: do nothing.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
-    , settingsIntercept :: Request -> IO (Maybe (Source IO S.ByteString -> Connection -> IO ()))
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     , settingsFdCacheDuration :: Int -- ^ Cache duratoin time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 10
     , settingsBeforeMainLoop :: IO ()
@@ -72,7 +70,6 @@ defaultSettings = Settings
     , settingsOnOpen = const $ return True
     , settingsOnClose = const $ return ()
     , settingsTimeout = 30
-    , settingsIntercept = const (return Nothing)
     , settingsManager = Nothing
     , settingsFdCacheDuration = 10
     , settingsBeforeMainLoop = return ()
@@ -112,7 +109,6 @@ exceptionResponseForDebug e = responseLBS H.internalServerError500 [(H.hContentT
 {-# DEPRECATED settingsOnOpen "Use setOnOpen instead" #-}
 {-# DEPRECATED settingsOnClose "Use setOnClose instead" #-}
 {-# DEPRECATED settingsTimeout "Use setTimeout instead" #-}
-{-# DEPRECATED settingsIntercept "Use setIntercept instead" #-}
 {-# DEPRECATED settingsManager "Use setManager instead" #-}
 {-# DEPRECATED settingsFdCacheDuration "Use setFdCacheDuration instead" #-}
 {-# DEPRECATED settingsBeforeMainLoop "Use setBeforeMainLoop instead" #-}

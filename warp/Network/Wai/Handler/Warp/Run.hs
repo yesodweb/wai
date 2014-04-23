@@ -13,15 +13,7 @@ import Control.Monad (forever, when, unless, void)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import Data.Conduit
-import Data.Conduit.Internal (ResumableSource (..))
-import qualified Data.Conduit.List as CL
-#if MIN_VERSION_conduit(1,1,0)
 import Data.Streaming.Network (bindPortTCP)
-#else
-import Data.Conduit.Network (bindPort)
-#define bindPortTCP bindPort
-#endif
 import Network (sClose, Socket)
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
@@ -237,7 +229,8 @@ serveConnection :: Connection
                 -> IO ()
 serveConnection conn ii addr isSecure' settings app = do
     istatus <- newIORef False
-    recvSendLoop istatus (connSource conn th istatus) `E.catch` \e -> do
+    src <- mkSource (connSource conn th istatus)
+    recvSendLoop istatus src `E.catch` \e -> do
         sendErrorResponse istatus e
         throwIO (e :: SomeException)
 
@@ -247,65 +240,61 @@ serveConnection conn ii addr isSecure' settings app = do
     sendErrorResponse istatus e = do
         status <- readIORef istatus
         when status $ void $ mask $ \restore ->
-            sendResponse conn ii restore dummyreq defaultIndexRequestHeader Nothing (errorResponse e)
+            sendResponse conn ii restore dummyreq defaultIndexRequestHeader (return S.empty) (errorResponse e)
 
     dummyreq = defaultRequest { remoteHost = addr }
 
     errorResponse e = settingsOnExceptionResponse settings e
 
     recvSendLoop istatus fromClient = do
-        (req', idxhdr, getSource, leftover') <- recvRequest settings conn ii addr fromClient
+        (req', idxhdr) <- recvRequest settings conn ii addr fromClient
         let req = req' { isSecure = isSecure' }
-        intercept' <- settingsIntercept settings req
-        case intercept' of
-            Nothing -> do
-                -- Let the application run for as long as it wants
-                T.pause th
+        -- Let the application run for as long as it wants
+        T.pause th
 
-                -- In the event that some scarce resource was acquired during
-                -- creating the request, we need to make sure that we don't get
-                -- an async exception before calling the ResponseSource.
-                keepAlive <- mask $ \restore -> do
-                    res <- restore $ app req
-                    T.resume th
-                    -- FIXME consider forcing evaluation of the res here to
-                    -- send more meaningful error messages to the user.
-                    -- However, it may affect performance.
-                    writeIORef istatus False
-                    sendResponse conn ii restore req idxhdr leftover' res
+        -- In the event that some scarce resource was acquired during
+        -- creating the request, we need to make sure that we don't get
+        -- an async exception before calling the ResponseSource.
+        keepAlive <- mask $ \restore -> do
+            res <- restore $ app req
+            T.resume th
+            -- FIXME consider forcing evaluation of the res here to
+            -- send more meaningful error messages to the user.
+            -- However, it may affect performance.
+            writeIORef istatus False
+            sendResponse conn ii restore req idxhdr (readSource fromClient) res
 
-                -- We just send a Response and it takes a time to
-                -- receive a Request again. If we immediately call recv,
-                -- it is likely to fail and the IO manager works.
-                -- It is very costy. So, we yield to another Haskell
-                -- thread hoping that the next Request will arraive
-                -- when this Haskell thread will be re-scheduled.
-                -- This improves performance at least when
-                -- the number of cores is small.
-                Conc.yield
+        -- We just send a Response and it takes a time to
+        -- receive a Request again. If we immediately call recv,
+        -- it is likely to fail and the IO manager works.
+        -- It is very costy. So, we yield to another Haskell
+        -- thread hoping that the next Request will arraive
+        -- when this Haskell thread will be re-scheduled.
+        -- This improves performance at least when
+        -- the number of cores is small.
+        Conc.yield
 
-                when keepAlive $ do
-                    -- flush the rest of the request body
-                    requestBody req $$ CL.sinkNull
-                    ResumableSource fromClient' _ <- getSource
-                    T.resume th
-                    recvSendLoop istatus fromClient'
-            Just intercept -> do
-                T.pause th
-                ResumableSource fromClient' _ <- getSource
-                intercept fromClient' conn
+        when keepAlive $ do
+            -- flush the rest of the request body
+            flushBody $ requestBody req
+            T.resume th
+            recvSendLoop istatus fromClient
 
-connSource :: Connection -> T.Handle -> IORef Bool -> Source IO ByteString
-connSource Connection { connRecv = recv } th istatus = src
+flushBody :: IO ByteString -> IO ()
+flushBody src =
+    loop
   where
-    src = do
-        bs <- liftIO recv
-        unless (S.null bs) $ do
-            liftIO $ do
-                writeIORef istatus True
-                when (S.length bs >= 2048) $ T.tickle th
-            yield bs
-            src
+    loop = do
+        bs <- src
+        unless (S.null bs) loop
+
+connSource :: Connection -> T.Handle -> IORef Bool -> IO ByteString
+connSource Connection { connRecv = recv } th istatus = do
+    bs <- recv
+    unless (S.null bs) $ do
+        writeIORef istatus True
+        when (S.length bs >= 2048) $ T.tickle th
+    return bs
 
 -- Copied from: https://github.com/mzero/plush/blob/master/src/Plush/Server/Warp.hs
 setSocketCloseOnExec :: Socket -> IO ()

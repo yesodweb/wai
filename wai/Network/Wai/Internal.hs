@@ -8,7 +8,6 @@ module Network.Wai.Internal where
 
 import           Blaze.ByteString.Builder     (Builder)
 import qualified Data.ByteString              as B
-import qualified Data.Conduit                 as C
 import           Data.Text                    (Text)
 import           Data.Typeable                (Typeable)
 import Data.Vault.Lazy (Vault)
@@ -51,8 +50,9 @@ data Request = Request {
   ,  pathInfo             :: [Text]
   -- | Parsed query string information
   ,  queryString          :: H.Query
-  -- | A request body provided as 'Source'.
-  ,  requestBody          :: C.Source IO B.ByteString
+  -- | Get the next chunk of the body. Returns an empty bytestring when the
+  -- body is fully consumed.
+  ,  requestBody          :: IO B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.
   ,  vault                 :: Vault
   -- | The size of the request body. In the case of a chunked request body,
@@ -84,15 +84,12 @@ data Request = Request {
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
-    | ResponseSource H.Status H.ResponseHeaders (forall b. WithSource IO (C.Flush Builder) b)
-    | ResponseRaw (forall b. WithRawApp b) Response
+    -- FIXME perhaps need a better distinction between "allocate/free
+    -- resources" and "start running". See, for example, restore ugliness in
+    -- Warp
+    | ResponseStream H.Status H.ResponseHeaders ((Maybe Builder -> IO ()) -> IO ())
+    | ResponseRaw (IO B.ByteString -> (B.ByteString -> IO ()) -> IO ()) Response
   deriving Typeable
-
-type RawApp = C.Source IO B.ByteString -> C.Sink B.ByteString IO () -> IO ()
-type WithRawApp b = (RawApp -> IO b) -> IO b
-
--- | Auxiliary type for 'ResponseSource'.
-type WithSource m a b = (C.Source m a -> m b) -> m b
 
 -- | The size of the request body. In the case of chunked bodies, the size will
 -- not be known.

@@ -17,7 +17,6 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
-import Data.Conduit
 import qualified Data.IORef as I
 import Data.Monoid (mempty)
 import qualified Network.HTTP.Types as H
@@ -32,6 +31,7 @@ import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
 import Prelude hiding (lines)
+import Control.Monad (when)
 
 ----------------------------------------------------------------
 
@@ -47,25 +47,22 @@ recvRequest :: Settings
             -> Connection
             -> InternalInfo
             -> SockAddr -- ^ Peer's address.
-            -> Source IO ByteString -- ^ Where HTTP request comes from.
+            -> Source -- ^ Where HTTP request comes from.
             -> IO (Request
-                  ,IndexedHeader
-                  ,IO (ResumableSource IO ByteString)
-                  ,Maybe ByteString) -- ^
+                  ,IndexedHeader) -- ^
             -- 'Request' passed to 'Application',
             -- 'IndexedHeader' of HTTP request for internal use,
-            -- leftover source (i.e. body and other HTTP reqeusts in HTTP pipelining),
-            -- leftovers from request header parsing (used for raw responses)
 
-recvRequest settings conn ii addr src0 = do
-    (src, (leftover', hdrlines)) <- src0 $$+ headerLines
+recvRequest settings conn ii addr src = do
+    hdrlines <- headerLines src
     (method, unparsedPath, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
         expect = idxhdr ! idxExpect
         cl = idxhdr ! idxContentLength
         te = idxhdr ! idxTransferEncoding
     liftIO $ handleExpect conn httpversion expect
-    (rbody, bodyLength, getSource) <- bodyAndSource src cl te
+    (rbody, bodyLength) <- bodyAndSource src cl te
+    rbody' <- timeoutBody th rbody
     let req = Request {
             requestMethod     = method
           , httpVersion       = httpversion
@@ -76,21 +73,24 @@ recvRequest settings conn ii addr src0 = do
           , requestHeaders    = hdr
           , isSecure          = False
           , remoteHost        = addr
-          , requestBody       = timeoutBody th rbody
+          , requestBody       = rbody'
           , vault             = mempty
           , requestBodyLength = bodyLength
           , requestHeaderHost = idxhdr ! idxHost
           , requestHeaderRange = idxhdr ! idxRange
           }
-    return (req, idxhdr, getSource, leftover')
+    return (req, idxhdr)
   where
     th = threadHandle ii
 
 ----------------------------------------------------------------
 
-headerLines :: Sink ByteString IO (Maybe ByteString, [ByteString])
-headerLines =
-    await >>= maybe (throwIO (NotEnoughLines [])) (push (THStatus 0 id id))
+headerLines :: Source -> IO [ByteString]
+headerLines src = do
+    bs <- readSource src
+    if S.null bs
+        then throwIO $ NotEnoughLines []
+        else push src (THStatus 0 id id) bs
 
 ----------------------------------------------------------------
 
@@ -109,19 +109,19 @@ handleExpect _    _   _                     = return ()
 
 ----------------------------------------------------------------
 
-bodyAndSource :: ResumableSource IO ByteString
-              -> Maybe HeaderValue
-              -> Maybe HeaderValue
-              -> IO (Source IO ByteString
+bodyAndSource :: Source
+              -> Maybe HeaderValue -- ^ content length
+              -> Maybe HeaderValue -- ^ transfer-encoding
+              -> IO (IO ByteString
                     ,RequestBodyLength
-                    ,IO (ResumableSource IO ByteString))
+                    )
 bodyAndSource src cl te
   | chunked = do
-      ref <- I.newIORef (src, NeedLen)
-      return (chunkedSource ref, ChunkedBody, fst <$> I.readIORef ref)
+      csrc <- mkCSource src
+      return (readCSource csrc, ChunkedBody)
   | otherwise = do
-      ibs <- IsolatedBSSource <$> I.newIORef (len, src)
-      return (ibsIsolate ibs, bodyLen, ibsDone ibs)
+      isrc <- mkISource src len
+      return (readISource isrc, bodyLen)
   where
     len = toLength cl
     bodyLen = KnownLength $ fromIntegral len
@@ -137,17 +137,28 @@ isChunked _         = False
 
 ----------------------------------------------------------------
 
-timeoutBody :: Timeout.Handle -> Source IO ByteString -> Source IO ByteString
+timeoutBody :: Timeout.Handle -> IO ByteString -> IO (IO ByteString)
 timeoutBody timeoutHandle rbody = do
-    -- Timeout handling was paused after receiving the full request
-    -- headers. Now we need to resume it to avoid a slowloris
-    -- attack during request body sending.
-    liftIO $ Timeout.resume timeoutHandle
-    -- As soon as we finish receiving the request body, whether
-    -- because the application is not interested in more bytes, or
-    -- because there is no more data available, pause the timeout
-    -- handler again.
-    addCleanup (const $ liftIO $ Timeout.pause timeoutHandle) rbody
+    isFirstRef <- I.newIORef True
+
+    return $ do
+        isFirst <- I.readIORef isFirstRef
+
+        when isFirst $
+            -- Timeout handling was paused after receiving the full request
+            -- headers. Now we need to resume it to avoid a slowloris
+            -- attack during request body sending.
+            Timeout.resume timeoutHandle
+
+        bs <- rbody
+
+        -- As soon as we finish receiving the request body, whether
+        -- because the application is not interested in more bytes, or
+        -- because there is no more data available, pause the timeout
+        -- handler again.
+        when (S.null bs) (Timeout.pause timeoutHandle)
+
+        return bs
 
 ----------------------------------------------------------------
 
@@ -161,11 +172,13 @@ data THStatus = THStatus
 
 ----------------------------------------------------------------
 
+{- FIXME
 close :: Sink ByteString IO a
 close = throwIO IncompleteHeaders
+-}
 
-push :: THStatus -> ByteString -> Sink ByteString IO (Maybe ByteString, [ByteString])
-push (THStatus len lines prepend) bs'
+push :: Source -> THStatus -> ByteString -> IO [ByteString]
+push src (THStatus len lines prepend) bs'
         -- Too many bytes
         | len > maxTotalHeaderLength = throwIO OverLargeHeader
         | otherwise = push' mnl
@@ -187,15 +200,19 @@ push (THStatus len lines prepend) bs'
             Just (nl, False)
 
     {-# INLINE push' #-}
+    push' :: Maybe (Int, Bool) -> IO [ByteString]
     -- No newline find in this chunk.  Add it to the prepend,
     -- update the length, and continue processing.
-    push' Nothing = await >>= maybe close (push status)
+    push' Nothing = do
+        bs <- readSource' src
+        when (S.null bs) $ throwIO IncompleteHeaders
+        push src status bs
       where
         len' = len + bsLen
         prepend' = S.append bs
         status = THStatus len' lines prepend'
     -- Found a newline, but next line continues as a multiline header
-    push' (Just (end, True)) = push status rest
+    push' (Just (end, True)) = push src status rest
       where
         rest = S.drop (end + 1) bs
         prepend' = S.append (SU.unsafeTake (checkCR bs end) bs)
@@ -204,12 +221,9 @@ push (THStatus len lines prepend) bs'
     -- Found a newline at position end.
     push' (Just (end, False))
       -- leftover
-      | S.null line = let lines' = lines []
-                          rest = if start < bsLen then
-                                     Just (SU.unsafeDrop start bs)
-                                   else
-                                     Nothing
-                       in maybe (return ()) leftover rest >> return (rest, lines')
+      | S.null line = do
+            when (start < bsLen) $ leftoverSource src (SU.unsafeDrop start bs)
+            return (lines [])
       -- more headers
       | otherwise   = let len' = len + start
                           lines' = lines . (line:)
@@ -217,10 +231,12 @@ push (THStatus len lines prepend) bs'
                       in if start < bsLen then
                              -- more bytes in this chunk, push again
                              let bs'' = SU.unsafeDrop start bs
-                              in push status bs''
-                           else
+                              in push src status bs''
+                           else do
                              -- no more bytes in this chunk, ask for more
-                             await >>= maybe close (push status)
+                             bs <- readSource' src
+                             when (S.null bs) $ throwIO IncompleteHeaders
+                             push src status bs
       where
         start = end + 1 -- start of next chunk
         line = SU.unsafeTake (checkCR bs end) bs

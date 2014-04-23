@@ -62,18 +62,17 @@ module Network.Wai
       -- * Response
     , Response
     , FilePart (..)
-    , WithSource
       -- ** Response composers
     , responseFile
     , responseBuilder
     , responseLBS
-    , responseSource
-    , responseSourceBracket
+    , responseStream
+    , responseStreamBracket
     , responseRaw
       -- * Response accessors
     , responseStatus
     , responseHeaders
-    , responseToSource
+    , responseToStream
     ) where
 
 import           Blaze.ByteString.Builder     (Builder, fromLazyByteString)
@@ -82,10 +81,6 @@ import           Control.Exception            (bracket, bracketOnError)
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as L
 import           Data.ByteString.Lazy.Char8   ()
-import qualified Data.Conduit                 as C
-import qualified Data.Conduit.Binary          as CB
-import           Data.Conduit.Lazy            (lazyConsume)
-import qualified Data.Conduit.List            as CL
 import           Data.Monoid                  (mempty)
 import qualified Network.HTTP.Types           as H
 import           Network.Socket               (SockAddr (SockAddrInet))
@@ -130,8 +125,8 @@ responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString
 
 -- | Creating 'Response' from 'C.Source'.
-responseSource :: H.Status -> H.ResponseHeaders -> C.Source IO (C.Flush Builder) -> Response
-responseSource st hs src = ResponseSource st hs ($ src)
+responseStream :: H.Status -> H.ResponseHeaders -> ((Maybe Builder -> IO ()) -> IO ()) -> Response
+responseStream = ResponseStream
 
 -- | Creating 'Response' with allocated resource safely released.
 --
@@ -142,17 +137,17 @@ responseSource st hs src = ResponseSource st hs ($ src)
 --   * The third argument is a function to create
 --     ('H.Status','H.ResponseHeaders','C.Source' 'IO' ('C.Flush' 'Builder'))
 --     from the resource.
-responseSourceBracket :: IO a
+responseStreamBracket :: IO a
                       -> (a -> IO ())
                       -> (a -> IO (H.Status
                                   ,H.ResponseHeaders
-                                  ,C.Source IO (C.Flush Builder)))
+                                  ,(Maybe Builder -> IO ()) -> IO ()))
                       -> IO Response
-responseSourceBracket setup teardown action =
+responseStreamBracket setup teardown action =
     bracketOnError setup teardown $ \resource -> do
-        (st,hdr,src) <- action resource
-        return $ ResponseSource st hdr $ \f ->
-            bracket (return resource) teardown (\_ -> f src)
+        (st,hdr,stream) <- action resource
+        return $ ResponseStream st hdr $ \f ->
+            bracket (return resource) teardown (\_ -> stream f)
 
 -- | Create a response for a raw application. This is useful for \"upgrade\"
 -- situations such as WebSockets, where an application requests for the server
@@ -165,10 +160,10 @@ responseSourceBracket setup teardown action =
 -- @responseRaw@, behavior is undefined.
 --
 -- Since 2.1.0
-responseRaw :: (C.Source IO B.ByteString -> C.Sink B.ByteString IO () -> IO ())
+responseRaw :: (IO B.ByteString -> (B.ByteString -> IO ()) -> IO ())
             -> Response
             -> Response
-responseRaw rawApp fallback = ResponseRaw ($ rawApp) fallback
+responseRaw = ResponseRaw
 
 ----------------------------------------------------------------
 
@@ -176,31 +171,35 @@ responseRaw rawApp fallback = ResponseRaw ($ rawApp) fallback
 responseStatus :: Response -> H.Status
 responseStatus (ResponseFile    s _ _ _) = s
 responseStatus (ResponseBuilder s _ _  ) = s
-responseStatus (ResponseSource  s _ _  ) = s
+responseStatus (ResponseStream  s _ _  ) = s
 responseStatus (ResponseRaw _ res      ) = responseStatus res
 
 -- | Accessing 'H.Status' in 'Response'.
 responseHeaders :: Response -> H.ResponseHeaders
 responseHeaders (ResponseFile    _ hs _ _) = hs
 responseHeaders (ResponseBuilder _ hs _  ) = hs
-responseHeaders (ResponseSource  _ hs _  ) = hs
+responseHeaders (ResponseStream  _ hs _  ) = hs
 responseHeaders (ResponseRaw _ res)        = responseHeaders res
 
 -- | Converting the body information in 'Response' to 'Source'.
-responseToSource :: Response
-                 -> (H.Status, H.ResponseHeaders, WithSource IO (C.Flush Builder) b)
-responseToSource (ResponseSource s h b) = (s, h, b)
-responseToSource (ResponseFile s h fp (Just part)) =
-    (s, h, \f -> IO.withFile fp IO.ReadMode $ \handle -> f $ sourceFilePart handle part C.$= CL.map (C.Chunk . fromByteString))
-responseToSource (ResponseFile s h fp Nothing) =
-    (s, h, \f -> IO.withFile fp IO.ReadMode $ \handle -> f $ CB.sourceHandle handle C.$= CL.map (C.Chunk . fromByteString))
-responseToSource (ResponseBuilder s h b) =
-    (s, h, ($ CL.sourceList [C.Chunk b]))
-responseToSource (ResponseRaw _ res) = responseToSource res
+responseToStream :: Response
+                 -> (H.Status, H.ResponseHeaders, (Maybe Builder -> IO ()) -> IO ())
+responseToStream (ResponseStream s h b) = (s, h, b)
+responseToStream (ResponseFile s h fp (Just part)) =
+    error "FIXME responseToStream"
+    --(s, h, \f -> IO.withFile fp IO.ReadMode $ \handle -> f $ sourceFilePart handle part C.$= CL.map (C.Chunk . fromByteString))
+responseToStream (ResponseFile s h fp Nothing) =
+    error "FIXME responseToStream"
+    --(s, h, \f -> IO.withFile fp IO.ReadMode $ \handle -> f $ CB.sourceHandle handle C.$= CL.map (C.Chunk . fromByteString))
+responseToStream (ResponseBuilder s h b) =
+    (s, h, ($ Just b))
+responseToStream (ResponseRaw _ res) = responseToStream res
 
+{- FIXME
 sourceFilePart :: IO.Handle -> FilePart -> C.Source IO B.ByteString
 sourceFilePart handle (FilePart offset count _) =
     CB.sourceHandleRange handle (Just offset) (Just count)
+-}
 
 ----------------------------------------------------------------
 
@@ -237,7 +236,7 @@ defaultRequest = Request
     , remoteHost = SockAddrInet 0 0
     , pathInfo = []
     , queryString = []
-    , requestBody = return ()
+    , requestBody = return B.empty
     , vault = mempty
     , requestBodyLength = KnownLength 0
     , requestHeaderHost = Nothing
@@ -249,4 +248,4 @@ defaultRequest = Request
 --
 -- Since 1.4.1
 lazyRequestBody :: Request -> IO L.ByteString
-lazyRequestBody = fmap L.fromChunks . lazyConsume . requestBody
+lazyRequestBody = error "lazyRequestBody" -- fmap L.fromChunks . lazyConsume . requestBody

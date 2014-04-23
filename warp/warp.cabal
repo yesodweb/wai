@@ -1,5 +1,5 @@
 Name:                warp
-Version:             2.1.4.1
+Version:             3.0.0
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -39,20 +39,16 @@ Library
   Build-Depends:     base                      >= 3        && < 5
                    , array
                    , blaze-builder             >= 0.3.3  && < 0.4
-                   , blaze-builder-conduit     >= 0.5      && < 1.2
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2
-                   , conduit                   >= 0.5      && < 1.2
-                   , conduit-extra
                    , ghc-prim
                    , http-types                >= 0.7
                    , lifted-base               >= 0.1
-                   , network-conduit           >= 0.5      && < 1.2
                    , simple-sendfile           >= 0.2.7    && < 0.3
                    , transformers              >= 0.2.2    && < 0.4
                    , unix-compat               >= 0.2
                    , void
-                   , wai                       >= 2.1      && < 2.2
+                   , wai                       >= 3.0      && < 3.1
                    , text
                    , streaming-commons
   if flag(network-bytestring)
@@ -125,15 +121,12 @@ Test-Suite spec
     Build-Depends:   base >= 4 && < 5
                    , array
                    , blaze-builder             >= 0.3.3    && < 0.4
-                   , blaze-builder-conduit     >= 0.5
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2
-                   , conduit                   >= 0.5
                    , ghc-prim
                    , HTTP
                    , http-types                >= 0.8.4
                    , lifted-base               >= 0.1
-                   , network-conduit
                    , simple-sendfile           >= 0.2.4    && < 0.3
                    , transformers              >= 0.2.2    && < 0.4
                    , unix-compat               >= 0.2
@@ -146,7 +139,6 @@ Test-Suite spec
                    , time
                    , old-locale
                    , text
-                   , conduit-extra
                    , streaming-commons >= 0.1.1
                    , async
 
