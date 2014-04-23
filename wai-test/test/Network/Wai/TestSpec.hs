@@ -18,6 +18,10 @@ spec = do
     it "sets pathInfo" $ do
       pathInfo req `shouldBe` ["foo", "bar", "baz"]
 
+    it "utf8 path" $
+      pathInfo (setPath defaultRequest "/foo/%D7%A9%D7%9C%D7%95%D7%9D/bar") `shouldBe`
+        ["foo", "שלום", "bar"]
+
     it "sets rawPathInfo" $ do
       rawPathInfo req `shouldBe` "/foo/bar/baz"
 
