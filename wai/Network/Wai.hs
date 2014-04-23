@@ -204,7 +204,7 @@ sourceFilePart handle (FilePart offset count _) =
 ----------------------------------------------------------------
 
 -- | The WAI application.
-type Application = Request -> IO Response
+type Application = Request -> (forall b. (Response -> IO b) -> IO b)
 
 -- | Middleware is a component that sits between the server and application. It
 -- can do such tasks as GZIP encoding or response caching. What follows is the

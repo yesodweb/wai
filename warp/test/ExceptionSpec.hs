@@ -30,20 +30,20 @@ withTestServer inner = bracket
             $ \_ -> inner port
 
 testApp :: Application
-testApp (Network.Wai.Internal.Request {pathInfo = [x]})
+testApp (Network.Wai.Internal.Request {pathInfo = [x]}) f
     | x == "statusError" =
-        return $ responseLBS undefined [] "foo"
+        f $ responseLBS undefined [] "foo"
     | x == "headersError" =
-        return $ responseLBS ok200 undefined "foo"
+        f $ responseLBS ok200 undefined "foo"
     | x == "headerError" =
-        return $ responseLBS ok200 [undefined] "foo"
+        f $ responseLBS ok200 [undefined] "foo"
     | x == "bodyError" =
-        return $ responseLBS ok200 [] undefined
+        f $ responseLBS ok200 [] undefined
     | x == "ioException" = do
         void $ fail "ioException"
-        return $ responseLBS ok200 [] "foo"
-testApp _ =
-        return $ responseLBS ok200 [] "foo"
+        f $ responseLBS ok200 [] "foo"
+testApp _ f =
+        f $ responseLBS ok200 [] "foo"
 
 spec :: Spec
 spec = describe "responds even if there is an exception" $ do

@@ -239,8 +239,8 @@ serveConnection conn ii addr isSecure' settings app = do
 
     sendErrorResponse istatus e = do
         status <- readIORef istatus
-        when status $ void $ mask $ \restore ->
-            sendResponse conn ii restore dummyreq defaultIndexRequestHeader (return S.empty) (errorResponse e)
+        when status $ void $
+            sendResponse conn ii dummyreq defaultIndexRequestHeader (return S.empty) (errorResponse e)
 
     dummyreq = defaultRequest { remoteHost = addr }
 
@@ -255,14 +255,13 @@ serveConnection conn ii addr isSecure' settings app = do
         -- In the event that some scarce resource was acquired during
         -- creating the request, we need to make sure that we don't get
         -- an async exception before calling the ResponseSource.
-        keepAlive <- mask $ \restore -> do
-            res <- restore $ app req
+        keepAlive <- app req $ \res -> do
             T.resume th
             -- FIXME consider forcing evaluation of the res here to
             -- send more meaningful error messages to the user.
             -- However, it may affect performance.
             writeIORef istatus False
-            sendResponse conn ii restore req idxhdr (readSource fromClient) res
+            sendResponse conn ii req idxhdr (readSource fromClient) res
 
         -- We just send a Response and it takes a time to
         -- receive a Request again. If we immediately call recv,

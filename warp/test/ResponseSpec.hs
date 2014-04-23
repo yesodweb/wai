@@ -36,7 +36,7 @@ testRange range out crange = it title $ withApp defaultSettings app $ \port -> d
     lookup "Content-Range" hs `shouldBe` Just ("bytes " ++ crange)
     lookup "Content-Length" hs `shouldBe` Just (show $ length $ last bss)
   where
-    app _ = return $ responseFile status200 [] "attic/hex" Nothing
+    app _ = ($ responseFile status200 [] "attic/hex" Nothing)
     title = show (range, out, crange)
     toHeader s =
         case break (== ':') s of
@@ -60,7 +60,7 @@ testPartial size offset count out = it title $ withApp defaultSettings app $ \po
     lookup "Content-Length" hs `shouldBe` Just (show $ length $ last bss)
     lookup "Content-Range" hs `shouldBe` Just range
   where
-    app _ = return $ responseFile status200 [] "attic/hex" $ Just $ FilePart offset count size
+    app _ = ($ responseFile status200 [] "attic/hex" $ Just $ FilePart offset count size)
     title = show (offset, count, out)
     toHeader s =
         case break (== ':') s of
