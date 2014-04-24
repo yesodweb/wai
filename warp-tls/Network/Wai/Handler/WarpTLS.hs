@@ -150,7 +150,8 @@ runTLSSocket TLSSettings {..} set sock app = do
                         gen
                     TLS.contextHookSetLogging ctx tlsLogging
                     TLS.handshake ctx
-                    buf <- allocateBuffer bufferSize
+                    readBuf <- allocateBuffer bufferSize
+                    writeBuf <- allocateBuffer bufferSize
                     let conn = Connection
                             { connSendMany = TLS.sendData ctx . L.fromChunks
                             , connSendAll = TLS.sendData ctx . L.fromChunks . return
@@ -158,6 +159,8 @@ runTLSSocket TLSSettings {..} set sock app = do
                                 TLS.sendData ctx $ L.fromChunks headers
                                 runResourceT $ sourceFileRange fp (Just offset) (Just len) C.$$ CL.mapM_ (TLS.sendData ctx . L.fromChunks . return)
                             , connClose =
+                                freeBuffer readBuf `finally`
+                                freeBuffer writeBuf `finally`
                                 TLS.bye ctx `finally`
                                 TLS.contextClose ctx
                             , connRecv =
@@ -170,7 +173,8 @@ runTLSSocket TLSSettings {..} set sock app = do
                                             else return x
                                  in go
                             , connSendFileOverride = NotOverride
-                            , connBuffer = buf
+                            , connReadBuffer = readBuf
+                            , connWriteBuffer = writeBuf
                             , connBufferSize = bufferSize
                             }
                     return (conn, True)
