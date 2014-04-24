@@ -74,7 +74,8 @@ data Connection = Connection
     , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> IO () -- ^ filepath, offset, length, hook action, HTTP headers
     , connClose    :: IO ()
     , connRecv     :: IO ByteString
-    , connBuffer           :: Buffer
+    , connReadBuffer       :: Buffer
+    , connWriteBuffer      :: Buffer
     , connBufferSize       :: BufSize
     , connSendFileOverride :: ConnSendFileOverride
     }

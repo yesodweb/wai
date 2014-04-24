@@ -12,7 +12,6 @@ module Network.Wai.Handler.Warp.Response (
   ) where
 
 import Blaze.ByteString.Builder (fromByteString, Builder, flush)
-import Blaze.ByteString.Builder.Internal (defaultBufferSize)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 import Control.Applicative
 import Control.Exception
@@ -25,7 +24,7 @@ import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import qualified Data.Conduit.List as CL
-import Data.Conduit.Blaze (builderToByteStringWith, allocBuffer, reuseBufferStrategy)
+import Data.Conduit.Blaze (unsafeBuilderToByteString)
 import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Maybe (isJust, listToMaybe)
@@ -38,6 +37,7 @@ import Data.Version (showVersion)
 import qualified Network.HTTP.Types as H
 import Network.Wai
 import qualified Network.Wai.Handler.Warp.Date as D
+import Network.Wai.Handler.Warp.Buffer (toBlazeBuffer)
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.IO (toBufIOWith)
 import Network.Wai.Handler.Warp.ResponseHeader
@@ -237,7 +237,7 @@ sendRsp conn ver s hs restore (RspBuilder body needsChunked) = restore $ do
          | needsChunked = header <> chunkedTransferEncoding body
                                  <> chunkedTransferTerminator
          | otherwise    = header <> body
-        buffer = connBuffer conn
+        buffer = connWriteBuffer conn
         size = connBufferSize conn
     toBufIOWith buffer size (connSendAll conn) hdrBdy
 
@@ -246,9 +246,9 @@ sendRsp conn ver s hs restore (RspBuilder body needsChunked) = restore $ do
 sendRsp conn ver s hs restore (RspSource withBodyFlush needsChunked th) =
   withBodyFlush $ \bodyFlush -> restore $ do
     header <- composeHeaderBuilder ver s hs needsChunked
+    buffer <- toBlazeBuffer (connWriteBuffer conn) (connBufferSize conn)
     let src = yield header >> cbody bodyFlush
-        strategy = reuseBufferStrategy $ allocBuffer defaultBufferSize
-    src $$ builderToByteStringWith strategy =$ connSink conn th
+    src $$ unsafeBuilderToByteString (return buffer) =$ connSink conn th
   where
     cbody bodyFlush = if needsChunked then body $= chunk else body
       where
