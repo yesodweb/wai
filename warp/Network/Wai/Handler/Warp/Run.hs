@@ -77,18 +77,6 @@ run p = runSettings defaultSettings { settingsPort = p }
 
 -- | Run an 'Application' with the given 'Settings'.
 runSettings :: Settings -> Application -> IO ()
-#if WINDOWS
-runSettings set app = withSocketsDo $ do
-    var <- MV.newMVar Nothing
-    let clean = MV.modifyMVar_ var $ \s -> maybe (return ()) sClose s >> return Nothing
-    void . forkIO $ bracket
-        (bindPortTCP (settingsPort set) (settingsHost set))
-        (const clean)
-        (\s -> do
-            MV.modifyMVar_ var (\_ -> return $ Just s)
-            runSettingsSocket set s app)
-    forever (threadDelay maxBound) `finally` clean
-#else
 runSettings set app =
     bracket
         (bindPortTCP (settingsPort set) (settingsHost set))
@@ -96,6 +84,17 @@ runSettings set app =
         (\socket -> do
             setSocketCloseOnExec socket
             runSettingsSocket set socket app)
+
+#if WINDOWS
+windowsThreadBlockHack :: IO a -> IO a
+windowsThreadBlockHack act = 
+  do
+    var <- MV.newEmptyMVar :: IO (MV.MVar (Either SomeException a))
+    void . forkIO $ E.try act >>= MV.putMVar var
+    res <- MV.takeMVar var
+    case res of
+      Left  e -> throwIO e
+      Right r -> return r
 #endif
 
 -- | Same as 'runSettings', but uses a user-supplied socket instead of opening
@@ -109,7 +108,11 @@ runSettingsSocket set socket app =
     runSettingsConnection set getConn app
   where
     getConn = do
+#if WINDOWS
+        (s, sa) <- windowsThreadBlockHack $ accept socket
+#else
         (s, sa) <- accept socket
+#endif
         setSocketCloseOnExec s
         conn <- socketConnection s
         return (conn, sa)
