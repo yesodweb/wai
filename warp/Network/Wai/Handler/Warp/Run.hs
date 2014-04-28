@@ -77,7 +77,7 @@ run p = runSettings defaultSettings { settingsPort = p }
 
 -- | Run an 'Application' with the given 'Settings'.
 runSettings :: Settings -> Application -> IO ()
-runSettings set app =
+runSettings set app = withSocketsDo $
     bracket
         (bindPortTCP (settingsPort set) (settingsHost set))
         sClose
