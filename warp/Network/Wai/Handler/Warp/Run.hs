@@ -23,7 +23,7 @@ import Data.Conduit.Network (bindPort)
 #define bindPortTCP bindPort
 #endif
 import Network (sClose, Socket)
-import Network.Socket (accept, SockAddr)
+import Network.Socket (accept, withSocketsDo, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import qualified Network.Wai.Handler.Warp.Date as D
@@ -41,7 +41,6 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 
 #if WINDOWS
 import qualified Control.Concurrent.MVar as MV
-import Network.Socket (withSocketsDo)
 import Control.Concurrent (forkIO)
 #else
 import System.Posix.IO (FdOption(CloseOnExec), setFdOption)
