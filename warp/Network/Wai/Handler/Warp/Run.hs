@@ -40,8 +40,7 @@ import Network.Wai.Handler.Warp.Types
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 
 #if WINDOWS
-import qualified Control.Concurrent.MVar as MV
-import Control.Concurrent (forkIO)
+import Network.Wai.Handler.Warp.Windows
 #else
 import System.Posix.IO (FdOption(CloseOnExec), setFdOption)
 import Network.Socket (fdSocket)
@@ -83,18 +82,6 @@ runSettings set app = withSocketsDo $
         (\socket -> do
             setSocketCloseOnExec socket
             runSettingsSocket set socket app)
-
-#if WINDOWS
-windowsThreadBlockHack :: IO a -> IO a
-windowsThreadBlockHack act = 
-  do
-    var <- MV.newEmptyMVar :: IO (MV.MVar (Either SomeException a))
-    void . forkIO $ E.try act >>= MV.putMVar var
-    res <- MV.takeMVar var
-    case res of
-      Left  e -> throwIO e
-      Right r -> return r
-#endif
 
 -- | Same as 'runSettings', but uses a user-supplied socket instead of opening
 -- one. This allows the user to provide, for example, Unix named socket, which

@@ -21,6 +21,7 @@ import Network.Wai.Handler.Warp.Buffer
 
 #ifdef mingw32_HOST_OS
 import GHC.IO.FD (FD(..), readRawBufferPtr)
+import Network.Wai.Handler.Warp.Windows
 #endif
 
 ----------------------------------------------------------------
@@ -47,7 +48,7 @@ receiveloop :: CInt -> Ptr CChar -> CSize -> IO CInt
 #endif
 receiveloop sock buf size = do
 #ifdef mingw32_HOST_OS
-    bytes <- fmap fromIntegral $ readRawBufferPtr "recv" (FD sock 1) buf 0 size
+    bytes <- windowsThreadBlockHack $ fmap fromIntegral $ readRawBufferPtr "recv" (FD sock 1) buf 0 size
 #else
     bytes <- c_recv sock buf size 0
 #endif

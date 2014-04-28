@@ -81,6 +81,7 @@ Library
                      Network.Wai.Handler.Warp.Settings
                      Network.Wai.Handler.Warp.Thread
                      Network.Wai.Handler.Warp.Types
+                     Network.Wai.Handler.Warp.Windows
                      Paths_warp
   Ghc-Options:       -Wall
 
