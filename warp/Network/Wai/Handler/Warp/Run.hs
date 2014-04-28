@@ -23,7 +23,7 @@ import Data.Conduit.Network (bindPort)
 #define bindPortTCP bindPort
 #endif
 import Network (sClose, Socket)
-import Network.Socket (accept, SockAddr)
+import Network.Socket (accept, withSocketsDo, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import qualified Network.Wai.Handler.Warp.Date as D
@@ -40,9 +40,7 @@ import Network.Wai.Handler.Warp.Types
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 
 #if WINDOWS
-import qualified Control.Concurrent.MVar as MV
-import Network.Socket (withSocketsDo)
-import Control.Concurrent (forkIO)
+import Network.Wai.Handler.Warp.Windows
 #else
 import System.Posix.IO (FdOption(CloseOnExec), setFdOption)
 import Network.Socket (fdSocket)
@@ -77,26 +75,13 @@ run p = runSettings defaultSettings { settingsPort = p }
 
 -- | Run an 'Application' with the given 'Settings'.
 runSettings :: Settings -> Application -> IO ()
-#if WINDOWS
-runSettings set app = withSocketsDo $ do
-    var <- MV.newMVar Nothing
-    let clean = MV.modifyMVar_ var $ \s -> maybe (return ()) sClose s >> return Nothing
-    void . forkIO $ bracket
-        (bindPortTCP (settingsPort set) (settingsHost set))
-        (const clean)
-        (\s -> do
-            MV.modifyMVar_ var (\_ -> return $ Just s)
-            runSettingsSocket set s app)
-    forever (threadDelay maxBound) `finally` clean
-#else
-runSettings set app =
+runSettings set app = withSocketsDo $
     bracket
         (bindPortTCP (settingsPort set) (settingsHost set))
         sClose
         (\socket -> do
             setSocketCloseOnExec socket
             runSettingsSocket set socket app)
-#endif
 
 -- | Same as 'runSettings', but uses a user-supplied socket instead of opening
 -- one. This allows the user to provide, for example, Unix named socket, which
@@ -109,7 +94,11 @@ runSettingsSocket set socket app =
     runSettingsConnection set getConn app
   where
     getConn = do
+#if WINDOWS
+        (s, sa) <- windowsThreadBlockHack $ accept socket
+#else
         (s, sa) <- accept socket
+#endif
         setSocketCloseOnExec s
         conn <- socketConnection s
         return (conn, sa)
