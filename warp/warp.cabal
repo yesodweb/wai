@@ -62,10 +62,12 @@ Library
                      Network.Wai.Handler.Warp.Internal
   Other-modules:     Network.Wai.Handler.Warp.Conduit
                      Network.Wai.Handler.Warp.Date
+                     Network.Wai.Handler.Warp.Environment
                      Network.Wai.Handler.Warp.FdCache
                      Network.Wai.Handler.Warp.Header
                      Network.Wai.Handler.Warp.IO
                      Network.Wai.Handler.Warp.IORef
+                     Network.Wai.Handler.Warp.Read
                      Network.Wai.Handler.Warp.ReadInt
                      Network.Wai.Handler.Warp.Recv
                      Network.Wai.Handler.Warp.Request
