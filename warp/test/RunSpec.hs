@@ -77,6 +77,7 @@ doubleConnect icount req = do
 
 nextPort :: I.IORef Int
 nextPort = unsafePerformIO $ I.newIORef 5000
+{-# NOINLINE nextPort #-}
 
 getPort :: IO Int
 getPort = do
