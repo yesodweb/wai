@@ -34,9 +34,7 @@ Library
 Executable           wai-websockets-example
   if flag(example)
     buildable: True
-  else
-    buildable: False
-  Build-Depends:     base               >= 3 && < 5
+    Build-Depends:   base               >= 3 && < 5
                    , conduit
                    , wai-websockets
                    , websockets
@@ -52,6 +50,8 @@ Executable           wai-websockets-example
                    , file-embed
                    , io-streams
                    , http-types
+  else
+    buildable: False
 
   ghc-options:       -Wall -threaded
   main-is:           server.lhs
