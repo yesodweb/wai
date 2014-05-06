@@ -61,7 +61,7 @@ module Network.Wai.Handler.Warp (
   , exceptionResponseForDebug
   , defaultShouldDisplayException
     -- * Data types
-  , HostPreference (..)
+  , HostPreference
   , Port
   , InvalidRequest (..)
   , ConnSendFileOverride (..)
@@ -87,7 +87,7 @@ module Network.Wai.Handler.Warp (
   , sendResponse
   ) where
 
-import Data.Conduit.Network (HostPreference(..))
+import Data.Conduit.Network (HostPreference)
 import Network.Wai.Handler.Warp.Date
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.Header
