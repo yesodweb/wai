@@ -179,7 +179,7 @@ responseStatus (ResponseBuilder s _ _  ) = s
 responseStatus (ResponseSource  s _ _  ) = s
 responseStatus (ResponseRaw _ res      ) = responseStatus res
 
--- | Accessing 'H.Status' in 'Response'.
+-- | Accessing 'H.ResponseHeaders' in 'Response'.
 responseHeaders :: Response -> H.ResponseHeaders
 responseHeaders (ResponseFile    _ hs _ _) = hs
 responseHeaders (ResponseBuilder _ hs _  ) = hs
