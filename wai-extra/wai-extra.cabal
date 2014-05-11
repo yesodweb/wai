@@ -27,7 +27,7 @@ Library
                    , time                      >= 1.1.4
                    , network                   >= 2.2.1.5
                    , directory                 >= 1.0.1
-                   , transformers              >= 0.2.2    && < 0.4
+                   , transformers              >= 0.2.2
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , http-types                >= 0.7
                    , text                      >= 0.7

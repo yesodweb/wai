@@ -18,7 +18,7 @@ library
                    , bytestring                >= 0.9.1.4
                    , text                      >= 0.7
                    , blaze-builder             >= 0.2.1.4  && < 0.4
-                   , transformers              >= 0.2.2    && < 0.4
+                   , transformers              >= 0.2.2
                    , containers                >= 0.2
                    , conduit                   >= 0.5      && < 1.2
                    , conduit-extra

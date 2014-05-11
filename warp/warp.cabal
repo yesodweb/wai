@@ -49,7 +49,7 @@ Library
                    , lifted-base               >= 0.1
                    , network-conduit           >= 0.5      && < 1.2
                    , simple-sendfile           >= 0.2.7    && < 0.3
-                   , transformers              >= 0.2.2    && < 0.4
+                   , transformers              >= 0.2.2
                    , unix-compat               >= 0.2
                    , void
                    , wai                       >= 2.1      && < 2.2
@@ -136,7 +136,7 @@ Test-Suite spec
                    , lifted-base               >= 0.1
                    , network-conduit
                    , simple-sendfile           >= 0.2.4    && < 0.3
-                   , transformers              >= 0.2.2    && < 0.4
+                   , transformers              >= 0.2.2
                    , unix-compat               >= 0.2
                    , void
                    , wai

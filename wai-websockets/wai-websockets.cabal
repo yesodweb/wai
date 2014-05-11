@@ -24,7 +24,7 @@ Library
                    , blaze-builder      >= 0.2.1.4  && < 0.4
                    , case-insensitive   >= 0.2
                    , network            >= 2.2.1.5
-                   , transformers       >= 0.2      && < 0.4
+                   , transformers       >= 0.2
                    , websockets         >= 0.8
                    , io-streams         >= 1.1      && < 1.2
                    , http-types
