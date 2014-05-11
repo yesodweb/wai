@@ -16,7 +16,7 @@ Library
                    , wai                     >= 2.0     && < 2.2
                    , warp                    >= 2.0     && < 2.2
                    , http-types              >= 0.7
-                   , transformers            >= 0.2.2   && < 0.4
+                   , transformers            >= 0.2.2
                    , bytestring              >= 0.9.1.4
                    , blaze-builder           >= 0.2.1.4 && < 0.4
                    , conduit                 >= 0.5     && < 1.2
