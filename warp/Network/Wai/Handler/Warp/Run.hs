@@ -18,6 +18,7 @@ import Network (sClose, Socket)
 import Network.Socket (accept, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
+import Network.Wai.Internal (ResponseReceived (ResponseReceived))
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import Network.Wai.Handler.Warp.Buffer
@@ -255,13 +256,17 @@ serveConnection conn ii addr isSecure' settings app = do
         -- In the event that some scarce resource was acquired during
         -- creating the request, we need to make sure that we don't get
         -- an async exception before calling the ResponseSource.
-        keepAlive <- app req $ \res -> do
+        keepAliveRef <- newIORef $ error "keepAliveRef not filled"
+        _ <- app req $ \res -> do
             T.resume th
             -- FIXME consider forcing evaluation of the res here to
             -- send more meaningful error messages to the user.
             -- However, it may affect performance.
             writeIORef istatus False
-            sendResponse conn ii req idxhdr (readSource fromClient) res
+            keepAlive <- sendResponse conn ii req idxhdr (readSource fromClient) res
+            writeIORef keepAliveRef keepAlive
+            return ResponseReceived
+        keepAlive <- readIORef keepAliveRef
 
         -- We just send a Response and it takes a time to
         -- receive a Request again. If we immediately call recv,
