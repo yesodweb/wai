@@ -24,6 +24,7 @@ module Network.Wai.Test
     ) where
 
 import Network.Wai
+import Network.Wai.Internal (ResponseReceived (ResponseReceived))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.State (StateT, evalStateT)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
@@ -47,9 +48,7 @@ import qualified Data.Text.Encoding as TE
 import Data.IORef
 import Data.Monoid (mempty, mappend)
 
-type Session = ReaderT
-    (Request -> (Response -> IO SResponse) -> IO SResponse)
-    (StateT ClientState IO)
+type Session = ReaderT Application (StateT ClientState IO)
 
 data ClientState = ClientState
     { _clientCookies :: Map ByteString ByteString
@@ -104,17 +103,21 @@ srequest (SRequest req bod) = do
                     [] -> ([], S.empty)
                     x:y -> (y, x)
             }
-    liftIO $ app req' runResponse
+    liftIO $ do
+        ref <- newIORef $ error "runResponse gave no result"
+        ResponseReceived <- app req' (runResponse ref)
+        readIORef ref
     -- FIXME cookie processing
     --return sres
 
-runResponse :: Response -> IO SResponse
-runResponse res = do
+runResponse :: IORef SResponse -> Response -> IO ResponseReceived
+runResponse ref res = do
     refBuilder <- newIORef mempty
     let add y = atomicModifyIORef refBuilder $ \x -> (x `mappend` y, ())
     withBody $ \body -> body add (return ())
     builder <- readIORef refBuilder
-    return $ SResponse s h $ toLazyByteString builder
+    writeIORef ref $ SResponse s h $ toLazyByteString builder
+    return ResponseReceived
   where
     (s, h, withBody) = responseToStream res
 

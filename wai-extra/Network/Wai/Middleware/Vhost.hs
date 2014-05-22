@@ -20,10 +20,10 @@ redirectWWW home =
   redirectIf home (maybe True (BS.isPrefixOf "www") . lookup "host" . requestHeaders)
 
 redirectIf :: Text -> (Request -> Bool) -> Application -> Application
-redirectIf home cond app req =
+redirectIf home cond app req sendResponse =
   if cond req
-    then return $ redirectTo $ TE.encodeUtf8 home
-    else app req
+    then sendResponse $ redirectTo $ TE.encodeUtf8 home
+    else app req sendResponse
 
 redirectTo :: BS.ByteString -> Response
 redirectTo location = responseLBS H.status301

@@ -10,7 +10,9 @@ module Network.Wai.Middleware.MethodOverridePost
 
 import Network.Wai
 import Network.HTTP.Types           (parseQuery)
-import Data.Monoid                  (mconcat)
+import Data.Monoid                  (mconcat, mempty)
+import Data.IORef
+import Data.ByteString.Lazy (toChunks)
 
 -- | Allows overriding of the HTTP request method via the _method post string parameter.
 --
@@ -24,13 +26,16 @@ import Data.Monoid                  (mconcat)
 -- * This middleware only applies when the initial request method is POST.
 --
 methodOverridePost :: Middleware
-methodOverridePost app req = case (requestMethod req, lookup "Content-Type" (requestHeaders req)) of
-  ("POST", Just "application/x-www-form-urlencoded") -> setPost req >>= app
-  _                                                  -> app req
+methodOverridePost app req send =
+    case (requestMethod req, lookup "Content-Type" (requestHeaders req)) of
+      ("POST", Just "application/x-www-form-urlencoded") -> setPost req >>= flip app send
+      _                                                  -> app req send
 
 setPost :: Request -> IO Request
 setPost req = do
-  body <- lazyConsume (requestBody req)
-  case parseQuery (mconcat body) of
-    (("_method", Just newmethod):_) -> return $ req {requestBody = sourceList body, requestMethod = newmethod}
-    _                               -> return $ req {requestBody = sourceList body}
+  body <- (mconcat . toChunks) `fmap` lazyRequestBody req
+  ref <- newIORef body
+  let rb = atomicModifyIORef ref $ \bs -> (mempty, bs)
+  case parseQuery body of
+    (("_method", Just newmethod):_) -> return $ req {requestBody = rb, requestMethod = newmethod}
+    _                               -> return $ req {requestBody = rb}
