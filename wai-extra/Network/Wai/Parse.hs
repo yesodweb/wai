@@ -11,10 +11,7 @@ module Network.Wai.Parse
     , parseRequestBody
     , RequestBodyType (..)
     , getRequestBodyType
-    , sinkRequestBody -- FIXME bad name
-    {- FIXME
-    , conduitRequestBody
-    -}
+    , sinkRequestBody
     , BackEnd
     , lbsBackEnd
     , tempFileBackEnd
@@ -44,13 +41,9 @@ import Data.Function (on, fix)
 import System.Directory (removeFile, getTemporaryDirectory)
 import System.IO (hClose, openBinaryTempFile)
 import Network.Wai
-import Control.Monad.IO.Class (liftIO)
 import qualified Network.HTTP.Types as H
-import Data.Either (partitionEithers)
 import Control.Monad (when, unless)
-import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
-import Data.Void (Void)
 import Data.IORef
 
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
@@ -205,52 +198,78 @@ conduitRequestBody :: BackEnd y
                    -> IO S.ByteString
                    -> (Either Param (File y) -> IO ())
                    -> IO ()
-conduitRequestBody = error "conduitRequestBody"
-{-
-conduitRequestBody _ UrlEncoded = do
+conduitRequestBody _ UrlEncoded rbody add = do
     -- NOTE: in general, url-encoded data will be in a single chunk.
     -- Therefore, I'm optimizing for the usual case by sticking with
     -- strict byte strings here.
-    bs <- CL.consume
-    mapM_ yield $ map Left $ H.parseSimpleQuery $ S.concat bs
-conduitRequestBody backend (Multipart bound) =
-    parsePieces backend $ S8.pack "--" `S.append` bound
+    let loop front = do
+            bs <- rbody
+            if S.null bs
+                then return $ S.concat $ front []
+                else loop $ front . (bs:)
+    bs <- loop id
+    mapM_ (add . Left) $ H.parseSimpleQuery bs
+conduitRequestBody backend (Multipart bound) rbody add =
+    parsePieces backend (S8.pack "--" `S.append` bound) rbody add
 
-takeLine :: Monad m => Consumer S.ByteString m (Maybe S.ByteString)
-takeLine =
+takeLine :: Source -> IO (Maybe S.ByteString)
+takeLine src =
     go id
   where
-    go front = await >>= maybe (close front) (push front)
+    go front = do
+        bs <- readSource src
+        if S.null bs
+            then close front
+            else push front bs
 
-    close front = leftover (front S.empty) >> return Nothing
+    close front = leftover src (front S.empty) >> return Nothing
     push front bs = do
         let (x, y) = S.break (== 10) $ front bs -- LF
          in if S.null y
                 then go $ S.append x
                 else do
-                    when (S.length y > 1) $ leftover $ S.drop 1 y
+                    when (S.length y > 1) $ leftover src $ S.drop 1 y
                     return $ Just $ killCR x
 
-takeLines :: Consumer S.ByteString IO [S.ByteString]
-takeLines = do
-    res <- takeLine
+takeLines :: Source -> IO [S.ByteString]
+takeLines src = do
+    res <- takeLine src
     case res of
         Nothing -> return []
         Just l
             | S.null l -> return []
             | otherwise -> do
-                ls <- takeLines
+                ls <- takeLines src
                 return $ l : ls
+
+data Source = Source (IO S.ByteString) (IORef S.ByteString)
+
+mkSource :: IO S.ByteString -> IO Source
+mkSource f = do
+    ref <- newIORef S.empty
+    return $ Source f ref
+
+readSource :: Source -> IO S.ByteString
+readSource (Source f ref) = do
+    bs <- atomicModifyIORef ref $ \bs -> (S.empty, bs)
+    if S.null bs
+        then f
+        else return bs
+
+leftover :: Source -> S.ByteString -> IO ()
+leftover (Source _ ref) bs = writeIORef ref bs
 
 parsePieces :: BackEnd y
             -> S.ByteString
-            -> ConduitM S.ByteString (Either Param (File y)) IO ()
-parsePieces sink bound =
-    loop
+            -> IO S.ByteString
+            -> (Either Param (File y) -> IO ())
+            -> IO ()
+parsePieces sink bound rbody add =
+    mkSource rbody >>= loop
   where
-    loop = do
-        _boundLine <- takeLine
-        res' <- takeLines
+    loop src = do
+        _boundLine <- takeLine src
+        res' <- takeLines src
         unless (null res') $ do
             let ls' = map parsePair res'
             let x = do
@@ -263,30 +282,29 @@ parsePieces sink bound =
                 Just (mct, name, Just filename) -> do
                     let ct = fromMaybe "application/octet-stream" mct
                         fi0 = FileInfo filename ct ()
-                    (wasFound, y) <- sinkTillBound' bound name fi0 sink
-                    yield $ Right (name, fi0 { fileContent = y })
-                    when wasFound loop
+                    (wasFound, y) <- sinkTillBound' bound name fi0 sink src
+                    add $ Right (name, fi0 { fileContent = y })
+                    when wasFound (loop src)
                 Just (_ct, name, Nothing) -> do
                     let seed = id
                     let iter front bs = return $ front . (:) bs
-                    (wasFound, front) <- sinkTillBound bound iter seed
+                    (wasFound, front) <- sinkTillBound bound iter seed src
                     let bs = S.concat $ front []
                     let x' = (name, bs)
-                    yield $ Left x'
-                    when wasFound loop
+                    add $ Left x'
+                    when wasFound (loop src)
                 _ -> do
                     -- ignore this part
                     let seed = ()
                         iter () _ = return ()
-                    (wasFound, ()) <- sinkTillBound bound iter seed
-                    when wasFound loop
+                    (wasFound, ()) <- sinkTillBound bound iter seed src
+                    when wasFound (loop src)
       where
         contDisp = S8.pack "Content-Disposition"
         contType = S8.pack "Content-Type"
         parsePair s =
             let (x, y) = breakDiscard 58 s -- colon
              in (x, S.dropWhile (== 32) y) -- space
--}
 
 data Bound = FoundBound S.ByteString S.ByteString
            | NoBound
@@ -316,70 +334,82 @@ findBound b bs = handleBreak $ Search.breakOn b bs
         | S.index b x == S.index bs y = mismatch xs ys
         | otherwise = True
 
-{- FIXME
 sinkTillBound' :: S.ByteString
                -> S.ByteString
                -> FileInfo ()
                -> BackEnd y
-               -> ConduitM S.ByteString o IO (Bool, y)
-sinkTillBound' bound name fi sink =
-    ConduitM $ anyOutput $
-    conduitTillBound bound >+> withUpstream (fix $ sink name fi)
-  where
-    fix :: Sink S8.ByteString IO y -> Pipe Void S8.ByteString Void Bool IO y
-    fix p = ignoreTerm >+> injectLeftovers (unConduitM p)
-    ignoreTerm = await' >>= maybe (return ()) (\x -> yield' x >> ignoreTerm)
-    await' = NeedInput (return . Just) (const $ return Nothing)
-    yield' = HaveOutput (return ()) (return ())
+               -> Source
+               -> IO (Bool, y)
+sinkTillBound' bound name fi sink src = do
+    (next, final) <- wrapTillBound bound src
+    y <- sink name fi next
+    b <- final
+    return (b, y)
 
-    anyOutput p = p >+> dropInput
-    dropInput = NeedInput (const dropInput) return
-
-conduitTillBound :: Monad m
-                 => S.ByteString -- bound
-                 -> Pipe S.ByteString S.ByteString S.ByteString () m Bool
-conduitTillBound bound =
-    unConduitM $
-    go id
+data WTB = WTBWorking (S.ByteString -> S.ByteString)
+         | WTBDone Bool
+wrapTillBound :: S.ByteString -- ^ bound
+              -> Source
+              -> IO (IO S.ByteString, IO Bool) -- ^ Bool indicates if the bound was found
+wrapTillBound bound src = do
+    ref <- newIORef $ WTBWorking id
+    return (go ref, final ref)
   where
-    go front = await >>= maybe (close front) (push front)
-    close front = do
-        let bs = front S.empty
-        unless (S.null bs) $ yield bs
-        return False
-    push front bs' = do
-        let bs = front bs'
-        case findBound bound bs of
-            FoundBound before after -> do
-                let before' = killCRLF before
-                yield before'
-                leftover after
-                return True
-            NoBound -> do
-                -- don't emit newlines, in case it's part of a bound
-                let (toEmit, front') =
-                        if not (S8.null bs) && S8.last bs `elem` "\r\n"
-                            then let (x, y) = S.splitAt (S.length bs - 2) bs
-                                  in (x, S.append y)
-                            else (bs, id)
-                yield toEmit
-                go front'
-            PartialBound -> go $ S.append bs
+    final ref = do
+        x <- readIORef ref
+        case x of
+            WTBWorking _ -> error "wrapTillBound did not finish"
+            WTBDone y -> return y
+
+    go ref = do
+        state <- readIORef ref
+        case state of
+            WTBDone _ -> return S.empty
+            WTBWorking front -> do
+                bs <- readSource src
+                if S.null bs
+                    then do
+                        writeIORef ref $ WTBDone False
+                        return $ front bs
+                    else push $ front bs
+      where
+        push bs =
+            case findBound bound bs of
+                FoundBound before after -> do
+                    let before' = killCRLF before
+                    leftover src after
+                    writeIORef ref $ WTBDone True
+                    return before'
+                NoBound -> do
+                    -- don't emit newlines, in case it's part of a bound
+                    let (toEmit, front') =
+                            if not (S8.null bs) && S8.last bs `elem` "\r\n"
+                                then let (x, y) = S.splitAt (S.length bs - 2) bs
+                                      in (x, S.append y)
+                                else (bs, id)
+                    writeIORef ref $ WTBWorking front'
+                    if S.null toEmit
+                        then go ref
+                        else return toEmit
+                PartialBound -> do
+                    writeIORef ref $ WTBWorking $ S.append bs
+                    go ref
 
 sinkTillBound :: S.ByteString
               -> (x -> S.ByteString -> IO x)
               -> x
-              -> Consumer S.ByteString IO (Bool, x)
-sinkTillBound bound iter seed0 =
-    ConduitM $
-    (conduitTillBound bound >+> (withUpstream $ ij $ CL.foldM iter' seed0))
-  where
-    iter' a b = liftIO $ iter a b
-    ij (ConduitM p) = ignoreTerm >+> injectLeftovers p
-    ignoreTerm = await' >>= maybe (return ()) (\x -> yield' x >> ignoreTerm)
-    await' = NeedInput (return . Just) (const $ return Nothing)
-    yield' = HaveOutput (return ()) (return ())
--}
+              -> Source
+              -> IO (Bool, x)
+sinkTillBound bound iter seed0 src = do
+    (next, final) <- wrapTillBound bound src
+    let loop seed = do
+            bs <- next
+            if S.null bs
+                then return seed
+                else iter seed bs >>= loop
+    seed <- loop seed0
+    b <- final
+    return (b, seed)
 
 parseAttrs :: S.ByteString -> [(S.ByteString, S.ByteString)]
 parseAttrs = map go . S.split 59 -- semicolon
