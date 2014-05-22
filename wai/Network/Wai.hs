@@ -177,7 +177,7 @@ responseToStream (ResponseStream s h b) = (s, h, ($ b))
 responseToStream (ResponseFile s h fp (Just part)) =
     ( s
     , h
-    , \withBody -> IO.withFile fp IO.ReadMode $ \handle -> withBody $ \sendChunk _flush -> do
+    , \withBody -> IO.withBinaryFile fp IO.ReadMode $ \handle -> withBody $ \sendChunk _flush -> do
         IO.hSeek handle IO.AbsoluteSeek $ filePartOffset part
         let loop remaining | remaining <= 0 = return ()
             loop remaining = do
@@ -191,7 +191,7 @@ responseToStream (ResponseFile s h fp (Just part)) =
 responseToStream (ResponseFile s h fp Nothing) =
     ( s
     , h
-    , \withBody -> IO.withFile fp IO.ReadMode $ \handle ->
+    , \withBody -> IO.withBinaryFile fp IO.ReadMode $ \handle ->
        withBody $ \sendChunk _flush -> fix $ \loop -> do
             bs <- B.hGetSome handle defaultChunkSize
             unless (B.null bs) $ do
