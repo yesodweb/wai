@@ -19,6 +19,7 @@ Library
                    , transformers            >= 0.2.2   && < 0.4
                    , bytestring              >= 0.9.1.4
                    , blaze-builder           >= 0.2.1.4 && < 0.4
+                   , streaming-commons
 
     if os(windows)
         c-sources: windows.c
