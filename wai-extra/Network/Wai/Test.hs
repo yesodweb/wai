@@ -116,7 +116,11 @@ runResponse ref res = do
     let add y = atomicModifyIORef refBuilder $ \x -> (x `mappend` y, ())
     withBody $ \body -> body add (return ())
     builder <- readIORef refBuilder
-    writeIORef ref $ SResponse s h $ toLazyByteString builder
+    let lbs = toLazyByteString builder
+        len = L.length lbs
+    -- Force evaluation of the body to have exceptions thrown at the right
+    -- time.
+    seq len $ writeIORef ref $ SResponse s h $ toLazyByteString builder
     return ResponseReceived
   where
     (s, h, withBody) = responseToStream res
