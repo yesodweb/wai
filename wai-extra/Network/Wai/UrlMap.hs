@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {- | This module gives you a way to mount applications under sub-URIs.
 For example:
 
@@ -49,13 +50,13 @@ instance Alternative UrlMap' where
     empty                         = UrlMap' empty
     (UrlMap' xs) <|> (UrlMap' ys) = UrlMap' (xs <|> ys)
 
-type UrlMap = UrlMap' Application
+type UrlMap = UrlMap' Application'
 
 -- | Mount an application under a given path. The ToApplication typeclass gives
 -- you the option to pass either an 'Network.Wai.Application' or an 'UrlMap'
 -- as the second argument.
 mount' :: ToApplication a => Path -> a -> UrlMap
-mount' prefix thing = UrlMap' [(prefix, toApplication thing)]
+mount' prefix thing = UrlMap' [(prefix, Application' $ toApplication thing)]
 
 -- | A convenience function like mount', but for mounting things under a single
 -- path segment.
@@ -77,20 +78,20 @@ try xs tuples = foldl go Nothing tuples
         go _ (prefix, y) = stripPrefix prefix xs >>= \xs' -> return (xs', y)
 
 class ToApplication a where
-    toApplication :: a -> Application
+    toApplication :: a -> Application'
 
 instance ToApplication Application where
-    toApplication = id
+    toApplication = Application'
 
 instance ToApplication UrlMap where
-    toApplication urlMap = \req ->
+    toApplication urlMap req sendResponse = Application' $
         case try (pathInfo req) (unUrlMap urlMap) of
-            Just (newPath, app) ->
-                app $ req { pathInfo = newPath
-                          , rawPathInfo = makeRaw newPath
-                          }
+            Just (newPath, Application' app) ->
+                app (req { pathInfo = newPath
+                         , rawPathInfo = makeRaw newPath
+                         }) sendResponse
             Nothing ->
-                return $ responseLBS
+                sendResponse $ responseLBS
                     status404
                     [("content-type", "text/plain")]
                     "Not found\n"
@@ -100,4 +101,6 @@ instance ToApplication UrlMap where
         makeRaw = ("/" `B.append`) . T.encodeUtf8 . T.intercalate "/"
 
 mapUrls :: UrlMap -> Application
-mapUrls = toApplication
+mapUrls um =
+    case toApplication um of
+        Application' a -> a

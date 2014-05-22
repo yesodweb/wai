@@ -33,11 +33,6 @@ import Network.HTTP.Types (Status, Header)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Resource (runResourceT)
 import System.Directory (doesFileExist, createDirectoryIfMissing)
-import qualified Data.Conduit as C
-import qualified Data.Conduit.Zlib as CZ
-import qualified Data.Conduit.Binary as CB
-import qualified Data.Conduit.List as CL
-import Data.Conduit.Blaze (builderToByteStringFlush)
 import Blaze.ByteString.Builder (fromByteString)
 import Control.Exception (try, SomeException)
 import qualified Data.Set as Set

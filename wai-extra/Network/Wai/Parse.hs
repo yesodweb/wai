@@ -42,17 +42,12 @@ import Data.Function (on)
 import System.Directory (removeFile, getTemporaryDirectory)
 import System.IO (hClose, openBinaryTempFile)
 import Network.Wai
-import Data.Conduit
-import Data.Conduit.Internal ()
-import qualified Data.Conduit.List as CL
-import qualified Data.Conduit.Binary as CB
 import Control.Monad.IO.Class (liftIO)
 import qualified Network.HTTP.Types as H
 import Data.Either (partitionEithers)
 import Control.Monad (when, unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
-import Data.Conduit.Internal (Pipe (NeedInput, HaveOutput), (>+>), withUpstream, injectLeftovers, ConduitM (..))
 import Data.Void (Void)
 
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)

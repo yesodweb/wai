@@ -24,7 +24,6 @@ import qualified Data.String as String
 import Data.Monoid (mconcat, mempty)
 import Blaze.ByteString.Builder (fromByteString, toLazyByteString)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromString)
-import Data.Conduit.Blaze (builderToByteStringFlush)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import System.IO (Handle)
@@ -32,7 +31,6 @@ import Network.HTTP.Types (Status (..))
 import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import Data.Monoid (mappend)
-import Data.Conduit
 
 #if WINDOWS
 import System.Environment (getEnvironment)

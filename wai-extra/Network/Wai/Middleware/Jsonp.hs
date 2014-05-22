@@ -25,7 +25,6 @@ import Data.Monoid (mappend)
 import Control.Monad (join)
 import Data.Maybe (fromMaybe)
 import qualified Data.ByteString as S
-import qualified Data.Conduit as C
 import Data.CaseInsensitive (CI)
 import Network.HTTP.Types (Status)
 

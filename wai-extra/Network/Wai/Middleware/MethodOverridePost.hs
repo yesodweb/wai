@@ -11,8 +11,6 @@ module Network.Wai.Middleware.MethodOverridePost
 import Network.Wai
 import Network.HTTP.Types           (parseQuery)
 import Data.Monoid                  (mconcat)
-import Data.Conduit.Lazy            (lazyConsume)
-import Data.Conduit.List            (sourceList)
 
 -- | Allows overriding of the HTTP request method via the _method post string parameter.
 --

@@ -34,9 +34,6 @@ import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, ge
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as S8
 
-import qualified Data.Conduit as C
-import qualified Data.Conduit.List as CL
-
 import System.Console.ANSI
 import Data.IORef.Lifted
 import System.IO.Unsafe
