@@ -1,5 +1,5 @@
 name:            wai-frontend-monadcgi
-version:         2.0.0.2
+version:         3.0.0
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -21,7 +21,7 @@ library
                  , http-types
                  , transformers
                  , case-insensitive
-                 , wai               >= 2.0      && < 2.2
+                 , wai               >= 3.0      && < 3.1
     exposed-modules: Network.Wai.Frontend.MonadCGI
     ghc-options:     -Wall
 

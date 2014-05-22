@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             2.1.1.1
+Version:             3.0.0
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             MIT
@@ -22,7 +22,7 @@ extra-source-files:
 Library
   Build-Depends:     base                      >= 4 && < 5
                    , bytestring                >= 0.9.1.4
-                   , wai                       >= 2.1      && < 2.2
+                   , wai                       >= 3.0      && < 3.1
                    , old-locale                >= 1.0.0.2  && < 1.1
                    , time                      >= 1.1.4
                    , network                   >= 2.2.1.5
