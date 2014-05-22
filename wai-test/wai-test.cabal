@@ -4,44 +4,13 @@ license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
 maintainer:      Michael Snoyman <michael@snoyman.com>
-synopsis:        Unit test framework (built on HUnit) for WAI applications.
+synopsis:        Unit test framework (built on HUnit) for WAI applications. (deprecated)
+description:     Since WAI 3.0, this code has been merged into wai-extra.
 category:        Testing, Web, Yesod
 stability:       Stable
 cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        http://www.yesodweb.com/book/web-application-interface
-description:     Unit test framework (built on HUnit) for WAI applications.
 
 library
-    build-depends:   base                      >= 4        && < 5
-                   , wai                       >= 3.0      && < 3.1
-                   , bytestring                >= 0.9.1.4
-                   , text                      >= 0.7
-                   , blaze-builder             >= 0.2.1.4  && < 0.4
-                   , transformers              >= 0.2.2    && < 0.4
-                   , containers                >= 0.2
-                   , conduit                   >= 0.5      && < 1.2
-                   , conduit-extra
-                   , blaze-builder-conduit     >= 0.5      && < 1.2
-                   , cookie                    >= 0.2      && < 0.5
-                   , http-types                >= 0.7
-                   , case-insensitive          >= 0.2
-                   , network
-                   , deepseq
-    exposed-modules: Network.Wai.Test
-    ghc-options:     -Wall
-
-test-suite spec
-    type:            exitcode-stdio-1.0
-    hs-source-dirs:  test
-    main-is:         Spec.hs
-    other-modules:   Network.Wai.TestSpec
-    build-depends:   base                      >= 4        && < 5
-                   , wai-test
-                   , wai
-                   , hspec >= 1.3
-    ghc-options:     -Wall -Werror
-
-source-repository head
-  type:     git
-  location: git://github.com/yesodweb/wai.git
+    build-depends: wai >= 3.0

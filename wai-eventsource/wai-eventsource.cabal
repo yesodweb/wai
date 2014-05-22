@@ -1,7 +1,7 @@
 Name:                wai-eventsource
 Version:             3.0.0
-Synopsis:            WAI support for server-sent events
-Description:         WAI support for server-sent events
+Synopsis:            WAI support for server-sent events (deprecated)
+Description:         Since WAI 3.0, this code has been merged into wai-extra.
 License:             MIT
 Author:              Chris Smith, Mathias Biilmann Christensen
 Maintainer:          greg@gregweber.info
@@ -13,21 +13,4 @@ homepage:            http://www.yesodweb.com/book/web-application-interface
 license-file:        LICENSE
 
 Library
-  Build-depends:
-      base                      >= 4.3 && < 5
-    , bytestring                >= 0.9.1.4
-    , blaze-builder             >= 0.3 && < 0.4
-    , conduit                   >= 0.5      && < 1.2
-    , http-types                >= 0.7
-    , wai                       >= 3.0      && < 3.1
-    , transformers
-
-  ghc-options:     -Wall
-  hs-source-dirs:  src
-  exposed-modules:
-    Network.Wai.EventSource
-    Network.Wai.EventSource.EventStream
-
-source-repository head
-  type:     git
-  location: git://github.com/yesodweb/wai.git
+    build-depends: wai >= 3.0
