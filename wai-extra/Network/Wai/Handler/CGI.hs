@@ -13,8 +13,8 @@ module Network.Wai.Handler.CGI
 import Network.Wai
 import Network.Wai.Internal
 import Network.Socket (getAddrInfo, addrAddress)
+import Data.IORef
 import Data.Maybe (fromMaybe)
-import Control.Exception (mask)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as L
 import Control.Arrow ((***))
@@ -22,15 +22,17 @@ import Data.Char (toLower)
 import qualified System.IO
 import qualified Data.String as String
 import Data.Monoid (mconcat, mempty)
-import Blaze.ByteString.Builder (fromByteString, toLazyByteString)
+import Blaze.ByteString.Builder (fromByteString, toLazyByteString, flush)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromString)
-import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import System.IO (Handle)
 import Network.HTTP.Types (Status (..))
 import qualified Network.HTTP.Types as H
 import qualified Data.CaseInsensitive as CI
 import Data.Monoid (mappend)
+import qualified Data.Streaming.Blaze as Blaze
+import Data.Function (fix)
+import Control.Monad (unless, void)
 
 #if WINDOWS
 import System.Environment (getEnvironment)
@@ -74,7 +76,7 @@ runSendfile sf app = do
 -- stick with 'run' or 'runSendfile'.
 runGeneric
      :: [(String, String)] -- ^ all variables
-     -> (Int -> Source IO B.ByteString) -- ^ responseBody of input
+     -> (Int -> IO (IO B.ByteString)) -- ^ responseBody of input
      -> (B.ByteString -> IO ()) -- ^ destination for output
      -> Maybe B.ByteString -- ^ does the server support the X-Sendfile header?
      -> Application
@@ -96,40 +98,48 @@ runGeneric vars inputH outputH xsendfile app = do
                 "https" -> True
                 _ -> False
     addrs <- getAddrInfo Nothing (Just remoteHost') Nothing
+    requestBody' <- inputH contentLength
     let addr =
             case addrs of
                 a:_ -> addrAddress a
                 [] -> error $ "Invalid REMOTE_ADDR or REMOTE_HOST: " ++ remoteHost'
-    mask $ \restore -> do
-        let reqHeaders = map (cleanupVarName *** B.pack) vars
-            env = Request
-                { requestMethod = rmethod
-                , rawPathInfo = B.pack pinfo
-                , pathInfo = H.decodePathSegments $ B.pack pinfo
-                , rawQueryString = B.pack qstring
-                , queryString = H.parseQuery $ B.pack qstring
-                , requestHeaders = reqHeaders
-                , isSecure = isSecure'
-                , remoteHost = addr
-                , httpVersion = H.http11 -- FIXME
-                , requestBody = inputH contentLength
-                , vault = mempty
-                , requestBodyLength = KnownLength $ fromIntegral contentLength
-                , requestHeaderHost = lookup "host" reqHeaders
-                , requestHeaderRange = lookup "range" reqHeaders
-                }
-        -- FIXME worry about exception?
-        res <- restore $ app env
+        reqHeaders = map (cleanupVarName *** B.pack) vars
+        env = Request
+            { requestMethod = rmethod
+            , rawPathInfo = B.pack pinfo
+            , pathInfo = H.decodePathSegments $ B.pack pinfo
+            , rawQueryString = B.pack qstring
+            , queryString = H.parseQuery $ B.pack qstring
+            , requestHeaders = reqHeaders
+            , isSecure = isSecure'
+            , remoteHost = addr
+            , httpVersion = H.http11 -- FIXME
+            , requestBody = requestBody'
+            , vault = mempty
+            , requestBodyLength = KnownLength $ fromIntegral contentLength
+            , requestHeaderHost = lookup "host" reqHeaders
+            , requestHeaderRange = lookup "range" reqHeaders
+            }
+    void $ app env $ \res ->
         case (xsendfile, res) of
-            (Just sf, ResponseFile s hs fp Nothing) ->
-                restore $ mapM_ outputH $ L.toChunks $ toLazyByteString $ sfBuilder s hs sf fp
+            (Just sf, ResponseFile s hs fp Nothing) -> do
+                mapM_ outputH $ L.toChunks $ toLazyByteString $ sfBuilder s hs sf fp
+                return ResponseReceived
             _ -> do
-                let (s, hs, wb) = responseToSource res
-                wb $ \b ->
-                    let src = do
-                            yield (Chunk $ headers s hs `mappend` fromChar '\n')
-                            b
-                     in src $$ builderSink
+                let (s, hs, wb) = responseToStream res
+                (blazeRecv, blazeFinish) <- Blaze.newBlazeRecv Blaze.defaultStrategy
+                wb $ \b -> do
+                    let sendBuilder builder = do
+                            popper <- blazeRecv builder
+                            fix $ \loop -> do
+                                bs <- popper
+                                unless (B.null bs) $ do
+                                    outputH bs
+                                    loop
+                    sendBuilder $ headers s hs `mappend` fromChar '\n'
+                    b sendBuilder (sendBuilder flush)
+                blazeFinish >>= maybe (return ()) outputH
+                return ResponseReceived
   where
     headers s hs = mconcat (map header $ status s : map header' (fixHeaders hs))
     status (Status i m) = (fromByteString "Status", mconcat
@@ -151,13 +161,6 @@ runGeneric vars inputH outputH xsendfile app = do
         , fromByteString sf
         , fromByteString " not supported"
         ]
-    bsSink = await >>= maybe (return ()) push
-    push (Chunk bs) = do
-        liftIO $ outputH bs
-        bsSink
-    -- FIXME actually flush?
-    push Flush = bsSink
-    builderSink = builderToByteStringFlush =$ bsSink
     fixHeaders h =
         case lookup "content-type" h of
             Nothing -> ("Content-Type", "text/html; charset=utf-8") : h
@@ -176,19 +179,19 @@ cleanupVarName s =
     helper' (x:rest) = toLower x : helper' rest
     helper' [] = []
 
-requestBodyHandle :: Handle -> Int -> Source IO B.ByteString
+requestBodyHandle :: Handle -> Int -> IO (IO B.ByteString)
 requestBodyHandle h = requestBodyFunc $ \i -> do
     bs <- B.hGet h i
     return $ if B.null bs then Nothing else Just bs
 
-requestBodyFunc :: (Int -> IO (Maybe B.ByteString)) -> Int -> Source IO B.ByteString
-requestBodyFunc get =
-    loop
-  where
-    loop 0 = return ()
-    loop count = do
-        mbs <- liftIO $ get $ min count defaultChunkSize
-        let count' = count - maybe 0 B.length mbs
-        case mbs of
-            Nothing -> return ()
-            Just bs -> yield bs >> loop count'
+requestBodyFunc :: (Int -> IO (Maybe B.ByteString)) -> Int -> IO (IO B.ByteString)
+requestBodyFunc get count0 = do
+    ref <- newIORef count0
+    return $ do
+        count <- readIORef ref
+        if count <= 0
+            then return B.empty
+            else do
+                mbs <- get $ min count defaultChunkSize
+                writeIORef ref $ count - maybe 0 B.length mbs
+                return $ fromMaybe B.empty mbs

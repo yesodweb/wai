@@ -11,8 +11,10 @@ module Network.Wai.Parse
     , parseRequestBody
     , RequestBodyType (..)
     , getRequestBodyType
-    , sinkRequestBody
+    , sinkRequestBody -- FIXME bad name
+    {- FIXME
     , conduitRequestBody
+    -}
     , BackEnd
     , lbsBackEnd
     , tempFileBackEnd
@@ -38,7 +40,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Word (Word8)
 import Data.Maybe (fromMaybe)
 import Data.List (sortBy)
-import Data.Function (on)
+import Data.Function (on, fix)
 import System.Directory (removeFile, getTemporaryDirectory)
 import System.IO (hClose, openBinaryTempFile)
 import Network.Wai
@@ -49,6 +51,7 @@ import Control.Monad (when, unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
 import Data.Void (Void)
+import Data.IORef
 
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
@@ -80,15 +83,22 @@ parseHttpAccept = map fst
                 _ -> 1.0
 
 -- | Store uploaded files in memory
-lbsBackEnd :: Monad m => ignored1 -> ignored2 -> Sink S.ByteString m L.ByteString
-lbsBackEnd _ _ = fmap L.fromChunks CL.consume
+lbsBackEnd :: Monad m => ignored1 -> ignored2 -> m S.ByteString -> m L.ByteString
+lbsBackEnd _ _ popper =
+    loop id
+  where
+    loop front = do
+        bs <- popper
+        if S.null bs
+            then return $ L.fromChunks $ front []
+            else loop $ front . (bs:)
 
 -- | Save uploaded files on disk as temporary files
 --
 -- Note: starting with version 2.0, removal of temp files is registered with
 -- the provided @InternalState@. It is the responsibility of the caller to
 -- ensure that this @InternalState@ gets cleaned up.
-tempFileBackEnd :: InternalState -> ignored1 -> ignored2 -> Sink S.ByteString IO FilePath
+tempFileBackEnd :: InternalState -> ignored1 -> ignored2 -> IO S.ByteString -> IO FilePath
 tempFileBackEnd = tempFileBackEndOpts getTemporaryDirectory "webenc.buf"
 
 -- | Same as 'tempFileSink', but use configurable temp folders and patterns.
@@ -97,14 +107,19 @@ tempFileBackEndOpts :: IO FilePath -- ^ get temporary directory
                     -> InternalState
                     -> ignored1
                     -> ignored2
-                    -> Sink S.ByteString IO FilePath
-tempFileBackEndOpts getTmpDir pattern internalState _ _ = do
+                    -> IO S.ByteString
+                    -> IO FilePath
+tempFileBackEndOpts getTmpDir pattern internalState _ _ popper = do
     (key, (fp, h)) <- flip runInternalState internalState $ allocate (do
         tempDir <- getTmpDir
         openBinaryTempFile tempDir pattern) (\(_, h) -> hClose h)
     _ <- runInternalState (register $ removeFile fp) internalState
-    CB.sinkHandle h
-    lift $ release key
+    fix $ \loop -> do
+        bs <- popper
+        unless (S.null bs) $ do
+            S.hPut h bs
+            loop
+    release key
     return fp
 
 -- | Information on an uploaded file.
@@ -121,11 +136,12 @@ type Param = (S.ByteString, S.ByteString)
 -- | Post parameter name and associated file information.
 type File y = (S.ByteString, FileInfo y)
 
--- | A file uploading backend. Takes the parameter name, file name, and content
--- type, and returns a `Sink` for storing the contents.
+-- | A file uploading backend. Takes the parameter name, file name, and a
+-- stream of data.
 type BackEnd a = S.ByteString -- ^ parameter name
               -> FileInfo ()
-              -> Sink S.ByteString IO a
+              -> IO S.ByteString
+              -> IO a
 
 data RequestBodyType = UrlEncoded | Multipart S.ByteString
 
@@ -168,16 +184,29 @@ parseRequestBody :: BackEnd y
 parseRequestBody s r =
     case getRequestBodyType r of
         Nothing -> return ([], [])
-        Just rbt -> fmap partitionEithers $ requestBody r $$ conduitRequestBody s rbt =$ CL.consume
+        Just rbt -> sinkRequestBody s rbt (requestBody r)
 
 sinkRequestBody :: BackEnd y
                 -> RequestBodyType
-                -> Sink S.ByteString IO ([Param], [File y])
-sinkRequestBody s r = fmap partitionEithers $ conduitRequestBody s r =$ CL.consume
+                -> IO S.ByteString
+                -> IO ([Param], [File y])
+sinkRequestBody s r body = do
+    ref <- newIORef (id, id)
+    let add x = atomicModifyIORef ref $ \(y, z) ->
+            case x of
+                Left y' -> ((y . (y':), z), ())
+                Right z' -> ((y, z . (z':)), ())
+    conduitRequestBody s r body add
+    (x, y) <- readIORef ref
+    return (x [], y [])
 
 conduitRequestBody :: BackEnd y
                    -> RequestBodyType
-                   -> Conduit S.ByteString IO (Either Param (File y))
+                   -> IO S.ByteString
+                   -> (Either Param (File y) -> IO ())
+                   -> IO ()
+conduitRequestBody = error "conduitRequestBody"
+{-
 conduitRequestBody _ UrlEncoded = do
     -- NOTE: in general, url-encoded data will be in a single chunk.
     -- Therefore, I'm optimizing for the usual case by sticking with
@@ -257,6 +286,7 @@ parsePieces sink bound =
         parsePair s =
             let (x, y) = breakDiscard 58 s -- colon
              in (x, S.dropWhile (== 32) y) -- space
+-}
 
 data Bound = FoundBound S.ByteString S.ByteString
            | NoBound
@@ -286,6 +316,7 @@ findBound b bs = handleBreak $ Search.breakOn b bs
         | S.index b x == S.index bs y = mismatch xs ys
         | otherwise = True
 
+{- FIXME
 sinkTillBound' :: S.ByteString
                -> S.ByteString
                -> FileInfo ()
@@ -348,6 +379,7 @@ sinkTillBound bound iter seed0 =
     ignoreTerm = await' >>= maybe (return ()) (\x -> yield' x >> ignoreTerm)
     await' = NeedInput (return . Just) (const $ return Nothing)
     yield' = HaveOutput (return ()) (return ())
+-}
 
 parseAttrs :: S.ByteString -> [(S.ByteString, S.ByteString)]
 parseAttrs = map go . S.split 59 -- semicolon

@@ -14,10 +14,10 @@ cleanPath :: ([Text] -> Either B.ByteString [Text])
           -> B.ByteString
           -> ([Text] -> Application)
           -> Application
-cleanPath splitter prefix app env =
+cleanPath splitter prefix app env sendResponse =
     case splitter $ pathInfo env of
-        Right pieces -> app pieces env
-        Left p -> return
+        Right pieces -> app pieces env sendResponse
+        Left p -> sendResponse
                 $ responseLBS status301
                   [("Location", mconcat [prefix, p, suffix])]
                 $ L.empty

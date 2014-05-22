@@ -30,9 +30,6 @@ import Network.Wai.Middleware.AcceptOverride
 import Network.Wai.Middleware.RequestLogger
 import Codec.Compression.GZip (decompress)
 
-import qualified Data.Conduit as C
-import qualified Data.Conduit.List as CL
-import Data.Conduit.Binary (sourceHandle)
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (parseSimpleQuery, status200)
@@ -128,7 +125,13 @@ parseRequestBody' :: BackEnd file
 parseRequestBody' sink (SRequest req bod) =
     case getRequestBodyType req of
         Nothing -> return ([], [])
-        Just rbt -> CL.sourceList (L.toChunks bod) C.$$ sinkRequestBody sink rbt
+        Just rbt -> do
+            ref <- I.newIORef $ L.toChunks bod
+            let rb = I.atomicModifyIORef ref $ \chunks ->
+                        case chunks of
+                            [] -> ([], S.empty)
+                            x:y -> (y, x)
+            sinkRequestBody sink rbt rb
 
 caseParseRequestBody :: Assertion
 caseParseRequestBody =
@@ -295,7 +298,7 @@ caseTakeLine = do
 -}
 
 jsonpApp :: Application
-jsonpApp = jsonp $ const $ return $ responseLBS
+jsonpApp = jsonp $ \_ f -> f $ responseLBS
     status200
     [("Content-Type", "application/json")]
     "{\"foo\":\"bar\"}"
@@ -324,7 +327,7 @@ caseJsonp = flip runSession jsonpApp $ do
     assertBody "{\"foo\":\"bar\"}" sres3
 
 gzipApp :: Application
-gzipApp = gzip def $ const $ return $ responseLBS status200
+gzipApp = gzip def $ \_ f -> f $ responseLBS status200
     [("Content-Type", "text/plain")]
     "test"
 
@@ -332,7 +335,7 @@ gzipApp = gzip def $ const $ return $ responseLBS status200
 -- that the compression is skipped based on the presence of
 -- the Content-Encoding header.
 gzipPrecompressedApp :: Application
-gzipPrecompressedApp = gzip def $ const $ return $ responseLBS status200
+gzipPrecompressedApp = gzip def $ \_ f -> f $ responseLBS status200
     [("Content-Type", "text/plain"), ("Content-Encoding", "gzip")]
     "test"
 
@@ -380,8 +383,8 @@ caseGzipBypassPre = flip runSession gzipPrecompressedApp $ do
     assertBody "test" sres1 -- the body is not actually compressed
 
 vhostApp1, vhostApp2, vhostApp :: Application
-vhostApp1 = const $ return $ responseLBS status200 [] "app1"
-vhostApp2 = const $ return $ responseLBS status200 [] "app2"
+vhostApp1 _ f = f $ responseLBS status200 [] "app1"
+vhostApp2 _ f = f $ responseLBS status200 [] "app2"
 vhostApp = vhost
     [ ((== Just "foo.com") . lookup "host" . requestHeaders, vhostApp1)
     ]
@@ -400,7 +403,7 @@ caseVhost = flip runSession vhostApp $ do
     assertBody "app2" sres2
 
 autoheadApp :: Application
-autoheadApp = autohead $ const $ return $ responseLBS status200
+autoheadApp = autohead $ \_ f -> f $ responseLBS status200
     [("Foo", "Bar")] "body"
 
 caseAutohead :: Assertion
@@ -418,7 +421,7 @@ caseAutohead = flip runSession autoheadApp $ do
     assertBody "" sres2
 
 moApp :: Application
-moApp = methodOverride $ \req -> return $ responseLBS status200
+moApp = methodOverride $ \req f -> f $ responseLBS status200
     [("Method", requestMethod req)] ""
 
 caseMethodOverride :: Assertion
@@ -442,7 +445,7 @@ caseMethodOverride = flip runSession moApp $ do
     assertHeader "Method" "PUT" sres3
 
 mopApp :: Application
-mopApp = methodOverridePost $ \req -> return $ responseLBS status200 [("Method", requestMethod req)] ""
+mopApp = methodOverridePost $ \req f -> f $ responseLBS status200 [("Method", requestMethod req)] ""
 
 caseMethodOverridePost :: Assertion
 caseMethodOverridePost = flip runSession mopApp $ do
@@ -468,7 +471,7 @@ caseMethodOverridePost = flip runSession mopApp $ do
     assertHeader "Method" "POST" sres4
 
 aoApp :: Application
-aoApp = acceptOverride $ \req -> return $ responseLBS status200
+aoApp = acceptOverride $ \req f -> f $ responseLBS status200
     [("Accept", fromMaybe "" $ lookup "Accept" $ requestHeaders req)] ""
 
 caseAcceptOverride :: Assertion
@@ -520,7 +523,7 @@ dalvikHelper includeLength = do
         case getRequestBodyType request' of
             Nothing -> return ([], [])
             Just rbt -> withFile "test/requests/dalvik-request" ReadMode $ \h ->
-                sourceHandle h C.$$ sinkRequestBody lbsBackEnd rbt
+                sinkRequestBody lbsBackEnd rbt $ S.hGetSome h 2048
     lookup "scannedTime" params @?= Just "1.298590056748E9"
     lookup "geoLong" params @?= Just "0"
     lookup "geoLat" params @?= Just "0"
@@ -548,15 +551,15 @@ caseDebugRequestBody = do
     postOutput = T.pack $ "POST / :: \nStatus: 200 OK. /\n"
     getOutput params' = T.pack $ "GET /location :: \nGET " ++ show params' ++ "\nStatus: 200 OK. /location\n"
 
-    debugApp output' req = do
-        iactual <- liftIO $ I.newIORef mempty
-        middleware <- liftIO $ mkRequestLogger def
+    debugApp output' req send = do
+        iactual <- I.newIORef mempty
+        middleware <- mkRequestLogger def
             { destination = Callback $ \strs -> I.modifyIORef iactual $ (`mappend` strs)
             , outputFormat = Detailed False
             }
-        res <- middleware (\_req -> return $ responseLBS status200 [ ] "") req
-        actual <- liftIO $ I.readIORef iactual
-        liftIO $ assertEqual "debug" output $ logToBs actual
+        res <- middleware (\_req f -> f $ responseLBS status200 [ ] "") req send
+        actual <- I.readIORef iactual
+        assertEqual "debug" output $ logToBs actual
         return res
       where
         output = TE.encodeUtf8 $ T.toStrict output'
@@ -578,8 +581,8 @@ urlMapTestApp = mapUrls $
 
   where
   trivialApp :: S.ByteString -> Application
-  trivialApp name req =
-    return $
+  trivialApp name req f =
+    f $
       responseLBS
         status200
         [ ("content-type", "text/plain")
