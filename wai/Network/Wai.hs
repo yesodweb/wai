@@ -1,5 +1,6 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 {-|
 
 This module defines a generic web application interface. It is a common
@@ -61,13 +62,13 @@ module Network.Wai
     , lazyRequestBody
       -- * Response
     , Response
+    , StreamingBody
     , FilePart (..)
       -- ** Response composers
     , responseFile
     , responseBuilder
     , responseLBS
     , responseStream
-    , responseStreamBracket
     , responseRaw
       -- * Response accessors
     , responseStatus
@@ -78,9 +79,12 @@ module Network.Wai
 import           Blaze.ByteString.Builder     (Builder, fromLazyByteString)
 import           Blaze.ByteString.Builder     (fromByteString)
 import           Control.Exception            (bracket, bracketOnError)
+import           Control.Monad                (unless)
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as L
+import           Data.ByteString.Lazy.Internal (defaultChunkSize)
 import           Data.ByteString.Lazy.Char8   ()
+import           Data.Function                (fix)
 import           Data.Monoid                  (mempty)
 import qualified Network.HTTP.Types           as H
 import           Network.Socket               (SockAddr (SockAddrInet))
@@ -125,29 +129,11 @@ responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString
 
 -- | Creating 'Response' from 'C.Source'.
-responseStream :: H.Status -> H.ResponseHeaders -> ((Maybe Builder -> IO ()) -> IO ()) -> Response
+responseStream :: H.Status
+               -> H.ResponseHeaders
+               -> StreamingBody
+               -> Response
 responseStream = ResponseStream
-
--- | Creating 'Response' with allocated resource safely released.
---
---   * The first argument is an action to allocate resource.
---
---   * The second argument is a function to release the resource.
---
---   * The third argument is a function to create
---     ('H.Status','H.ResponseHeaders','C.Source' 'IO' ('C.Flush' 'Builder'))
---     from the resource.
-responseStreamBracket :: IO a
-                      -> (a -> IO ())
-                      -> (a -> IO (H.Status
-                                  ,H.ResponseHeaders
-                                  ,(Maybe Builder -> IO ()) -> IO ()))
-                      -> IO Response
-responseStreamBracket setup teardown action =
-    bracketOnError setup teardown $ \resource -> do
-        (st,hdr,stream) <- action resource
-        return $ ResponseStream st hdr $ \f ->
-            bracket (return resource) teardown (\_ -> stream f)
 
 -- | Create a response for a raw application. This is useful for \"upgrade\"
 -- situations such as WebSockets, where an application requests for the server
@@ -183,16 +169,26 @@ responseHeaders (ResponseRaw _ res)        = responseHeaders res
 
 -- | Converting the body information in 'Response' to 'Source'.
 responseToStream :: Response
-                 -> (H.Status, H.ResponseHeaders, (Maybe Builder -> IO ()) -> IO ())
-responseToStream (ResponseStream s h b) = (s, h, b)
+                 -> ( H.Status
+                    , H.ResponseHeaders
+                    , forall a. (StreamingBody -> IO a) -> IO a
+                    )
+responseToStream (ResponseStream s h b) = (s, h, ($ b))
 responseToStream (ResponseFile s h fp (Just part)) =
     error "FIXME responseToStream"
     --(s, h, \f -> IO.withFile fp IO.ReadMode $ \handle -> f $ sourceFilePart handle part C.$= CL.map (C.Chunk . fromByteString))
 responseToStream (ResponseFile s h fp Nothing) =
-    error "FIXME responseToStream"
-    --(s, h, \f -> IO.withFile fp IO.ReadMode $ \handle -> f $ CB.sourceHandle handle C.$= CL.map (C.Chunk . fromByteString))
+    ( s
+    , h
+    , \withBody -> IO.withFile fp IO.ReadMode $ \handle ->
+       withBody $ \sendChunk _flush -> fix $ \loop -> do
+            bs <- B.hGetSome handle defaultChunkSize
+            unless (B.null bs) $ do
+                sendChunk $ fromByteString bs
+                loop
+    )
 responseToStream (ResponseBuilder s h b) =
-    (s, h, ($ Just b))
+    (s, h, \withBody -> withBody $ \sendChunk _flush -> sendChunk b)
 responseToStream (ResponseRaw _ res) = responseToStream res
 
 {- FIXME

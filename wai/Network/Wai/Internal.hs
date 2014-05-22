@@ -84,12 +84,17 @@ data Request = Request {
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
-    -- FIXME perhaps need a better distinction between "allocate/free
-    -- resources" and "start running". See, for example, restore ugliness in
-    -- Warp
-    | ResponseStream H.Status H.ResponseHeaders ((Maybe Builder -> IO ()) -> IO ())
+    | ResponseStream H.Status H.ResponseHeaders StreamingBody
     | ResponseRaw (IO B.ByteString -> (B.ByteString -> IO ()) -> IO ()) Response
   deriving Typeable
+
+-- | Represents a streaming HTTP response body. It's a function of two
+-- parameters; the first parameter provides a means of sending another chunk of
+-- data, and the second parameter provides a means of flushing the data to the
+-- client.
+--
+-- Since 3.0.0
+type StreamingBody = (Builder -> IO ()) -> IO () -> IO ()
 
 -- | The size of the request body. In the case of chunked bodies, the size will
 -- not be known.
