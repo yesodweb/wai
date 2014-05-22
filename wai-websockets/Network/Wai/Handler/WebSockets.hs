@@ -10,13 +10,10 @@ module Network.Wai.Handler.WebSockets
 import              Data.ByteString                 (ByteString)
 import qualified    Data.ByteString.Char8           as BC
 import qualified    Data.CaseInsensitive            as CI
-import              Data.Conduit
-import              Data.IORef                      (newIORef, readIORef, writeIORef)
 import              Network.HTTP.Types              (status500)
 import qualified    Network.Wai                     as Wai
 import qualified    Network.WebSockets              as WS
 import qualified    Network.WebSockets.Connection   as WS
-import              System.IO.Streams               (InputStream, OutputStream)
 import qualified    System.IO.Streams               as Streams
 
 --------------------------------------------------------------------------------
@@ -29,10 +26,10 @@ websocketsOr :: WS.ConnectionOptions
              -> WS.ServerApp
              -> Wai.Application
              -> Wai.Application
-websocketsOr opts app backup req =
+websocketsOr opts app backup req sendResponse =
     case websocketsApp opts app req of
-        Nothing -> backup req
-        Just res -> return res
+        Nothing -> backup req sendResponse
+        Just res -> sendResponse res
 
 --------------------------------------------------------------------------------
 websocketsApp :: WS.ConnectionOptions
@@ -61,13 +58,15 @@ getRequestHead req = WS.RequestHead
 runWebSockets :: WS.ConnectionOptions
               -> WS.RequestHead
               -> (WS.PendingConnection -> IO a)
-              -> Source IO ByteString
-              -> Sink ByteString IO ()
+              -> IO ByteString
+              -> (ByteString -> IO ())
               -> IO a
 runWebSockets opts req app src sink = do
 
-    is <- srcToInput src
-    os <- sinkToOutput sink >>= Streams.builderStream
+    is <- Streams.makeInputStream $ do
+        bs <- src
+        return $ if BC.null bs then Nothing else Just bs
+    os <- Streams.makeOutputStream (maybe (return ()) sink) >>= Streams.builderStream
 
     let pc = WS.PendingConnection
                 { WS.pendingOptions     = opts
@@ -78,20 +77,3 @@ runWebSockets opts req app src sink = do
                 }
 
     app pc
-
-srcToInput :: Source IO ByteString -> IO (InputStream ByteString)
-srcToInput src0 = do
-    (rsrc0, ()) <- src0 $$+ return ()
-    ref <- newIORef rsrc0
-    Streams.makeInputStream $ do
-        rsrc <- readIORef ref
-        (rsrc', mbs) <- rsrc $$++ await
-        writeIORef ref rsrc'
-        return mbs
-
-sinkToOutput :: Sink ByteString IO () -> IO (OutputStream ByteString)
-sinkToOutput sink =
-    Streams.makeOutputStream output
-  where
-    output Nothing = return ()
-    output (Just bs) = yield bs $$ sink
