@@ -167,7 +167,7 @@ sendResponse conn ii req reqidxhdr src response = do
         T.tickle th
         return ret
       else do
-        sendResponseNoBody conn ver s hs response
+        sendResponseNoBody conn ver s hs
         T.tickle th
         return isPersist
   where
@@ -196,7 +196,7 @@ sendResponse conn ii req reqidxhdr src response = do
 
 data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) (IO ())
          | RspBuilder Builder Bool
-         | RspStream ((Maybe Builder -> IO ()) -> IO ()) Bool T.Handle
+         | RspStream StreamingBody Bool T.Handle
          | RspRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) (IO ByteString) (IO ())
 
 ----------------------------------------------------------------
@@ -250,9 +250,7 @@ sendRsp conn ver s hs (RspStream withBodyFlush needsChunked th) = do
                         loop
             loop
     addChunk header
-    withBodyFlush $ \mbuilder -> addChunk $ case mbuilder of
-        Nothing -> flush
-        Just builder -> chunkedTransferEncoding builder
+    withBodyFlush (addChunk . chunkedTransferEncoding) (addChunk flush)
     when needsChunked $ addChunk chunkedTransferTerminator
     mbs <- finish
     maybe (return ()) (connSink conn th) mbs
@@ -274,22 +272,8 @@ sendResponseNoBody :: Connection
                    -> H.HttpVersion
                    -> H.Status
                    -> H.ResponseHeaders
-                   -> Response
                    -> IO ()
-sendResponseNoBody conn ver s hs (ResponseStream _ _ withBodyFlush) = do
-    -- Allow the application to free resources
-    withBodyFlush $ const $ return ()
-
-    composeHeader ver s hs >>= connSendAll conn
-sendResponseNoBody conn ver s hs (ResponseRaw withRaw _) = do
-    -- Allow the application to free resources
-    withRaw (return S.empty) (const $ return ())
-
-    composeHeader ver s hs >>= connSendAll conn
-sendResponseNoBody conn ver s hs ResponseBuilder{} =
-    composeHeader ver s hs >>= connSendAll conn
-sendResponseNoBody conn ver s hs ResponseFile{} =
-    composeHeader ver s hs >>= connSendAll conn
+sendResponseNoBody conn ver s hs = composeHeader ver s hs >>= connSendAll conn
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

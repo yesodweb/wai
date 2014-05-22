@@ -354,11 +354,11 @@ spec = do
                 `shouldBe` ["date"]
 
     it "streaming echo #249" $ do
-        let app req f = f $ responseStream status200 [] $ \write -> do
+        let app req f = f $ responseStream status200 [] $ \write _ -> do
             let loop = do
                     bs <- requestBody req
                     unless (S.null bs) $ do
-                        write $ Just $ fromByteString bs
+                        write $ fromByteString bs
                         loop
             loop
         withApp defaultSettings app $ \port -> do
