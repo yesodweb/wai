@@ -15,8 +15,11 @@ import Data.IORef
 import Data.Monoid (mappend)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad (unless)
+import Control.Exception (throwIO)
+import Data.Function (fix)
 import qualified Data.ByteString as S
-import Blaze.ByteString.Builder (fromByteString, Builder)
+import Blaze.ByteString.Builder (fromByteString, Builder, flush)
 import qualified Blaze.ByteString.Builder as Blaze
 #if WINDOWS
 import Foreign
@@ -25,6 +28,7 @@ import Foreign.C.String
 import System.Process (rawSystem)
 #endif
 import Data.Streaming.Blaze (newBlazeRecv, defaultStrategy)
+import qualified Data.Streaming.Zlib as Z
 
 ping :: IORef Bool -> Middleware
 ping  var app req sendResponse
@@ -41,29 +45,40 @@ ping  var app req sendResponse
                 let (s, hs, withBody) = responseToStream res
                     (isEnc, headers') = fixHeaders id hs
                     headers'' = filter (\(x, _) -> x /= "content-length") headers'
-                {-
-                let fixEnc src =
-                        if isEnc then
-                            src $= decompressFlush (WindowBits 31)
-                            else src
-                -}
                 withBody $ \body ->
                     sendResponse $ responseStream s headers'' $ \sendChunk flush ->
-                        addInsideHead sendChunk flush $ \sendChunk' flush' -> do
-                            (sendChunk'', flush'') <-
-                                if isEnc
-                                    then decode sendChunk' flush'
-                                    else return (sendChunk', flush')
-                            body sendChunk' flush'
-                    {-
-                    f -> withBody $ \body -> f
-                        $ fixEnc (body $= builderToByteStringFlush)
-                        $= insideHead
-                        $= CL.map (fmap fromByteString)
-                        -}
+                        addInsideHead sendChunk flush $ \sendChunk' flush' ->
+                            if isEnc
+                                then decode sendChunk' flush' body
+                                else body sendChunk' flush'
             else sendResponse res
 
-decode = error "decode"
+decode :: (Builder -> IO ()) -> IO ()
+       -> StreamingBody
+       -> IO ()
+decode sendInner flushInner streamingBody = do
+    (blazeRecv, blazeFinish) <- newBlazeRecv defaultStrategy
+    inflate <- Z.initInflate $ Z.WindowBits 31
+    let send builder = blazeRecv builder >>= goBuilderPopper
+        goBuilderPopper popper = fix $ \loop -> do
+            bs <- popper
+            unless (S.null bs) $ do
+                Z.feedInflate inflate bs >>= goZlibPopper
+                loop
+        goZlibPopper popper = fix $ \loop -> do
+            res <- popper
+            case res of
+                Z.PRDone -> return ()
+                Z.PRNext bs -> do
+                    sendInner $ fromByteString bs
+                    loop
+                Z.PRError e -> throwIO e
+    streamingBody send (send flush)
+    mbs <- blazeFinish
+    case mbs of
+        Nothing -> return ()
+        Just bs -> Z.feedInflate inflate bs >>= goZlibPopper
+    Z.finishInflate inflate >>= sendInner . fromByteString
 
 toInsert :: S.ByteString
 toInsert = "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping\",false);x.send();},60000)</script>"
