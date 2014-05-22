@@ -35,10 +35,6 @@ Library
                    , data-default
                    , fast-logger               >= 2.1      && < 2.2
                    , wai-logger                >= 2.0      && < 2.2
-                   , conduit                   >= 1.0      && < 1.2
-                   , conduit-extra             >= 0.1      && < 1.2
-                   , zlib-conduit              >= 0.5      && < 1.2
-                   , blaze-builder-conduit     >= 0.5      && < 1.2
                    , ansi-terminal
                    , resourcet                 >= 0.4.6    && < 1.2
                    , void                      >= 0.5
@@ -95,10 +91,8 @@ test-suite tests
                    , zlib-bindings
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , data-default
-                   , conduit
                    , fast-logger               >= 2.1
                    , resourcet
-                   , conduit-extra
     ghc-options:       -Wall
 
 test-suite spec

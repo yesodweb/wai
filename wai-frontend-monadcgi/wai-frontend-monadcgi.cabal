@@ -16,8 +16,6 @@ library
                  , bytestring
                  , containers        >= 0.2
                  , cgi
-                 , conduit           >= 0.5      && < 1.2
-                 , conduit-extra
                  , http-types
                  , transformers
                  , case-insensitive
