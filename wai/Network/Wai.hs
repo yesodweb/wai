@@ -39,6 +39,7 @@ module Network.Wai
       -- * Types
       Application
     , Middleware
+    , ResponseReceived
       -- * Request
     , Request
     , defaultRequest
@@ -205,7 +206,7 @@ responseToStream (ResponseRaw _ res) = responseToStream res
 ----------------------------------------------------------------
 
 -- | The WAI application.
-type Application = Request -> (forall b. (Response -> IO b) -> IO b)
+type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
 
 -- | Middleware is a component that sits between the server and application. It
 -- can do such tasks as GZIP encoding or response caching. What follows is the

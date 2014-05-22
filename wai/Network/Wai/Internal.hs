@@ -110,3 +110,14 @@ data FilePart = FilePart
     , filePartByteCount :: Integer
     , filePartFileSize  :: Integer
     } deriving Show
+
+-- | A special datatype to indicate that the WAI handler has received the
+-- response. This is to avoid the need for Rank2Types in the definition of
+-- Application.
+--
+-- It is /highly/ advised that only WAI handlers import and use the data
+-- constructor for this data type.
+--
+-- Since 3.0.0
+data ResponseReceived = ResponseReceived
+    deriving Typeable
