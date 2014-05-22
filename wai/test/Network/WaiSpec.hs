@@ -3,6 +3,7 @@ module Network.WaiSpec (spec) where
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Network.Wai
+import Network.Wai.Internal (Request (Request))
 import Data.IORef
 import Data.Monoid
 import qualified Data.ByteString as S
@@ -53,3 +54,20 @@ spec = do
                 }
             let expected = S.take count $ S.drop offset totalBS
             body `shouldBe` expected
+    describe "lazyRequestBody" $ do
+        prop "works" $ \chunks -> do
+            ref <- newIORef $ map S.pack $ filter (not . null) chunks
+            let req = Request
+                        { requestBody = atomicModifyIORef ref $ \bss ->
+                            case bss of
+                                [] -> ([], S.empty)
+                                x:y -> (y, x)
+                        }
+            body <- lazyRequestBody req
+            body `shouldBe` L.fromChunks (map S.pack chunks)
+        it "is lazy" $ do
+            let req = Request
+                        { requestBody = error "requestBody"
+                        }
+            _ <- lazyRequestBody req
+            return ()

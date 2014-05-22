@@ -80,6 +80,7 @@ import           Blaze.ByteString.Builder     (fromByteString)
 import           Control.Monad                (unless)
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as L
+import qualified Data.ByteString.Lazy.Internal as LI
 import           Data.ByteString.Lazy.Internal (defaultChunkSize)
 import           Data.ByteString.Lazy.Char8   ()
 import           Data.Function                (fix)
@@ -88,6 +89,7 @@ import qualified Network.HTTP.Types           as H
 import           Network.Socket               (SockAddr (SockAddrInet))
 import           Network.Wai.Internal
 import qualified System.IO                    as IO
+import           System.IO.Unsafe             (unsafeInterleaveIO)
 
 ----------------------------------------------------------------
 
@@ -247,4 +249,13 @@ defaultRequest = Request
 --
 -- Since 1.4.1
 lazyRequestBody :: Request -> IO L.ByteString
-lazyRequestBody = error "lazyRequestBody" -- fmap L.fromChunks . lazyConsume . requestBody
+lazyRequestBody req =
+    loop
+  where
+    loop = unsafeInterleaveIO $ do
+        bs <- requestBody req
+        if B.null bs
+            then return LI.Empty
+            else do
+                bss <- loop
+                return $ LI.Chunk bs bss
