@@ -9,7 +9,7 @@ Maintainer:          michael@snoyman.com
 Homepage:            https://github.com/yesodweb/wai
 Category:            Web
 Build-Type:          Simple
-Cabal-Version:       >=1.6
+Cabal-Version:       >=1.8
 Stability:           Stable
 
 Source-repository head
@@ -28,3 +28,20 @@ Library
   Exposed-modules:   Network.Wai
                      Network.Wai.Internal
   ghc-options:       -Wall
+
+test-suite test
+    hs-source-dirs: test
+    main-is:        Spec.hs
+    type:           exitcode-stdio-1.0
+    ghc-options:    -threaded
+    cpp-options:    -DTEST
+    build-depends:  base
+                  , wai
+                  , hspec
+                  , blaze-builder
+                  , bytestring
+    other-modules:  Network.WaiSpec
+
+source-repository head
+  type:     git
+  location: git://github.com/yesodweb/wai.git

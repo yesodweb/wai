@@ -1,6 +1,5 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE ImpredicativeTypes #-}
 {-|
 
 This module defines a generic web application interface. It is a common
@@ -78,7 +77,6 @@ module Network.Wai
 
 import           Blaze.ByteString.Builder     (Builder, fromLazyByteString)
 import           Blaze.ByteString.Builder     (fromByteString)
-import           Control.Exception            (bracket, bracketOnError)
 import           Control.Monad                (unless)
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as L
@@ -171,12 +169,23 @@ responseHeaders (ResponseRaw _ res)        = responseHeaders res
 responseToStream :: Response
                  -> ( H.Status
                     , H.ResponseHeaders
-                    , forall a. (StreamingBody -> IO a) -> IO a
+                    , (StreamingBody -> IO a) -> IO a
                     )
 responseToStream (ResponseStream s h b) = (s, h, ($ b))
 responseToStream (ResponseFile s h fp (Just part)) =
-    error "FIXME responseToStream"
-    --(s, h, \f -> IO.withFile fp IO.ReadMode $ \handle -> f $ sourceFilePart handle part C.$= CL.map (C.Chunk . fromByteString))
+    ( s
+    , h
+    , \withBody -> IO.withFile fp IO.ReadMode $ \handle -> withBody $ \sendChunk _flush -> do
+        IO.hSeek handle IO.AbsoluteSeek $ filePartOffset part
+        let loop remaining | remaining <= 0 = return ()
+            loop remaining = do
+                bs <- B.hGetSome handle defaultChunkSize
+                unless (B.null bs) $ do
+                    let x = B.take remaining bs
+                    sendChunk $ fromByteString x
+                    loop $ remaining - B.length x
+        loop $ fromIntegral $ filePartByteCount part
+    )
 responseToStream (ResponseFile s h fp Nothing) =
     ( s
     , h
@@ -190,12 +199,6 @@ responseToStream (ResponseFile s h fp Nothing) =
 responseToStream (ResponseBuilder s h b) =
     (s, h, \withBody -> withBody $ \sendChunk _flush -> sendChunk b)
 responseToStream (ResponseRaw _ res) = responseToStream res
-
-{- FIXME
-sourceFilePart :: IO.Handle -> FilePart -> C.Source IO B.ByteString
-sourceFilePart handle (FilePart offset count _) =
-    CB.sourceHandleRange handle (Just offset) (Just count)
--}
 
 ----------------------------------------------------------------
 
