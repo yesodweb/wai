@@ -67,6 +67,8 @@ Library
                      Network.Wai.Parse
                      Network.Wai.UrlMap
                      Network.Wai.Test
+                     Network.Wai.EventSource
+                     Network.Wai.EventSource.EventStream
   other-modules:     Network.Wai.Middleware.RequestLogger.Internal
   ghc-options:       -Wall
 
