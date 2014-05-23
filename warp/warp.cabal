@@ -45,7 +45,7 @@ Library
                    , conduit                   >= 0.5      && < 1.2
                    , conduit-extra
                    , ghc-prim
-                   , http-types                >= 0.7
+                   , http-types                >= 0.8.5
                    , lifted-base               >= 0.1
                    , network-conduit           >= 0.5      && < 1.2
                    , simple-sendfile           >= 0.2.7    && < 0.3
