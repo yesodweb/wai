@@ -130,11 +130,10 @@ logStdoutDev = unsafePerformIO $ mkRequestLogger def
 -- no black or white which are expected to be existing terminal colors.
 colors0 :: [Color]
 colors0 = [
-    Red 
-  , Green 
-  , Yellow 
-  , Blue 
-  , Magenta 
+    Green
+  , Yellow
+  , Blue
+  , Magenta
   , Cyan
   ]
 
@@ -170,13 +169,11 @@ rotateColors (c:cs) = (cs ++ [c], c)
 detailedMiddleware :: Callback -> Bool -> IO Middleware
 detailedMiddleware cb useColors = do
     getAddColor <-
-        if useColors
-            then do
+        if not useColors then return (return return) else do
                 icolors <- newIORef colors0
                 return $ do
                     color <- liftIO $ atomicModifyIORef icolors rotateColors
                     return $ ansiColor color
-            else return (return return)
     return $ detailedMiddleware' cb getAddColor
 
 ansiColor :: Color -> BS.ByteString -> [BS.ByteString]
@@ -279,7 +276,7 @@ detailedMiddleware' cb getAddColor app req = do
 
 statusBS :: Response -> [BS.ByteString]
 statusBS rsp =
-    if status > 400 then ansiColor Red bs else [bs]
+    if status >= 400 then ansiColor Red bs else [bs]
   where
     bs = pack $ show status
     status = statusCode $ responseStatus rsp
