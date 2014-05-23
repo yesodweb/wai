@@ -369,6 +369,13 @@ spec = do
             bs <- safeRecv socket 4096
             S.takeWhile (/= 13) bs `shouldBe` "HTTP/1.1 200 OK"
 
+    it "streaming response with length" $ do
+        let app _ f = f $ responseStream status200 [("content-length", "20")] $ \write _ -> do
+                replicateM_ 4 $ write $ fromByteString "Hello"
+        withApp defaultSettings app $ \port -> do
+            Right res <- HTTP.simpleHTTP (HTTP.getRequest $ "http://127.0.0.1:" ++ show port)
+            HTTP.rspBody res `shouldBe` "HelloHelloHelloHello"
+
 consumeBody :: IO ByteString -> IO [ByteString]
 consumeBody body =
     loop id

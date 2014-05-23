@@ -249,8 +249,11 @@ sendRsp conn ver s hs (RspStream withBodyFlush needsChunked th) = do
                         connSink conn th bs
                         loop
             loop
+        addChunk'
+            | needsChunked = addChunk . chunkedTransferEncoding
+            | otherwise = addChunk
     addChunk header
-    withBodyFlush (addChunk . chunkedTransferEncoding) (addChunk flush)
+    withBodyFlush addChunk' (addChunk' flush)
     when needsChunked $ addChunk chunkedTransferTerminator
     mbs <- finish
     maybe (return ()) (connSink conn th) mbs
