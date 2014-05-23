@@ -124,8 +124,6 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
 -- "/"
 -- >>> parsePath "/path"
 -- "/path"
-
--- FIXME: parsePath "http://example.com" should be "/"?
 parsePath :: ByteString -> ByteString
 parsePath path
   | "http://" `S.isPrefixOf` path = ensureNonEmpty $ extractPath path
