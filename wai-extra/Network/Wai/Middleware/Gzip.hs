@@ -28,7 +28,7 @@ import Network.Wai
 import Data.Maybe (fromMaybe, isJust)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString as S
-import Data.Default
+import Data.Default.Class
 import Network.HTTP.Types (Status, Header)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Resource (runResourceT)

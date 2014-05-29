@@ -32,7 +32,7 @@ Library
                    , http-types                >= 0.7
                    , text                      >= 0.7
                    , case-insensitive          >= 0.2
-                   , data-default
+                   , data-default-class
                    , fast-logger               >= 2.1      && < 2.2
                    , wai-logger                >= 2.0      && < 2.2
                    , ansi-terminal
@@ -90,7 +90,6 @@ test-suite tests
                    , text
                    , bytestring
                    , directory
-                   , zlib-bindings
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , data-default
                    , fast-logger               >= 2.1

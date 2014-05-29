@@ -43,9 +43,7 @@ Library
                    , case-insensitive          >= 0.2
                    , ghc-prim
                    , http-types                >= 0.7
-                   , lifted-base               >= 0.1
                    , simple-sendfile           >= 0.2.7    && < 0.3
-                   , transformers              >= 0.2.2    && < 0.4
                    , unix-compat               >= 0.2
                    , void
                    , wai                       >= 3.0      && < 3.1

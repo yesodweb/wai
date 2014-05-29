@@ -3,8 +3,6 @@ module Network.Wai.Handler.Warp.Conduit where
 import Control.Applicative
 import Control.Exception
 import Control.Monad (when, unless)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Trans.Class (lift)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy.Char8 (pack)
 import qualified Data.ByteString as S
@@ -39,7 +37,7 @@ readISource (ISource src ref) = do
 
         -- If no chunk available, then there aren't enough bytes in the
         -- stream. Throw a ConnectionClosedByPeer
-        when (S.null bs) $ liftIO $ throwIO ConnectionClosedByPeer
+        when (S.null bs) $ throwIO ConnectionClosedByPeer
 
         let -- How many of the bytes in this chunk to send downstream
             toSend = min count (S.length bs)
@@ -52,7 +50,7 @@ readISource (ISource src ref) = do
                 -- downstream, and then loop on this function for the
                 -- next chunk.
                 | count' > 0 -> do
-                    liftIO $ I.writeIORef ref count'
+                    I.writeIORef ref count'
                     return bs
 
                 -- Some of the bytes in this chunk should not be sent

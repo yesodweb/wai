@@ -10,8 +10,7 @@ module Network.Wai.Handler.Warp.Request (
 
 import Control.Applicative
 import qualified Control.Concurrent as Conc (yield)
-import Control.Exception.Lifted (throwIO)
-import Control.Monad.IO.Class (liftIO)
+import Control.Exception (throwIO)
 import Data.Array ((!))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
@@ -60,7 +59,7 @@ recvRequest settings conn ii addr src = do
         expect = idxhdr ! idxExpect
         cl = idxhdr ! idxContentLength
         te = idxhdr ! idxTransferEncoding
-    liftIO $ handleExpect conn httpversion expect
+    handleExpect conn httpversion expect
     (rbody, bodyLength) <- bodyAndSource src cl te
     rbody' <- timeoutBody th rbody
     let req = Request {

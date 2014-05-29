@@ -38,7 +38,7 @@ import System.Console.ANSI
 import Data.IORef.Lifted
 import System.IO.Unsafe
 
-import Data.Default (Default (def))
+import Data.Default.Class (Default (def))
 import Network.Wai.Logger
 import Network.Wai.Middleware.RequestLogger.Internal
 

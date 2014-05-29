@@ -10,7 +10,6 @@ import Control.Concurrent (threadDelay, forkIOWithUnmask)
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception as E
 import Control.Monad (forever, when, unless, void)
-import Control.Monad.IO.Class (liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import Data.Streaming.Network (bindPortTCP)
