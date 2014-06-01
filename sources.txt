@@ -9,4 +9,5 @@
 ./wai-frontend-monadcgi
 ./wai-websockets
 ./wai-eventsource
+./wai-conduit
 ./mime-types
