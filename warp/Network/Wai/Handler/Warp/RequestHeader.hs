@@ -17,6 +17,7 @@ import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr, nullPtr)
 import Foreign.Storable (peek)
 import qualified Network.HTTP.Types as H
+import qualified Network.HTTP.Types.URI as H
 import Network.Wai.Handler.Warp.Types
 import qualified Network.HTTP.Types.Header as HH
 -- $setup
@@ -35,7 +36,7 @@ parseHeaderLines :: [ByteString]
 parseHeaderLines [] = throwIO $ NotEnoughLines []
 parseHeaderLines (firstLine:otherLines) = do
     (method, path', query, httpversion) <- parseRequestLine firstLine
-    let path = parsePath path'
+    let path = H.extractPath path'
         hdr = map parseHeader otherLines
     return (method, path', path, query, httpversion, hdr)
 
@@ -111,29 +112,6 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
       where
         o = p0 `minusPtr` ptr
         l = p1 `minusPtr` p0
-
-----------------------------------------------------------------
-
--- |
---
--- >>> parsePath ""
--- "/"
--- >>> parsePath "http://example.com:8080/path"
--- "/path"
--- >>> parsePath "http://example.com"
--- "/"
--- >>> parsePath "/path"
--- "/path"
-
--- FIXME: parsePath "http://example.com" should be "/"?
-parsePath :: ByteString -> ByteString
-parsePath path
-  | "http://" `S.isPrefixOf` path = ensureNonEmpty $ extractPath path
-  | otherwise                     = ensureNonEmpty path
-  where
-    extractPath = snd . S.breakByte 47 . S.drop 7 -- 47 is '/'.
-    ensureNonEmpty "" = "/"
-    ensureNonEmpty p  = p
 
 ----------------------------------------------------------------
 
