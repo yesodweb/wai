@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {- | This module gives you a way to mount applications under sub-URIs.
 For example:
 
@@ -83,14 +84,14 @@ instance ToApplication Application where
     toApplication = id
 
 instance ToApplication UrlMap where
-    toApplication urlMap = \req ->
+    toApplication urlMap req sendResponse =
         case try (pathInfo req) (unUrlMap urlMap) of
             Just (newPath, app) ->
-                app $ req { pathInfo = newPath
-                          , rawPathInfo = makeRaw newPath
-                          }
+                app (req { pathInfo = newPath
+                         , rawPathInfo = makeRaw newPath
+                         }) sendResponse
             Nothing ->
-                return $ responseLBS
+                sendResponse $ responseLBS
                     status404
                     [("content-type", "text/plain")]
                     "Not found\n"

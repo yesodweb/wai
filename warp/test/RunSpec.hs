@@ -5,15 +5,14 @@
 module RunSpec (main, spec, withApp) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
-import Control.Monad (forM_, replicateM_)
+import Control.Monad (forM_, replicateM_, unless)
 import System.Timeout (timeout)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString, hPutStr, hGetSome)
+import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
-import Data.Conduit (($$), (=$))
-import qualified Data.Conduit.List
 import qualified Data.IORef as I
 import Network (connectTo, PortID (PortNumber))
 import Network.HTTP.Types
@@ -27,8 +26,6 @@ import Control.Exception.Lifted (bracket, try, IOException, onException)
 import Data.Streaming.Network (bindPortTCP, getSocketTCP, safeRecv)
 import Network.Socket (sClose)
 import qualified Network.HTTP as HTTP
-import Data.Conduit (Flush (Chunk), ($=))
-import qualified Data.Conduit.List as CL
 import Blaze.ByteString.Builder (fromByteString)
 import Network.Socket.ByteString (sendAll)
 
@@ -48,8 +45,8 @@ err :: (MonadIO m, Show a) => Counter -> a -> m ()
 err icount msg = liftIO $ I.writeIORef icount $ Left $ show msg
 
 readBody :: CounterApplication
-readBody icount req = do
-    body <- requestBody req $$ Data.Conduit.List.consume
+readBody icount req f = do
+    body <- consumeBody $ requestBody req
     case () of
         ()
             | pathInfo req == ["hello"] && L.fromChunks body /= "Hello"
@@ -59,21 +56,21 @@ readBody icount req = do
             | not $ requestMethod req `elem` ["GET", "POST"]
                 -> err icount ("Invalid request method (readBody)" :: String, requestMethod req)
             | otherwise -> incr icount
-    return $ responseLBS status200 [] "Read the body"
+    f $ responseLBS status200 [] "Read the body"
 
 ignoreBody :: CounterApplication
-ignoreBody icount req = do
+ignoreBody icount req f = do
     if (requestMethod req `elem` ["GET", "POST"])
         then incr icount
         else err icount ("Invalid request method" :: String, requestMethod req)
-    return $ responseLBS status200 [] "Ignored the body"
+    f $ responseLBS status200 [] "Ignored the body"
 
 doubleConnect :: CounterApplication
-doubleConnect icount req = do
-    _ <- requestBody req $$ Data.Conduit.List.consume
-    _ <- requestBody req $$ Data.Conduit.List.consume
+doubleConnect icount req f = do
+    _ <- consumeBody $ requestBody req
+    _ <- consumeBody $ requestBody req
     incr icount
-    return $ responseLBS status200 [] "double connect"
+    f $ responseLBS status200 [] "double connect"
 
 nextPort :: I.IORef Int
 nextPort = unsafePerformIO $ I.newIORef 5000
@@ -117,7 +114,7 @@ runTest expected app chunks = do
             Right i -> i `shouldBe` expected
 
 dummyApp :: Application
-dummyApp _ = return $ responseLBS status200 [] "foo"
+dummyApp _ f = f $ responseLBS status200 [] "foo"
 
 runTerminateTest :: InvalidRequest
                  -> ByteString
@@ -197,9 +194,9 @@ spec = do
     describe "special input" $ do
         it "multiline headers" $ do
             iheaders <- I.newIORef []
-            let app req = do
+            let app req f = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
-                    return $ responseLBS status200 [] ""
+                    f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
                 let input = S.concat
@@ -215,9 +212,9 @@ spec = do
                     ]
         it "no space between colon and value" $ do
             iheaders <- I.newIORef []
-            let app req = do
+            let app req f = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
-                    return $ responseLBS status200 [] ""
+                    f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
                 let input = S.concat
@@ -235,10 +232,10 @@ spec = do
     describe "chunked bodies" $ do
         it "works" $ do
             ifront <- I.newIORef id
-            let app req = do
-                    bss <- requestBody req $$ Data.Conduit.List.consume
+            let app req f = do
+                    bss <- consumeBody $ requestBody req
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
-                    return $ responseLBS status200 [] ""
+                    f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
                 let input = S.concat
@@ -258,10 +255,10 @@ spec = do
                     ]
         it "lots of chunks" $ do
             ifront <- I.newIORef id
-            let app req = do
-                    bss <- requestBody req $$ Data.Conduit.List.consume
-                    liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
-                    return $ responseLBS status200 [] ""
+            let app req f = do
+                    bss <- consumeBody $ requestBody req
+                    I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
                 let input = concat $ replicate 2 $
@@ -270,15 +267,15 @@ spec = do
                         ["0\r\n\r\n"]
                 mapM_ (\bs -> hPutStr handle bs >> hFlush handle) input
                 hClose handle
-                threadDelay 1000
+                threadDelay 100000 -- FIXME why does this delay need to be so high?
                 front <- I.readIORef ifront
                 front [] `shouldBe` replicate 2 (S.concat $ replicate 50 "12345")
         it "in chunks" $ do
             ifront <- I.newIORef id
-            let app req = do
-                    bss <- requestBody req $$ Data.Conduit.List.consume
+            let app req f = do
+                    bss <- consumeBody $ requestBody req
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
-                    return $ responseLBS status200 [] ""
+                    f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
                 let input = S.concat
@@ -297,13 +294,16 @@ spec = do
                     ]
         it "timeout in request body" $ do
             ifront <- I.newIORef id
-            let app req = do
-                    bss <- (requestBody req $$ Data.Conduit.List.consume) `onException`
+            let app req f = do
+                    bss <- (consumeBody $ requestBody req) `onException`
                         liftIO (I.atomicModifyIORef ifront (\front -> (front . ("consume interrupted":), ())))
-                    liftIO $ threadDelay 4000000 `onException`
-                        I.atomicModifyIORef ifront (\front -> (front . ("threadDelay interrupted":), ()))
+                    liftIO $ threadDelay 4000000 `E.catch` \e -> do
+                        I.atomicModifyIORef ifront (\front ->
+                            ( front . ((S8.pack $ "threadDelay interrupted: " ++ show e):)
+                            , ()))
+                        E.throwIO (e :: E.SomeException)
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
-                    return $ responseLBS status200 [] ""
+                    f $ responseLBS status200 [] ""
             withApp (setTimeout 1 defaultSettings) app $ \port -> do
                 let bs1 = S.replicate 2048 88
                     bs2 = "This is short"
@@ -323,12 +323,15 @@ spec = do
                 S.concat (front []) `shouldBe` bs
     describe "raw body" $ do
         it "works" $ do
-            let app _req = do
+            let app _req f = do
                     let backup = responseLBS status200 [] "Not raw"
-                    return $ flip responseRaw backup $ \src sink ->
-                        src
-                            $$ Data.Conduit.List.map doubleBS
-                            =$ sink
+                    f $ flip responseRaw backup $ \src sink -> do
+                        let loop = do
+                                bs <- src
+                                unless (S.null bs) $ do
+                                    sink $ doubleBS bs
+                                    loop
+                        loop
                 doubleBS = S.concatMap $ \w -> S.pack [w, w]
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
@@ -340,7 +343,7 @@ spec = do
                 timeout 100000 (S.hGet handle 10) >>= (`shouldBe` Just "6677889900")
 
     it "only one date and server header" $ do
-        let app _ = return $ responseLBS status200
+        let app _ f = f $ responseLBS status200
                 [ ("server", "server")
                 , ("date", "date")
                 ] ""
@@ -352,8 +355,13 @@ spec = do
                 `shouldBe` ["date"]
 
     it "streaming echo #249" $ do
-        let app req = return $ responseSource status200 []
-                    $ requestBody req $= CL.map (Chunk . fromByteString)
+        let app req f = f $ responseStream status200 [] $ \write _ -> do
+            let loop = do
+                    bs <- requestBody req
+                    unless (S.null bs) $ do
+                        write $ fromByteString bs
+                        loop
+            loop
         withApp defaultSettings app $ \port -> do
             (socket, _addr) <- getSocketTCP "127.0.0.1" port
             sendAll socket "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"
@@ -361,3 +369,20 @@ spec = do
             sendAll socket "5\r\nhello\r\n0\r\n\r\n"
             bs <- safeRecv socket 4096
             S.takeWhile (/= 13) bs `shouldBe` "HTTP/1.1 200 OK"
+
+    it "streaming response with length" $ do
+        let app _ f = f $ responseStream status200 [("content-length", "20")] $ \write _ -> do
+                replicateM_ 4 $ write $ fromByteString "Hello"
+        withApp defaultSettings app $ \port -> do
+            Right res <- HTTP.simpleHTTP (HTTP.getRequest $ "http://127.0.0.1:" ++ show port)
+            HTTP.rspBody res `shouldBe` "HelloHelloHelloHello"
+
+consumeBody :: IO ByteString -> IO [ByteString]
+consumeBody body =
+    loop id
+  where
+    loop front = do
+        bs <- body
+        if S.null bs
+            then return $ front []
+            else loop $ front . (bs:)

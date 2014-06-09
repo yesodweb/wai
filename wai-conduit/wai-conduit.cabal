@@ -1,0 +1,24 @@
+name:                wai-conduit
+version:             3.0.0
+synopsis:            conduit wrappers for WAI
+description:         Since version 3.0.0, WAI has no built-in streaming data abstraction.
+                     This library provides similar functionality to what existed in WAI 2.x.
+homepage:            https://github.com/yesodweb/wai
+license:             MIT
+license-file:        LICENSE
+author:              Michael Snoyman
+maintainer:          michael@snoyman.com
+category:            Web, Conduit
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     Network.Wai.Conduit
+  build-depends:       base            >= 4      && < 5
+                     , wai             >= 3.0    && < 3.1
+                     , conduit
+                     , transformers
+                     , bytestring
+                     , http-types
+                     , blaze-builder
+  default-language:    Haskell2010

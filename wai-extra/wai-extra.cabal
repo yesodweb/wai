@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             2.1.1.2
+Version:             3.0.0
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             MIT
@@ -22,7 +22,7 @@ extra-source-files:
 Library
   Build-Depends:     base                      >= 4 && < 5
                    , bytestring                >= 0.9.1.4
-                   , wai                       >= 2.1      && < 2.2
+                   , wai                       >= 3.0      && < 3.1
                    , old-locale                >= 1.0.0.2  && < 1.1
                    , time                      >= 1.1.4
                    , network                   >= 2.2.1.5
@@ -32,13 +32,9 @@ Library
                    , http-types                >= 0.7
                    , text                      >= 0.7
                    , case-insensitive          >= 0.2
-                   , data-default
+                   , data-default-class
                    , fast-logger               >= 2.1      && < 2.2
                    , wai-logger                >= 2.0      && < 2.2
-                   , conduit                   >= 1.0      && < 1.2
-                   , conduit-extra             >= 0.1      && < 1.2
-                   , zlib-conduit              >= 0.5      && < 1.2
-                   , blaze-builder-conduit     >= 0.5      && < 1.2
                    , ansi-terminal
                    , resourcet                 >= 0.4.6    && < 1.2
                    , void                      >= 0.5
@@ -47,6 +43,8 @@ Library
                    , base64-bytestring
                    , word8
                    , lifted-base               >= 0.1.2
+                   , deepseq
+                   , streaming-commons
 
   if os(windows)
       cpp-options:   -DWINDOWS
@@ -68,6 +66,9 @@ Library
                      Network.Wai.Middleware.HttpAuth
                      Network.Wai.Parse
                      Network.Wai.UrlMap
+                     Network.Wai.Test
+                     Network.Wai.EventSource
+                     Network.Wai.EventSource.EventStream
   other-modules:     Network.Wai.Middleware.RequestLogger.Internal
   ghc-options:       -Wall
 
@@ -79,7 +80,6 @@ test-suite tests
 
     build-depends:   base                      >= 4        && < 5
                    , wai-extra
-                   , wai-test                  >= 1.3
                    , hspec                     >= 1.3
                    , HUnit
 
@@ -90,14 +90,22 @@ test-suite tests
                    , text
                    , bytestring
                    , directory
-                   , zlib-bindings
                    , blaze-builder             >= 0.2.1.4  && < 0.4
                    , data-default
-                   , conduit
                    , fast-logger               >= 2.1
                    , resourcet
-                   , conduit-extra
     ghc-options:       -Wall
+
+test-suite spec
+    type:            exitcode-stdio-1.0
+    hs-source-dirs:  test
+    main-is:         Spec.hs
+    other-modules:   Network.Wai.TestSpec
+    build-depends:   base                      >= 4        && < 5
+                   , wai-extra
+                   , wai
+                   , hspec >= 1.3
+    ghc-options:     -Wall -Werror
 
 source-repository head
   type:     git

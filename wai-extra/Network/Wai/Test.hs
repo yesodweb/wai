@@ -24,6 +24,7 @@ module Network.Wai.Test
     ) where
 
 import Network.Wai
+import Network.Wai.Internal (ResponseReceived (ResponseReceived))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.State (StateT, evalStateT)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
@@ -35,8 +36,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
-import Data.Conduit.Blaze (builderToByteString)
-import Blaze.ByteString.Builder (flush)
+import Blaze.ByteString.Builder (toLazyByteString)
 import qualified Blaze.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -45,8 +45,8 @@ import Data.CaseInsensitive (CI)
 import qualified Data.ByteString as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import qualified Data.Conduit as C
-import qualified Data.Conduit.List as CL
+import Data.IORef
+import Data.Monoid (mempty, mappend)
 
 type Session = ReaderT Application (StateT ClientState IO)
 
@@ -96,21 +96,34 @@ setRawPathInfo r rawPinfo =
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
     app <- ask
+    refChunks <- liftIO $ newIORef $ L.toChunks bod
     let req' = req
-            { requestBody = CL.sourceList $ L.toChunks bod
+            { requestBody = atomicModifyIORef refChunks $ \bss ->
+                case bss of
+                    [] -> ([], S.empty)
+                    x:y -> (y, x)
             }
-    liftIO $ app req' >>= runResponse
+    liftIO $ do
+        ref <- newIORef $ error "runResponse gave no result"
+        ResponseReceived <- app req' (runResponse ref)
+        readIORef ref
     -- FIXME cookie processing
     --return sres
 
-runResponse :: Response -> IO SResponse
-runResponse res = do
-    bss <- withBody $ \body -> body C.$= CL.map toBuilder C.$= builderToByteString C.$$ CL.consume
-    return $ SResponse s h $ L.fromChunks bss
+runResponse :: IORef SResponse -> Response -> IO ResponseReceived
+runResponse ref res = do
+    refBuilder <- newIORef mempty
+    let add y = atomicModifyIORef refBuilder $ \x -> (x `mappend` y, ())
+    withBody $ \body -> body add (return ())
+    builder <- readIORef refBuilder
+    let lbs = toLazyByteString builder
+        len = L.length lbs
+    -- Force evaluation of the body to have exceptions thrown at the right
+    -- time.
+    seq len $ writeIORef ref $ SResponse s h $ toLazyByteString builder
+    return ResponseReceived
   where
-    (s, h, withBody) = responseToSource res
-    toBuilder (C.Chunk builder) = builder
-    toBuilder C.Flush = flush
+    (s, h, withBody) = responseToStream res
 
 assertBool :: String -> Bool -> Session ()
 assertBool s b = unless b $ assertFailure s

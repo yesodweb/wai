@@ -34,14 +34,11 @@ import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, ge
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as S8
 
-import qualified Data.Conduit as C
-import qualified Data.Conduit.List as CL
-
 import System.Console.ANSI
 import Data.IORef.Lifted
 import System.IO.Unsafe
 
-import Data.Default (Default (def))
+import Data.Default.Class (Default (def))
 import Network.Wai.Logger
 import Network.Wai.Middleware.RequestLogger.Internal
 
@@ -96,23 +93,21 @@ mkRequestLogger RequestLoggerSettings{..} = do
             return $ customMiddleware callback getdate formatter
 
 apacheMiddleware :: ApacheLoggerActions -> Middleware
-apacheMiddleware ala app req = do
-    res <- app req
+apacheMiddleware ala app req sendResponse = app req $ \res -> do
     let msize = lookup "content-length" (responseHeaders res) >>= readInt'
         readInt' bs =
             case S8.readInteger bs of
                 Just (i, "") -> Just i
                 _ -> Nothing
     apacheLogger ala req (responseStatus res) msize
-    return res
+    sendResponse res
 
 customMiddleware :: Callback -> IO ZonedDate -> OutputFormatter -> Middleware
-customMiddleware cb getdate formatter app req = do
-    res <- app req
+customMiddleware cb getdate formatter app req sendResponse = app req $ \res -> do
     date <- liftIO getdate
     -- We use Nothing for the response size since we generally don't know it
     liftIO $ cb $ formatter date req (responseStatus res) Nothing
-    return res
+    sendResponse res
 
 -- | Production request logger middleware.
 -- Implemented on top of "logCallback", but prints to 'stdout'
@@ -186,13 +181,18 @@ ansiColor color bs = [
 detailedMiddleware' :: Callback
                     -> IO (BS.ByteString -> [BS.ByteString])
                     -> Middleware
-detailedMiddleware' cb getAddColor app req = do
+detailedMiddleware' cb getAddColor app req sendResponse = do
     let mlen = lookup "content-length" (requestHeaders req) >>= readInt
     (req', body) <-
         case mlen of
             -- log the request body if it is small
             Just len | len <= 2048 -> do
-                 body <- requestBody req C.$$ CL.consume
+                 let loop front = do
+                        bs <- requestBody req
+                        if S8.null bs
+                            then return $ front []
+                            else loop $ front . (bs:)
+                 body <- loop id
                  -- logging the body here consumes it, so fill it back up
                  -- obviously not efficient, but this is the development logger
                  --
@@ -204,14 +204,10 @@ detailedMiddleware' cb getAddColor app req = do
                  -- implementation ensures that each chunk is only returned
                  -- once.
                  ichunks <- newIORef body
-                 let rbody = do
-                        chunks <- readIORef ichunks
+                 let rbody = atomicModifyIORef ichunks $ \chunks ->
                         case chunks of
-                            [] -> return ()
-                            x:xs -> do
-                                writeIORef ichunks xs
-                                C.yield x
-                                rbody
+                            [] -> ([], S8.empty)
+                            x:y -> (y, x)
                  let req' = req { requestBody = rbody }
                  return (req', body)
             _ -> return (req, [])
@@ -237,20 +233,20 @@ detailedMiddleware' cb getAddColor app req = do
         , "\n"
         ]
 
-    rsp <- app req'
+    app req' $ \rsp -> do
 
-    -- log the status of the response
-    -- this is color coordinated with the request logging
-    -- also includes the request path to connect it to the request
-    liftIO $ cb $ mconcat $ map toLogStr $
-        addColor "Status: " ++ statusBS rsp ++
-        [ " "
-        , msgBS rsp
-        , ". "
-        , rawPathInfo req -- if you need help matching the 2 logging statements
-        , "\n"
-        ]
-    return rsp
+        -- log the status of the response
+        -- this is color coordinated with the request logging
+        -- also includes the request path to connect it to the request
+        liftIO $ cb $ mconcat $ map toLogStr $
+            addColor "Status: " ++ statusBS rsp ++
+            [ " "
+            , msgBS rsp
+            , ". "
+            , rawPathInfo req -- if you need help matching the 2 logging statements
+            , "\n"
+            ]
+        sendResponse rsp
   where
     paramsToBS prefix params =
       if null params then ""
@@ -259,7 +255,13 @@ detailedMiddleware' cb getAddColor app req = do
     allPostParams body =
         case getRequestBodyType req of
             Nothing -> return ([], [])
-            Just rbt -> CL.sourceList body C.$$ sinkRequestBody lbsBackEnd rbt
+            Just rbt -> do
+                ichunks <- newIORef body
+                let rbody = atomicModifyIORef ichunks $ \chunks ->
+                        case chunks of
+                            [] -> ([], S8.empty)
+                            x:y -> (y, x)
+                sinkRequestBody lbsBackEnd rbt rbody
 
     emptyGetParam :: (BS.ByteString, Maybe BS.ByteString) -> (BS.ByteString, BS.ByteString)
     emptyGetParam (k, Just v) = (k,v)

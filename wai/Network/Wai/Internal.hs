@@ -8,7 +8,6 @@ module Network.Wai.Internal where
 
 import           Blaze.ByteString.Builder     (Builder)
 import qualified Data.ByteString              as B
-import qualified Data.Conduit                 as C
 import           Data.Text                    (Text)
 import           Data.Typeable                (Typeable)
 import Data.Vault.Lazy (Vault)
@@ -51,8 +50,9 @@ data Request = Request {
   ,  pathInfo             :: [Text]
   -- | Parsed query string information
   ,  queryString          :: H.Query
-  -- | A request body provided as 'Source'.
-  ,  requestBody          :: C.Source IO B.ByteString
+  -- | Get the next chunk of the body. Returns an empty bytestring when the
+  -- body is fully consumed.
+  ,  requestBody          :: IO B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.
   ,  vault                 :: Vault
   -- | The size of the request body. In the case of a chunked request body,
@@ -84,15 +84,17 @@ data Request = Request {
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
-    | ResponseSource H.Status H.ResponseHeaders (forall b. WithSource IO (C.Flush Builder) b)
-    | ResponseRaw (forall b. WithRawApp b) Response
+    | ResponseStream H.Status H.ResponseHeaders StreamingBody
+    | ResponseRaw (IO B.ByteString -> (B.ByteString -> IO ()) -> IO ()) Response
   deriving Typeable
 
-type RawApp = C.Source IO B.ByteString -> C.Sink B.ByteString IO () -> IO ()
-type WithRawApp b = (RawApp -> IO b) -> IO b
-
--- | Auxiliary type for 'ResponseSource'.
-type WithSource m a b = (C.Source m a -> m b) -> m b
+-- | Represents a streaming HTTP response body. It's a function of two
+-- parameters; the first parameter provides a means of sending another chunk of
+-- data, and the second parameter provides a means of flushing the data to the
+-- client.
+--
+-- Since 3.0.0
+type StreamingBody = (Builder -> IO ()) -> IO () -> IO ()
 
 -- | The size of the request body. In the case of chunked bodies, the size will
 -- not be known.
@@ -108,3 +110,14 @@ data FilePart = FilePart
     , filePartByteCount :: Integer
     , filePartFileSize  :: Integer
     } deriving Show
+
+-- | A special datatype to indicate that the WAI handler has received the
+-- response. This is to avoid the need for Rank2Types in the definition of
+-- Application.
+--
+-- It is /highly/ advised that only WAI handlers import and use the data
+-- constructor for this data type.
+--
+-- Since 3.0.0
+data ResponseReceived = ResponseReceived
+    deriving Typeable

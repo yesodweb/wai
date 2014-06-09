@@ -13,6 +13,8 @@ import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Buffer (Buffer,BufSize)
+import qualified Data.ByteString as S
+import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 
 ----------------------------------------------------------------
 
@@ -88,3 +90,31 @@ data InternalInfo = InternalInfo {
   , fdCacher :: Maybe F.MutableFdCache
   , dateCacher :: D.DateCache
   }
+
+----------------------------------------------------------------
+
+data Source = Source !(IORef ByteString) !(IO ByteString)
+
+mkSource :: IO ByteString -> IO Source
+mkSource func = do
+    ref <- newIORef S.empty
+    return $! Source ref func
+
+readSource :: Source -> IO ByteString
+readSource (Source ref func) = do
+    bs <- readIORef ref
+    if S.null bs
+        then func
+        else do
+            writeIORef ref S.empty
+            return bs
+
+-- | Read from a Source, ignoring any leftovers.
+readSource' :: Source -> IO ByteString
+readSource' (Source _ func) = func
+
+leftoverSource :: Source -> ByteString -> IO ()
+leftoverSource (Source ref _) bs = writeIORef ref bs
+
+readLeftoverSource :: Source -> IO ByteString
+readLeftoverSource (Source ref _) = readIORef ref

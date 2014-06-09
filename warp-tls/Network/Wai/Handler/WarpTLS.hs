@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -27,32 +26,24 @@ module Network.Wai.Handler.WarpTLS (
 
 import qualified Network.TLS as TLS
 import Network.Wai.Handler.Warp
-import Network.Wai
-import Network.Socket
+import Network.Wai (Application)
+import Network.Socket (Socket, sClose, withSocketsDo)
 import qualified Data.ByteString.Lazy as L
-import Data.Conduit.Binary (sourceFileRange)
-import Control.Monad.Trans.Resource (runResourceT)
-import qualified Data.Conduit as C
-import qualified Data.Conduit.List as CL
 import Control.Exception (bracket, finally, handle)
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.ByteString as B
-#if MIN_VERSION_conduit(1,1,0)
-import Data.Streaming.Network (bindPortTCP, acceptSafe)
-#else
-import Data.Conduit.Network (bindPort, acceptSafe)
-#define bindPortTCP bindPort
-#endif
+import Data.Streaming.Network (bindPortTCP, acceptSafe, safeRecv)
 import Control.Applicative ((<$>))
-import Data.Conduit.Network (sourceSocket, sinkSocket)
-import Data.Maybe (fromMaybe)
 import qualified Data.IORef as I
 import Control.Exception (Exception, throwIO)
 import Data.Typeable (Typeable)
-import Data.Default.Class
-import qualified Data.Conduit.Binary as CB
+import Data.Default.Class (def)
 import qualified Crypto.Random.AESCtr
-import Network.Wai.Handler.Warp.Buffer
+import Network.Wai.Handler.Warp.Buffer (allocateBuffer, bufferSize, freeBuffer)
+import Network.Socket.ByteString (sendAll)
+import Control.Monad (unless)
+import Data.ByteString.Lazy.Internal (defaultChunkSize)
+import qualified System.IO as IO
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -127,24 +118,35 @@ runTLSSocket TLSSettings {..} set sock app = do
   where
     getter params = do
         (s, sa) <- acceptSafe sock
-        let mkConn = do
-            (fromClient, firstBS) <- sourceSocket s C.$$+ CL.peek
-            let toClient = sinkSocket s
-            ifromClient <- I.newIORef fromClient
-            let getNext sink = do
-                    fromClient' <- I.readIORef ifromClient
-                    (fromClient'', bs) <- fromClient' C.$$++ sink
-                    I.writeIORef ifromClient fromClient''
-                    return bs
-            if maybe False ((== 0x16) . fst) (firstBS >>= B.uncons)
+        let mkConn :: IO (Connection, Bool)
+            mkConn = do
+            firstBS <- safeRecv s 4096
+            cachedRef <- I.newIORef firstBS
+            let getNext size = do
+                    cached <- I.readIORef cachedRef
+                    loop cached
+                  where
+                    loop bs | B.length bs >= size = do
+                        let (x, y) = B.splitAt size bs
+                        I.writeIORef cachedRef y
+                        return x
+                    loop bs1 = do
+                        bs2 <- safeRecv s 4096
+                        if B.null bs2
+                            then do
+                                -- FIXME does this deserve an exception being thrown?
+                                I.writeIORef cachedRef B.empty
+                                return bs1
+                            else loop $ B.append bs1 bs2
+            if not (B.null firstBS) && B.head firstBS == 0x16
                 then do
                     gen <- Crypto.Random.AESCtr.makeSystem
                     ctx <- TLS.contextNew
                         TLS.Backend
                             { TLS.backendFlush = return ()
                             , TLS.backendClose = sClose s
-                            , TLS.backendSend = \bs -> C.yield bs C.$$ toClient
-                            , TLS.backendRecv = getNext . fmap (B.concat . L.toChunks) . CB.take
+                            , TLS.backendSend = sendAll s
+                            , TLS.backendRecv = getNext
                             }
                         params
                         gen
@@ -157,7 +159,16 @@ runTLSSocket TLSSettings {..} set sock app = do
                             , connSendAll = TLS.sendData ctx . L.fromChunks . return
                             , connSendFile = \fp offset len _th headers -> do
                                 TLS.sendData ctx $ L.fromChunks headers
-                                runResourceT $ sourceFileRange fp (Just offset) (Just len) C.$$ CL.mapM_ (TLS.sendData ctx . L.fromChunks . return)
+                                IO.withBinaryFile fp IO.ReadMode $ \h -> do
+                                    IO.hSeek h IO.AbsoluteSeek offset
+                                    let loop remaining | remaining <= 0 = return ()
+                                        loop remaining = do
+                                            bs <- B.hGetSome h defaultChunkSize
+                                            unless (B.null bs) $ do
+                                                let x = B.take remaining bs
+                                                TLS.sendData ctx $ L.fromChunks [x]
+                                                loop $ remaining - B.length x
+                                    loop $ fromIntegral len
                             , connClose =
                                 freeBuffer readBuf `finally`
                                 freeBuffer writeBuf `finally`
@@ -166,12 +177,12 @@ runTLSSocket TLSSettings {..} set sock app = do
                             , connRecv =
                                 let onEOF TLS.Error_EOF = return B.empty
                                     onEOF e = throwIO e
-                                    go = handle onEOF $ do
+                                    go = do
                                         x <- TLS.recvData ctx
                                         if B.null x
                                             then go
                                             else return x
-                                 in go
+                                 in handle onEOF go
                             , connSendFileOverride = NotOverride
                             , connReadBuffer = readBuf
                             , connWriteBuffer = writeBuf
@@ -183,13 +194,11 @@ runTLSSocket TLSSettings {..} set sock app = do
                         AllowInsecure -> do
                             conn' <- socketConnection s
                             return (conn'
-                                    { connRecv = getNext $ fmap (fromMaybe B.empty) C.await
+                                    { connRecv = getNext 4096
                                     }, False)
                         DenyInsecure lbs -> do
-                            let src = do
-                                    C.yield "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
-                                    mapM_ C.yield $ L.toChunks lbs
-                            src C.$$ sinkSocket s
+                            sendAll s "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
+                            mapM_ (sendAll s) $ L.toChunks lbs
                             sClose s
                             throwIO InsecureConnectionDenied
         return (mkConn, sa)
@@ -202,7 +211,7 @@ instance Exception WarpTLSException
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
 runTLS tset set app = withSocketsDo $
     bracket
-        (bindPortTCP (settingsPort set) (settingsHost set))
+        (bindPortTCP (getPort set) (getHost set))
         sClose
         (\sock -> runTLSSocket tset set sock app)
 

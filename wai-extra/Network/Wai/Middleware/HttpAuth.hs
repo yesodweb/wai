@@ -32,12 +32,12 @@ type CheckCreds = ByteString
 basicAuth :: CheckCreds
           -> AuthSettings
           -> Middleware
-basicAuth checkCreds AuthSettings {..} app req = do
+basicAuth checkCreds AuthSettings {..} app req sendResponse = do
     isProtected <- authIsProtected req
     allowed <- if isProtected then check else return True
     if allowed
-        then app req
-        else authOnNoAuth authRealm req
+        then app req sendResponse
+        else authOnNoAuth authRealm req sendResponse
   where
     check =
         case lookup "Authorization" $ requestHeaders req of
@@ -83,7 +83,7 @@ data AuthSettings = AuthSettings
 instance IsString AuthSettings where
     fromString s = AuthSettings
         { authRealm = fromString s
-        , authOnNoAuth = \realm _req -> return $ responseLBS
+        , authOnNoAuth = \realm _req f -> f $ responseLBS
             status401
             [ ("Content-Type", "text/plain")
             , ("WWW-Authenticate", S.concat

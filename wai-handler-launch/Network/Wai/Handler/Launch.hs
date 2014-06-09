@@ -12,84 +12,134 @@ import Network.Wai.Internal
 import Network.HTTP.Types
 import qualified Network.Wai.Handler.Warp as Warp
 import Data.IORef
+import Data.Monoid (mappend)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad (unless)
+import Control.Exception (throwIO)
+import Data.Function (fix)
 import qualified Data.ByteString as S
-import Blaze.ByteString.Builder (fromByteString)
+import Blaze.ByteString.Builder (fromByteString, Builder, flush)
+import qualified Blaze.ByteString.Builder as Blaze
 #if WINDOWS
 import Foreign
 import Foreign.C.String
 #else
-import System.Cmd (rawSystem)
+import System.Process (rawSystem)
 #endif
-import Data.Conduit.Zlib (decompressFlush, WindowBits (WindowBits))
-import Data.Conduit.Blaze (builderToByteStringFlush)
-import Data.Conduit
-import qualified Data.Conduit.List as CL
+import Data.Streaming.Blaze (newBlazeRecv, defaultStrategy)
+import qualified Data.Streaming.Zlib as Z
 
 ping :: IORef Bool -> Middleware
-ping  var app req
+ping  var app req sendResponse
     | pathInfo req == ["_ping"] = do
         liftIO $ writeIORef var True
-        return $ responseLBS status200 [] ""
-    | otherwise = do
-        res <- app req
+        sendResponse $ responseLBS status200 [] ""
+    | otherwise = app req $ \res -> do
         let isHtml hs =
                 case lookup "content-type" hs of
                     Just ct -> "text/html" `S.isPrefixOf` ct
                     Nothing -> False
-        case res of
-            ResponseFile _ hs _ _
-                | not $ isHtml hs -> return res
-            ResponseBuilder _ hs _
-                | not $ isHtml hs -> return res
-            ResponseSource _ hs _
-                | not $ isHtml hs -> return res
-            _ -> do
-                let (s, hs, withBody) = responseToSource res
-                let (isEnc, headers') = fixHeaders id hs
-                let headers'' = filter (\(x, _) -> x /= "content-length") headers'
-                let fixEnc src =
-                        if isEnc then
-                            src $= decompressFlush (WindowBits 31)
-                            else src
-                return $ ResponseSource s headers'' $ \f -> withBody $ \body -> f
-                    $ fixEnc (body $= builderToByteStringFlush)
-                    $= insideHead
-                    $= CL.map (fmap fromByteString)
+        if isHtml $ responseHeaders res
+            then do
+                let (s, hs, withBody) = responseToStream res
+                    (isEnc, headers') = fixHeaders id hs
+                    headers'' = filter (\(x, _) -> x /= "content-length") headers'
+                withBody $ \body ->
+                    sendResponse $ responseStream s headers'' $ \sendChunk flush ->
+                        addInsideHead sendChunk flush $ \sendChunk' flush' ->
+                            if isEnc
+                                then decode sendChunk' flush' body
+                                else body sendChunk' flush'
+            else sendResponse res
+
+decode :: (Builder -> IO ()) -> IO ()
+       -> StreamingBody
+       -> IO ()
+decode sendInner flushInner streamingBody = do
+    (blazeRecv, blazeFinish) <- newBlazeRecv defaultStrategy
+    inflate <- Z.initInflate $ Z.WindowBits 31
+    let send builder = blazeRecv builder >>= goBuilderPopper
+        goBuilderPopper popper = fix $ \loop -> do
+            bs <- popper
+            unless (S.null bs) $ do
+                Z.feedInflate inflate bs >>= goZlibPopper
+                loop
+        goZlibPopper popper = fix $ \loop -> do
+            res <- popper
+            case res of
+                Z.PRDone -> return ()
+                Z.PRNext bs -> do
+                    sendInner $ fromByteString bs
+                    loop
+                Z.PRError e -> throwIO e
+    streamingBody send (send flush)
+    mbs <- blazeFinish
+    case mbs of
+        Nothing -> return ()
+        Just bs -> Z.feedInflate inflate bs >>= goZlibPopper
+    Z.finishInflate inflate >>= sendInner . fromByteString
 
 toInsert :: S.ByteString
 toInsert = "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping\",false);x.send();},60000)</script>"
 
-insideHead :: Conduit (Flush S.ByteString) IO (Flush S.ByteString)
-insideHead =
-    loop' (S.empty, whole)
+addInsideHead :: (Builder -> IO ())
+              -> IO ()
+              -> StreamingBody
+              -> IO ()
+addInsideHead sendInner flushInner streamingBody = do
+    (blazeRecv, blazeFinish) <- newBlazeRecv defaultStrategy
+    ref <- newIORef $ Just (S.empty, whole)
+    streamingBody (inner blazeRecv ref) (flush blazeRecv ref)
+    state <- readIORef ref
+    mbs <- blazeFinish
+    held <- case mbs of
+        Nothing -> return state
+        Just bs -> push state bs
+    case state of
+        Nothing -> return ()
+        Just (held, _) -> sendInner $ fromByteString held `mappend` fromByteString toInsert
   where
-    loop' state = await >>= maybe (close state) (push' state)
     whole = "<head>"
-    push' state (Chunk x) = push state x
-    push' state Flush = yield Flush >> loop' state
 
-    push (held, atFront) x
+    flush blazeRecv ref = inner blazeRecv ref Blaze.flush
+
+    inner blazeRecv ref builder = do
+        state0 <- readIORef ref
+        popper <- blazeRecv builder
+        let loop state = do
+                bs <- popper
+                if S.null bs
+                    then writeIORef ref state
+                    else push state bs >>= loop
+        loop state0
+
+    push Nothing x = sendInner (fromByteString x) >> return Nothing
+    push (Just (held, atFront)) x
         | atFront `S.isPrefixOf` x = do
             let y = S.drop (S.length atFront) x
-            mapM_ (yield . Chunk) [held, atFront, toInsert, y]
-            CL.map id
+            sendInner $ fromByteString held
+              `mappend` fromByteString atFront
+              `mappend` fromByteString toInsert
+              `mappend` fromByteString y
+            return Nothing
         | whole `S.isInfixOf` x = do
             let (before, rest) = S.breakSubstring whole x
             let after = S.drop (S.length whole) rest
-            mapM_ (yield . Chunk) [held, before, whole, toInsert, after]
-            CL.map id
+            sendInner $ fromByteString held
+              `mappend` fromByteString before
+              `mappend` fromByteString whole
+              `mappend` fromByteString toInsert
+              `mappend` fromByteString after
+            return Nothing
         | x `S.isPrefixOf` atFront = do
             let held' = held `S.append` x
                 atFront' = S.drop (S.length x) atFront
-            loop' (held', atFront')
+            return $ Just (held', atFront')
         | otherwise = do
             let (held', atFront', x') = getOverlap whole x
-            mapM_ (yield . Chunk) [held, x']
-            loop' (held', atFront')
-
-    close (held, _) = mapM_ yield [Chunk held, Chunk toInsert]
+            sendInner $ fromByteString held `mappend` fromByteString x'
+            return $ Just (held', atFront')
 
 getOverlap :: S.ByteString -> S.ByteString -> (S.ByteString, S.ByteString, S.ByteString)
 getOverlap whole x =
@@ -138,11 +188,11 @@ runUrl = runUrlPort 4587
 runUrlPort :: Int -> String -> Application -> IO ()
 runUrlPort port url app = do
     x <- newIORef True
-    _ <- forkIO $ Warp.runSettings Warp.defaultSettings
-        { Warp.settingsPort = port
-        , Warp.settingsOnException = (\_ _ -> return ())
-        , Warp.settingsHost = "*4"
-        } $ ping x app
+    _ <- forkIO $ Warp.runSettings
+        ( Warp.setPort port
+        $ Warp.setOnException (\_ _ -> return ())
+        $ Warp.setHost "*4" Warp.defaultSettings)
+        $ ping x app
     launch port url
     loop x
 

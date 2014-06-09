@@ -15,16 +15,13 @@ import Blaze.ByteString.Builder (fromByteString, Builder, flush)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 import Control.Applicative
 import Control.Exception
-import Control.Monad.IO.Class (liftIO)
 import Data.Array ((!))
 import Data.ByteString (ByteString)
+import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy, allocBuffer)
 import qualified Data.ByteString as S
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
-import Data.Conduit
-import qualified Data.Conduit.List as CL
-import Data.Conduit.Blaze (unsafeBuilderToByteString)
 import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Maybe (isJust, listToMaybe)
@@ -158,20 +155,19 @@ checkPartRange fileSize = checkPart
 
 sendResponse :: Connection
              -> InternalInfo
-             -> (forall a. IO a -> IO a) -- ^ Restore masking state.
              -> Request -- ^ HTTP request.
              -> IndexedHeader -- ^ Indexed header of HTTP request.
-             -> Maybe ByteString -- ^ leftovers from header parsing
+             -> IO ByteString -- ^ source from client, for raw response
              -> Response -- ^ HTTP response including status code and response header.
              -> IO Bool -- ^ Returing True if the connection is persistent.
-sendResponse conn ii restore req reqidxhdr leftover' response = do
+sendResponse conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s req then do
-        sendRsp conn ver s hs restore rsp
+        sendRsp conn ver s hs rsp
         T.tickle th
         return ret
       else do
-        sendResponseNoBody conn ver s hs restore response
+        sendResponseNoBody conn ver s hs
         T.tickle th
         return isPersist
   where
@@ -188,20 +184,20 @@ sendResponse conn ii restore req reqidxhdr leftover' response = do
     rsp = case response of
         ResponseFile _ _ path mPart -> RspFile path mPart mRange (T.tickle th)
         ResponseBuilder _ _ b       -> RspBuilder b needsChunked
-        ResponseSource _ _ fb       -> RspSource fb needsChunked th
-        ResponseRaw raw _           -> RspRaw raw leftover' (T.tickle th)
+        ResponseStream _ _ fb       -> RspStream fb needsChunked th
+        ResponseRaw raw _           -> RspRaw raw src (T.tickle th)
     ret = case response of
         ResponseFile    {} -> isPersist
         ResponseBuilder {} -> isKeepAlive
-        ResponseSource  {} -> isKeepAlive
+        ResponseStream  {} -> isKeepAlive
         ResponseRaw     {} -> False
 
 ----------------------------------------------------------------
 
 data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) (IO ())
          | RspBuilder Builder Bool
-         | RspSource (forall b. WithSource IO (Flush Builder) b) Bool T.Handle
-         | RspRaw (forall b. WithRawApp b) (Maybe ByteString) (IO ())
+         | RspStream StreamingBody Bool T.Handle
+         | RspRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) (IO ByteString) (IO ())
 
 ----------------------------------------------------------------
 
@@ -209,17 +205,16 @@ sendRsp :: Connection
         -> H.HttpVersion
         -> H.Status
         -> H.ResponseHeaders
-        -> (forall a. IO a -> IO a) -- ^ restore
         -> Rsp
         -> IO ()
-sendRsp conn ver s0 hs0 restore (RspFile path mPart mRange hook) = restore $ do
+sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
     ex <- fileRange s0 hs path mPart mRange
     case ex of
         Left _ex ->
 #ifdef WARP_DEBUG
           print _ex >>
 #endif
-          sendRsp conn ver s2 hs2 id (RspBuilder body True)
+          sendRsp conn ver s2 hs2 (RspBuilder body True)
         Right (s, hs1, beg, len) -> do
             lheader <- composeHeader ver s hs1
             connSendFile conn path beg len hook [lheader]
@@ -231,7 +226,7 @@ sendRsp conn ver s0 hs0 restore (RspFile path mPart mRange hook) = restore $ do
 
 ----------------------------------------------------------------
 
-sendRsp conn ver s hs restore (RspBuilder body needsChunked) = restore $ do
+sendRsp conn ver s hs (RspBuilder body needsChunked) = do
     header <- composeHeaderBuilder ver s hs needsChunked
     let hdrBdy
          | needsChunked = header <> chunkedTransferEncoding body
@@ -243,37 +238,37 @@ sendRsp conn ver s hs restore (RspBuilder body needsChunked) = restore $ do
 
 ----------------------------------------------------------------
 
-sendRsp conn ver s hs restore (RspSource withBodyFlush needsChunked th) =
-  withBodyFlush $ \bodyFlush -> restore $ do
+sendRsp conn ver s hs (RspStream withBodyFlush needsChunked th) = do
     header <- composeHeaderBuilder ver s hs needsChunked
-    buffer <- toBlazeBuffer (connWriteBuffer conn) (connBufferSize conn)
-    let src = yield header >> cbody bodyFlush
-    src $$ unsafeBuilderToByteString (return buffer) =$ connSink conn th
-  where
-    cbody bodyFlush = if needsChunked then body $= chunk else body
-      where
-        body = mapOutput (\x -> case x of
-                        Flush -> flush
-                        Chunk builder -> builder)
-               bodyFlush
-    chunk :: Conduit Builder IO Builder
-    chunk = await >>= maybe (yield chunkedTransferTerminator) (\x -> yield (chunkedTransferEncoding x) >> chunk)
+    (recv, finish) <- newBlazeRecv $ reuseBufferStrategy
+                    $ toBlazeBuffer (connWriteBuffer conn) (connBufferSize conn)
+    let addChunk builder = do
+            popper <- recv builder
+            let loop = do
+                    bs <- popper
+                    unless (S.null bs) $ do
+                        connSink conn th bs
+                        loop
+            loop
+        addChunk'
+            | needsChunked = addChunk . chunkedTransferEncoding
+            | otherwise = addChunk
+    addChunk header
+    withBodyFlush addChunk' (addChunk' flush)
+    when needsChunked $ addChunk chunkedTransferTerminator
+    mbs <- finish
+    maybe (return ()) (connSink conn th) mbs
 
 ----------------------------------------------------------------
 
-sendRsp conn _ _ _ restore (RspRaw withApp mbs tickle) =
-    withApp $ \app -> restore $ app src sink
+sendRsp conn _ _ _ (RspRaw withApp src tickle) =
+    withApp recv send
   where
-    sink = CL.mapM_ (\bs -> connSendAll conn bs >> tickle)
-    src = do
-        maybe (return ()) yield mbs
-        loop
-      where
-        loop = do
-            bs <- liftIO $ connRecv conn
-            unless (S.null bs) $ do
-                liftIO tickle
-                yield bs >> loop
+    recv = do
+        bs <- src
+        unless (S.null bs) tickle
+        return bs
+    send bs = connSendAll conn bs >> tickle
 
 ----------------------------------------------------------------
 
@@ -281,35 +276,18 @@ sendResponseNoBody :: Connection
                    -> H.HttpVersion
                    -> H.Status
                    -> H.ResponseHeaders
-                   -> (forall a. IO a -> IO a) -- ^ restore
-                   -> Response
                    -> IO ()
-sendResponseNoBody conn ver s hs restore (ResponseSource _ _ withBodyFlush) =
-    withBodyFlush $ \_bodyFlush ->
-       restore $ composeHeader ver s hs >>= connSendAll conn
-sendResponseNoBody conn ver s hs restore (ResponseRaw withRaw _) =
-    withRaw $ \_raw ->
-       restore $ composeHeader ver s hs >>= connSendAll conn
-sendResponseNoBody conn ver s hs restore ResponseBuilder{} =
-    restore $ composeHeader ver s hs >>= connSendAll conn
-sendResponseNoBody conn ver s hs restore ResponseFile{} =
-    restore $ composeHeader ver s hs >>= connSendAll conn
+sendResponseNoBody conn ver s hs = composeHeader ver s hs >>= connSendAll conn
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
-connSink :: Connection -> T.Handle -> Sink ByteString IO ()
-connSink Connection { connSendAll = send } th = sink
-  where
-    sink = await >>= maybe close push
-    close = liftIO (T.resume th)
-    push x = do
-        liftIO $ do
-            T.resume th
-            send x
-            T.pause th
-        sink
+connSink :: Connection -> T.Handle -> ByteString -> IO ()
+connSink Connection { connSendAll = send } th bs = do
+    T.resume th
+    send bs
+    T.pause th
     -- We pause timeouts before passing control back to user code. This ensures
     -- that a timeout will only ever be executed when Warp is in control. We
     -- also make sure to resume the timeout after the completion of user code

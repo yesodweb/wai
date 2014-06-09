@@ -10,8 +10,6 @@ import Network.HTTP.Types (Status (..))
 import Control.Monad.IO.Class (liftIO)
 import Data.CaseInsensitive (original)
 
-import Data.Conduit.Lazy (lazyConsume)
-
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString.Char8 as S8
@@ -32,8 +30,8 @@ cgiToAppGeneric :: Monad m
                 => (m (Headers, CGIResult) -> IO (Headers, CGIResult))
                 -> CGIT m CGIResult
                 -> Application
-cgiToAppGeneric toIO cgi env = do
-    input <- fmap BS.fromChunks $ lazyConsume $ requestBody env
+cgiToAppGeneric toIO cgi env sendResponse = do
+    input <- lazyRequestBody env
     let vars = map (first fixVarName . go) (requestHeaders env)
                ++ getCgiVars env
         (inputs, body') = decodeInput vars input
@@ -51,7 +49,7 @@ cgiToAppGeneric toIO cgi env = do
     let status' = case lookup (fromString "Status") headers' of
                     Nothing -> 200
                     Just s -> safeRead 200 $ S8.unpack s
-    return $ responseLBS (Status status' S8.empty) headers' output
+    sendResponse $ responseLBS (Status status' S8.empty) headers' output
   where
     go (x, y) = (S8.unpack $ original x, S8.unpack y)
 

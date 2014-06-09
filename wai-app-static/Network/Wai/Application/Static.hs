@@ -193,35 +193,35 @@ staticApp :: StaticSettings -> W.Application
 staticApp set req = staticAppPieces set (W.pathInfo req) req
 
 staticAppPieces :: StaticSettings -> [Text] -> W.Application
-staticAppPieces _ _ req
-    | W.requestMethod req /= "GET" = return $ W.responseLBS
+staticAppPieces _ _ req sendResponse
+    | W.requestMethod req /= "GET" = sendResponse $ W.responseLBS
         H.status405
         [("Content-Type", "text/plain")]
         "Only GET is supported"
-staticAppPieces _ [".hidden", "folder.png"] _  = return $ W.responseLBS H.status200 [("Content-Type", "image/png")] $ L.fromChunks [$(embedFile "images/folder.png")]
-staticAppPieces _ [".hidden", "haskell.png"] _ = return $ W.responseLBS H.status200 [("Content-Type", "image/png")] $ L.fromChunks [$(embedFile "images/haskell.png")]
-staticAppPieces ss rawPieces req = liftIO $ do
+staticAppPieces _ [".hidden", "folder.png"] _ sendResponse = sendResponse $ W.responseLBS H.status200 [("Content-Type", "image/png")] $ L.fromChunks [$(embedFile "images/folder.png")]
+staticAppPieces _ [".hidden", "haskell.png"] _ sendResponse = sendResponse $ W.responseLBS H.status200 [("Content-Type", "image/png")] $ L.fromChunks [$(embedFile "images/haskell.png")]
+staticAppPieces ss rawPieces req sendResponse = liftIO $ do
     case toPieces rawPieces of
         Just pieces -> checkPieces ss pieces req >>= response
-        Nothing -> return $ W.responseLBS H.status403
+        Nothing -> sendResponse $ W.responseLBS H.status403
             [ ("Content-Type", "text/plain")
             ] "Forbidden"
   where
-    response :: StaticResponse -> IO W.Response
+    response :: StaticResponse -> IO W.ResponseReceived
     response (FileResponse file ch) = do
         mimetype <- ssGetMimeType ss file
         let filesize = fileGetSize file
         let headers = ("Content-Type", mimetype)
                     : ("Content-Length", S8.pack $ show filesize)
                     : ch
-        return $ fileToResponse file H.status200 headers
+        sendResponse $ fileToResponse file H.status200 headers
 
     response NotModified =
-            return $ W.responseLBS H.status304 [] ""
+            sendResponse $ W.responseLBS H.status304 [] ""
 
     response (SendContent mt lbs) = do
             -- TODO: set caching headers
-            return $ W.responseLBS H.status200
+            sendResponse $ W.responseLBS H.status200
                 [ ("Content-Type", mt)
                   -- TODO: set Content-Length
                 ] lbs
@@ -232,13 +232,13 @@ staticAppPieces ss rawPieces req = liftIO $ do
                   Just hash -> replace "etag" (Just hash) (W.queryString req)
                   Nothing   -> remove "etag" (W.queryString req)
 
-            return $ W.responseLBS H.status301
+            sendResponse $ W.responseLBS H.status301
                 [ ("Content-Type", "text/plain")
                 , ("Location", S8.append loc $ H.renderQuery True qString)
                 ] "Redirect"
 
-    response NotFound = return $ W.responseLBS H.status404
+    response NotFound = sendResponse $ W.responseLBS H.status404
                         [ ("Content-Type", "text/plain")
                         ] "File not found"
 
-    response (WaiResponse r) = return r
+    response (WaiResponse r) = sendResponse r

@@ -13,10 +13,10 @@ import Network.HTTP.Types as H
 
 -- | rewrite based on your own conversion rules
 rewrite :: ([Text] -> H.RequestHeaders -> IO [Text]) -> Middleware
-rewrite convert app req = do
+rewrite convert app req sendResponse = do
   newPathInfo <- liftIO $ convert (pathInfo req) (requestHeaders req)
   let rawPInfo = TE.encodeUtf8 $ T.intercalate "/" newPathInfo
-  app req { pathInfo = newPathInfo, rawPathInfo =  rawPInfo }
+  app req { pathInfo = newPathInfo, rawPathInfo =  rawPInfo } sendResponse
 
 -- | rewrite based on your own conversion rules
 -- Example convert function:

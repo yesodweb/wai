@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Network.Wai
-import Network.Wai.Handler.Warp (defaultSettings, settingsPort)
+import Network.Wai.Handler.Warp (defaultSettings, setPort)
 import Network.Wai.Handler.WarpTLS
 import Network.HTTP.Types (status200)
 import Blaze.ByteString.Builder (copyByteString)
@@ -15,9 +15,9 @@ main = do
     --manager <- newManager def
     runTLS (tlsSettings  "certificate.pem" "key.pem")
         { onInsecure = AllowInsecure
-        } defaultSettings { settingsPort = 3009 } app
+        } (setPort 3009 defaultSettings) app
 
-app req = return $
+app req f = f $
     case rawPathInfo req of
         "/builder/withlen" -> builderWithLen
         "/builder/nolen" -> builderNoLen
@@ -41,18 +41,18 @@ builderNoLen = responseBuilder
     ]
     $ copyByteString "PONG"
 
-sourceWithLen = responseSource
+sourceWithLen = responseStream
     status200
     [ ("Content-Type", "text/plain")
     , ("Content-Length", "4")
     ]
-    $ CL.sourceList [C.Chunk $ copyByteString "PONG"]
+    $ \sendChunk _flush -> sendChunk $ copyByteString "PONG"
 
-sourceNoLen = responseSource
+sourceNoLen = responseStream
     status200
     [ ("Content-Type", "text/plain")
     ]
-    $ CL.sourceList [C.Chunk $ copyByteString "PONG"]
+    $ \sendChunk _flush -> sendChunk $ copyByteString "PONG"
 
 fileWithLen = responseFile
     status200
