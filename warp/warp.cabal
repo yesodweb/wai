@@ -1,5 +1,5 @@
 Name:                warp
-Version:             3.0.0
+Version:             3.0.0.1
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -14,6 +14,8 @@ Description:
     The premier WAI handler. For more information, see <http://steve.vinoski.net/blog/2011/05/01/warp-a-haskell-web-server/>.
     .
     Changelog
+    .
+    [3.0.0] WAI no longer uses conduit for its streaming interface.
     .
     [2.1.0] The @onOpen@ and @onClose@ settings now provide the @SockAddr@ of the client, and @onOpen@ can return a @Bool@ which will close the connection. The @responseRaw@ response has been added, which provides a more elegant way to handle WebSockets than the previous @settingsIntercept@. The old settings accessors have been deprecated in favor of new setters, which will allow settings changes to be made in the future without breaking backwards compatibility.
     .
