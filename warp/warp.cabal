@@ -42,7 +42,7 @@ Library
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2
                    , ghc-prim
-                   , http-types                >= 0.7
+                   , http-types                >= 0.8.5
                    , simple-sendfile           >= 0.2.7    && < 0.3
                    , unix-compat               >= 0.2
                    , void
