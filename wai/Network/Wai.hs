@@ -129,7 +129,9 @@ responseBuilder = ResponseBuilder
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . fromLazyByteString
 
--- | Creating 'Response' from 'C.Source'.
+-- | Creating 'Response' from a stream of values.
+--
+-- Since 3.0.0
 responseStream :: H.Status
                -> H.ResponseHeaders
                -> StreamingBody
@@ -168,7 +170,7 @@ responseHeaders (ResponseBuilder _ hs _  ) = hs
 responseHeaders (ResponseStream  _ hs _  ) = hs
 responseHeaders (ResponseRaw _ res)        = responseHeaders res
 
--- | Converting the body information in 'Response' to 'Source'.
+-- | Converting the body information in 'Response' to a @StreamingBody@.
 responseToStream :: Response
                  -> ( H.Status
                     , H.ResponseHeaders
@@ -206,6 +208,18 @@ responseToStream (ResponseRaw _ res) = responseToStream res
 ----------------------------------------------------------------
 
 -- | The WAI application.
+--
+-- Note that, since WAI 3.0, this type is structured in continuation passing
+-- style to allow for proper safe resource handling. This was handled in the
+-- past via other means (e.g., @ResourceT@). As a demonstration:
+--
+-- @
+-- app :: Application
+-- app req respond = bracket_
+--     (putStrLn "Allocating scarce resource")
+--     (putStrLn "Cleaning up")
+--     (respond $ responseLBS status200 [] "Hello World")
+-- @
 type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
 
 -- | Middleware is a component that sits between the server and application. It

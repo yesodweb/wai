@@ -71,16 +71,6 @@ data Request = Request {
   }
   deriving (Typeable)
 
--- | The strange structure of the third field or ResponseSource is to allow for
--- exception-safe resource allocation. As an example:
---
--- > app :: Application
--- > app _ = return $ ResponseSource status200 [] $ \f -> bracket
--- >     (putStrLn "Allocation" >> return 5)
--- >     (\i -> putStrLn $ "Cleaning up: " ++ show i)
--- >     (\_ -> f $ do
--- >         yield $ Chunk $ fromByteString "Hello "
--- >         yield $ Chunk $ fromByteString "World!")
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
