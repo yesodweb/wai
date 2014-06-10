@@ -131,6 +131,25 @@ responseLBS s h = ResponseBuilder s h . fromLazyByteString
 
 -- | Creating 'Response' from a stream of values.
 --
+-- In order to allocate resources in an exception-safe manner, you can use the
+-- @bracket@ pattern outside of the call to @responseStream@. As a trivial
+-- example:
+--
+-- @
+-- app :: Application
+-- app req respond = bracket_
+--     (putStrLn "Allocating scarce resource")
+--     (putStrLn "Cleaning up")
+--     $ respond $ responseStream status200 [] $ \write flush -> do
+--         write $ fromByteString "Hello\n"
+--         flush
+--         write $ fromByteString "World\n"
+-- @
+--
+-- Note that in some cases you can use @bracket@ from inside @responseStream@
+-- as well. However, placing the call on the outside allows your status value
+-- and response headers to depend on the scarce resource.
+--
 -- Since 3.0.0
 responseStream :: H.Status
                -> H.ResponseHeaders
