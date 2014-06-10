@@ -13,4 +13,6 @@ build-type:      Simple
 homepage:        http://www.yesodweb.com/book/web-application-interface
 
 library
-    build-depends: wai >= 3.0
+    exposed: False
+    build-depends: base == 4.*, wai-extra >= 3
+    exposed-modules: Network.Wai.Test
