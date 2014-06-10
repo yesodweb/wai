@@ -13,12 +13,12 @@ import Network.HTTP.Types
 import Network.Wai.Handler.Warp (run)
 
 app :: Application
-app _ = do
-  putStrLn "I've done some IO here"
-  return $ responseLBS
-    status200
-    [("Content-Type", "text/plain")]
-    "Hello, Web!"
+app _ respond = do
+    putStrLn "I've done some IO here"
+    respond $ responseLBS
+        status200
+        [("Content-Type", "text/plain")]
+        "Hello, Web!"
 
 main :: IO ()
 main = do
@@ -50,7 +50,7 @@ Now we redefine `responseBody` to refer to that file:
 
 ~~~ {.haskell}
 app2 :: Application
-app2 _ = return index
+app2 _ respond = respond index
 
 index :: Response
 index = responseFile
@@ -73,10 +73,10 @@ Depending on the path info provided with each `Request` we can serve different `
 
 ~~~ {.haskell}
 app3 :: Application
-app3 request = case rawPathInfo request of
-    "/"     -> return index
-    "/raw/" -> return plainIndex
-    _       -> return notFound
+app3 request respond = respond $ case rawPathInfo request of
+    "/"     -> index
+    "/raw/" -> plainIndex
+    _       -> notFound
 
 plainIndex :: Response
 plainIndex = responseFile
