@@ -138,12 +138,12 @@ responseLBS s h = ResponseBuilder s h . fromLazyByteString
 -- @
 -- app :: Application
 -- app req respond = bracket_
---     (putStrLn "Allocating scarce resource")
---     (putStrLn "Cleaning up")
---     $ respond $ responseStream status200 [] $ \write flush -> do
---         write $ fromByteString "Hello\n"
+--     (putStrLn \"Allocating scarce resource\")
+--     (putStrLn \"Cleaning up\")
+--     $ respond $ responseStream status200 [] $ \\write flush -> do
+--         write $ fromByteString \"Hello\\n\"
 --         flush
---         write $ fromByteString "World\n"
+--         write $ fromByteString \"World\\n\"
 -- @
 --
 -- Note that in some cases you can use @bracket@ from inside @responseStream@
@@ -235,9 +235,9 @@ responseToStream (ResponseRaw _ res) = responseToStream res
 -- @
 -- app :: Application
 -- app req respond = bracket_
---     (putStrLn "Allocating scarce resource")
---     (putStrLn "Cleaning up")
---     (respond $ responseLBS status200 [] "Hello World")
+--     (putStrLn \"Allocating scarce resource\")
+--     (putStrLn \"Cleaning up\")
+--     (respond $ responseLBS status200 [] \"Hello World\")
 -- @
 type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
 
