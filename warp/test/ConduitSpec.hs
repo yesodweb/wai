@@ -44,3 +44,24 @@ spec = describe "conduit" $ do
 
         y <- replicateM 15 $ readSource src
         S.concat y `shouldBe` "BLAH"
+    it "chunk boundaries" $ do
+        ref <- newIORef
+            [ "5\r\n"
+            , "12345\r\n3\r"
+            , "\n678\r\n0\r\n"
+            , "\r\nBLAH"
+            ]
+        src <- mkSource $ do
+            x <- readIORef ref
+            case x of
+                [] -> return S.empty
+                y:z -> do
+                    writeIORef ref z
+                    return y
+        csrc <- mkCSource src
+
+        x <- replicateM 15 $ readCSource csrc
+        S.concat x `shouldBe` "12345678"
+
+        y <- replicateM 15 $ readSource src
+        S.concat y `shouldBe` "BLAH"

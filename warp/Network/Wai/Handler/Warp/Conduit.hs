@@ -161,7 +161,13 @@ readCSource (CSource src ref) = do
                 let w =
                         S.foldl' (\i c -> i * 16 + fromIntegral (hexToWord c)) 0
                         $ S.takeWhile isHexDigit x
-                withLen w $ S.drop 1 y
+
+                let y' = S.drop 1 y
+                y'' <-
+                    if S.null y'
+                        then readSource src
+                        else return y'
+                withLen w y''
 
     hexToWord w
         | w < 58 = w - 48
