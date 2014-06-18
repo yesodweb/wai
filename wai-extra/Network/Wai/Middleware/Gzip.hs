@@ -79,6 +79,7 @@ defaultCheckMime bs =
 gzip :: GzipSettings -> Middleware
 gzip set app env sendResponse = app env $ \res ->
     case res of
+        ResponseRaw{} -> sendResponse res
         ResponseFile{} | gzipFiles set == GzipIgnore -> sendResponse res
         _ -> if "gzip" `elem` enc && not isMSIE6 && not (isEncoded res)
                 then
