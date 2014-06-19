@@ -37,6 +37,8 @@ import qualified Data.ByteString.Char8 as S8
 import System.Console.ANSI
 import Data.IORef.Lifted
 import System.IO.Unsafe
+import Control.Monad (unless)
+import Network.Wai.Internal (Response (ResponseRaw))
 
 import Data.Default.Class (Default (def))
 import Network.Wai.Logger
@@ -234,11 +236,15 @@ detailedMiddleware' cb getAddColor app req sendResponse = do
         ]
 
     app req' $ \rsp -> do
+        let isRaw =
+                case rsp of
+                    ResponseRaw{} -> True
+                    _ -> False
 
         -- log the status of the response
         -- this is color coordinated with the request logging
         -- also includes the request path to connect it to the request
-        liftIO $ cb $ mconcat $ map toLogStr $
+        unless isRaw $ cb $ mconcat $ map toLogStr $
             addColor "Status: " ++ statusBS rsp ++
             [ " "
             , msgBS rsp
