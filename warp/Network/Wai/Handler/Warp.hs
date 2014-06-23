@@ -97,7 +97,6 @@ import Network.Wai.Handler.Warp.Types
 import Control.Exception (SomeException)
 import Network.Wai (Request, Response)
 import Network.Socket (SockAddr)
-import Data.ByteString (ByteString)
 import Data.Streaming.Network (HostPreference)
 
 -- | Port to listen on. Default value: 3000

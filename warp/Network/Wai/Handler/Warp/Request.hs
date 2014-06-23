@@ -8,7 +8,6 @@ module Network.Wai.Handler.Warp.Request (
   , headerLines
   ) where
 
-import Control.Applicative
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception (throwIO)
 import Data.Array ((!))
@@ -203,9 +202,9 @@ push src (THStatus len lines prepend) bs'
     -- No newline find in this chunk.  Add it to the prepend,
     -- update the length, and continue processing.
     push' Nothing = do
-        bs <- readSource' src
+        bst <- readSource' src
         when (S.null bs) $ throwIO IncompleteHeaders
-        push src status bs
+        push src status bst
       where
         len' = len + bsLen
         prepend' = S.append bs
@@ -233,9 +232,9 @@ push src (THStatus len lines prepend) bs'
                               in push src status bs''
                            else do
                              -- no more bytes in this chunk, ask for more
-                             bs <- readSource' src
+                             bst <- readSource' src
                              when (S.null bs) $ throwIO IncompleteHeaders
-                             push src status bs
+                             push src status bst
       where
         start = end + 1 -- start of next chunk
         line = SU.unsafeTake (checkCR bs end) bs

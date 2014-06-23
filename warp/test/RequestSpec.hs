@@ -11,7 +11,6 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
-import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types.Header as HH
 import Data.IORef
 
@@ -66,11 +65,13 @@ spec = do
     tooMany = headerLinesList $ repeat "f\n"
     tooLarge = headerLinesList $ repeat "f"
 
+headerLinesList :: [S8.ByteString] -> IO (S8.ByteString, [S8.ByteString])
 headerLinesList orig = do
     (res, src) <- headerLinesList' orig
     leftover <- readLeftoverSource src
     return (leftover, res)
 
+headerLinesList' :: [S8.ByteString] -> IO ([S8.ByteString], Source)
 headerLinesList' orig = do
     ref <- newIORef orig
     let src = do
@@ -84,6 +85,7 @@ headerLinesList' orig = do
     res <- headerLines src'
     return (res, src')
 
+consumeLen :: Int -> Source -> IO S8.ByteString
 consumeLen len0 src =
     loop id len0
   where
@@ -94,7 +96,7 @@ consumeLen len0 src =
             if S.null bs
                 then loop front 0
                 else do
-                    let (x, y) = S.splitAt len bs
+                    let (x, _) = S.splitAt len bs
                     loop (front . (x:)) (len - S.length x)
 
 overLargeHeader :: Selector InvalidRequest

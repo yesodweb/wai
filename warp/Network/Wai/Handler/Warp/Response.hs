@@ -17,7 +17,7 @@ import Control.Applicative
 import Control.Exception
 import Data.Array ((!))
 import Data.ByteString (ByteString)
-import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy, allocBuffer)
+import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy)
 import qualified Data.ByteString as S
 import Control.Monad (unless, when)
 import qualified Data.ByteString.Char8 as B (pack)

@@ -4,14 +4,12 @@ module ExceptionSpec (main, spec) where
 
 import Control.Applicative
 import Control.Monad
-import Control.Concurrent (forkIO, threadDelay)
 import Network.HTTP
 import Network.Stream
 import Network.HTTP.Types hiding (Header)
 import Network.Wai hiding (Response)
 import Network.Wai.Internal (Request(..))
 import Network.Wai.Handler.Warp
-import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
 import Control.Exception
 import qualified Data.Streaming.Network as N
@@ -25,9 +23,9 @@ withTestServer :: (Int -> IO a) -> IO a
 withTestServer inner = bracket
     (N.bindRandomPortTCP "*4")
     (sClose . snd)
-    $ \(port, lsocket) -> do
+    $ \(prt, lsocket) -> do
         withAsync (runSettingsSocket defaultSettings lsocket testApp)
-            $ \_ -> inner port
+            $ \_ -> inner prt
 
 testApp :: Application
 testApp (Network.Wai.Internal.Request {pathInfo = [x]}) f
@@ -61,8 +59,8 @@ spec = describe "responds even if there is an exception" $ do
             sc <- rspCode <$> sendGET "http://localhost:2345/bodyError"
             sc `shouldBe` (5,0,0)
         -}
-        it "ioException" $ withTestServer $ \port -> do
-            sc <- rspCode <$> sendGET (concat $ ["http://localhost:", show port, "/ioException"])
+        it "ioException" $ withTestServer $ \prt -> do
+            sc <- rspCode <$> sendGET (concat $ ["http://localhost:", show prt, "/ioException"])
             sc `shouldBe` (5,0,0)
 
 ----------------------------------------------------------------

@@ -1,12 +1,10 @@
 module Network.Wai.Handler.Warp.Conduit where
 
-import Control.Applicative
 import Control.Exception
 import Control.Monad (when, unless)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy.Char8 (pack)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
 import Data.Word (Word, Word8)
