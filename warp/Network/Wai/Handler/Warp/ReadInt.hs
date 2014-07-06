@@ -32,14 +32,14 @@ readInt bs = fromIntegral $ readInt64 bs
 -- use Int64 here and then make a generic 'readInt' that allows conversion to
 -- Int and Integer.
 
-{- NOINLINE readInt64MH #-}
+{-# NOINLINE readInt64MH #-}
 readInt64 :: ByteString -> Int64
 readInt64 bs = S.foldl' (\ !i !c -> i * 10 + fromIntegral (mhDigitToInt c)) 0
              $ S.takeWhile isDigit bs
 
 data Table = Table !Addr#
 
-{- NOINLINE mhDigitToInt #-}
+{-# NOINLINE mhDigitToInt #-}
 mhDigitToInt :: Word8 -> Int
 mhDigitToInt (W8# i) = I# (word2Int# (indexWord8OffAddr# addr (word2Int# i)))
   where
