@@ -3,7 +3,7 @@ module WaiExtraTest (specs) where
 
 import Test.Hspec
 import Test.HUnit hiding (Test)
-import Data.Monoid (mappend, mempty)
+import Data.Monoid (mappend, mempty, (<>))
 
 import Network.Wai
 import Network.Wai.Test
@@ -548,21 +548,25 @@ caseDebugRequestBody = do
   where
     params = [("foo", "bar"), ("baz", "bin")]
     -- FIXME change back once we include post parameter output in logging postOutput = T.pack $ "POST \nAccept: \nPOST " ++ (show params)
-    postOutput = T.pack $ "POST / :: \nStatus: 200 OK. /\n"
-    getOutput params' = T.pack $ "GET /location :: \nGET " ++ show params' ++ "\nStatus: 200 OK. /location\n"
+    -- the time cannot be known, so match around it
+    postOutput = ("POST / :: \nStatus: 200 OK. 0.00", "s. /\n")
+    getOutput params' = ("GET /location :: \nGET " <> T.pack (show params') <> "\nStatus: 200 OK. 0.00", "s. /location\n")
 
-    debugApp output' req send = do
+    debugApp (beginning, ending) req send = do
         iactual <- I.newIORef mempty
         middleware <- mkRequestLogger def
             { destination = Callback $ \strs -> I.modifyIORef iactual $ (`mappend` strs)
             , outputFormat = Detailed False
             }
         res <- middleware (\_req f -> f $ responseLBS status200 [ ] "") req send
-        actual <- I.readIORef iactual
-        assertEqual "debug" output $ logToBs actual
+        actual <- logToBs <$> I.readIORef iactual
+        actual `shouldSatisfy` S.isPrefixOf begin
+        actual `shouldSatisfy` S.isSuffixOf end
+
         return res
       where
-        output = TE.encodeUtf8 $ T.toStrict output'
+        begin = TE.encodeUtf8 $ T.toStrict beginning
+        end   = TE.encodeUtf8 $ T.toStrict ending
 
         logToBs = fromLogStr
 
