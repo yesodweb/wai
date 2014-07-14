@@ -11,3 +11,4 @@
 ./wai-eventsource
 ./wai-conduit
 ./mime-types
+./auto-update
