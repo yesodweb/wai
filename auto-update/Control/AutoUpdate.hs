@@ -135,7 +135,6 @@ getCurrent freq spawnThreshold action istatus = do
     spawn = handle onErr $ forever $ do
         threadDelay freq
         a <- action
-        let stop = throwIO Replaced
         join $ atomicModifyIORef istatus $ \status ->
             case status of
                 AutoUpdated _ cnt tid
@@ -152,3 +151,6 @@ getCurrent freq spawnThreshold action istatus = do
                         AutoUpdated _ _ tid' | tid == tid' -> (ManualUpdates 0, ())
                         _ -> (status, ())
                 throwIO ex
+
+stop :: IO a
+stop = throwIO Replaced
