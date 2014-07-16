@@ -101,18 +101,6 @@ data Status a = AutoUpdated
                     -- Number of times used since we started/switched
                     -- off manual updates.
 
--- | A value which will be updated, either via a dedicated thread or when
--- requested. Request the current value with @getCurrent@.
---
--- Since 0.1.0
-data AutoUpdate a = AutoUpdate
--- We use bang patterns on all arguments to ensure no bottoms leak in.
-    { auFreq            :: {-# UNPACK #-} !Int
-    , auSpawnThreadhold :: {-# UNPACK #-} !Int
-    , auAction          :: !(IO ())
-    , auStatus          :: !(IORef (Status a))
-    }
-
 -- | Generate an action which will either read from an automatically
 -- updated value, or run the update action in the current thread.
 --
