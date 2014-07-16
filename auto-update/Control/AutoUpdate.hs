@@ -116,21 +116,25 @@ getCurrent :: Int -- ^ frequency
            -> IORef (Status a) -- ^ mutable state
            -> IO a
 getCurrent freq spawnThreshold action istatus = do
-    ea <- atomicModifyIORef istatus $ \status ->
-        case status of
-            AutoUpdated a cnt tid -> (AutoUpdated a (succ cnt) tid, Return a)
-            ManualUpdates i -> (ManualUpdates (succ i), if i > spawnThreshold then Spawn else Manual)
+    ea <- atomicModifyIORef istatus increment
     case ea of
         Return a -> return a
         Manual -> action
         Spawn -> do
             a <- action
             tid <- forkIO $ spawn freq action istatus
-            join $ atomicModifyIORef istatus $ \status ->
-                case status of
-                    AutoUpdated _ cnt old -> (AutoUpdated a cnt tid, throwTo old Replaced)
-                    ManualUpdates cnt -> (AutoUpdated a cnt tid, return ())
+            join $ atomicModifyIORef istatus $ turnToAuto a tid
             return a
+  where
+    increment (AutoUpdated a cnt tid) = (AutoUpdated a (succ cnt) tid, Return a)
+    increment (ManualUpdates i)       = (ManualUpdates (succ i),       act)
+      where
+        act = if i > spawnThreshold then Spawn else Manual
+
+    turnToAuto a tid (AutoUpdated _ cnt old) = (AutoUpdated a cnt tid
+                                               ,throwTo old Replaced)
+    turnToAuto a tid (ManualUpdates cnt)     = (AutoUpdated a cnt tid
+                                               ,return ())
 
 spawn :: Int -> IO a -> IORef (Status a) -> IO ()
 spawn freq action istatus = handle (onErr istatus) $ forever $ do
