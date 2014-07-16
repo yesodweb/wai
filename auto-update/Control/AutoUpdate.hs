@@ -20,8 +20,8 @@ module Control.AutoUpdate
     ) where
 
 import           Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay)
-import           Control.Exception  (Exception, assert, fromException, handle,
-                                     throwIO, throwTo)
+import           Control.Exception  (Exception, SomeException
+                                    ,assert, fromException, handle,throwIO, throwTo)
 import           Control.Monad      (forever, join)
 import           Data.IORef         (IORef, atomicModifyIORef, newIORef)
 import           Data.Typeable      (Typeable)
@@ -125,32 +125,36 @@ getCurrent freq spawnThreshold action istatus = do
         Manual -> action
         Spawn -> do
             a <- action
-            tid <- forkIO spawn
+            tid <- forkIO $ spawn freq action istatus
             join $ atomicModifyIORef istatus $ \status ->
                 case status of
                     AutoUpdated _ cnt old -> (AutoUpdated a cnt tid, throwTo old Replaced)
                     ManualUpdates cnt -> (AutoUpdated a cnt tid, return ())
             return a
+
+spawn :: Int -> IO a -> IORef (Status a) -> IO ()
+spawn freq action istatus = handle (onErr istatus) $ forever $ do
+    threadDelay freq
+    a <- action
+    join $ atomicModifyIORef istatus $ turnToManual a
   where
-    spawn = handle onErr $ forever $ do
-        threadDelay freq
-        a <- action
-        join $ atomicModifyIORef istatus $ \status ->
-            case status of
-                AutoUpdated _ cnt tid
-                    | cnt >= 1 -> (AutoUpdated a 0 tid, return ())
-                    | otherwise -> (ManualUpdates 0, stop)
-                ManualUpdates i -> assert False (ManualUpdates i, stop)
-    onErr ex =
-        case fromException ex of
-            Just Replaced -> return ()
-            Nothing -> do
-                tid <- myThreadId
-                atomicModifyIORef istatus $ \status ->
-                    case status of
-                        AutoUpdated _ _ tid' | tid == tid' -> (ManualUpdates 0, ())
-                        _ -> (status, ())
-                throwIO ex
+    -- Normal case.
+    turnToManual a (AutoUpdated _ cnt tid)
+      | cnt >= 1                     = (AutoUpdated a 0 tid, return ())
+      | otherwise                    = (ManualUpdates 0, stop)
+    -- This case must not happen.
+    turnToManual _ (ManualUpdates i) =  assert False (ManualUpdates i, stop)
+
+onErr :: IORef (Status a) -> SomeException -> IO ()
+onErr istatus ex = case fromException ex of
+    Just Replaced -> return ()
+    Nothing -> do
+        tid <- myThreadId
+        atomicModifyIORef istatus $ clear tid
+        throwIO ex
+  where
+    clear tid (AutoUpdated _ _ tid') | tid == tid' = (ManualUpdates 0, ())
+    clear _   status                               = (status, ())
 
 stop :: IO a
 stop = throwIO Replaced
