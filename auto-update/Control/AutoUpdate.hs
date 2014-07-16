@@ -103,6 +103,9 @@ mkAutoUpdate (UpdateSettings !f !t !a) = do
 
 data Action a = Return a | Manual | Spawn
 
+data Replaced = Replaced deriving (Show, Typeable)
+instance Exception Replaced
+
 -- | Get the current value, either fed from an auto-update thread, or
 -- computed manually in the current thread.
 --
@@ -149,7 +152,3 @@ getCurrent freq spawnThreshold action istatus = do
                         AutoUpdated _ _ tid' | tid == tid' -> (ManualUpdates 0, ())
                         _ -> (status, ())
                 throwIO ex
-
-data Replaced = Replaced
-    deriving (Show, Typeable)
-instance Exception Replaced
