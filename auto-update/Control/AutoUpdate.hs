@@ -131,10 +131,13 @@ getCurrent freq spawnThreshold action istatus = do
       where
         act = if i > spawnThreshold then Spawn else Manual
 
-    turnToAuto a tid (AutoUpdated _ cnt old) = (AutoUpdated a cnt tid
-                                               ,throwTo old Replaced)
+    -- Normal case.
     turnToAuto a tid (ManualUpdates cnt)     = (AutoUpdated a cnt tid
                                                ,return ())
+    -- Race condition: multiple threads were spawned.
+    -- So, let's kill the previous one by this thread.
+    turnToAuto a tid (AutoUpdated _ cnt old) = (AutoUpdated a cnt tid
+                                               ,throwTo old Replaced)
 
 spawn :: Int -> IO a -> IORef (Status a) -> IO ()
 spawn freq action istatus = handle (onErr istatus) $ forever $ do
@@ -157,6 +160,14 @@ onErr istatus ex = case fromException ex of
         atomicModifyIORef istatus $ clear tid
         throwIO ex
   where
+    -- In the race condition described above,
+    -- suppose thread A is running, and is killed by thread B.
+    -- Thread B then updates the IORef to refer to thread B.
+    -- Then thread A's exception handler fires.
+    -- We don't want to modify the IORef at all,
+    -- since it refers to thread B already.
+    -- Solution: only switch back to manual updates
+    -- if the IORef is pointing at the current thread.
     clear tid (AutoUpdated _ _ tid') | tid == tid' = (ManualUpdates 0, ())
     clear _   status                               = (status, ())
 
