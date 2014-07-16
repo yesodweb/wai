@@ -13,7 +13,7 @@ nearby to check out the functions we use.
 > import Data.Text (Text)
 > import Control.Exception (fromException, handle)
 > import Control.Monad (forM_, forever)
-> import Control.Concurrent (MVar, newMVar, modifyMVar_, readMVar)
+> import Control.Concurrent (MVar, newMVar, modifyMVar_, readMVar, forkIO)
 > import Control.Monad.IO.Class (liftIO)
 > import qualified Data.Text as T
 > import qualified Data.Text.IO as T
@@ -66,7 +66,7 @@ Send a message to all clients, and log it on stdout.
 > broadcast :: Text -> ServerState -> IO ()
 > broadcast message clients = do
 >     T.putStrLn message
->     forM_ clients $ \(_, conn) -> WS.sendTextData conn message
+>     forM_ clients $ \(_, conn) -> forkIO $ WS.sendTextData conn message
 
 The main function first creates a new state for the server, then spawns the
 actual server. For this purpose, we use the simple server provided by
