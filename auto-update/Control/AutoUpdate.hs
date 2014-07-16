@@ -136,14 +136,14 @@ getCurrent :: Int -- ^ frequency
            -> IO a -- ^ internal update action
            -> IORef (Status a) -- ^ mutable state
            -> IO a
-getCurrent freq spawnThreshold action istatus = do
+getCurrent freq spawnThreshold update istatus = do
     ea <- atomicModifyIORef' istatus increment
     case ea of
         Return a -> return a
-        Manual -> action
-        Spawn -> do
-            a <- action
-            tid <- forkIO $ spawn freq action istatus
+        Manual   -> update
+        Spawn    -> do
+            a <- update
+            tid <- forkIO $ spawn freq update istatus
             join $ atomicModifyIORef' istatus $ turnToAuto a tid
             return a
   where
@@ -161,9 +161,9 @@ getCurrent freq spawnThreshold action istatus = do
                                                ,throwTo old Replaced)
 
 spawn :: Int -> IO a -> IORef (Status a) -> IO ()
-spawn freq action istatus = handle (onErr istatus) $ forever $ do
+spawn freq update istatus = handle (onErr istatus) $ forever $ do
     threadDelay freq
-    a <- action
+    a <- update
     join $ atomicModifyIORef' istatus $ turnToManual a
   where
     -- Normal case.
