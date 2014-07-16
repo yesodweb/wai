@@ -19,8 +19,7 @@ module Control.AutoUpdate
     , mkAutoUpdate
     ) where
 
-import           Control.Concurrent (ThreadId, forkIO, killThread, myThreadId,
-                                     threadDelay)
+import           Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay)
 import           Control.Exception  (Exception, assert, fromException, handle,
                                      throwIO, throwTo)
 import           Control.Monad      (forever, join)
@@ -87,7 +86,7 @@ data Status a = AutoUpdated
 -- Since 0.1.0
 data AutoUpdate a = AutoUpdate
 -- We use bang patterns on all arguments to ensure no bottoms leak in.
-    { auFreq            ::   {-# UNPACK #-} !Int
+    { auFreq            :: {-# UNPACK #-} !Int
     , auSpawnThreadhold :: {-# UNPACK #-} !Int
     , auAction          :: !(IO ())
     , auStatus          :: !(IORef (Status a))
