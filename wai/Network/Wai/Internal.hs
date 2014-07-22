@@ -45,7 +45,7 @@ data Request = Request {
   ,  isSecure             :: Bool
   -- | The client\'s host information.
   ,  remoteHost           :: SockAddr
-  -- | Path info in individual pieces- the url without a hostname/port and
+  -- | Path info in individual pieces - the URL without a hostname/port and
   -- without a query string, split on forward slashes.
   ,  pathInfo             :: [Text]
   -- | Parsed query string information
