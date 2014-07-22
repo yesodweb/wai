@@ -119,7 +119,7 @@ setHost x y = y { settingsHost = x }
 setOnException :: (Maybe Request -> SomeException -> IO ()) -> Settings -> Settings
 setOnException x y = y { settingsOnException = x }
 
--- | A function to create `Response` when an exception occurs.
+-- | A function to create a `Response` when an exception occurs.
 --
 -- Default: 500, text/plain, \"Something went wrong\"
 --
