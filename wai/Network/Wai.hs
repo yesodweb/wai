@@ -190,7 +190,7 @@ responseHeaders (ResponseBuilder _ hs _  ) = hs
 responseHeaders (ResponseStream  _ hs _  ) = hs
 responseHeaders (ResponseRaw _ res)        = responseHeaders res
 
--- | Converting the body information in 'Response' to a @StreamingBody@.
+-- | Converting the body information in 'Response' to a 'StreamingBody'.
 responseToStream :: Response
                  -> ( H.Status
                     , H.ResponseHeaders

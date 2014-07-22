@@ -30,9 +30,9 @@ data Request = Request {
   ,  rawPathInfo          :: B.ByteString
   -- | If no query string was specified, this should be empty. This value
   -- /will/ include the leading question mark.
-  -- Do not modify this raw value- modify queryString instead.
+  -- Do not modify this raw value - modify queryString instead.
   ,  rawQueryString       :: B.ByteString
-  -- | A list of header (a pair of key and value) in an HTTP request.
+  -- | A list of headers (a pair of key and value) in an HTTP request.
   ,  requestHeaders       :: H.RequestHeaders
   -- | Was this request made over an SSL connection?
   --
@@ -40,17 +40,17 @@ data Request = Request {
   -- this request over SSL, but rather whether the current connection is SSL.
   -- The distinction lies with reverse proxies. In many cases, the client will
   -- connect to a load balancer over SSL, but connect to the WAI handler
-  -- without SSL. In such a case, @isSecure@ will be @False@, but from a user
+  -- without SSL. In such a case, 'isSecure' will be 'False', but from a user
   -- perspective, there is a secure connection.
   ,  isSecure             :: Bool
   -- | The client\'s host information.
   ,  remoteHost           :: SockAddr
-  -- | Path info in individual pieces- the url without a hostname/port and
+  -- | Path info in individual pieces - the URL without a hostname/port and
   -- without a query string, split on forward slashes.
   ,  pathInfo             :: [Text]
-  -- | Parsed query string information
+  -- | Parsed query string information.
   ,  queryString          :: H.Query
-  -- | Get the next chunk of the body. Returns an empty bytestring when the
+  -- | Get the next chunk of the body. Returns 'B.empty' when the
   -- body is fully consumed.
   ,  requestBody          :: IO B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.

@@ -119,7 +119,7 @@ setHost x y = y { settingsHost = x }
 setOnException :: (Maybe Request -> SomeException -> IO ()) -> Settings -> Settings
 setOnException x y = y { settingsOnException = x }
 
--- | A function to create `Response` when an exception occurs.
+-- | A function to create a `Response` when an exception occurs.
 --
 -- Default: 500, text/plain, \"Something went wrong\"
 --
@@ -127,7 +127,7 @@ setOnException x y = y { settingsOnException = x }
 setOnExceptionResponse :: (SomeException -> Response) -> Settings -> Settings
 setOnExceptionResponse x y = y { settingsOnExceptionResponse = x }
 
--- | What to do when a connection is open. When 'False' is returned, the
+-- | What to do when a connection is opened. When 'False' is returned, the
 -- connection is closed immediately. Otherwise, the connection is going on.
 -- Default: always returns 'True'.
 --
@@ -135,7 +135,7 @@ setOnExceptionResponse x y = y { settingsOnExceptionResponse = x }
 setOnOpen :: (SockAddr -> IO Bool) -> Settings -> Settings
 setOnOpen x y = y { settingsOnOpen = x }
 
--- | What to do when a connection is close. Default: do nothing.
+-- | What to do when a connection is closed. Default: do nothing.
 --
 -- Since 2.1.0
 setOnClose :: (SockAddr -> IO ()) -> Settings -> Settings
@@ -154,7 +154,7 @@ setTimeout x y = y { settingsTimeout = x }
 setManager :: Manager -> Settings -> Settings
 setManager x y = y { settingsManager = Just x }
 
--- | Cache duratoin time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 10
+-- | Cache duration time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 10
 setFdCacheDuration :: Int -> Settings -> Settings
 setFdCacheDuration x y = y { settingsFdCacheDuration = x }
 

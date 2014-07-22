@@ -22,9 +22,9 @@ import qualified Data.Text.Lazy.Encoding as TLE
 -- | Various Warp server settings. This is purposely kept as an abstract data
 -- type so that new settings can be added without breaking backwards
 -- compatibility. In order to create a 'Settings' value, use 'defaultSettings'
--- and record syntax to modify individual records. For example:
+-- and the various \'set\' functions to modify individual fields. For example:
 --
--- > defaultSettings { settingsTimeout = 20 }
+-- > setTimeout 20 defaultSettings
 data Settings = Settings
     { settingsPort :: Int -- ^ Port to listen on. Default value: 3000
     , settingsHost :: HostPreference -- ^ Default value: HostIPv4
