@@ -154,7 +154,7 @@ setTimeout x y = y { settingsTimeout = x }
 setManager :: Manager -> Settings -> Settings
 setManager x y = y { settingsManager = Just x }
 
--- | Cache duratoin time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 10
+-- | Cache duration time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 10
 setFdCacheDuration :: Int -> Settings -> Settings
 setFdCacheDuration x y = y { settingsFdCacheDuration = x }
 
