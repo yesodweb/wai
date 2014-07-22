@@ -32,7 +32,7 @@ data Request = Request {
   -- /will/ include the leading question mark.
   -- Do not modify this raw value - modify queryString instead.
   ,  rawQueryString       :: B.ByteString
-  -- | A list of header (a pair of key and value) in an HTTP request.
+  -- | A list of headers (a pair of key and value) in an HTTP request.
   ,  requestHeaders       :: H.RequestHeaders
   -- | Was this request made over an SSL connection?
   --
