@@ -50,7 +50,7 @@ data Request = Request {
   ,  pathInfo             :: [Text]
   -- | Parsed query string information.
   ,  queryString          :: H.Query
-  -- | Get the next chunk of the body. Returns an empty bytestring when the
+  -- | Get the next chunk of the body. Returns 'B.empty' when the
   -- body is fully consumed.
   ,  requestBody          :: IO B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.
