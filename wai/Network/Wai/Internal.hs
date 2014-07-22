@@ -40,7 +40,7 @@ data Request = Request {
   -- this request over SSL, but rather whether the current connection is SSL.
   -- The distinction lies with reverse proxies. In many cases, the client will
   -- connect to a load balancer over SSL, but connect to the WAI handler
-  -- without SSL. In such a case, @isSecure@ will be @False@, but from a user
+  -- without SSL. In such a case, 'isSecure' will be 'False', but from a user
   -- perspective, there is a secure connection.
   ,  isSecure             :: Bool
   -- | The client\'s host information.
