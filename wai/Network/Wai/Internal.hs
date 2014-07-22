@@ -48,7 +48,7 @@ data Request = Request {
   -- | Path info in individual pieces - the URL without a hostname/port and
   -- without a query string, split on forward slashes.
   ,  pathInfo             :: [Text]
-  -- | Parsed query string information
+  -- | Parsed query string information.
   ,  queryString          :: H.Query
   -- | Get the next chunk of the body. Returns an empty bytestring when the
   -- body is fully consumed.
