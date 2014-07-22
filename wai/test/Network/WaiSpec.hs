@@ -71,3 +71,14 @@ spec = do
                         }
             _ <- lazyRequestBody req
             return ()
+    describe "strictRequestBody" $ do
+        prop "works" $ \chunks -> do
+            ref <- newIORef $ map S.pack $ filter (not . null) chunks
+            let req = Request
+                        { requestBody = atomicModifyIORef ref $ \bss ->
+                            case bss of
+                                [] -> ([], S.empty)
+                                x:y -> (y, x)
+                        }
+            body <- strictRequestBody req
+            body `shouldBe` L.fromChunks (map S.pack chunks)

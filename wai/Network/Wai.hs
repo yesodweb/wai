@@ -59,6 +59,7 @@ module Network.Wai
     , requestBodyLength
     , requestHeaderHost
     , requestHeaderRange
+    , strictRequestBody
     , lazyRequestBody
       -- * Response
     , Response
@@ -277,6 +278,20 @@ defaultRequest = Request
     , requestHeaderHost = Nothing
     , requestHeaderRange = Nothing
     }
+
+-- | Get the request body as a lazy ByteString. However, do /not/ use any lazy
+-- I\/O, instead reading the entire body into memory strictly.
+--
+-- Since 3.0.1
+strictRequestBody :: Request -> IO L.ByteString
+strictRequestBody req =
+    loop id
+  where
+    loop front = do
+        bs <- requestBody req
+        if B.null bs
+            then return $ front LI.Empty
+            else loop (front . LI.Chunk bs)
 
 -- | Get the request body as a lazy ByteString. This uses lazy I\/O under the
 -- surface, and therefore all typical warnings regarding lazy I/O apply.
