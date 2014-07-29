@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.0.1
+Version:             3.0.1.1
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             MIT
@@ -33,7 +33,7 @@ Library
                    , text                      >= 0.7
                    , case-insensitive          >= 0.2
                    , data-default-class
-                   , fast-logger               >= 2.1      && < 2.2
+                   , fast-logger               >= 2.1      && < 2.3
                    , wai-logger                >= 2.0      && < 2.2
                    , ansi-terminal
                    , resourcet                 >= 0.4.6    && < 1.2
