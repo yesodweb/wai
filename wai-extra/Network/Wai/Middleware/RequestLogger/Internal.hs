@@ -20,8 +20,10 @@ getDateGetter :: IO () -- ^ flusher
               -> IO (IO ByteString)
 getDateGetter flusher = do
     (getter, updater) <- clockDateCacher
+#if !MIN_VERSION_wai_logger(2, 2, 0)
     _ <- forkIO $ forever $ do
         threadDelay 1000000
         updater
         flusher
+#endif
     return getter
