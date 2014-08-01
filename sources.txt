@@ -6,7 +6,6 @@
 ./wai-app-static
 ./wai-handler-fastcgi
 ./wai-handler-launch
-./wai-frontend-monadcgi
 ./wai-websockets
 ./wai-eventsource
 ./wai-conduit
