@@ -9,16 +9,16 @@ module Control.Reaper
     , reaperDelay
     , reaperCons
     , reaperNull
+    , reaperEmpty
     , mkListAction
     ) where
 
-import Prelude hiding (null)
-import Data.Monoid (Monoid, mempty)
+import Prelude hiding (null, empty)
 import Control.Monad (join, void)
 import Data.Function (fix)
 import Control.AutoUpdate.Util (atomicModifyIORef')
 import Control.Concurrent (forkIO, threadDelay)
-import Data.IORef (newIORef)
+import Data.IORef (IORef, newIORef)
 import Control.Exception (mask_)
 import qualified Prelude
 
@@ -61,6 +61,12 @@ data ReaperSettings workload item = ReaperSettings
     -- Default: 'Prelude.null'.
     --
     -- Since 0.1.1
+    , reaperEmpty :: workload
+    -- ^ An empty workload.
+    --
+    -- Default: empty list.
+    --
+    -- Since 0.1.1
     }
 
 -- | Default @ReaperSettings@ value, biased towards having a list of work
@@ -73,6 +79,7 @@ defaultReaperSettings = ReaperSettings
     , reaperDelay = 30000000
     , reaperCons = (:)
     , reaperNull = Prelude.null
+    , reaperEmpty = []
     }
 
 -- | Create a reaper addition function. This funciton can be used to add
@@ -80,16 +87,15 @@ defaultReaperSettings = ReaperSettings
 -- for you automatically.
 --
 -- Since 0.1.1
-reaper :: Monoid workload
-       => ReaperSettings workload item
-       -> IO (item -> IO ())
-reaper (ReaperSettings action delay cons null) = do
+reaper :: ReaperSettings workload item
+       -> IO (item -> IO (), IORef (Maybe workload))
+reaper (ReaperSettings action delay cons null empty) = do
     stateRef <- newIORef Nothing
-    return (update stateRef)
+    return (update stateRef, stateRef)
   where
     update stateRef item = mask_ $ join $ atomicModifyIORef' stateRef $ \ms ->
         case ms of
-            Nothing -> (Just $ cons item mempty, spawn stateRef)
+            Nothing -> (Just $ cons item empty, spawn stateRef)
             Just wl -> (Just $ cons item wl, return ())
 
     spawn stateRef = void $ forkIO $ fix $ \loop -> do
@@ -97,7 +103,7 @@ reaper (ReaperSettings action delay cons null) = do
         wl1 <- atomicModifyIORef' stateRef $ \ms ->
             case ms of
                 Nothing -> error "Control.Reaper.reaper.spawn: unexpected Nothing (1)"
-                Just wl -> (Just mempty, wl)
+                Just wl -> (Just empty, wl)
         wl2 <- action wl1
         join $ atomicModifyIORef' stateRef $ \ms ->
             case ms of

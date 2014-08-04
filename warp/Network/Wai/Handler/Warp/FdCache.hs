@@ -23,14 +23,14 @@ module Network.Wai.Handler.Warp.FdCache (
   ) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Concurrent (threadDelay)
-import Control.Exception (bracket, mask_)
+import Control.Exception (bracket)
 import Data.Hashable (hash)
 import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.MultiMap
-import Network.Wai.Handler.Warp.Thread
 import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types (Fd)
+import Control.Reaper
+import Data.Maybe (fromMaybe)
 
 ----------------------------------------------------------------
 
@@ -68,19 +68,12 @@ type Hash = Int
 type FdCache = MMap Hash FdEntry
 
 -- | Mutable Fd cacher.
-newtype MutableFdCache = MutableFdCache (IORef FdCache)
+data MutableFdCache = MutableFdCache
+    ((Hash, FdEntry) -> IO ())
+    (IORef (Maybe FdCache))
 
 fdCache :: MutableFdCache -> IO FdCache
-fdCache (MutableFdCache ref) = readIORef ref
-
-swapWithNew :: IORef FdCache -> IO FdCache
-swapWithNew ref = atomicModifyIORef' ref $ \t -> (empty, t)
-
-update :: MutableFdCache -> (FdCache -> FdCache) -> IO ()
-update (MutableFdCache ref) = update' ref
-
-update' :: IORef FdCache -> (FdCache -> FdCache) -> IO ()
-update' ref f = atomicModifyIORef' ref $ \t -> (f t, ())
+fdCache (MutableFdCache _ ref) = fromMaybe empty <$> readIORef ref
 
 look :: MutableFdCache -> FilePath -> Hash -> IO (Maybe FdEntry)
 look mfc path key = searchWith key check <$> fdCache mfc
@@ -106,17 +99,19 @@ withFdCache duration action = bracket (initialize duration)
 -- The first argument is a cache duration in second.
 initialize :: Int -> IO (Maybe MutableFdCache)
 initialize 0 = return Nothing
-initialize duration = do
-    ref' <- forkIOwithBreakableForever empty $ \ref -> do
-        threadDelay duration
-        clean ref
-    return (Just (MutableFdCache ref'))
+initialize duration = fmap (Just . uncurry MutableFdCache)
+    $ reaper defaultReaperSettings
+    { reaperAction = clean
+    , reaperDelay = duration
+    , reaperCons = uncurry insert
+    , reaperNull = isEmpty
+    , reaperEmpty = empty
+    }
 
-clean :: IORef FdCache -> IO ()
-clean ref = do
-    old <- swapWithNew ref
+clean :: FdCache -> IO (FdCache -> FdCache)
+clean old = do
     new <- pruneWith old prune
-    update' ref (merge new)
+    return $ merge new
 
 prune :: t -> Some FdEntry -> IO [(t, Some FdEntry)]
 prune k v@(One (FdEntry _ fd mst)) = status mst >>= prune'
@@ -138,8 +133,11 @@ prune k (Tom ent@(FdEntry _ fd mst) vs) = status mst >>= prune'
 
 terminate :: Maybe MutableFdCache -> IO ()
 terminate Nothing = return ()
-terminate (Just (MutableFdCache ref)) = mask_ $ do
-    !t <- breakForever ref
+terminate (Just (MutableFdCache _ ref)) = do
+    !t <- atomicModifyIORef ref $ \mm ->
+        case mm of
+            Nothing -> (Nothing, empty)
+            Just m -> (Just empty, m)
     mapM_ closeIt $ toList t
   where
     closeIt (_, FdEntry _ fd _) = closeFd fd
@@ -148,12 +146,12 @@ terminate (Just (MutableFdCache ref)) = mask_ $ do
 
 -- | Getting 'Fd' and 'Refresh' from the mutable Fd cacher.
 getFd :: MutableFdCache -> FilePath -> IO (Fd, Refresh)
-getFd mfc path = look mfc path key >>= getFd'
+getFd mfc@(MutableFdCache add _) path = look mfc path key >>= getFd'
   where
     key = hash path
     getFd' Nothing = do
         ent@(FdEntry _ fd mst) <- newFdEntry path
-        update mfc (insert key ent)
+        add (key, ent)
         return (fd, refresh mst)
     getFd' (Just (FdEntry _ fd mst)) = do
         refresh mst

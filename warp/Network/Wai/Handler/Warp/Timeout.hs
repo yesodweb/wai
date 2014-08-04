@@ -49,19 +49,19 @@ import GHC.Conc (ThreadId(..))
 import GHC.Exts (mkWeak#)
 import GHC.IO (IO (IO))
 #endif
-import Control.Concurrent (threadDelay, myThreadId)
+import Control.Concurrent (myThreadId)
 import qualified Control.Exception as E
 import GHC.Weak (Weak (..))
 import Network.Wai.Handler.Warp.IORef (IORef)
 import qualified Network.Wai.Handler.Warp.IORef as I
-import Network.Wai.Handler.Warp.Thread
 import System.Mem.Weak (deRefWeak)
 import Data.Typeable (Typeable)
+import Control.Reaper
 
 ----------------------------------------------------------------
 
 -- | A timeout manager
-newtype Manager = Manager (IORef [Handle])
+data Manager = Manager (Handle -> IO ()) (IORef (Maybe [Handle]))
 
 -- | An action to be performed on timeout.
 type TimeoutAction = IO ()
@@ -79,23 +79,21 @@ data State = Active    -- Manager turns it to Inactive.
 -- | Creating timeout manager which works every N micro seconds
 --   where N is the first argument.
 initialize :: Int -> IO Manager
-initialize timeout = do
-    ref' <- forkIOwithBreakableForever [] $ \ref -> do
-        threadDelay timeout
-        old <- I.atomicModifyIORef' ref (\x -> ([], x))
-        merge <- prune old id
-        I.atomicModifyIORef' ref (\new -> (merge new, ()))
-    return $ Manager ref'
+initialize timeout =
+    fmap (uncurry Manager) $ reaper defaultReaperSettings
+        { reaperAction = mkListAction prune
+        , reaperDelay = timeout
+        }
   where
-    prune [] front = return front
-    prune (m@(Handle onTimeout iactive):rest) front = do
+    prune m@(Handle onTimeout iactive) = do
         state <- I.atomicModifyIORef' iactive (\x -> (inactivate x, x))
         case state of
             Inactive -> do
                 onTimeout `E.catch` ignoreAll
-                prune rest front
-            Canceled -> prune rest front
-            _        -> prune rest (front . (:) m)
+                return Nothing
+            Canceled -> return Nothing
+            _        -> return $ Just m
+
     inactivate Active = Inactive
     inactivate x = x
 
@@ -103,8 +101,11 @@ initialize timeout = do
 
 -- | Stopping timeout manager.
 stopManager :: Manager -> IO ()
-stopManager (Manager ref) = E.mask_ $ do
-    !handles <- breakForever ref
+stopManager (Manager _ ref) = E.mask_ $ do
+    handles <- I.atomicModifyIORef ref $ \x ->
+        case x of
+            Nothing -> (Nothing, [])
+            Just y -> (Just [], y)
     mapM_ fire handles
   where
     fire (Handle onTimeout _) = onTimeout `E.catch` ignoreAll
@@ -116,10 +117,10 @@ ignoreAll _ = return ()
 
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
-register (Manager ref) onTimeout = do
+register (Manager add _) onTimeout = do
     iactive <- I.newIORef Active
     let h = Handle onTimeout iactive
-    I.atomicModifyIORef' ref (\x -> (h : x, ()))
+    add h
     return h
 
 -- | Registering a timeout action of killing this thread.

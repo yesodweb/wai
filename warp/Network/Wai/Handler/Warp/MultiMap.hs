@@ -72,7 +72,7 @@ searchWith xk f (Node _ l k v r) = case compare xk k of
 ----------------------------------------------------------------
 
 -- | O(1)
-isEmpty :: (Eq k, Eq v) => MMap k v -> Bool
+isEmpty :: MMap k v -> Bool
 isEmpty Leaf = True
 isEmpty _    = False
 

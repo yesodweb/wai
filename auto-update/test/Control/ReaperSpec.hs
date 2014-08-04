@@ -10,7 +10,7 @@ type Item = (Int, IORef Int)
 
 spec :: Spec
 spec = prop "works" $ \is -> do
-    addItem <- reaper defaultReaperSettings
+    (addItem, wlRef) <- reaper defaultReaperSettings
         { reaperAction = mkListAction $ \(i, ref) -> do
             modifyIORef ref succ
             return $ if i > 1
@@ -31,3 +31,5 @@ spec = prop "works" $ \is -> do
             actual `shouldBe` (expected :: Int)
     threadDelay 100000
     mapM_ test tests
+    Nothing <- readIORef wlRef
+    return ()
