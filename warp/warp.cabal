@@ -1,5 +1,5 @@
 Name:                warp
-Version:             3.0.0.5
+Version:             3.0.0.6
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -40,6 +40,7 @@ Flag warp-debug
 Library
   Build-Depends:     base                      >= 3        && < 5
                    , array
+                   , auto-update               >= 0.1      && < 0.2
                    , blaze-builder             >= 0.3.3  && < 0.4
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2
@@ -121,6 +122,7 @@ Test-Suite spec
     Ghc-Options:     -Wall
     Build-Depends:   base >= 4 && < 5
                    , array
+                   , auto-update
                    , blaze-builder             >= 0.3.3    && < 0.4
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2
