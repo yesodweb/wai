@@ -9,7 +9,7 @@ import qualified Data.Conduit.List as CL
 
 main = run 3000 app
 
-app req = return $
+app req = ($
     case rawPathInfo req of
         "/builder/withlen" -> builderWithLen
         "/builder/nolen" -> builderNoLen
@@ -17,36 +17,36 @@ app req = return $
         "/file/nolen" -> fileNoLen
         "/source/withlen" -> sourceWithLen
         "/source/nolen" -> sourceNoLen
-        "/notfound" -> ResponseFile status200 [] "notfound" Nothing
-        x -> index x
+        "/notfound" -> responseFile status200 [] "notfound" Nothing
+        x -> index x)
 
-builderWithLen = ResponseBuilder
+builderWithLen = responseBuilder
     status200
     [ ("Content-Type", "text/plain")
     , ("Content-Length", "4")
     ]
     $ copyByteString "PONG"
 
-builderNoLen = ResponseBuilder
+builderNoLen = responseBuilder
     status200
     [ ("Content-Type", "text/plain")
     ]
     $ copyByteString "PONG"
 
-sourceWithLen = ResponseSource
+sourceWithLen = responseStream
     status200
     [ ("Content-Type", "text/plain")
     , ("Content-Length", "4")
     ]
-    $ CL.sourceList [C.Chunk $ copyByteString "PONG"]
+    $ \send _ -> send $ copyByteString "PONG"
 
-sourceNoLen = ResponseSource
+sourceNoLen = responseStream
     status200
     [ ("Content-Type", "text/plain")
     ]
-    $ CL.sourceList [C.Chunk $ copyByteString "PONG"]
+    $ \send _ -> send $ copyByteString "PONG"
 
-fileWithLen = ResponseFile
+fileWithLen = responseFile
     status200
     [ ("Content-Type", "text/plain")
     , ("Content-Length", "4")
@@ -54,14 +54,14 @@ fileWithLen = ResponseFile
     "pong.txt"
     Nothing
 
-fileNoLen = ResponseFile
+fileNoLen = responseFile
     status200
     [ ("Content-Type", "text/plain")
     ]
     "pong.txt"
     Nothing
 
-index p = ResponseBuilder status200 [("Content-Type", "text/html")] $ mconcat $ map copyByteString
+index p = responseBuilder status200 [("Content-Type", "text/html")] $ mconcat $ map copyByteString
     [ "<p><a href='/builder/withlen'>builder withlen</a></p>\n"
     , "<p><a href='/builder/nolen'>builder nolen</a></p>\n"
     , "<p><a href='/file/withlen'>file withlen</a></p>\n"
