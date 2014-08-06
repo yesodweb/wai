@@ -4,16 +4,17 @@
 -- threads. These threads will automatically spawn and die based on the
 -- presence of a workload to process on.
 module Control.Reaper (
-      -- * Type
+      -- * Settings
       ReaperSettings
     , defaultReaperSettings
-    , State(..)
       -- * Accessors
     , reaperAction
     , reaperDelay
     , reaperCons
     , reaperNull
     , reaperEmpty
+      -- * Type
+    , Reaper(..)
       -- * Creation
     , mkReaper
       -- * Helper
@@ -24,7 +25,7 @@ import Control.AutoUpdate.Util (atomicModifyIORef')
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Exception (mask_)
 import Control.Monad (join, void)
-import Data.IORef (IORef, newIORef)
+import Data.IORef (IORef, newIORef, readIORef)
 
 -- | Settings for creating a reaper. This type has two parameters:
 -- @workload@ gives the entire workload, whereas @item@ gives an
@@ -86,6 +87,17 @@ defaultReaperSettings = ReaperSettings
     , reaperEmpty = []
     }
 
+-- | A data structure to hold reaper APIs.
+data Reaper workload item = Reaper {
+    -- | Adding an item to the workload
+    reaperAdd  :: item -> IO ()
+    -- | Reading workload.
+  , reaperRead :: IO workload
+    -- | Stopping the reaper thread if exists.
+    --   The current workload is returned.
+  , reaperStop :: IO workload
+  }
+
 -- | State of reaper.
 data State workload = NoReaper           -- ^ No reaper thread
                     | Workload workload  -- ^ The current jobs
@@ -95,11 +107,24 @@ data State workload = NoReaper           -- ^ No reaper thread
 -- for you automatically.
 --
 -- Since 0.1.1
-mkReaper :: ReaperSettings workload item
-         -> IO (item -> IO (), IORef (State workload))
-mkReaper settings = do
+mkReaper :: ReaperSettings workload item -> IO (Reaper workload item)
+mkReaper settings@ReaperSettings{..} = do
     stateRef <- newIORef NoReaper
-    return (update settings stateRef, stateRef)
+    return Reaper {
+        reaperAdd  = update settings stateRef
+      , reaperRead = readRef stateRef
+      , reaperStop = stop stateRef
+      }
+  where
+    readRef stateRef = do
+        mx <- readIORef stateRef
+        case mx of
+            NoReaper    -> return reaperEmpty
+            Workload wl -> return wl
+    stop stateRef = atomicModifyIORef' stateRef $ \mx ->
+        case mx of
+            NoReaper   -> (NoReaper, reaperEmpty)
+            Workload x -> (Workload reaperEmpty, x)
 
 update :: ReaperSettings workload item -> IORef (State workload) -> item
        -> IO ()

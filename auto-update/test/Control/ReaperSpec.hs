@@ -8,28 +8,30 @@ import Data.IORef
 
 type Item = (Int, IORef Int)
 
+action = mkListAction $ \(i, ref) -> do
+    modifyIORef ref succ
+    return $ if i > 1
+             then Just (pred i, ref)
+             else Nothing
+
 spec :: Spec
 spec = prop "works" $ \is -> do
-    (addItem, wlRef) <- mkReaper defaultReaperSettings
-        { reaperAction = mkListAction $ \(i, ref) -> do
-            modifyIORef ref succ
-            return $ if i > 1
-                then Just (pred i, ref)
-                else Nothing
+    reaper <- mkReaper defaultReaperSettings
+        { reaperAction = action
         , reaperDelay = 1000
         }
 
-    let mkTest i = do
+    let mkTestCase i = do
             ref <- newIORef 0
             let expected = (abs i `mod` 10) + 1
-            addItem (expected, ref)
+            reaperAdd reaper (expected, ref)
             return (expected, ref)
-    tests <- mapM mkTest is
+    testCases <- mapM mkTestCase is
 
     let test (expected, ref) = do
             actual <- readIORef ref
             actual `shouldBe` (expected :: Int)
     threadDelay 100000
-    mapM_ test tests
-    NoReaper <- readIORef wlRef
+    mapM_ test testCases
+    [] <- reaperRead reaper
     return ()
