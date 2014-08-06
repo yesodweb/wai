@@ -1,15 +1,19 @@
 -- | This module provides the ability to create reapers: dedicated cleanup
 -- threads. These threads will automatically spawn and die based on the
 -- presence of a workload to process on.
-module Control.Reaper
-    ( ReaperSettings
-    , reaper
+module Control.Reaper (
+      -- * Type
+      ReaperSettings
     , defaultReaperSettings
+      -- * Accessors
     , reaperAction
     , reaperDelay
     , reaperCons
     , reaperNull
     , reaperEmpty
+      -- * Creation
+    , reaper
+      -- * Helper
     , mkListAction
     ) where
 
