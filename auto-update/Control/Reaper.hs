@@ -98,7 +98,7 @@ data State workload = NoReaper           -- ^ No reaper thread
 mkReaper :: ReaperSettings workload item
          -> IO (item -> IO (), IORef (State workload))
 mkReaper settings = do
-    stateRef <- newIORef Nothing
+    stateRef <- newIORef NoReaper
     return (update settings stateRef, stateRef)
 
 update :: ReaperSettings workload item -> IORef (State workload) -> item
