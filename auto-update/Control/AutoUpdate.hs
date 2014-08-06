@@ -11,12 +11,15 @@
 -- This library allows you to define actions which will either be
 -- performed by a dedicated thread or, in times of low volume, will be
 -- executed by the calling thread.
-module Control.AutoUpdate
-    ( UpdateSettings
+module Control.AutoUpdate (
+      -- * Type
+      UpdateSettings
     , defaultUpdateSettings
+      -- * Accessors
     , updateFreq
     , updateSpawnThreshold
     , updateAction
+      -- * Creation
     , mkAutoUpdate
     ) where
 
