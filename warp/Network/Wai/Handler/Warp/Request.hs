@@ -203,7 +203,7 @@ push src (THStatus len lines prepend) bs'
     -- update the length, and continue processing.
     push' Nothing = do
         bst <- readSource' src
-        when (S.null bs) $ throwIO IncompleteHeaders
+        when (S.null bst) $ throwIO IncompleteHeaders
         push src status bst
       where
         len' = len + bsLen
