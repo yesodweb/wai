@@ -110,19 +110,26 @@ spawn settings stateRef = void . forkIO $ loop settings stateRef
 loop :: ReaperSettings workload item -> IORef (Maybe workload) -> IO ()
 loop settings@ReaperSettings{..} stateRef = do
     threadDelay reaperDelay
-    wl1 <- atomicModifyIORef' stateRef get
-    wl2 <- reaperAction wl1
-    join $ atomicModifyIORef' stateRef (check wl2)
+    -- Getting the current jobs. Push an empty job to the reference.
+    wl <- atomicModifyIORef' stateRef swapWithEmpty
+    -- Do the jobs. A function to merge the left jobs and
+    -- new jobs is returned.
+    merge <- reaperAction wl
+    -- Merging the left jobs and new jobs.
+    -- If there is no jobs, this thread finishes.
+    join $ atomicModifyIORef' stateRef (check merge)
   where
-    get Nothing   = error "Control.Reaper.loop: unexpected Nothing (1)"
-    get (Just wl) = (Just reaperEmpty, wl)
+    swapWithEmpty Nothing   = error "Control.Reaper.loop: unexpected Nothing (1)"
+    swapWithEmpty (Just wl) = (Just reaperEmpty, wl)
 
     check _   Nothing  = error "Control.Reaper.loop: unexpected Nothing (2)"
-    check wl2 (Just wl3)
-      | reaperNull wl4 = (Nothing, return ())
-      | otherwise      = (Just wl4, loop settings stateRef)
+    check merge (Just wl)
+      -- If there is no workload, reaper is terminated.
+      | reaperNull wl' = (Nothing,  return ())
+      -- If there are workloads, carry it out.
+      | otherwise      = (Just wl', loop settings stateRef)
       where
-        wl4 = wl2 wl3
+        wl' = merge wl
 
 -- | A helper function for creating 'reaperAction' functions. You would
 -- provide this function with a function to process a single work item and
