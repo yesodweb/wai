@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards    #-}
+
 -- | This module provides the ability to create reapers: dedicated cleanup
 -- threads. These threads will automatically spawn and die based on the
 -- presence of a workload to process on.
@@ -17,14 +19,12 @@ module Control.Reaper (
     , mkListAction
     ) where
 
-import Prelude hiding (null)
 import Control.Monad (join, void)
 import Data.Function (fix)
 import Control.AutoUpdate.Util (atomicModifyIORef')
 import Control.Concurrent (forkIO, threadDelay)
 import Data.IORef (IORef, newIORef)
 import Control.Exception (mask_)
-import qualified Prelude
 
 -- | Settings for creating a reaper. This type has two parameters:
 -- @workload@ gives the entire workload, whereas @item@ gives an
@@ -62,7 +62,7 @@ data ReaperSettings workload item = ReaperSettings
     -- ^ Check if a workload is empty, in which case the worker thread
     -- will shut down.
     --
-    -- Default: 'Prelude.null'.
+    -- Default: 'null'.
     --
     -- Since 0.1.1
     , reaperEmpty :: workload
@@ -82,7 +82,7 @@ defaultReaperSettings = ReaperSettings
     { reaperAction = \wl -> return (wl ++)
     , reaperDelay = 30000000
     , reaperCons = (:)
-    , reaperNull = Prelude.null
+    , reaperNull = null
     , reaperEmpty = []
     }
 
@@ -93,30 +93,37 @@ defaultReaperSettings = ReaperSettings
 -- Since 0.1.1
 reaper :: ReaperSettings workload item
        -> IO (item -> IO (), IORef (Maybe workload))
-reaper (ReaperSettings action delay cons null empty) = do
+reaper settings = do
     stateRef <- newIORef Nothing
-    return (update stateRef, stateRef)
-  where
-    update stateRef item = mask_ $ join $ atomicModifyIORef' stateRef $ \ms ->
-        case ms of
-            Nothing -> (Just $ cons item empty, spawn stateRef)
-            Just wl -> (Just $ cons item wl, return ())
+    return (update settings stateRef, stateRef)
 
-    spawn stateRef = void $ forkIO $ fix $ \loop -> do
-        threadDelay delay
-        wl1 <- atomicModifyIORef' stateRef $ \ms ->
-            case ms of
-                Nothing -> error "Control.Reaper.reaper.spawn: unexpected Nothing (1)"
-                Just wl -> (Just empty, wl)
-        wl2 <- action wl1
-        join $ atomicModifyIORef' stateRef $ \ms ->
-            case ms of
-                Nothing -> error "Control.Reaper.reaper.spawn: unexpected Nothing (2)"
-                Just wl3 ->
-                    let wl4 = wl2 wl3
-                     in if null wl4
-                            then (Nothing, return ())
-                            else (Just wl4, loop)
+update :: ReaperSettings workload item -> IORef (Maybe workload) -> item
+       -> IO ()
+update settings@ReaperSettings{..} stateRef item =
+    mask_ $ join $ atomicModifyIORef' stateRef cons
+  where
+    cons Nothing   = (Just $ reaperCons item reaperEmpty, spawn settings stateRef)
+    cons (Just wl) = (Just $ reaperCons item wl, return ())
+
+spawn :: ReaperSettings workload item -> IORef (Maybe workload) -> IO ()
+spawn settings stateRef = void . forkIO $ loop settings stateRef
+
+loop :: ReaperSettings workload item -> IORef (Maybe workload) -> IO ()
+loop settings@ReaperSettings{..} stateRef = do
+    threadDelay reaperDelay
+    wl1 <- atomicModifyIORef' stateRef get
+    wl2 <- reaperAction wl1
+    join $ atomicModifyIORef' stateRef (check wl2)
+  where
+    get Nothing   = error "Control.Reaper.loop: unexpected Nothing (1)"
+    get (Just wl) = (Just reaperEmpty, wl)
+
+    check _   Nothing  = error "Control.Reaper.loop: unexpected Nothing (2)"
+    check wl2 (Just wl3)
+      | reaperNull wl4 = (Nothing, return ())
+      | otherwise      = (Just wl4, loop settings stateRef)
+      where
+        wl4 = wl2 wl3
 
 -- | A helper function for creating 'reaperAction' functions. You would
 -- provide this function with a function to process a single work item and
@@ -128,13 +135,13 @@ mkListAction :: (item -> IO (Maybe item'))
              -> [item]
              -> IO ([item'] -> [item'])
 mkListAction f =
-    loop id
+    go id
   where
-    loop front [] = return front
-    loop front (x:xs) = do
+    go front [] = return front
+    go front (x:xs) = do
         my <- f x
         let front' =
                 case my of
                     Nothing -> front
-                    Just y -> front . (y:)
-        loop front' xs
+                    Just y  -> front . (y:)
+        go front' xs
