@@ -146,7 +146,7 @@ spawn UpdateSettings{..} istatus = handle (onErr istatus) $ forever $ do
 
 onErr :: IORef (Status a) -> SomeException -> IO ()
 onErr istatus ex = case fromException ex of
-    Just Replaced -> return ()
+    Just Replaced -> return () -- this thread is terminated
     Nothing -> do
         tid <- myThreadId
         atomicModifyIORef' istatus $ clear tid
@@ -163,5 +163,6 @@ onErr istatus ex = case fromException ex of
     clear tid (AutoUpdated _ _ tid') | tid == tid' = (ManualUpdates 0, ())
     clear _   status                               = (status, ())
 
+-- | Throw an error to kill a thread.
 stop :: IO a
 stop = throwIO Replaced
