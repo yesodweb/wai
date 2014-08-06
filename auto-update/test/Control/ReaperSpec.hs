@@ -31,5 +31,5 @@ spec = prop "works" $ \is -> do
             actual `shouldBe` (expected :: Int)
     threadDelay 100000
     mapM_ test tests
-    Nothing <- readIORef wlRef
+    NoReaper <- readIORef wlRef
     return ()

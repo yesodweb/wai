@@ -7,6 +7,7 @@ module Control.Reaper (
       -- * Type
       ReaperSettings
     , defaultReaperSettings
+    , State(..)
       -- * Accessors
     , reaperAction
     , reaperDelay
@@ -85,29 +86,33 @@ defaultReaperSettings = ReaperSettings
     , reaperEmpty = []
     }
 
+data State workload = NoReaper | Workload workload
+
 -- | Create a reaper addition function. This funciton can be used to add
 -- new items to the workload. Spawning of reaper threads will be handled
 -- for you automatically.
 --
 -- Since 0.1.1
 reaper :: ReaperSettings workload item
-       -> IO (item -> IO (), IORef (Maybe workload))
+       -> IO (item -> IO (), IORef (State workload))
 reaper settings = do
-    stateRef <- newIORef Nothing
+    stateRef <- newIORef NoReaper
     return (update settings stateRef, stateRef)
 
-update :: ReaperSettings workload item -> IORef (Maybe workload) -> item
+update :: ReaperSettings workload item -> IORef (State workload) -> item
        -> IO ()
 update settings@ReaperSettings{..} stateRef item =
     mask_ $ join $ atomicModifyIORef' stateRef cons
   where
-    cons Nothing   = (Just $ reaperCons item reaperEmpty, spawn settings stateRef)
-    cons (Just wl) = (Just $ reaperCons item wl, return ())
+    cons NoReaper      = (Workload $ reaperCons item reaperEmpty
+                         ,spawn settings stateRef)
+    cons (Workload wl) = (Workload $ reaperCons item wl
+                         ,return ())
 
-spawn :: ReaperSettings workload item -> IORef (Maybe workload) -> IO ()
+spawn :: ReaperSettings workload item -> IORef (State workload) -> IO ()
 spawn settings stateRef = void . forkIO $ loop settings stateRef
 
-loop :: ReaperSettings workload item -> IORef (Maybe workload) -> IO ()
+loop :: ReaperSettings workload item -> IORef (State workload) -> IO ()
 loop settings@ReaperSettings{..} stateRef = do
     threadDelay reaperDelay
     -- Getting the current jobs. Push an empty job to the reference.
@@ -119,15 +124,15 @@ loop settings@ReaperSettings{..} stateRef = do
     -- If there is no jobs, this thread finishes.
     join $ atomicModifyIORef' stateRef (check merge)
   where
-    swapWithEmpty Nothing   = error "Control.Reaper.loop: unexpected Nothing (1)"
-    swapWithEmpty (Just wl) = (Just reaperEmpty, wl)
+    swapWithEmpty NoReaper      = error "Control.Reaper.loop: unexpected NoReaper (1)"
+    swapWithEmpty (Workload wl) = (Workload reaperEmpty, wl)
 
-    check _   Nothing  = error "Control.Reaper.loop: unexpected Nothing (2)"
-    check merge (Just wl)
+    check _ NoReaper   = error "Control.Reaper.loop: unexpected NoReaper (2)"
+    check merge (Workload wl)
       -- If there is no workload, reaper is terminated.
-      | reaperNull wl' = (Nothing,  return ())
+      | reaperNull wl' = (NoReaper,  return ())
       -- If there are workloads, carry it out.
-      | otherwise      = (Just wl', loop settings stateRef)
+      | otherwise      = (Workload wl', loop settings stateRef)
       where
         wl' = merge wl
 
