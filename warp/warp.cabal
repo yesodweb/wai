@@ -1,5 +1,5 @@
 Name:                warp
-Version:             3.0.0.5
+Version:             3.0.0.6
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -40,6 +40,7 @@ Flag warp-debug
 Library
   Build-Depends:     base                      >= 3        && < 5
                    , array
+                   , auto-update               >= 0.1.1    && < 0.2
                    , blaze-builder             >= 0.3.3  && < 0.4
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2
@@ -75,7 +76,6 @@ Library
                      Network.Wai.Handler.Warp.Run
                      Network.Wai.Handler.Warp.SendFile
                      Network.Wai.Handler.Warp.Settings
-                     Network.Wai.Handler.Warp.Thread
                      Network.Wai.Handler.Warp.Types
                      Network.Wai.Handler.Warp.Windows
                      Paths_warp
@@ -114,13 +114,13 @@ Test-Suite spec
                      ResponseHeaderSpec
                      ResponseSpec
                      RunSpec
-                     ThreadSpec
     Hs-Source-Dirs:  test, .
     Type:            exitcode-stdio-1.0
 
     Ghc-Options:     -Wall
     Build-Depends:   base >= 4 && < 5
                    , array
+                   , auto-update
                    , blaze-builder             >= 0.3.3    && < 0.4
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2

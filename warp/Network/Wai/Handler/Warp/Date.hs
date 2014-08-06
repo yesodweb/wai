@@ -8,11 +8,8 @@ module Network.Wai.Handler.Warp.Date (
   ) where
 
 import Control.Applicative
-import Control.Concurrent
-import Control.Exception
-import Control.Monad
+import Control.AutoUpdate (defaultUpdateSettings, updateAction, mkAutoUpdate)
 import Data.ByteString.Char8
-import Data.IORef
 
 #if WINDOWS
 import Data.Time
@@ -26,28 +23,18 @@ import System.Posix (epochTime)
 type GMTDate = ByteString
 
 -- | The type of the cache of the Date header value.
-data DateCache = DateCache (IORef GMTDate)
+type DateCache = IO GMTDate
 
 -- | Creating 'DateCache' and executing the action.
 withDateCache :: (DateCache -> IO a) -> IO a
-withDateCache action = bracket initialize
-                               (\(t,_) -> killThread t)
-                               (\(_,dc) -> action dc)
+withDateCache action = initialize >>= action
 
-initialize :: IO (ThreadId, DateCache)
-initialize = do
-    dc <- DateCache <$> (getCurrentGMTDate >>= newIORef)
-    t <- forkIO $ forever $ do
-        threadDelay 1000000
-        update dc
-    return (t, dc)
+initialize :: IO DateCache
+initialize = mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentGMTDate }
 
 -- | Getting 'GMTDate' based on 'DateCache'.
 getDate :: DateCache -> IO GMTDate
-getDate (DateCache ref) = readIORef ref
-
-update :: DateCache -> IO ()
-update (DateCache ref) = getCurrentGMTDate >>= writeIORef ref
+getDate = id
 
 getCurrentGMTDate :: IO GMTDate
 #ifdef WINDOWS
