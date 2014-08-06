@@ -107,14 +107,14 @@ instance Exception Replaced
 getCurrent :: UpdateSettings a
            -> IORef (Status a) -- ^ mutable state
            -> IO a
-getCurrent us@UpdateSettings{..} istatus = do
+getCurrent settings@UpdateSettings{..} istatus = do
     ea <- atomicModifyIORef' istatus increment
     case ea of
         Return a -> return a
         Manual   -> updateAction
         Spawn    -> do
             a <- updateAction
-            tid <- forkIO $ spawn us istatus
+            tid <- forkIO $ spawn settings istatus
             join $ atomicModifyIORef' istatus $ turnToAuto a tid
             return a
   where
