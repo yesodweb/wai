@@ -131,9 +131,9 @@ loop settings@ReaperSettings{..} stateRef = do
 
     check _ NoReaper   = error "Control.Reaper.loop: unexpected NoReaper (2)"
     check merge (Workload wl)
-      -- If there is no workload, reaper is terminated.
+      -- If there is no job, reaper is terminated.
       | reaperNull wl' = (NoReaper,  return ())
-      -- If there are workloads, carry it out.
+      -- If there are jobs, carry them out.
       | otherwise      = (Workload wl', loop settings stateRef)
       where
         wl' = merge wl
