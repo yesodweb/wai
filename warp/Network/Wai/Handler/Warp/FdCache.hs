@@ -30,7 +30,6 @@ import Network.Wai.Handler.Warp.MultiMap
 import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types (Fd)
 import Control.Reaper
-import Data.Maybe (fromMaybe)
 
 ----------------------------------------------------------------
 
@@ -68,12 +67,10 @@ type Hash = Int
 type FdCache = MMap Hash FdEntry
 
 -- | Mutable Fd cacher.
-data MutableFdCache = MutableFdCache
-    ((Hash, FdEntry) -> IO ())
-    (IORef (Maybe FdCache))
+type MutableFdCache = Reaper FdCache (Hash, FdEntry)
 
 fdCache :: MutableFdCache -> IO FdCache
-fdCache (MutableFdCache _ ref) = fromMaybe empty <$> readIORef ref
+fdCache mfc = reaperRead mfc
 
 look :: MutableFdCache -> FilePath -> Hash -> IO (Maybe FdEntry)
 look mfc path key = searchWith key check <$> fdCache mfc
@@ -99,8 +96,7 @@ withFdCache duration action = bracket (initialize duration)
 -- The first argument is a cache duration in second.
 initialize :: Int -> IO (Maybe MutableFdCache)
 initialize 0 = return Nothing
-initialize duration = fmap (Just . uncurry MutableFdCache)
-    $ mkReaper defaultReaperSettings
+initialize duration = Just <$> mkReaper defaultReaperSettings
     { reaperAction = clean
     , reaperDelay = duration
     , reaperCons = uncurry insert
@@ -133,11 +129,8 @@ prune k (Tom ent@(FdEntry _ fd mst) vs) = status mst >>= prune'
 
 terminate :: Maybe MutableFdCache -> IO ()
 terminate Nothing = return ()
-terminate (Just (MutableFdCache _ ref)) = do
-    !t <- atomicModifyIORef ref $ \mm ->
-        case mm of
-            Nothing -> (Nothing, empty)
-            Just m -> (Just empty, m)
+terminate (Just mfc) = do
+    !t <- reaperStop mfc
     mapM_ closeIt $ toList t
   where
     closeIt (_, FdEntry _ fd _) = closeFd fd
@@ -146,12 +139,12 @@ terminate (Just (MutableFdCache _ ref)) = do
 
 -- | Getting 'Fd' and 'Refresh' from the mutable Fd cacher.
 getFd :: MutableFdCache -> FilePath -> IO (Fd, Refresh)
-getFd mfc@(MutableFdCache add _) path = look mfc path key >>= getFd'
+getFd mfc path = look mfc path key >>= getFd'
   where
     key = hash path
     getFd' Nothing = do
         ent@(FdEntry _ fd mst) <- newFdEntry path
-        add (key, ent)
+        reaperAdd mfc (key, ent)
         return (fd, refresh mst)
     getFd' (Just (FdEntry _ fd mst)) = do
         refresh mst

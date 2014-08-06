@@ -61,7 +61,7 @@ import Control.Reaper
 ----------------------------------------------------------------
 
 -- | A timeout manager
-data Manager = Manager (Handle -> IO ()) (IORef (Maybe [Handle]))
+type Manager = Reaper [Handle] Handle
 
 -- | An action to be performed on timeout.
 type TimeoutAction = IO ()
@@ -79,8 +79,7 @@ data State = Active    -- Manager turns it to Inactive.
 -- | Creating timeout manager which works every N micro seconds
 --   where N is the first argument.
 initialize :: Int -> IO Manager
-initialize timeout =
-    fmap (uncurry Manager) $ mkReaper defaultReaperSettings
+initialize timeout = mkReaper defaultReaperSettings
         { reaperAction = mkListAction prune
         , reaperDelay = timeout
         }
@@ -101,12 +100,7 @@ initialize timeout =
 
 -- | Stopping timeout manager.
 stopManager :: Manager -> IO ()
-stopManager (Manager _ ref) = E.mask_ $ do
-    handles <- I.atomicModifyIORef ref $ \x ->
-        case x of
-            Nothing -> (Nothing, [])
-            Just y -> (Just [], y)
-    mapM_ fire handles
+stopManager mgr = E.mask_ (reaperStop mgr >>= mapM_ fire)
   where
     fire (Handle onTimeout _) = onTimeout `E.catch` ignoreAll
 
@@ -117,10 +111,10 @@ ignoreAll _ = return ()
 
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
-register (Manager add _) onTimeout = do
+register mgr onTimeout = do
     iactive <- I.newIORef Active
     let h = Handle onTimeout iactive
-    add h
+    reaperAdd mgr h
     return h
 
 -- | Registering a timeout action of killing this thread.
