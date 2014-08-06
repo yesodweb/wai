@@ -19,12 +19,11 @@ module Control.Reaper (
     , mkListAction
     ) where
 
-import Control.Monad (join, void)
-import Data.Function (fix)
 import Control.AutoUpdate.Util (atomicModifyIORef')
 import Control.Concurrent (forkIO, threadDelay)
-import Data.IORef (IORef, newIORef)
 import Control.Exception (mask_)
+import Control.Monad (join, void)
+import Data.IORef (IORef, newIORef)
 
 -- | Settings for creating a reaper. This type has two parameters:
 -- @workload@ gives the entire workload, whereas @item@ gives an
