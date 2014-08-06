@@ -13,7 +13,7 @@ module Control.Reaper
     , mkListAction
     ) where
 
-import Prelude hiding (null, empty)
+import Prelude hiding (null)
 import Control.Monad (join, void)
 import Data.Function (fix)
 import Control.AutoUpdate.Util (atomicModifyIORef')
