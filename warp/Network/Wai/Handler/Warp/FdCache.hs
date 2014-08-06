@@ -100,7 +100,7 @@ withFdCache duration action = bracket (initialize duration)
 initialize :: Int -> IO (Maybe MutableFdCache)
 initialize 0 = return Nothing
 initialize duration = fmap (Just . uncurry MutableFdCache)
-    $ reaper defaultReaperSettings
+    $ mkReaper defaultReaperSettings
     { reaperAction = clean
     , reaperDelay = duration
     , reaperCons = uncurry insert

@@ -15,7 +15,7 @@ module Control.Reaper (
     , reaperNull
     , reaperEmpty
       -- * Creation
-    , reaper
+    , mkReaper
       -- * Helper
     , mkListAction
     ) where
@@ -95,10 +95,10 @@ data State workload = NoReaper           -- ^ No reaper thread
 -- for you automatically.
 --
 -- Since 0.1.1
-reaper :: ReaperSettings workload item
-       -> IO (item -> IO (), IORef (State workload))
-reaper settings = do
-    stateRef <- newIORef NoReaper
+mkReaper :: ReaperSettings workload item
+         -> IO (item -> IO (), IORef (State workload))
+mkReaper settings = do
+    stateRef <- newIORef Nothing
     return (update settings stateRef, stateRef)
 
 update :: ReaperSettings workload item -> IORef (State workload) -> item

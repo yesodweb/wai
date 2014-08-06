@@ -80,7 +80,7 @@ data State = Active    -- Manager turns it to Inactive.
 --   where N is the first argument.
 initialize :: Int -> IO Manager
 initialize timeout =
-    fmap (uncurry Manager) $ reaper defaultReaperSettings
+    fmap (uncurry Manager) $ mkReaper defaultReaperSettings
         { reaperAction = mkListAction prune
         , reaperDelay = timeout
         }

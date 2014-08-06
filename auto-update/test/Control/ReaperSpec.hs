@@ -10,7 +10,7 @@ type Item = (Int, IORef Int)
 
 spec :: Spec
 spec = prop "works" $ \is -> do
-    (addItem, wlRef) <- reaper defaultReaperSettings
+    (addItem, wlRef) <- mkReaper defaultReaperSettings
         { reaperAction = mkListAction $ \(i, ref) -> do
             modifyIORef ref succ
             return $ if i > 1
