@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns       #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE RecordWildCards    #-}
 
 -- | A common problem is the desire to have an action run at a scheduled
 -- interval, but only if it is needed. For example, instead of having
@@ -90,9 +91,9 @@ data Status a = AutoUpdated
 --
 -- Since 0.1.0
 mkAutoUpdate :: UpdateSettings a -> IO (IO a)
-mkAutoUpdate (UpdateSettings !f !t !a) = do
+mkAutoUpdate us = do
     istatus <- newIORef $ ManualUpdates 0
-    return $! getCurrent f t a istatus
+    return $! getCurrent us istatus
 
 data Action a = Return a | Manual | Spawn
 
@@ -103,26 +104,24 @@ instance Exception Replaced
 -- computed manually in the current thread.
 --
 -- Since 0.1.0
-getCurrent :: Int -- ^ frequency
-           -> Int -- ^ spawn threshold
-           -> IO a -- ^ internal update action
+getCurrent :: UpdateSettings a
            -> IORef (Status a) -- ^ mutable state
            -> IO a
-getCurrent freq spawnThreshold update istatus = do
+getCurrent us@UpdateSettings{..} istatus = do
     ea <- atomicModifyIORef' istatus increment
     case ea of
         Return a -> return a
-        Manual   -> update
+        Manual   -> updateAction
         Spawn    -> do
-            a <- update
-            tid <- forkIO $ spawn freq update istatus
+            a <- updateAction
+            tid <- forkIO $ spawn us istatus
             join $ atomicModifyIORef' istatus $ turnToAuto a tid
             return a
   where
     increment (AutoUpdated a cnt tid) = (AutoUpdated a (succ cnt) tid, Return a)
     increment (ManualUpdates i)       = (ManualUpdates (succ i),       act)
       where
-        act = if i > spawnThreshold then Spawn else Manual
+        act = if i > updateSpawnThreshold then Spawn else Manual
 
     -- Normal case.
     turnToAuto a tid (ManualUpdates cnt)     = (AutoUpdated a cnt tid
@@ -132,10 +131,10 @@ getCurrent freq spawnThreshold update istatus = do
     turnToAuto a tid (AutoUpdated _ cnt old) = (AutoUpdated a cnt tid
                                                ,throwTo old Replaced)
 
-spawn :: Int -> IO a -> IORef (Status a) -> IO ()
-spawn freq update istatus = handle (onErr istatus) $ forever $ do
-    threadDelay freq
-    a <- update
+spawn :: UpdateSettings a -> IORef (Status a) -> IO ()
+spawn UpdateSettings{..} istatus = handle (onErr istatus) $ forever $ do
+    threadDelay updateFreq
+    a <- updateAction
     join $ atomicModifyIORef' istatus $ turnToManual a
   where
     -- Normal case.
