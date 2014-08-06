@@ -86,7 +86,9 @@ defaultReaperSettings = ReaperSettings
     , reaperEmpty = []
     }
 
-data State workload = NoReaper | Workload workload
+-- | State of reaper.
+data State workload = NoReaper           -- ^ No reaper thread
+                    | Workload workload  -- ^ The current jobs
 
 -- | Create a reaper addition function. This funciton can be used to add
 -- new items to the workload. Spawning of reaper threads will be handled
