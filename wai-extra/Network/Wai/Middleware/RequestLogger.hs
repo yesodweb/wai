@@ -29,6 +29,7 @@ import System.Log.FastLogger
 import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe)
 import Data.Monoid (mconcat)
+import Data.Time (getCurrentTime, diffUTCTime)
 
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, getRequestBodyType)
 import qualified Data.ByteString.Lazy as LBS
@@ -155,13 +156,11 @@ rotateColors (c:cs) = (cs ++ [c], c)
 --
 -- Example ouput:
 --
--- > GET search
--- > Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+-- > GET search :: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
 -- >
 -- > Status: 200 OK. search
 -- >
--- > GET static/css/normalize.css
--- > Accept: text/css,*/*;q=0.1
+-- > GET static/css/normalize.css :: text/css,*/*;q=0.1
 -- > GET [("LXwioiBG","")]
 -- >
 -- > Status: 304 Not Modified. static/css/normalize.css
@@ -237,7 +236,9 @@ detailedMiddleware' cb getAddColor app req = do
         , "\n"
         ]
 
+    t0 <- getCurrentTime
     rsp <- app req'
+    t1 <- getCurrentTime
 
     -- log the status of the response
     -- this is color coordinated with the request logging
@@ -246,6 +247,8 @@ detailedMiddleware' cb getAddColor app req = do
         addColor "Status: " ++ statusBS rsp ++
         [ " "
         , msgBS rsp
+        , ". "
+        , pack $ show $ diffUTCTime t1 t0
         , ". "
         , rawPathInfo req -- if you need help matching the 2 logging statements
         , "\n"
