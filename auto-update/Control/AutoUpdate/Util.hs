@@ -10,7 +10,7 @@ module Control.AutoUpdate.Util
 #if MIN_VERSION_base(4,6,0)
 import           Data.IORef         (atomicModifyIORef')
 #else
-import           Data.IORef         (atomicModifyIORef)
+import           Data.IORef         (IORef, atomicModifyIORef)
 -- | Strict version of 'atomicModifyIORef'.  This forces both the value stored
 -- in the 'IORef' as well as the value returned.
 atomicModifyIORef' :: IORef a -> (a -> (a,b)) -> IO b
