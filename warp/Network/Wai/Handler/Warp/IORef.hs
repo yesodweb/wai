@@ -1,5 +1,9 @@
 {-# LANGUAGE CPP #-}
 
+#ifndef MIN_VERSION_base
+#define MIN_VERSION_base(x,y,z) 1
+#endif
+
 module Network.Wai.Handler.Warp.IORef (
     module Data.IORef
 #if !MIN_VERSION_base(4,6,0)
