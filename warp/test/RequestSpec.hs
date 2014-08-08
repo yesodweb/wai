@@ -59,6 +59,33 @@ spec = do
     test "bytes=9500-" $ Just [HH.ByteRangeFrom 9500]
     test "foobytes=9500-" Nothing
     test "bytes=0-0,-1" $ Just [HH.ByteRangeFromTo 0 0, HH.ByteRangeSuffix 1]
+
+  describe "headerLines" $ do
+      it "can handle a nomarl case" $ do
+          src <- mkSourceFunc ["Status: 200\r\nContent-Type: text/plain\r\n\r\n"] >>= mkSource
+          x <- headerLines src
+          x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+
+      it "can handle a nasty case (1)" $ do
+          src <- mkSourceFunc ["Status: 200", "\r\nContent-Type: text/plain", "\r\n\r\n"] >>= mkSource
+          x <- headerLines src
+          x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+
+      it "can handle a nasty case (1)" $ do
+          src <- mkSourceFunc ["Status: 200", "\r", "\nContent-Type: text/plain", "\r", "\n\r\n"] >>= mkSource
+          x <- headerLines src
+          x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+
+      it "can handle a nasty case (1)" $ do
+          src <- mkSourceFunc ["Status: 200", "\r", "\n", "Content-Type: text/plain", "\r", "\n", "\r", "\n"] >>= mkSource
+          x <- headerLines src
+          x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+
+      it "can handle an illegal case (1)" $ do
+          src <- mkSourceFunc ["\nStatus:", "\n 200", "\nContent-Type: text/plain", "\r\n\r\n"] >>= mkSource
+          x <- headerLines src
+          x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+
   where
     blankSafe = headerLinesList ["f", "oo\n", "bar\nbaz\n\r\n"]
     whiteSafe = headerLinesList ["foo\r\nbar\r\nbaz\r\n\r\n hi there"]
@@ -101,3 +128,16 @@ consumeLen len0 src =
 
 overLargeHeader :: Selector InvalidRequest
 overLargeHeader e = e == OverLargeHeader
+
+mkSourceFunc :: [S8.ByteString] -> IO (IO S8.ByteString)
+mkSourceFunc bss = do
+    ref <- newIORef bss
+    return $ reader ref
+  where
+    reader ref = do
+        xss <- readIORef ref
+        case xss of
+            []     -> return S.empty
+            (x:xs) -> do
+                writeIORef ref xs
+                return x
