@@ -241,6 +241,6 @@ push src (THStatus len lines prepend) bs'
 
 {-# INLINE checkCR #-}
 checkCR :: ByteString -> Int -> Int
-checkCR bs pos = if 13 == S.index bs p then p else pos -- 13 is CR
+checkCR bs pos = if pos > 0 && 13 == S.index bs p then p else pos -- 13 is CR
   where
     !p = pos - 1

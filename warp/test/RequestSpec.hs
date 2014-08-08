@@ -84,7 +84,9 @@ spec = do
       it "can handle an illegal case (1)" $ do
           src <- mkSourceFunc ["\nStatus:", "\n 200", "\nContent-Type: text/plain", "\r\n\r\n"] >>= mkSource
           x <- headerLines src
-          x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+          x `shouldBe` []
+          y <- headerLines src
+          y `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
   where
     blankSafe = headerLinesList ["f", "oo\n", "bar\nbaz\n\r\n"]
