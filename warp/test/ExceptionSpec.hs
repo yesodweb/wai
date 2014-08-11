@@ -21,7 +21,7 @@ main = hspec spec
 
 withTestServer :: (Int -> IO a) -> IO a
 withTestServer inner = bracket
-    (N.bindRandomPortTCP "*4")
+    (N.bindRandomPortTCP "127.0.0.1")
     (sClose . snd)
     $ \(prt, lsocket) -> do
         withAsync (runSettingsSocket defaultSettings lsocket testApp)

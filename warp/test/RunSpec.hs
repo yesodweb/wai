@@ -79,7 +79,7 @@ nextPort = unsafePerformIO $ I.newIORef 5000
 getPort :: IO Int
 getPort = do
     port <- I.atomicModifyIORef nextPort $ \p -> (p + 1, p)
-    esocket <- try $ bindPortTCP port "*4"
+    esocket <- try $ bindPortTCP port "127.0.0.1"
     case esocket of
         Left (_ :: IOException) -> RunSpec.getPort
         Right socket -> do
@@ -91,6 +91,7 @@ withApp settings app f = do
     port <- RunSpec.getPort
     baton <- newEmptyMVar
     let settings' = setPort port
+                  $ setHost "127.0.0.1"
                   $ setBeforeMainLoop (putMVar baton ())
                     settings
     bracket
