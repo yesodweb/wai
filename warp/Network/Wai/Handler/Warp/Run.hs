@@ -29,7 +29,10 @@ import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Environment
+import Network.Wai.Handler.Warp.Read
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.Maybe
 
 #if WINDOWS
 import Network.Wai.Handler.Warp.Windows
@@ -67,13 +70,19 @@ run p = runSettings defaultSettings { settingsPort = p }
 
 -- | Run an 'Application' with the given 'Settings'.
 runSettings :: Settings -> Application -> IO ()
-runSettings set app = withSocketsDo $
+runSettings set app = withSocketsDo $ do
+    port <- getPort
     bracket
-        (bindPortTCP (settingsPort set) (settingsHost set))
+        (bindPortTCP port (settingsHost set))
         sClose
         (\socket -> do
             setSocketCloseOnExec socket
             runSettingsSocket set socket app)
+  where
+    getPort :: IO Int
+    getPort = do
+        mPort <- lookupEnv "RESERVE_APP_PORT"
+        return $ fromMaybe (settingsPort set) (mPort >>= readMaybe)
 
 -- | Same as 'runSettings', but uses a user-supplied socket instead of opening
 -- one. This allows the user to provide, for example, Unix named socket, which
