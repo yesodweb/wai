@@ -11,6 +11,10 @@ module Network.Wai.Handler.Warp.Response (
   , defaultServerValue
   ) where
 
+#ifndef MIN_VERSION_base
+#define MIN_VERSION_base(x,y,z) 1
+#endif
+
 import Blaze.ByteString.Builder (fromByteString, Builder, flush)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 import Control.Applicative
