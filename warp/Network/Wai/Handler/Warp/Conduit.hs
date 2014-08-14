@@ -152,9 +152,9 @@ readCSource (CSource src ref) = do
                         (x, y)
                             | S.null y -> do
                                 bs2 <- readSource' src
-                                if S.null bs2
-                                    then return (x, y)
-                                    else return $ S.breakByte 10 $ bs `S.append` bs2
+                                return $ if S.null bs2
+                                    then (x, y)
+                                    else S.breakByte 10 $ bs `S.append` bs2
                             | otherwise -> return (x, y)
                 let w =
                         S.foldl' (\i c -> i * 16 + fromIntegral (hexToWord c)) 0

@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, FlexibleInstances, CPP #-}
+{-# LANGUAGE BangPatterns, CPP #-}
 
 -- | File descriptor cache to avoid locks in kernel.
 

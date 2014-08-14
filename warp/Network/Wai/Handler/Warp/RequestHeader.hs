@@ -103,10 +103,10 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
     httpVersion httpptr = do
         major <- peek $ httpptr `plusPtr` 5
         minor <- peek $ httpptr `plusPtr` 7
-        if major == (49 :: Word8) && minor == (49 :: Word8) then
-            return H.http11
+        return $ if major == (49 :: Word8) && minor == (49 :: Word8) then
+            H.http11
           else
-            return H.http10
+            H.http10
     bs ptr p0 p1 = PS fptr o l
       where
         o = p0 `minusPtr` ptr

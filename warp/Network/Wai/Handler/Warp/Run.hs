@@ -6,21 +6,22 @@
 
 module Network.Wai.Handler.Warp.Run where
 
+import Control.Arrow (first)
 import Control.Concurrent (threadDelay, forkIOWithUnmask)
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception as E
 import Control.Monad (forever, when, unless, void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Network (sClose, Socket)
 import Network.Socket (accept, withSocketsDo, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
-import Network.Wai.Internal (ResponseReceived (ResponseReceived))
+import Network.Wai.Handler.Warp.Buffer
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
-import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.Request
@@ -29,7 +30,7 @@ import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Network.Wai.Internal (ResponseReceived (ResponseReceived))
 
 #if WINDOWS
 import Network.Wai.Handler.Warp.Windows
@@ -112,7 +113,7 @@ runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Applic
 runSettingsConnectionMaker x y =
     runSettingsConnectionMakerSecure x (go y)
   where
-    go = fmap (\(a, b) -> (fmap (, False) a, b))
+    go = fmap (first (fmap (, False)))
 
 -- | Allows you to provide a function which will return a function
 -- which will return 'Connection'.

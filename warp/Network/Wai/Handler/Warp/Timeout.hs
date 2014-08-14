@@ -1,7 +1,6 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE UnboxedTuples, MagicHash #-}
+{-# LANGUAGE MagicHash #-}
 
 -- |
 --
@@ -133,7 +132,7 @@ registerKillThread m = do
 -- deRefWeak checks if ThreadId referenced by the weak reference
 -- exists. If exists, it means that the thread is alive.
 killIfExist :: Weak ThreadId -> TimeoutAction
-killIfExist wtid = deRefWeak wtid >>= maybe (return ()) (flip E.throwTo TimeoutThread)
+killIfExist wtid = deRefWeak wtid >>= maybe (return ()) (`E.throwTo` TimeoutThread)
 
 data TimeoutThread = TimeoutThread
     deriving Typeable
