@@ -31,6 +31,7 @@ import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
+import System.IO.Error (isFullErrorType, ioeGetErrorType)
 
 #if WINDOWS
 import Network.Wai.Handler.Warp.Windows
@@ -115,6 +116,8 @@ runSettingsConnectionMaker x y =
   where
     go = fmap (first (fmap (, False)))
 
+----------------------------------------------------------------
+
 -- | Allows you to provide a function which will return a function
 -- which will return 'Connection'.
 --
@@ -129,13 +132,17 @@ runSettingsConnectionMakerSecure set getConnMaker app = do
                 acceptConnection set getConnMaker app dc fc tm
   where
     fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
-    withTimeoutManager f =
-        case settingsManager set of
-            Nothing -> bracket
-                (T.initialize $ settingsTimeout set * 1000000)
-                T.stopManager
-                f
-            Just tm -> f tm
+    withTimeoutManager f = case settingsManager set of
+        Just tm -> f tm
+        Nothing -> bracket
+                   (T.initialize $ settingsTimeout set * 1000000)
+                   T.stopManager
+                   f
+
+onE :: Settings -> Maybe Request -> SomeException -> IO ()
+onE set mreq e = case fromException e of
+    Just (NotEnoughLines []) -> return ()
+    _                        -> settingsOnException set mreq e
 
 -- Note that there is a thorough discussion of the exception safety of the
 -- following code at: https://github.com/yesodweb/wai/issues/146
@@ -159,7 +166,7 @@ acceptConnection :: Settings
 -- First mask all exceptions in the main loop. This is necessary to ensure
 -- that no async exception is throw between the call to getConnLoop and the
 -- registering of connClose.
-acceptConnection set getConnMaker app dc fc tm = mask_ $ do
+acceptConnection set getConnMaker app dc fc tm = mask $ \restore -> do
     -- Allow async exceptions before receiving the next connection maker.
     allowInterrupt
 
@@ -169,64 +176,72 @@ acceptConnection set getConnMaker app dc fc tm = mask_ $ do
     -- an expensive operation, and this expensive work should not be
     -- performed in the main event loop. An example of something expensive
     -- would be TLS negotiation.
-    (mkConn, addr) <- getConnLoop
-
-    -- Fork a new worker thread for this connection maker, and ask for a
-    -- function to unmask (i.e., allow async exceptions to be thrown).
-    --
-    -- GHC 7.8 cannot infer the type of "void . forkIOWithUnmask"
-    void $ forkIOWithUnmask $ \unmask ->
-        -- Run the connection maker to get a new connection, and ensure
-        -- that the connection is closed. If the mkConn call throws an
-        -- exception, we will leak the connection. If the mkConn call is
-        -- vulnerable to attacks (e.g., Slowloris), we do nothing to
-        -- protect the server. It is therefore vital that mkConn is well
-        -- vetted.
-        --
-        -- We grab the connection before registering timeouts since the
-        -- timeouts will be useless during connection creation, due to the
-        -- fact that async exceptions are still masked.
-        bracket mkConn closeConn $ \(conn0, isSecure') ->
-
-        -- We need to register a timeout handler for this thread, and
-        -- cancel that handler as soon as we exit.
-        bracket (T.registerKillThread tm) T.cancel $ \th ->
-            let ii = InternalInfo th fc dc
-                conn = setSendFile conn0 fc
-                -- We now have fully registered a connection close handler
-                -- in the case of all exceptions, so it is safe to one
-                -- again allow async exceptions.
-            in unmask .
-               -- Call the user-supplied on exception code if any
-               -- exceptions are thrown.
-               handle (onE Nothing) .
-
-               -- Call the user-supplied code for connection open and close events
-               bracket (onOpen addr) (onClose addr) $ \goingon ->
-
-               -- Actually serve this connection.
-               -- onnClose above ensures the termination of the connection.
-               when goingon $ serveConnection conn ii addr isSecure' set app
-
-    acceptConnection set getConnMaker app dc fc tm
+    em <- try getConnLoop
+    case em of
+        Left (_ :: IOException) -> restore gracefulShutdown
+        Right (mkConn, addr)    -> do
+            fork set mkConn addr app dc fc tm
+            restore $ acceptConnection set getConnMaker app dc fc tm
   where
-    -- FIXME: only IOEception is caught. What about other exceptions?
     getConnLoop = getConnMaker `E.catch` \(e :: IOException) -> do
-        onE Nothing (toException e)
-        -- "resource exhausted (Too many open files)" may happen by accept().
-        -- Wait a second hoping that resource will be available.
-        threadDelay 1000000
-        getConnLoop
+        onE set Nothing (toException e)
+        if isFullErrorType (ioeGetErrorType e) then do
+            -- "resource exhausted (Too many open files)" may happen
+            -- by accept().
+            -- Wait a second hoping that resource will be available.
+            threadDelay 1000000
+            getConnLoop
+          else
+            throwIO e
 
-    onE mreq e =
-        case fromException e of
-            Just (NotEnoughLines []) -> return ()
-            _ -> settingsOnException set mreq e
+-- Fork a new worker thread for this connection maker, and ask for a
+-- function to unmask (i.e., allow async exceptions to be thrown).
+fork :: Settings
+     -> IO (Connection, Bool)
+     -> SockAddr
+     -> Application
+     -> D.DateCache
+     -> Maybe F.MutableFdCache
+     -> T.Manager
+     -> IO ()
+fork set mkConn addr app dc fc tm = void $ forkIOWithUnmask $ \unmask ->
+    -- Run the connection maker to get a new connection, and ensure
+    -- that the connection is closed. If the mkConn call throws an
+    -- exception, we will leak the connection. If the mkConn call is
+    -- vulnerable to attacks (e.g., Slowloris), we do nothing to
+    -- protect the server. It is therefore vital that mkConn is well
+    -- vetted.
+    --
+    -- We grab the connection before registering timeouts since the
+    -- timeouts will be useless during connection creation, due to the
+    -- fact that async exceptions are still masked.
+    bracket mkConn closeConn $ \(conn0, isSecure') ->
 
+    -- We need to register a timeout handler for this thread, and
+    -- cancel that handler as soon as we exit.
+    bracket (T.registerKillThread tm) T.cancel $ \th ->
+
+    let ii = InternalInfo th fc dc
+        conn = setSendFile conn0 fc
+        -- We now have fully registered a connection close handler
+        -- in the case of all exceptions, so it is safe to one
+        -- again allow async exceptions.
+    in unmask .
+       -- Call the user-supplied on exception code if any
+       -- exceptions are thrown.
+       handle (onE set Nothing) .
+
+       -- Call the user-supplied code for connection open and close events
+       bracket (onOpen addr) (onClose addr) $ \goingon ->
+
+       -- Actually serve this connection.
+       -- onnClose above ensures the termination of the connection.
+       when goingon $ serveConnection conn ii addr isSecure' set app
+  where
     closeConn (conn, _isSecure) = connClose conn
 
     onOpen = settingsOnOpen set
-    onClose addr _ = settingsOnClose set addr
+    onClose adr _ = settingsOnClose set adr
 
 serveConnection :: Connection
                 -> InternalInfo
@@ -315,3 +330,6 @@ setSocketCloseOnExec _ = return ()
 setSocketCloseOnExec socket =
     setFdOption (fromIntegral $ fdSocket socket) CloseOnExec True
 #endif
+
+gracefulShutdown :: IO ()
+gracefulShutdown = return ()
