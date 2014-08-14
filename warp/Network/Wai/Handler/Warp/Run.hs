@@ -186,13 +186,13 @@ acceptConnection set getConnMaker app dc fc tm = mask_ $ do
         -- We grab the connection before registering timeouts since the
         -- timeouts will be useless during connection creation, due to the
         -- fact that async exceptions are still masked.
-        bracket mkConn (connClose . fst) $ \(conn', isSecure') ->
+        bracket mkConn closeConn $ \(conn0, isSecure') ->
 
         -- We need to register a timeout handler for this thread, and
         -- cancel that handler as soon as we exit.
         bracket (T.registerKillThread tm) T.cancel $ \th ->
             let ii = InternalInfo th fc dc
-                conn = setSendFile conn' fc
+                conn = setSendFile conn0 fc
                 -- We now have fully registered a connection close handler
                 -- in the case of all exceptions, so it is safe to one
                 -- again allow async exceptions.
@@ -202,7 +202,7 @@ acceptConnection set getConnMaker app dc fc tm = mask_ $ do
                handle (onE Nothing) .
 
                -- Call the user-supplied code for connection open and close events
-               bracket (onOpen addr) (const $ onClose addr) $ \goingon ->
+               bracket (onOpen addr) (onClose addr) $ \goingon ->
 
                -- Actually serve this connection.
                -- onnClose above ensures the termination of the connection.
@@ -223,8 +223,10 @@ acceptConnection set getConnMaker app dc fc tm = mask_ $ do
             Just (NotEnoughLines []) -> return ()
             _ -> settingsOnException set mreq e
 
+    closeConn (conn, _isSecure) = connClose conn
+
     onOpen = settingsOnOpen set
-    onClose = settingsOnClose set
+    onClose addr _ = settingsOnClose set addr
 
 serveConnection :: Connection
                 -> InternalInfo
