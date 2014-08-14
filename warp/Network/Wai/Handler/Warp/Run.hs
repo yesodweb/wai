@@ -123,26 +123,10 @@ runSettingsConnectionMakerSecure :: Settings -> IO (IO (Connection, Bool), SockA
 runSettingsConnectionMakerSecure set getConnMaker app = do
     settingsBeforeMainLoop set
 
-    -- Note that there is a thorough discussion of the exception safety of the
-    -- following code at: https://github.com/yesodweb/wai/issues/146
-    --
-    -- We need to make sure of two things:
-    --
-    -- 1. Asynchronous exceptions are not blocked entirely in the main loop.
-    --    Doing so would make it impossible to kill the Warp thread.
-    --
-    -- 2. Once a connection maker is received via getConnLoop, the connection
-    --    is guaranteed to be closed, even in the presence of async exceptions.
-    --
-    -- Our approach is explained in the comments below.
-
-    -- First mask all exceptions in the main loop. This is necessary to ensure
-    -- that no async exception is throw between the call to getConnLoop and the
-    -- registering of connClose.
     D.withDateCache $ \dc ->
         F.withFdCache fdCacheDurationInSeconds $ \fc ->
             withTimeoutManager $ \tm ->
-                mask_ $ acceptConnection set getConnMaker app dc fc tm
+                acceptConnection set getConnMaker app dc fc tm
   where
     fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
     withTimeoutManager f =
@@ -153,6 +137,18 @@ runSettingsConnectionMakerSecure set getConnMaker app = do
                 f
             Just tm -> f tm
 
+-- Note that there is a thorough discussion of the exception safety of the
+-- following code at: https://github.com/yesodweb/wai/issues/146
+--
+-- We need to make sure of two things:
+--
+-- 1. Asynchronous exceptions are not blocked entirely in the main loop.
+--    Doing so would make it impossible to kill the Warp thread.
+--
+-- 2. Once a connection maker is received via getConnLoop, the connection
+--    is guaranteed to be closed, even in the presence of async exceptions.
+--
+-- Our approach is explained in the comments below.
 acceptConnection :: Settings
                  -> IO (IO (Connection, Bool), SockAddr)
                  -> Application
@@ -160,7 +156,10 @@ acceptConnection :: Settings
                  -> Maybe F.MutableFdCache
                  -> T.Manager
                  -> IO ()
-acceptConnection set getConnMaker app dc fc tm = do
+-- First mask all exceptions in the main loop. This is necessary to ensure
+-- that no async exception is throw between the call to getConnLoop and the
+-- registering of connClose.
+acceptConnection set getConnMaker app dc fc tm = mask_ $ do
     -- Allow async exceptions before receiving the next connection maker.
     allowInterrupt
 
