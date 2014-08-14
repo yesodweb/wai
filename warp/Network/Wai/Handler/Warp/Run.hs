@@ -140,10 +140,11 @@ runSettingsConnectionMakerSecure set getConnMaker app = do
     -- that no async exception is throw between the call to getConnLoop and the
     -- registering of connClose.
     D.withDateCache $ \dc ->
-        F.withFdCache (settingsFdCacheDuration set * 1000000) $ \fc ->
+        F.withFdCache fdCacheDurationInSeconds $ \fc ->
             withTimeoutManager $ \tm ->
                 mask_ $ acceptConnection set getConnMaker app dc fc tm
   where
+    fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
     withTimeoutManager f =
         case settingsManager set of
             Nothing -> bracket
