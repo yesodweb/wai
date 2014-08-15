@@ -351,6 +351,7 @@ setSocketCloseOnExec socket =
 
 gracefulShutdown :: Counter -> IO ()
 gracefulShutdown counter = do
+    -- To avoid race condition, we just use threadDelay, not MVar.
     threadDelay 10000000
     noConnections <- isZero counter
     unless noConnections $ gracefulShutdown counter
