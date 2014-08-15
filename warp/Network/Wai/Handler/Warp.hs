@@ -39,6 +39,7 @@ module Network.Wai.Handler.Warp (
   , setFdCacheDuration
   , setBeforeMainLoop
   , setNoParsePath
+  , setInstallShutdownHandler
     -- ** Getters
   , getPort
   , getHost
@@ -189,3 +190,15 @@ getPort = settingsPort
 -- Since 2.1.1
 getHost :: Settings -> HostPreference
 getHost = settingsHost
+
+-- | A code to install shutdown handler.
+--
+-- For instance, this code should set up a UNIX signal
+-- handler. The handler should call the first argument,
+-- which close the listen socket, at shutdown.
+--
+-- Default: does not install any code.
+--
+-- Since 3.1.0
+setInstallShutdownHandler :: (IO () -> IO ()) -> Settings -> Settings
+setInstallShutdownHandler x y = y { settingsInstallShutdownHandler = x }

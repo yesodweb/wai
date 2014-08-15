@@ -85,7 +85,8 @@ runSettings set app = withSocketsDo $
 -- Note that the 'settingsPort' will still be passed to 'Application's via the
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
-runSettingsSocket set socket app =
+runSettingsSocket set socket app = do
+    settingsInstallShutdownHandler set closeListenSocket
     runSettingsConnection set getConn app
   where
     getConn = do
@@ -97,6 +98,8 @@ runSettingsSocket set socket app =
         setSocketCloseOnExec s
         conn <- socketConnection s
         return (conn, sa)
+
+    closeListenSocket = sClose socket
 
 -- | Allows you to provide a function which will return a 'Connection'. In
 -- cases where creating the @Connection@ can be expensive, this allows the
