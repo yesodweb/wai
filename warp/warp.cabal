@@ -62,6 +62,7 @@ Library
                      Network.Wai.Handler.Warp.Timeout
                      Network.Wai.Handler.Warp.Internal
   Other-modules:     Network.Wai.Handler.Warp.Conduit
+                     Network.Wai.Handler.Warp.Counter
                      Network.Wai.Handler.Warp.Date
                      Network.Wai.Handler.Warp.FdCache
                      Network.Wai.Handler.Warp.Header

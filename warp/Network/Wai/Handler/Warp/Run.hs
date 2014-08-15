@@ -20,6 +20,7 @@ import Network.Socket (accept, withSocketsDo, SockAddr)
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer
+import Network.Wai.Handler.Warp.Counter
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import Network.Wai.Handler.Warp.Header
@@ -125,11 +126,12 @@ runSettingsConnectionMaker x y =
 runSettingsConnectionMakerSecure :: Settings -> IO (IO (Connection, Bool), SockAddr) -> Application -> IO ()
 runSettingsConnectionMakerSecure set getConnMaker app = do
     settingsBeforeMainLoop set
+    counter <- newCounter
 
     D.withDateCache $ \dc ->
         F.withFdCache fdCacheDurationInSeconds $ \fc ->
             withTimeoutManager $ \tm ->
-                acceptConnection set getConnMaker app dc fc tm
+                acceptConnection set getConnMaker app dc fc tm counter
   where
     fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
     withTimeoutManager f = case settingsManager set of
@@ -163,13 +165,14 @@ acceptConnection :: Settings
                  -> D.DateCache
                  -> Maybe F.MutableFdCache
                  -> T.Manager
+                 -> Counter
                  -> IO ()
-acceptConnection set getConnMaker app dc fc tm = do
+acceptConnection set getConnMaker app dc fc tm counter = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
     void $ mask_ $ acceptLoop
-    gracefulShutdown
+    gracefulShutdown counter
   where
     acceptLoop = do
         -- Allow async exceptions before receiving the next connection maker.
@@ -186,7 +189,7 @@ acceptConnection set getConnMaker app dc fc tm = do
         case mx of
             Nothing             -> return ()
             Just (mkConn, addr) -> do
-                fork set mkConn addr app dc fc tm
+                fork set mkConn addr app dc fc tm counter
                 acceptLoop
 
     acceptNewConnection = do
@@ -214,8 +217,9 @@ fork :: Settings
      -> D.DateCache
      -> Maybe F.MutableFdCache
      -> T.Manager
+     -> Counter
      -> IO ()
-fork set mkConn addr app dc fc tm = void $ forkIOWithUnmask $ \unmask ->
+fork set mkConn addr app dc fc tm counter = void $ forkIOWithUnmask $ \unmask ->
     -- Run the connection maker to get a new connection, and ensure
     -- that the connection is closed. If the mkConn call throws an
     -- exception, we will leak the connection. If the mkConn call is
@@ -251,8 +255,8 @@ fork set mkConn addr app dc fc tm = void $ forkIOWithUnmask $ \unmask ->
   where
     closeConn (conn, _isSecure) = connClose conn
 
-    onOpen = settingsOnOpen set
-    onClose adr _ = settingsOnClose set adr
+    onOpen adr    = increase counter >> settingsOnOpen  set adr
+    onClose adr _ = decrease counter >> settingsOnClose set adr
 
 serveConnection :: Connection
                 -> InternalInfo
@@ -342,5 +346,8 @@ setSocketCloseOnExec socket =
     setFdOption (fromIntegral $ fdSocket socket) CloseOnExec True
 #endif
 
-gracefulShutdown :: IO ()
-gracefulShutdown = return ()
+gracefulShutdown :: Counter -> IO ()
+gracefulShutdown counter = do
+    threadDelay 10000000
+    noConnections <- isZero counter
+    unless noConnections $ gracefulShutdown counter
