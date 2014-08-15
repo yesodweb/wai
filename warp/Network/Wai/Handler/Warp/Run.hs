@@ -166,33 +166,41 @@ acceptConnection :: Settings
 -- First mask all exceptions in the main loop. This is necessary to ensure
 -- that no async exception is throw between the call to getConnLoop and the
 -- registering of connClose.
-acceptConnection set getConnMaker app dc fc tm = mask $ \restore -> do
+acceptConnection set getConnMaker app dc fc tm = do
     -- Allow async exceptions before receiving the next connection maker.
-    allowInterrupt
-
-    -- getConnLoop will try to receive the next incoming request. It
-    -- returns a /connection maker/, not a connection, since in some
-    -- circumstances creating a working connection from a raw socket may be
-    -- an expensive operation, and this expensive work should not be
-    -- performed in the main event loop. An example of something expensive
-    -- would be TLS negotiation.
-    em <- try getConnLoop
-    case em of
-        Left (_ :: IOException) -> restore gracefulShutdown
-        Right (mkConn, addr)    -> do
-            fork set mkConn addr app dc fc tm
-            restore $ acceptConnection set getConnMaker app dc fc tm
+    shutdown <- mask_ $ do
+        -- getConnLoop will try to receive the next incoming
+        -- request. It returns a /connection maker/, not a connection,
+        -- since in some circumstances creating a working connection
+        -- from a raw socket may be an expensive operation, and this
+        -- expensive work should not be performed in the main event
+        -- loop. An example of something expensive would be TLS
+        -- negotiation.
+        mx <- getConnLoop
+        case mx of
+            Nothing             -> return True
+            Just (mkConn, addr) -> do
+                fork set mkConn addr app dc fc tm
+                return False
+    if shutdown then
+        gracefulShutdown
+      else
+        acceptConnection set getConnMaker app dc fc tm
   where
-    getConnLoop = getConnMaker `E.catch` \(e :: IOException) -> do
-        onE set Nothing (toException e)
-        if isFullErrorType (ioeGetErrorType e) then do
-            -- "resource exhausted (Too many open files)" may happen
-            -- by accept().
-            -- Wait a second hoping that resource will be available.
-            threadDelay 1000000
-            getConnLoop
-          else
-            throwIO e
+    getConnLoop = do
+        ex <- try getConnMaker
+        case ex of
+            Right x -> return $ Just x
+            Left  e  -> do
+                onE set Nothing $ toException e
+                if isFullErrorType (ioeGetErrorType e) then do
+                    -- "resource exhausted (Too many open files)" may
+                    -- happen by accept().  Wait a second hoping that
+                    -- resource will be available.
+                    threadDelay 1000000
+                    getConnLoop
+                  else
+                    return Nothing
 
 -- Fork a new worker thread for this connection maker, and ask for a
 -- function to unmask (i.e., allow async exceptions to be thrown).
