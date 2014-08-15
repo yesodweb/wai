@@ -152,8 +152,9 @@ onE set mreq e = case fromException e of
 -- 1. Asynchronous exceptions are not blocked entirely in the main loop.
 --    Doing so would make it impossible to kill the Warp thread.
 --
--- 2. Once a connection maker is received via getConnLoop, the connection
---    is guaranteed to be closed, even in the presence of async exceptions.
+-- 2. Once a connection maker is received via acceptNewConnection, the
+--    connection is guaranteed to be closed, even in the presence of
+--    async exceptions.
 --
 -- Our approach is explained in the comments below.
 acceptConnection :: Settings
@@ -163,31 +164,32 @@ acceptConnection :: Settings
                  -> Maybe F.MutableFdCache
                  -> T.Manager
                  -> IO ()
--- First mask all exceptions in the main loop. This is necessary to ensure
--- that no async exception is throw between the call to getConnLoop and the
--- registering of connClose.
 acceptConnection set getConnMaker app dc fc tm = do
-    -- Allow async exceptions before receiving the next connection maker.
-    shutdown <- mask_ $ do
-        -- getConnLoop will try to receive the next incoming
+    -- First mask all exceptions in acceptLoop. This is necessary to
+    -- ensure that no async exception is throw between the call to
+    -- acceptNewConnection and the registering of connClose.
+    void $ mask_ $ acceptLoop
+    gracefulShutdown
+  where
+    acceptLoop = do
+        -- Allow async exceptions before receiving the next connection maker.
+        allowInterrupt
+
+        -- acceptNewConnection will try to receive the next incoming
         -- request. It returns a /connection maker/, not a connection,
         -- since in some circumstances creating a working connection
         -- from a raw socket may be an expensive operation, and this
         -- expensive work should not be performed in the main event
         -- loop. An example of something expensive would be TLS
         -- negotiation.
-        mx <- getConnLoop
+        mx <- acceptNewConnection
         case mx of
-            Nothing             -> return True
+            Nothing             -> return ()
             Just (mkConn, addr) -> do
                 fork set mkConn addr app dc fc tm
-                return False
-    if shutdown then
-        gracefulShutdown
-      else
-        acceptConnection set getConnMaker app dc fc tm
-  where
-    getConnLoop = do
+                acceptLoop
+
+    acceptNewConnection = do
         ex <- try getConnMaker
         case ex of
             Right x -> return $ Just x
@@ -198,8 +200,9 @@ acceptConnection set getConnMaker app dc fc tm = do
                     -- happen by accept().  Wait a second hoping that
                     -- resource will be available.
                     threadDelay 1000000
-                    getConnLoop
+                    acceptNewConnection
                   else
+                    -- Assuming the listen socket is closed.
                     return Nothing
 
 -- Fork a new worker thread for this connection maker, and ask for a
