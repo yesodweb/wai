@@ -56,6 +56,7 @@ data Settings = Settings
       -- Default: False
       --
       -- Since 2.0.3
+    , settingsInstallShutdownHandler :: IO () -> IO ()
     }
 
 -- | The default settings for the Warp server. See the individual settings for
@@ -73,6 +74,7 @@ defaultSettings = Settings
     , settingsFdCacheDuration = 10
     , settingsBeforeMainLoop = return ()
     , settingsNoParsePath = False
+    , settingsInstallShutdownHandler = const $ return ()
     }
 
 -- | Apply the logic provided by 'defaultExceptionHandler' to determine if an
