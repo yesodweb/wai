@@ -84,6 +84,9 @@ runSettings set app = withSocketsDo $
 --
 -- Note that the 'settingsPort' will still be passed to 'Application's via the
 -- 'serverPort' record.
+--
+-- When the listen socket in the second argument is closed, all live
+-- connections are gracefully shut-downed.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket set socket app = do
     settingsInstallShutdownHandler set closeListenSocket
