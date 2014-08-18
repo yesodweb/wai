@@ -199,6 +199,6 @@ getHost = settingsHost
 --
 -- Default: does not install any code.
 --
--- Since 3.1.0
+-- Since 3.0.1
 setInstallShutdownHandler :: (IO () -> IO ()) -> Settings -> Settings
 setInstallShutdownHandler x y = y { settingsInstallShutdownHandler = x }
