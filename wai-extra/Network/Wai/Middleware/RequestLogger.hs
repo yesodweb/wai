@@ -139,14 +139,14 @@ logStdoutDev = unsafePerformIO $ mkRequestLogger def
 --
 -- Example ouput:
 --
--- > GET search :: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+-- > GET search
+-- >   Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+-- >   Status: 200 OK 0.010555s
 -- >
--- > Status: 200 OK. search
--- >
--- > GET static/css/normalize.css :: text/css,*/*;q=0.1
--- > GET [("LXwioiBG","")]
--- >
--- > Status: 304 Not Modified. static/css/normalize.css
+-- > GET static/css/normalize.css
+-- >   Accept: text/css,*/*;q=0.1
+-- >   Params: [("LXwioiBG","")]
+-- >   Status: 304 Not Modified 0.010555s
 
 detailedMiddleware :: Callback -> Bool -> IO Middleware
 detailedMiddleware cb useColors =
