@@ -150,39 +150,44 @@ logStdoutDev = unsafePerformIO $ mkRequestLogger def
 
 detailedMiddleware :: Callback -> Bool -> IO Middleware
 detailedMiddleware cb useColors =
-    let colorMethod s = if useColors
-                          then colorMethod' s
-                          else [s]
-    in return $ detailedMiddleware' cb colorMethod
+    let (ansiColor, ansiMethod, ansiStatusCode) =
+          if useColors
+            then (ansiColor', ansiMethod', ansiStatusCode')
+            else (\_ t -> [t], (:[]), \_ t -> [t])
 
-ansiColor :: Color -> BS.ByteString -> [BS.ByteString]
-ansiColor color bs =
+    in return $ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode
+
+ansiColor' :: Color -> BS.ByteString -> [BS.ByteString]
+ansiColor' color bs =
     [ pack $ setSGRCode [SetColor Foreground Dull color]
     , bs
     , pack $ setSGRCode [Reset]
     ]
 
 -- | Tags http method with a unique color.
-colorMethod' :: BS.ByteString -> [BS.ByteString]
-colorMethod' m = case m of
-    "GET"    -> ansiColor Cyan m
-    "PUT"    -> ansiColor Green m
-    "POST"   -> ansiColor Yellow m
-    "DELETE" -> ansiColor Red m
-    _        -> ansiColor Magenta m
+ansiMethod' :: BS.ByteString -> [BS.ByteString]
+ansiMethod' m = case m of
+    "GET"    -> ansiColor' Cyan m
+    "HEAD"   -> ansiColor' Cyan m
+    "PUT"    -> ansiColor' Green m
+    "POST"   -> ansiColor' Yellow m
+    "DELETE" -> ansiColor' Red m
+    _        -> ansiColor' Magenta m
 
-colorStatusCode :: BS.ByteString -> BS.ByteString -> [BS.ByteString]
-colorStatusCode c t = case S8.take 1 c of
-    "2"     -> ansiColor Green t
-    "3"     -> ansiColor Yellow t
-    "4"     -> ansiColor Red t
-    "5"     -> ansiColor Magenta t
-    _       -> ansiColor Blue t
+ansiStatusCode' :: BS.ByteString -> BS.ByteString -> [BS.ByteString]
+ansiStatusCode' c t = case S8.take 1 c of
+    "2"     -> ansiColor' Green t
+    "3"     -> ansiColor' Yellow t
+    "4"     -> ansiColor' Red t
+    "5"     -> ansiColor' Magenta t
+    _       -> ansiColor' Blue t
 
 detailedMiddleware' :: Callback
+                    -> (Color -> BS.ByteString -> [BS.ByteString])
                     -> (BS.ByteString -> [BS.ByteString])
+                    -> (BS.ByteString -> BS.ByteString -> [BS.ByteString])
                     -> Middleware
-detailedMiddleware' cb colorMethod app req sendResponse = do
+detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse = do
     let mlen = lookup "content-length" (requestHeaders req) >>= readInt
     (req', body) <-
         case mlen of
@@ -220,19 +225,16 @@ detailedMiddleware' cb colorMethod app req sendResponse = do
 
     let getParams = map emptyGetParam $ queryString req
         accept = fromMaybe "" $ lookup "Accept" $ requestHeaders req
+        params = let par | not $ null postParams = [pack (show postParams)]
+                         | not $ null getParams  = [pack (show getParams)]
+                         | otherwise             = []
+                 in if null par then [""] else ansiColor White "  Params: " <> par <> ["\n"]
 
     -- log the request immediately.
-    liftIO $ cb $ mconcat $ map toLogStr $ colorMethod (requestMethod req) ++
-        [ " "
-        , rawPathInfo req
-        , "\n"
-        ]
-        ++ ansiColor White "  Accept: " ++
-        [ accept
-        , paramsToBS  "GET " getParams
-        , paramsToBS "POST " postParams
-        , "\n"
-        ]
+    liftIO $ cb $ mconcat $ map toLogStr $
+        ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
+        ansiColor White "  Accept: " ++ [accept, "\n"] ++
+        params
 
     t0 <- getCurrentTime
     app req' $ \rsp -> do
@@ -249,17 +251,11 @@ detailedMiddleware' cb colorMethod app req sendResponse = do
         -- also includes the request path to connect it to the request
         unless isRaw $ cb $ mconcat $ map toLogStr $
             ansiColor White "  Status: " ++
-            colorStatusCode stCode (stCode <> " " <> stMsg) ++
-            [ " "
-            , pack $ show $ diffUTCTime t1 t0
-            , "\n"
-            ]
+            ansiStatusCode stCode (stCode <> " " <> stMsg) ++
+            [" ", pack $ show $ diffUTCTime t1 t0, "\n"]
+
         sendResponse rsp
   where
-    paramsToBS prefix params =
-      if null params then ""
-        else BS.concat ["\n", prefix, pack (show params)]
-
     allPostParams body =
         case getRequestBodyType req of
             Nothing -> return ([], [])
