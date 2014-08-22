@@ -133,7 +133,6 @@ logStdoutDev = unsafePerformIO $ mkRequestLogger def
 -- This meanst that you can accurately see the interleaving of requests.
 -- And if the app crashes you have still logged the request.
 -- However, if you are simulating 10 simultaneous users you may find this confusing.
--- The request and response are connected by color on Unix and also by the request path.
 --
 -- This is lower-level - use 'logStdoutDev' unless you need greater control.
 --
@@ -247,8 +246,6 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
         t1 <- getCurrentTime
 
         -- log the status of the response
-        -- this is color coordinated with the request logging
-        -- also includes the request path to connect it to the request
         unless isRaw $ cb $ mconcat $ map toLogStr $
             ansiColor White "  Status: " ++
             ansiStatusCode stCode (stCode <> " " <> stMsg) ++
