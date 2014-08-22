@@ -28,7 +28,7 @@ import Network.Wai (Request(..), Middleware, responseStatus, Response, responseH
 import System.Log.FastLogger
 import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe)
-import Data.Monoid (mconcat)
+import Data.Monoid (mconcat, (<>))
 import Data.Time (getCurrentTime, diffUTCTime)
 
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, getRequestBodyType)
@@ -125,20 +125,6 @@ logStdout = unsafePerformIO $ mkRequestLogger def { outputFormat = Apache FromSo
 logStdoutDev :: Middleware
 logStdoutDev = unsafePerformIO $ mkRequestLogger def
 
--- no black or white which are expected to be existing terminal colors.
-colors0 :: [Color]
-colors0 = [
-    Green
-  , Yellow
-  , Blue
-  , Magenta
-  , Cyan
-  ]
-
-rotateColors :: [Color] -> ([Color], Color)
-rotateColors [] = error "Impossible! There must be colors!"
-rotateColors (c:cs) = (cs ++ [c], c)
-
 -- | Prints a message using the given callback function for each request.
 -- This is not for serious production use- it is inefficient.
 -- It immediately consumes a POST body and fills it back in and is otherwise inefficient
@@ -147,42 +133,60 @@ rotateColors (c:cs) = (cs ++ [c], c)
 -- This meanst that you can accurately see the interleaving of requests.
 -- And if the app crashes you have still logged the request.
 -- However, if you are simulating 10 simultaneous users you may find this confusing.
--- The request and response are connected by color on Unix and also by the request path.
 --
 -- This is lower-level - use 'logStdoutDev' unless you need greater control.
 --
 -- Example ouput:
 --
--- > GET search :: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+-- > GET search
+-- >   Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+-- >   Status: 200 OK 0.010555s
 -- >
--- > Status: 200 OK. search
--- >
--- > GET static/css/normalize.css :: text/css,*/*;q=0.1
--- > GET [("LXwioiBG","")]
--- >
--- > Status: 304 Not Modified. static/css/normalize.css
+-- > GET static/css/normalize.css
+-- >   Params: [("LXwioiBG","")]
+-- >   Accept: text/css,*/*;q=0.1
+-- >   Status: 304 Not Modified 0.010555s
 
 detailedMiddleware :: Callback -> Bool -> IO Middleware
-detailedMiddleware cb useColors = do
-    getAddColor <-
-        if not useColors then return (return return) else do
-                icolors <- newIORef colors0
-                return $ do
-                    color <- liftIO $ atomicModifyIORef icolors rotateColors
-                    return $ ansiColor color
-    return $ detailedMiddleware' cb getAddColor
+detailedMiddleware cb useColors =
+    let (ansiColor, ansiMethod, ansiStatusCode) =
+          if useColors
+            then (ansiColor', ansiMethod', ansiStatusCode')
+            else (\_ t -> [t], (:[]), \_ t -> [t])
 
-ansiColor :: Color -> BS.ByteString -> [BS.ByteString]
-ansiColor color bs = [
-    pack $ setSGRCode [SetColor Foreground Vivid color]
-  , bs
-  , pack $ setSGRCode [Reset]
-  ]
+    in return $ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode
+
+ansiColor' :: Color -> BS.ByteString -> [BS.ByteString]
+ansiColor' color bs =
+    [ pack $ setSGRCode [SetColor Foreground Dull color]
+    , bs
+    , pack $ setSGRCode [Reset]
+    ]
+
+-- | Tags http method with a unique color.
+ansiMethod' :: BS.ByteString -> [BS.ByteString]
+ansiMethod' m = case m of
+    "GET"    -> ansiColor' Cyan m
+    "HEAD"   -> ansiColor' Cyan m
+    "PUT"    -> ansiColor' Green m
+    "POST"   -> ansiColor' Yellow m
+    "DELETE" -> ansiColor' Red m
+    _        -> ansiColor' Magenta m
+
+ansiStatusCode' :: BS.ByteString -> BS.ByteString -> [BS.ByteString]
+ansiStatusCode' c t = case S8.take 1 c of
+    "2"     -> ansiColor' Green t
+    "3"     -> ansiColor' Yellow t
+    "4"     -> ansiColor' Red t
+    "5"     -> ansiColor' Magenta t
+    _       -> ansiColor' Blue t
 
 detailedMiddleware' :: Callback
-                    -> IO (BS.ByteString -> [BS.ByteString])
+                    -> (Color -> BS.ByteString -> [BS.ByteString])
+                    -> (BS.ByteString -> [BS.ByteString])
+                    -> (BS.ByteString -> BS.ByteString -> [BS.ByteString])
                     -> Middleware
-detailedMiddleware' cb getAddColor app req sendResponse = do
+detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse = do
     let mlen = lookup "content-length" (requestHeaders req) >>= readInt
     (req', body) <-
         case mlen of
@@ -214,25 +218,22 @@ detailedMiddleware' cb getAddColor app req sendResponse = do
             _ -> return (req, [])
 
     postParams <- if requestMethod req `elem` ["GET", "HEAD"]
-      then return []
-      else do postParams <- liftIO $ allPostParams body
-              return $ collectPostParams postParams
+        then return []
+        else do postParams <- liftIO $ allPostParams body
+                return $ collectPostParams postParams
 
     let getParams = map emptyGetParam $ queryString req
-
-    addColor <- getAddColor
-    let accept = fromMaybe "" $ lookup "Accept" $ requestHeaders req
+        accept = fromMaybe "" $ lookup "Accept" $ requestHeaders req
+        params = let par | not $ null postParams = [pack (show postParams)]
+                         | not $ null getParams  = [pack (show getParams)]
+                         | otherwise             = []
+                 in if null par then [""] else ansiColor White "  Params: " <> par <> ["\n"]
 
     -- log the request immediately.
-    liftIO $ cb $ mconcat $ map toLogStr $ addColor (requestMethod req) ++
-        [ " "
-        , rawPathInfo req
-        , " :: "
-        , accept
-        , paramsToBS  "GET " getParams
-        , paramsToBS "POST " postParams
-        , "\n"
-        ]
+    liftIO $ cb $ mconcat $ map toLogStr $
+        ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
+        params ++
+        ansiColor White "  Accept: " ++ [accept, "\n"]
 
     t0 <- getCurrentTime
     app req' $ \rsp -> do
@@ -240,27 +241,18 @@ detailedMiddleware' cb getAddColor app req sendResponse = do
                 case rsp of
                     ResponseRaw{} -> True
                     _ -> False
+            stCode = statusBS rsp
+            stMsg = msgBS rsp
         t1 <- getCurrentTime
 
         -- log the status of the response
-        -- this is color coordinated with the request logging
-        -- also includes the request path to connect it to the request
         unless isRaw $ cb $ mconcat $ map toLogStr $
-            addColor "Status: " ++ statusBS rsp ++
-            [ " "
-            , msgBS rsp
-            , ". "
-            , pack $ show $ diffUTCTime t1 t0
-            , ". "
-            , rawPathInfo req -- if you need help matching the 2 logging statements
-            , "\n"
-            ]
+            ansiColor White "  Status: " ++
+            ansiStatusCode stCode (stCode <> " " <> stMsg) ++
+            [" ", pack $ show $ diffUTCTime t1 t0, "\n"]
+
         sendResponse rsp
   where
-    paramsToBS prefix params =
-      if null params then ""
-        else BS.concat ["\n", prefix, pack (show params)]
-
     allPostParams body =
         case getRequestBodyType req of
             Nothing -> return ([], [])
@@ -278,19 +270,15 @@ detailedMiddleware' cb getAddColor app req sendResponse = do
 
     collectPostParams :: ([Param], [File LBS.ByteString]) -> [Param]
     collectPostParams (postParams, files) = postParams ++
-      map (\(k,v) -> (k, BS.append "FILE: " (fileName v))) files
+      map (\(k,v) -> (k, "FILE: " <> fileName v)) files
 
     readInt bs =
         case reads $ unpack bs of
             (i, _):_ -> Just (i :: Int)
             [] -> Nothing
 
-statusBS :: Response -> [BS.ByteString]
-statusBS rsp =
-    if status >= 400 then ansiColor Red bs else [bs]
-  where
-    bs = pack $ show status
-    status = statusCode $ responseStatus rsp
+statusBS :: Response -> BS.ByteString
+statusBS = pack . show . statusCode . responseStatus
 
 msgBS :: Response -> BS.ByteString
 msgBS = statusMessage . responseStatus
