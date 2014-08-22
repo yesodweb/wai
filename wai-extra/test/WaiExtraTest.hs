@@ -551,7 +551,7 @@ caseDebugRequestBody = do
     -- postOutput = T.pack $ "POST \nAccept: \n  Params: " ++ (show params)
     -- the time cannot be known, so match around it
     postOutput = ("POST /\n  Accept: \n  Status: 200 OK 0", "s\n")
-    getOutput params' = ("GET /location\n  Accept: \n  Params: " <> T.pack (show params') <> "\n  Status: 200 OK 0", "s\n")
+    getOutput params' = ("GET /location\n  Params: " <> T.pack (show params') <> "\n  Accept: \n  Status: 200 OK 0", "s\n")
 
     debugApp (beginning, ending) req send = do
         iactual <- I.newIORef mempty

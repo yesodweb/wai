@@ -144,8 +144,8 @@ logStdoutDev = unsafePerformIO $ mkRequestLogger def
 -- >   Status: 200 OK 0.010555s
 -- >
 -- > GET static/css/normalize.css
--- >   Accept: text/css,*/*;q=0.1
 -- >   Params: [("LXwioiBG","")]
+-- >   Accept: text/css,*/*;q=0.1
 -- >   Status: 304 Not Modified 0.010555s
 
 detailedMiddleware :: Callback -> Bool -> IO Middleware
@@ -233,8 +233,8 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
     -- log the request immediately.
     liftIO $ cb $ mconcat $ map toLogStr $
         ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
-        ansiColor White "  Accept: " ++ [accept, "\n"] ++
-        params
+        params ++
+        ansiColor White "  Accept: " ++ [accept, "\n"]
 
     t0 <- getCurrentTime
     app req' $ \rsp -> do
