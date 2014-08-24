@@ -10,7 +10,7 @@ import Control.AutoUpdate
 spec :: Spec
 spec = do
     prop "incrementer" $ \st' -> do
-        let st = abs st'
+        let st = abs st' `mod` 10000
         ref <- newIORef 0
         next <- mkAutoUpdate defaultUpdateSettings
             { updateAction = atomicModifyIORef ref $ \i ->
