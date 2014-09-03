@@ -38,6 +38,12 @@ data Args = Args
     , host :: String
     }
 
+#if MIN_VERSION_optparse_applicative(0, 10, 0)
+option' = option auto
+#else
+option' = option
+#endif
+
 args :: Parser Args
 args = Args
     <$> strOption
@@ -52,7 +58,7 @@ args = Args
            <> metavar "INDEX"
            <> help "index files to serve when a directory is required"
             )))
-    <*> option
+    <*> option'
             ( long "port"
            <> short 'p'
            <> metavar "PORT"
