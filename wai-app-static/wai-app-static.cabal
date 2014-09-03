@@ -3,7 +3,7 @@ version:         3.0.0.1
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
-maintainer:      Michael Snoyman <michael@snoyman.com>
+maintainer:      Michael Snoyman <michael@snoyman.com>, Greg Weber <greg@gregweber.info>
 synopsis:        WAI application for static serving
 description:     Also provides some helper functions and datatypes for use outside of WAI.
 category:        Web, Yesod
