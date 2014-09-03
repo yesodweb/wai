@@ -50,7 +50,7 @@ library
                    , zlib                      >= 0.5
                    , filepath
                    , wai-extra                 >= 3.0      && < 3.1
-                   , optparse-applicative      >= 0.7
+                   , optparse-applicative      >= 0.7      && < 0.10.0
                    , warp                      >= 3.0      && < 3.1
                    -- Used exclusively for hashFile function
                    , cryptohash-conduit
