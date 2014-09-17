@@ -48,14 +48,16 @@ import Network.Socket (fdSocket)
 -- | Default action value for 'Connection'.
 socketConnection :: Socket -> IO Connection
 socketConnection s = do
-    readBuf <- allocateBuffer bufferSize
+    bufferPool <- newBufferPool
+    readBuf <- allocateBuffer 0 -- kept for backward compatibility
     writeBuf <- allocateBuffer bufferSize
     return Connection {
         connSendMany = Sock.sendMany s
       , connSendAll = Sock.sendAll s
       , connSendFile = defaultSendFile s
-      , connClose = sClose s >> freeBuffer readBuf >> freeBuffer writeBuf
-      , connRecv = receive s readBuf bufferSize
+      , connClose = sClose s >> freeBuffer writeBuf
+      , connRecv = receive s bufferPool
+      , connBufferPool = bufferPool
       , connReadBuffer = readBuf
       , connWriteBuffer = writeBuf
       , connBufferSize = bufferSize
