@@ -5,10 +5,10 @@ import qualified Data.Streaming.ByteString.Builder.Buffer as B (Buffer (..))
 import Data.Word (Word8)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.ByteString (ByteString, empty, length)
-import Data.ByteString.Internal (ByteString(PS), mallocByteString, c_free_finalizer)
+import Data.ByteString.Internal (ByteString(PS), mallocByteString)
 import Data.ByteString.Unsafe (unsafeTake, unsafeDrop)
 import Foreign.ForeignPtr (newForeignPtr, newForeignPtr_, withForeignPtr)
-import Foreign.Marshal.Alloc (mallocBytes, free)
+import Foreign.Marshal.Alloc (mallocBytes, free, finalizerFree)
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
 
 largeBufferSize :: Int
@@ -24,7 +24,7 @@ newBufferPool = newIORef Data.ByteString.empty
 mallocBuffer :: Int -> IO ByteString
 mallocBuffer size = do
     ptr <- mallocBytes size
-    fptr <- newForeignPtr c_free_finalizer ptr
+    fptr <- newForeignPtr finalizerFree ptr
     return $! PS fptr 0 size 
 {-# INLINE mallocBuffer #-}
 
@@ -41,7 +41,7 @@ usefulBuffer buffer = Data.ByteString.length buffer >= minBufferSize
 getBuffer :: BufferPool -> IO ByteString
 getBuffer pool = do
     buffer <- readIORef pool
-    if usefulBuffer buffer then return buffer else createBuffer largeBufferSize
+    if usefulBuffer buffer then return buffer else mallocBuffer largeBufferSize
 {-# INLINE getBuffer #-}
 
 putBuffer :: BufferPool -> ByteString -> IO ()
