@@ -35,7 +35,7 @@ receive sock pool = withBufferPool pool $ \ (ptr, size) -> do
 receiveloop :: CInt -> Ptr Word8 -> CSize -> IO CInt
 receiveloop sock ptr size = do
 #ifdef mingw32_HOST_OS
-    bytes <- windowsThreadBlockHack $ fmap fromIntegral $ readRawBufferPtr "recv" (FD sock 1) ptr 0 size
+    bytes <- windowsThreadBlockHack $ fmap fromIntegral $ readRawBufferPtr "recv" (FD sock 1) (castPtr ptr) 0 size
 #else
     bytes <- c_recv sock (castPtr ptr) size 0
 #endif
