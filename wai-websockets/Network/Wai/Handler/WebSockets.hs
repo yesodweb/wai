@@ -9,12 +9,13 @@ module Network.Wai.Handler.WebSockets
 
 import              Data.ByteString                 (ByteString)
 import qualified    Data.ByteString.Char8           as BC
+import qualified    Data.ByteString.Lazy            as BL
 import qualified    Data.CaseInsensitive            as CI
 import              Network.HTTP.Types              (status500)
 import qualified    Network.Wai                     as Wai
 import qualified    Network.WebSockets              as WS
 import qualified    Network.WebSockets.Connection   as WS
-import qualified    System.IO.Streams               as Streams
+import qualified    Network.WebSockets.Stream       as WS
 
 --------------------------------------------------------------------------------
 isWebSocketsReq :: Wai.Request -> Bool
@@ -62,18 +63,19 @@ runWebSockets :: WS.ConnectionOptions
               -> (ByteString -> IO ())
               -> IO a
 runWebSockets opts req app src sink = do
-
-    is <- Streams.makeInputStream $ do
-        bs <- src
-        return $ if BC.null bs then Nothing else Just bs
-    os <- Streams.makeOutputStream (maybe (return ()) sink) >>= Streams.builderStream
+    stream <- WS.makeStream
+        (do
+            bs <- src
+            return $ if BC.null bs then Nothing else Just bs)
+        (\mbBl -> case mbBl of
+            Nothing -> return ()
+            Just bl -> mapM_ sink (BL.toChunks bl))
 
     let pc = WS.PendingConnection
                 { WS.pendingOptions     = opts
                 , WS.pendingRequest     = req
                 , WS.pendingOnAccept    = \_ -> return ()
-                , WS.pendingIn          = is
-                , WS.pendingOut         = os
+                , WS.pendingStream      = stream
                 }
 
     app pc

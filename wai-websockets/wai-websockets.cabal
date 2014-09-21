@@ -24,8 +24,7 @@ Library
                    , case-insensitive   >= 0.2
                    , network            >= 2.2.1.5
                    , transformers       >= 0.2
-                   , websockets         >= 0.8
-                   , io-streams         >= 1.1      && < 1.2
+                   , websockets         >= 0.9
                    , http-types
   Exposed-modules:   Network.Wai.Handler.WebSockets
   ghc-options:       -Wall
