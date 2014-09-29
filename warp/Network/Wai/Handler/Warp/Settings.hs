@@ -18,6 +18,10 @@ import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as S8
+import Data.Version (showVersion)
+import qualified Paths_warp
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
 -- type so that new settings can be added without breaking backwards
@@ -57,6 +61,10 @@ data Settings = Settings
       --
       -- Since 2.0.3
     , settingsInstallShutdownHandler :: IO () -> IO ()
+    , settingsServerName :: ByteString
+      -- ^ Default server name if application does not set one.
+      --
+      -- Since 3.0.2
     }
 
 -- | The default settings for the Warp server. See the individual settings for
@@ -75,6 +83,7 @@ defaultSettings = Settings
     , settingsBeforeMainLoop = return ()
     , settingsNoParsePath = False
     , settingsInstallShutdownHandler = const $ return ()
+    , settingsServerName = S8.pack $ "Warp/" ++ showVersion Paths_warp.version
     }
 
 -- | Apply the logic provided by 'defaultExceptionHandler' to determine if an

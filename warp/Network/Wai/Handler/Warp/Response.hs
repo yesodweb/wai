@@ -157,14 +157,15 @@ checkPartRange fileSize = checkPart
 --     Typically, Transfer-Encoding: chunked is used.
 --     If Content-Length is specified, Transfer-Encoding: chunked is not used.
 
-sendResponse :: Connection
+sendResponse :: ByteString -- ^ default server value
+             -> Connection
              -> InternalInfo
              -> Request -- ^ HTTP request.
              -> IndexedHeader -- ^ Indexed header of HTTP request.
              -> IO ByteString -- ^ source from client, for raw response
              -> Response -- ^ HTTP response including status code and response header.
              -> IO Bool -- ^ Returing True if the connection is persistent.
-sendResponse conn ii req reqidxhdr src response = do
+sendResponse defServer conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s req then do
         sendRsp conn ver s hs rsp
@@ -181,7 +182,7 @@ sendResponse conn ii req reqidxhdr src response = do
     rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
     dc = dateCacher ii
-    addServerAndDate = addDate dc rspidxhdr . addServer rspidxhdr
+    addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
     mRange = reqidxhdr ! idxRange
     reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
@@ -389,9 +390,9 @@ warpVersion = showVersion Paths_warp.version
 defaultServerValue :: HeaderValue
 defaultServerValue = B.pack $ "Warp/" ++ warpVersion
 
-addServer :: IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
-addServer rspidxhdr hdrs = case rspidxhdr ! idxServer of
-    Nothing -> (hServer, defaultServerValue) : hdrs
+addServer :: HeaderValue -> IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
+addServer defaultServerValue' rspidxhdr hdrs = case rspidxhdr ! idxServer of
+    Nothing -> (hServer, defaultServerValue') : hdrs
     _       -> hdrs
 
 ----------------------------------------------------------------

@@ -284,7 +284,9 @@ serveConnection conn ii addr isSecure' settings app = do
     sendErrorResponse istatus e = do
         status <- readIORef istatus
         when status $ void $
-            sendResponse conn ii dummyreq defaultIndexRequestHeader (return S.empty) (errorResponse e)
+            sendResponse
+                (settingsServerName settings)
+                conn ii dummyreq defaultIndexRequestHeader (return S.empty) (errorResponse e)
 
     dummyreq = defaultRequest { remoteHost = addr }
 
@@ -306,7 +308,9 @@ serveConnection conn ii addr isSecure' settings app = do
             -- send more meaningful error messages to the user.
             -- However, it may affect performance.
             writeIORef istatus False
-            keepAlive <- sendResponse conn ii req idxhdr (readSource fromClient) res
+            keepAlive <- sendResponse
+                (settingsServerName settings)
+                conn ii req idxhdr (readSource fromClient) res
             writeIORef keepAliveRef keepAlive
             return ResponseReceived
         keepAlive <- readIORef keepAliveRef

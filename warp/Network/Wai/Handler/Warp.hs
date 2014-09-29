@@ -40,6 +40,7 @@ module Network.Wai.Handler.Warp (
   , setBeforeMainLoop
   , setNoParsePath
   , setInstallShutdownHandler
+  , setServerName
     -- ** Getters
   , getPort
   , getHost
@@ -99,6 +100,7 @@ import Control.Exception (SomeException)
 import Network.Wai (Request, Response)
 import Network.Socket (SockAddr)
 import Data.Streaming.Network (HostPreference)
+import Data.ByteString (ByteString)
 
 -- | Port to listen on. Default value: 3000
 --
@@ -202,3 +204,9 @@ getHost = settingsHost
 -- Since 3.0.1
 setInstallShutdownHandler :: (IO () -> IO ()) -> Settings -> Settings
 setInstallShutdownHandler x y = y { settingsInstallShutdownHandler = x }
+
+-- | Default server name if application does not set one.
+--
+-- Since 3.0.2
+setServerName :: ByteString -> Settings -> Settings
+setServerName x y = y { settingsServerName = x }
