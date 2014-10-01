@@ -27,11 +27,12 @@ import           Control.Applicative ((<$>), (<*>))
 import           Control.AutoUpdate.Util (atomicModifyIORef')
 import           Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay)
 import           Control.Exception  (Exception, SomeException
-                                    ,assert, fromException, handle,throwIO, throwTo)
-import           Control.Monad      (forever, join)
-import           Data.IORef         (IORef, newIORef)
+                                    ,assert, fromException, handle,throwIO, throwTo, throw, try, catch)
+import           Control.Monad      (forever, join, void)
+import           Data.IORef         (IORef, newIORef, readIORef, writeIORef)
 import           Data.Typeable      (Typeable)
 import           System.IO.Unsafe   (unsafePerformIO)
+import Prelude hiding (catch)
 
 -- | Default value for creating an @UpdateSettings@.
 --
@@ -93,69 +94,28 @@ data Status a = AutoUpdated
 -- Since 0.1.0
 mkAutoUpdate :: UpdateSettings a -> IO (IO a)
 mkAutoUpdate us = do
-    istatus <- newIORef $ ManualUpdates 0
-    return $! getCurrent us istatus
+    used <- newIORef False
+    ref <- newIORef $ error "mkAutoUpdate"
+    writeIORef ref $ unsafePerformIO $ start us used ref
+    return $ do
+        writeIORef used True
+        readIORef ref
 
-data Action a = Return a | Manual
-
-data Replaced = Replaced deriving (Show, Typeable)
-instance Exception Replaced
-
--- | Get the current value, either fed from an auto-update thread, or
--- computed manually in the current thread.
---
--- Since 0.1.0
-getCurrent :: UpdateSettings a
-           -> IORef (Status a) -- ^ mutable state
-           -> IO a
-getCurrent settings@UpdateSettings{..} istatus = do
-    ea <- atomicModifyIORef' istatus increment
-    case ea of
-        Return a -> return a
-        Manual   -> updateAction
-  where
-    increment (AutoUpdated a cnt tid) = (AutoUpdated a (cnt + 1) tid, Return a)
-    increment (ManualUpdates i)
-        | i > updateSpawnThreshold =
-            let (a, tid) =
-                    unsafePerformIO $ (,)
-                        <$> updateAction
-                        <*> forkIO (spawn settings istatus)
-             in (AutoUpdated a (i + 1) tid, Return a)
-        | otherwise = (ManualUpdates (i + 1), Manual)
-
-spawn :: UpdateSettings a -> IORef (Status a) -> IO ()
-spawn UpdateSettings{..} istatus = handle (onErr istatus) $ forever $ do
-    threadDelay updateFreq
+start settings@UpdateSettings{..} used ref = do
     a <- updateAction
-    join $ atomicModifyIORef' istatus $ turnToManual a
-  where
-    -- Normal case.
-    turnToManual a (AutoUpdated _ cnt tid)
-      | cnt >= 1                     = (AutoUpdated a 0 tid, return ())
-      | otherwise                    = (ManualUpdates 0, stop)
-    -- This case must not happen.
-    turnToManual _ (ManualUpdates i) =  assert False (ManualUpdates i, stop)
+    void $ forkIO $
+        let loop = do
+                threadDelay updateFreq
+                used' <- readIORef used
+                if used'
+                    then do
+                        writeIORef used False
+                        a <- catchSome updateAction
+                        writeIORef ref a
+                        loop
+                    else writeIORef ref $ unsafePerformIO $ start settings used ref
+         in loop
+    return a
 
-onErr :: IORef (Status a) -> SomeException -> IO ()
-onErr istatus ex = case fromException ex of
-    Just Replaced -> return () -- this thread is terminated
-    Nothing -> do
-        tid <- myThreadId
-        atomicModifyIORef' istatus $ clear tid
-        throwIO ex
-  where
-    -- In the race condition described above,
-    -- suppose thread A is running, and is killed by thread B.
-    -- Thread B then updates the IORef to refer to thread B.
-    -- Then thread A's exception handler fires.
-    -- We don't want to modify the IORef at all,
-    -- since it refers to thread B already.
-    -- Solution: only switch back to manual updates
-    -- if the IORef is pointing at the current thread.
-    clear tid (AutoUpdated _ _ tid') | tid == tid' = (ManualUpdates 0, ())
-    clear _   status                               = (status, ())
-
--- | Throw an error to kill a thread.
-stop :: IO a
-stop = throwIO Replaced
+catchSome :: IO a -> IO a
+catchSome act = catch act $ \e -> return $ throw (e :: SomeException)
