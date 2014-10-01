@@ -23,17 +23,12 @@ module Control.AutoUpdate (
     , mkAutoUpdate
     ) where
 
-import           Control.Applicative ((<$>), (<*>))
-import           Control.AutoUpdate.Util (atomicModifyIORef')
-import           Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay)
-import           Control.Exception  (Exception, SomeException
-                                    ,assert, fromException, handle,throwIO, throwTo, throw, try, catch)
-import           Control.Monad      (forever, join, void)
-import           Data.IORef         (IORef, newIORef, readIORef, writeIORef)
-import           Data.Typeable      (Typeable)
-import           System.IO.Unsafe   (unsafePerformIO)
-import Prelude hiding (catch)
-import Control.Concurrent.MVar
+import           Control.Concurrent      (forkIO, threadDelay)
+import           Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar,
+                                          takeMVar, tryPutMVar, tryTakeMVar)
+import           Control.Exception       (SomeException, catch, throw)
+import           Control.Monad           (forever, void)
+import           Data.IORef              (newIORef, readIORef, writeIORef)
 
 -- | Default value for creating an @UpdateSettings@.
 --
@@ -64,8 +59,11 @@ data UpdateSettings a = UpdateSettings
     --
     -- Since 0.1.0
     , updateSpawnThreshold :: Int
-    -- ^ How many times the data must be requested before we decide to
-    -- spawn a dedicated thread.
+    -- ^ NOTE: This value no longer has any effect, since worker threads are
+    -- dedicated instead of spawned on demand.
+    --
+    -- Previously, this determined: How many times the data must be requested
+    -- before we decide to spawn a dedicated thread.
     --
     -- Default: 3
     --
@@ -77,17 +75,6 @@ data UpdateSettings a = UpdateSettings
     --
     -- Since 0.1.0
     }
-
-data Status a = AutoUpdated
-                    !a
-                    {-# UNPACK #-} !Int
-                    -- Number of times used since last updated.
-                    {-# UNPACK #-} !ThreadId
-                    -- Worker thread.
-              | ManualUpdates
-                    {-# UNPACK #-} !Int
-                    -- Number of times used since we started/switched
-                    -- off manual updates.
 
 -- | Generate an action which will either read from an automatically
 -- updated value, or run the update action in the current thread.
@@ -138,5 +125,8 @@ mkAutoUpdate us = do
                 -- and block for the result from the worker
                 readMVar lastValue
 
+-- | Turn a runtime exception into an impure exception, so that all @IO@
+-- actions will complete successfully. This simply defers the exception until
+-- the value is forced.
 catchSome :: IO a -> IO a
-catchSome act = catch act $ \e -> return $ throw (e :: SomeException)
+catchSome act = Control.Exception.catch act $ \e -> return $ throw (e :: SomeException)
