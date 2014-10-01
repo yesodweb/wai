@@ -23,6 +23,7 @@ module Control.AutoUpdate (
     , mkAutoUpdate
     ) where
 
+import           Control.Applicative ((<$>), (<*>))
 import           Control.AutoUpdate.Util (atomicModifyIORef')
 import           Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay)
 import           Control.Exception  (Exception, SomeException
@@ -30,6 +31,7 @@ import           Control.Exception  (Exception, SomeException
 import           Control.Monad      (forever, join)
 import           Data.IORef         (IORef, newIORef)
 import           Data.Typeable      (Typeable)
+import           System.IO.Unsafe   (unsafePerformIO)
 
 -- | Default value for creating an @UpdateSettings@.
 --
@@ -94,7 +96,7 @@ mkAutoUpdate us = do
     istatus <- newIORef $ ManualUpdates 0
     return $! getCurrent us istatus
 
-data Action a = Return a | Manual | Spawn
+data Action a = Return a | Manual
 
 data Replaced = Replaced deriving (Show, Typeable)
 instance Exception Replaced
@@ -111,24 +113,16 @@ getCurrent settings@UpdateSettings{..} istatus = do
     case ea of
         Return a -> return a
         Manual   -> updateAction
-        Spawn    -> do
-            a <- updateAction
-            tid <- forkIO $ spawn settings istatus
-            join $ atomicModifyIORef' istatus $ turnToAuto a tid
-            return a
   where
     increment (AutoUpdated a cnt tid) = (AutoUpdated a (cnt + 1) tid, Return a)
-    increment (ManualUpdates i)       = (ManualUpdates (i + 1),       act)
-      where
-        act = if i > updateSpawnThreshold then Spawn else Manual
-
-    -- Normal case.
-    turnToAuto a tid (ManualUpdates cnt)     = (AutoUpdated a cnt tid
-                                               ,return ())
-    -- Race condition: multiple threads were spawned.
-    -- So, let's kill the previous one by this thread.
-    turnToAuto a tid (AutoUpdated _ cnt old) = (AutoUpdated a cnt tid
-                                               ,throwTo old Replaced)
+    increment (ManualUpdates i)
+        | i > updateSpawnThreshold =
+            let (a, tid) =
+                    unsafePerformIO $ (,)
+                        <$> updateAction
+                        <*> forkIO (spawn settings istatus)
+             in (AutoUpdated a (i + 1) tid, Return a)
+        | otherwise = (ManualUpdates (i + 1), Manual)
 
 spawn :: UpdateSettings a -> IORef (Status a) -> IO ()
 spawn UpdateSettings{..} istatus = handle (onErr istatus) $ forever $ do
