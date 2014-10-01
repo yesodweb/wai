@@ -33,6 +33,7 @@ import           Data.IORef         (IORef, newIORef, readIORef, writeIORef)
 import           Data.Typeable      (Typeable)
 import           System.IO.Unsafe   (unsafePerformIO)
 import Prelude hiding (catch)
+import Control.Concurrent.MVar
 
 -- | Default value for creating an @UpdateSettings@.
 --
@@ -94,28 +95,48 @@ data Status a = AutoUpdated
 -- Since 0.1.0
 mkAutoUpdate :: UpdateSettings a -> IO (IO a)
 mkAutoUpdate us = do
-    used <- newIORef False
-    ref <- newIORef $ error "mkAutoUpdate"
-    writeIORef ref $ unsafePerformIO $ start us used ref
-    return $ do
-        writeIORef used True
-        readIORef ref
+    -- The current value, if available.
+    currRef <- newIORef Nothing
 
-start settings@UpdateSettings{..} used ref = do
-    a <- updateAction
-    void $ forkIO $
-        let loop = do
-                threadDelay updateFreq
-                used' <- readIORef used
-                if used'
-                    then do
-                        writeIORef used False
-                        a <- catchSome updateAction
-                        writeIORef ref a
-                        loop
-                    else writeIORef ref $ unsafePerformIO $ start settings used ref
-         in loop
-    return a
+    -- A baton to tell the worker thread to generate a new value.
+    needsRunning <- newEmptyMVar
+
+    -- The last value generated, to allow for blocking semantics when currRef
+    -- is Nothing.
+    lastValue <- newEmptyMVar
+
+    -- fork the worker thread immediately...
+    void $ forkIO $ forever $ do
+        -- but block until a value is actually needed
+        takeMVar needsRunning
+
+        -- new value requested, so run the updateAction
+        a <- catchSome $ updateAction us
+
+        -- we got a new value, update currRef and lastValue
+        writeIORef currRef $ Just a
+        void $ tryTakeMVar lastValue
+        putMVar lastValue a
+
+        -- delay until we're needed again
+        threadDelay $ updateFreq us
+
+        -- delay's over, clear out currRef and lastValue so that demanding the
+        -- value again forces us to start work
+        writeIORef currRef Nothing
+        void $ takeMVar lastValue
+
+    return $ do
+        mval <- readIORef currRef
+        case mval of
+            -- we have a current value, use it
+            Just val -> return val
+            Nothing -> do
+                -- no current value, force the worker thread to run...
+                void $ tryPutMVar needsRunning ()
+
+                -- and block for the result from the worker
+                readMVar lastValue
 
 catchSome :: IO a -> IO a
 catchSome act = catch act $ \e -> return $ throw (e :: SomeException)
