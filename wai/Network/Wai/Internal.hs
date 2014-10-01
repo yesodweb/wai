@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 -- | Internal constructors and helper functions. Note that no guarantees are
 -- given for stability of these interfaces.
 module Network.Wai.Internal where
@@ -14,6 +15,7 @@ import Data.Vault.Lazy (Vault)
 import           Data.Word                    (Word64)
 import qualified Network.HTTP.Types           as H
 import           Network.Socket               (SockAddr)
+import           Data.List                    (intercalate)
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
@@ -71,6 +73,27 @@ data Request = Request {
   }
   deriving (Typeable)
 
+instance Show Request where
+    show Request{..} = "Request {" ++ intercalate ", " [a ++ " = " ++ b | (a,b) <- fields] ++ "}"
+        where
+            fields =
+                [("requestMethod",show requestMethod)
+                ,("httpVersion",show httpVersion)
+                ,("rawPathInfo",show rawPathInfo)
+                ,("rawQueryString",show rawQueryString)
+                ,("requestHeaders",show requestHeaders)
+                ,("isSecure",show isSecure)
+                ,("remoteHost",show remoteHost)
+                ,("pathInfo",show pathInfo)
+                ,("queryString",show queryString)
+                ,("requestBody","<IO ByteString>")
+                ,("vault","<Vault>")
+                ,("requestBodyLength",show requestBodyLength)
+                ,("requestHeaderHost",show requestHeaderHost)
+                ,("requestHeaderRange",show requestHeaderRange)
+                ]
+
+
 data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
@@ -90,7 +113,7 @@ type StreamingBody = (Builder -> IO ()) -> IO () -> IO ()
 -- not be known.
 --
 -- Since 1.4.0
-data RequestBodyLength = ChunkedBody | KnownLength Word64
+data RequestBodyLength = ChunkedBody | KnownLength Word64 deriving Show
 
 -- | Information on which part to be sent.
 --   Sophisticated application handles Range (and If-Range) then
