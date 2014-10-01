@@ -117,8 +117,8 @@ getCurrent settings@UpdateSettings{..} istatus = do
             join $ atomicModifyIORef' istatus $ turnToAuto a tid
             return a
   where
-    increment (AutoUpdated a cnt tid) = (AutoUpdated a (succ cnt) tid, Return a)
-    increment (ManualUpdates i)       = (ManualUpdates (succ i),       act)
+    increment (AutoUpdated a cnt tid) = (AutoUpdated a (cnt + 1) tid, Return a)
+    increment (ManualUpdates i)       = (ManualUpdates (i + 1),       act)
       where
         act = if i > updateSpawnThreshold then Spawn else Manual
 
