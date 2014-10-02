@@ -56,11 +56,10 @@ import GHC.IO (IO (IO))
 import Control.Concurrent (myThreadId)
 import qualified Control.Exception as E
 import GHC.Weak (Weak (..))
-import Network.Wai.Handler.Warp.IORef (IORef)
-import qualified Network.Wai.Handler.Warp.IORef as I
 import System.Mem.Weak (deRefWeak)
 import Data.Typeable (Typeable)
 import Control.Reaper
+import qualified Data.Atomics.Counter.Unboxed as C
 
 ----------------------------------------------------------------
 
@@ -71,12 +70,14 @@ type Manager = Reaper [Handle] Handle
 type TimeoutAction = IO ()
 
 -- | A handle used by 'Manager'
-data Handle = Handle TimeoutAction (IORef State)
+data Handle = Handle TimeoutAction {-# UNPACK #-} !C.AtomicCounter
 
-data State = Active    -- Manager turns it to Inactive.
-           | Inactive  -- Manager removes it with timeout action.
-           | Paused    -- Manager does not change it.
-           | Canceled  -- Manager removes it without timeout action.
+-- Four states for the AtomicCounter:
+--
+-- 1: Active    -- Manager turns it to Inactive.
+-- 2: Inactive  -- Manager removes it with timeout action.
+-- 3: Paused    -- Manager does not change it.
+-- 4: Canceled  -- Manager removes it without timeout action.
 
 ----------------------------------------------------------------
 
@@ -89,16 +90,14 @@ initialize timeout = mkReaper defaultReaperSettings
         }
   where
     prune m@(Handle onTimeout iactive) = do
-        state <- I.atomicModifyIORef' iactive (\x -> (inactivate x, x))
-        case state of
-            Inactive -> do
+        -- Try to change from active to inactive
+        (wasActive, newState) <- C.casCounter iactive 1 2
+        case newState of
+            2 | not wasActive -> do -- inactive
                 onTimeout `E.catch` ignoreAll
                 return Nothing
-            Canceled -> return Nothing
+            4 -> return Nothing -- canceled
             _        -> return $ Just m
-
-    inactivate Active = Inactive
-    inactivate x = x
 
 ----------------------------------------------------------------
 
@@ -116,7 +115,7 @@ ignoreAll _ = return ()
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
 register mgr onTimeout = do
-    iactive <- I.newIORef Active
+    iactive <- C.newCounter 1
     let h = Handle onTimeout iactive
     reaperAdd mgr h
     return h
@@ -153,17 +152,17 @@ mkWeakThreadId t@(ThreadId t#) = IO $ \s ->
 -- | Setting the state to active.
 --   'Manager' turns active to inactive repeatedly.
 tickle :: Handle -> IO ()
-tickle (Handle _ iactive) = I.writeIORef iactive Active
+tickle (Handle _ iactive) = C.writeCounter iactive 1
 
 -- | Setting the state to canceled.
 --   'Manager' eventually removes this without timeout action.
 cancel :: Handle -> IO ()
-cancel (Handle _ iactive) = I.writeIORef iactive Canceled
+cancel (Handle _ iactive) = C.writeCounter iactive 4
 
 -- | Setting the state to paused.
 --   'Manager' does not change the value.
 pause :: Handle -> IO ()
-pause (Handle _ iactive) = I.writeIORef iactive Paused
+pause (Handle _ iactive) = C.writeCounter iactive 3
 
 -- | Setting the paused state to active.
 --   This is an alias to 'tickle'.

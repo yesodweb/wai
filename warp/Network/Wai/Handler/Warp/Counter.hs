@@ -6,19 +6,19 @@ module Network.Wai.Handler.Warp.Counter (
   , decrease
   ) where
 
-import Network.Wai.Handler.Warp.IORef
+import qualified Data.Atomics.Counter.Unboxed as C
 import Control.Applicative ((<$>))
 
-newtype Counter = Counter (IORef Int)
+newtype Counter = Counter C.AtomicCounter
 
 newCounter :: IO Counter
-newCounter = Counter <$> newIORef 0
+newCounter = Counter <$> C.newCounter 0
 
 isZero :: Counter -> IO Bool
-isZero (Counter ref) = (== 0) <$> readIORef ref
+isZero (Counter ref) = (== 0) <$> C.readCounter ref
 
 increase :: Counter -> IO ()
-increase (Counter ref) = atomicModifyIORef' ref $ \x -> (x + 1, ())
+increase (Counter ref) = C.incrCounter_ 1 ref
 
 decrease :: Counter -> IO ()
-decrease (Counter ref) = atomicModifyIORef' ref $ \x -> (x - 1, ())
+decrease (Counter ref) = C.incrCounter_ (-1) ref
