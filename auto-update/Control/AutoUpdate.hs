@@ -28,7 +28,7 @@ import           Control.Concurrent      (forkIO, threadDelay)
 import           Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar,
                                           takeMVar, tryPutMVar, tryTakeMVar)
 import           Control.Exception       (SomeException, catch, throw)
-import           Control.Monad           (forever, void)
+import           Control.Monad           (forever, replicateM_, void)
 import           Data.IORef              (newIORef, readIORef, writeIORef)
 
 -- | Default value for creating an @UpdateSettings@.
@@ -142,7 +142,7 @@ mkAutoUpdate us = do
                 -- and block for the result from the worker
                 readMVar lastValue
   where
-    calcsPerRequest = max 1 (updateCalscPerRequest us)
+    calcsPerRequest = max 1 (updateCalcsPerRequest us)
 
 -- | Turn a runtime exception into an impure exception, so that all @IO@
 -- actions will complete successfully. This simply defers the exception until
