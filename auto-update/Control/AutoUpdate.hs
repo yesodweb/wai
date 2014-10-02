@@ -19,6 +19,7 @@ module Control.AutoUpdate (
     , updateFreq
     , updateSpawnThreshold
     , updateAction
+    , updateCalcsPerRequest
       -- * Creation
     , mkAutoUpdate
     ) where
@@ -38,6 +39,7 @@ defaultUpdateSettings = UpdateSettings
     { updateFreq = 1000000
     , updateSpawnThreshold = 3
     , updateAction = return ()
+    , updateCalcsPerRequest = 30
     }
 
 -- | Settings to control how values are updated.
@@ -74,6 +76,18 @@ data UpdateSettings a = UpdateSettings
     -- Default: does nothing.
     --
     -- Since 0.1.0
+    , updateCalcsPerRequest :: Int
+    -- ^ How many calculations to perform each time a value is requested.
+    --
+    -- Increasing this value means less time is spent checking if a requester
+    -- actually needs a value, but also means that the worker thread may end up
+    -- running longer than is necessary. This is essentially a
+    -- performance/power consumption tradeoff, and depends on your
+    -- application's needs.
+    --
+    -- Default: 30
+    --
+    -- Since 0.1.2
     }
 
 -- | Generate an action which will either read from an automatically
@@ -100,13 +114,16 @@ mkAutoUpdate us = do
         -- new value requested, so run the updateAction
         a <- catchSome $ updateAction us
 
-        -- we got a new value, update currRef and lastValue
-        writeIORef currRef $ Just a
-        void $ tryTakeMVar lastValue
-        putMVar lastValue a
+        -- calculate multiple times per filling up needsRunning to avoid MVar
+        -- contention
+        replicateM_ calcsPerRequest $ do
+            -- we got a new value, update currRef and lastValue
+            writeIORef currRef $ Just a
+            void $ tryTakeMVar lastValue
+            putMVar lastValue a
 
-        -- delay until we're needed again
-        threadDelay $ updateFreq us
+            -- delay until we're needed again
+            threadDelay $ updateFreq us
 
         -- delay's over, clear out currRef and lastValue so that demanding the
         -- value again forces us to start work
@@ -124,6 +141,8 @@ mkAutoUpdate us = do
 
                 -- and block for the result from the worker
                 readMVar lastValue
+  where
+    calcsPerRequest = max 1 (updateCalscPerRequest us)
 
 -- | Turn a runtime exception into an impure exception, so that all @IO@
 -- actions will complete successfully. This simply defers the exception until
