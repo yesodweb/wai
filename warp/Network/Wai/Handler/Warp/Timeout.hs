@@ -59,7 +59,12 @@ import GHC.Weak (Weak (..))
 import System.Mem.Weak (deRefWeak)
 import Data.Typeable (Typeable)
 import Control.Reaper
+#if USE_ATOMIC_PRIMOPS
 import qualified Data.Atomics.Counter.Unboxed as C
+import Data.Atomics.Counter.Unboxed (casCounter)
+#else
+import Network.Wai.Handler.Warp.IORef
+#endif
 
 ----------------------------------------------------------------
 
@@ -70,7 +75,12 @@ type Manager = Reaper [Handle] Handle
 type TimeoutAction = IO ()
 
 -- | A handle used by 'Manager'
-data Handle = Handle TimeoutAction {-# UNPACK #-} !C.AtomicCounter
+data Handle = Handle TimeoutAction
+#if USE_ATOMIC_PRIMOPS
+    {-# UNPACK #-} !C.AtomicCounter
+#else
+    {-# UNPACK #-} !(IORef Int)
+#endif
 
 -- Four states for the AtomicCounter:
 --
@@ -91,13 +101,21 @@ initialize timeout = mkReaper defaultReaperSettings
   where
     prune m@(Handle onTimeout iactive) = do
         -- Try to change from active to inactive
-        (wasActive, newState) <- C.casCounter iactive 1 2
+        (wasActive, newState) <- casCounter iactive 1 2
         case newState of
             2 | not wasActive -> do -- inactive
                 onTimeout `E.catch` ignoreAll
                 return Nothing
             4 -> return Nothing -- canceled
             _        -> return $ Just m
+
+#if !USE_ATOMIC_PRIMOPS
+casCounter :: IORef Int -> Int -> Int -> IO (Bool, Int)
+casCounter ref old new = atomicModifyIORef' ref $ \curr ->
+    if old == curr
+        then (new, (True, new))
+        else (old, (False, old))
+#endif
 
 ----------------------------------------------------------------
 
@@ -115,7 +133,11 @@ ignoreAll _ = return ()
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
 register mgr onTimeout = do
+#if USE_ATOMIC_PRIMOPS
     iactive <- C.newCounter 1
+#else
+    iactive <- newIORef 1
+#endif
     let h = Handle onTimeout iactive
     reaperAdd mgr h
     return h
@@ -149,20 +171,28 @@ mkWeakThreadId t@(ThreadId t#) = IO $ \s ->
 
 ----------------------------------------------------------------
 
+writeCounter :: Int -> Handle -> IO ()
+#if USE_ATOMIC_PRIMOPS
+writeCounter i (Handle _ iactive) = C.writeCounter iactive i
+#else
+writeCounter i (Handle _ iactive) = writeIORef iactive i
+#endif
+{-# INLINE writeCounter #-}
+
 -- | Setting the state to active.
 --   'Manager' turns active to inactive repeatedly.
 tickle :: Handle -> IO ()
-tickle (Handle _ iactive) = C.writeCounter iactive 1
+tickle = writeCounter 1
 
 -- | Setting the state to canceled.
 --   'Manager' eventually removes this without timeout action.
 cancel :: Handle -> IO ()
-cancel (Handle _ iactive) = C.writeCounter iactive 4
+cancel = writeCounter 4
 
 -- | Setting the state to paused.
 --   'Manager' does not change the value.
 pause :: Handle -> IO ()
-pause (Handle _ iactive) = C.writeCounter iactive 3
+pause = writeCounter 3
 
 -- | Setting the paused state to active.
 --   This is an alias to 'tickle'.
