@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE RecordWildCards    #-}
-
 -- | A common problem is the desire to have an action run at a scheduled
 -- interval, but only if it is needed. For example, instead of having
 -- every web request result in a new @getCurrentTime@ call, we'd like to
