@@ -52,7 +52,6 @@ Library
                    , wai                       >= 3.0      && < 3.1
                    , text
                    , streaming-commons         >= 0.1.2
-                   , atomic-primops            >= 0.6
   if flag(network-bytestring)
       Build-Depends: network                   >= 2.2.1.5  && < 2.2.3
                    , network-bytestring        >= 0.1.3    && < 0.1.4
@@ -144,7 +143,6 @@ Test-Suite spec
                    , text
                    , streaming-commons >= 0.1.1
                    , async
-                   , atomic-primops
 
   if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
     Cpp-Options:   -DSENDFILEFD
