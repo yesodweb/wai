@@ -23,7 +23,7 @@ module Control.AutoUpdate (
 import           Control.Concurrent      (forkIO, threadDelay)
 import           Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar,
                                           takeMVar, tryPutMVar, tryTakeMVar)
-import           Control.Exception       (SomeException, catch, throw)
+import           Control.Exception       (SomeException, catch, throw, mask_, try)
 import           Control.Monad           (forever, void)
 import           Data.IORef              (newIORef, readIORef, writeIORef)
 
@@ -89,8 +89,33 @@ mkAutoUpdate us = do
     -- is Nothing.
     lastValue <- newEmptyMVar
 
-    -- fork the worker thread immediately...
-    void $ forkIO $ forever $ do
+    -- This is used to set a value in the currRef variable when the worker
+    -- thread exits. In reality, that value should never be used, since the
+    -- worker thread exiting only occurs if an async exception is thrown, which
+    -- should only occur if there are no references to needsRunning left.
+    -- However, this handler will make error messages much clearer if there's a
+    -- bug in the implementation.
+    let fillRefOnExit f = do
+            eres <- try f
+            case eres of
+                Left e -> writeIORef currRef $ error $
+                    "Control.AutoUpdate.mkAutoUpdate: worker thread exited with exception: "
+                    ++ (show (e :: SomeException))
+                Right () -> writeIORef currRef $ error $
+                    "Control.AutoUpdate.mkAutoUpdate: worker thread exited normally, "
+                    ++ "which should be impossible due to usage of forever"
+
+    -- fork the worker thread immediately. Note that we mask async exceptions,
+    -- but *not* in an uninterruptible manner. This will allow a
+    -- BlockedIndefinitelyOnMVar exception to still be thrown, which will take
+    -- down this thread when all references to the returned function are
+    -- garbage collected, and therefore there is no thread that can fill the
+    -- needsRunning MVar.
+    --
+    -- Note that since we throw away the ThreadId of this new thread and never
+    -- calls myThreadId, normal async exceptions can never be thrown to it,
+    -- only RTS exceptions.
+    mask_ $ void $ forkIO $ fillRefOnExit $ forever $ do
         -- but block until a value is actually needed
         takeMVar needsRunning
 
