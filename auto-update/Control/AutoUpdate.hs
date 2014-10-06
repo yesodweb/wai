@@ -22,7 +22,7 @@ module Control.AutoUpdate (
 
 import           Control.Concurrent      (forkIO, threadDelay)
 import           Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar,
-                                          takeMVar, tryPutMVar, tryTakeMVar)
+                                          takeMVar, tryPutMVar)
 import           Control.Exception       (SomeException, catch, throw, mask_, try)
 import           Control.Monad           (void)
 import           Data.IORef              (newIORef, readIORef, writeIORef)
