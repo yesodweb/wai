@@ -16,6 +16,7 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
+  ghc-options:         -Wall
   exposed-modules:     Control.AutoUpdate
                        Control.Reaper
   other-modules:       Control.AutoUpdate.Util
