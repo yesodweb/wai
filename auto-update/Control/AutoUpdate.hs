@@ -102,7 +102,7 @@ mkAutoUpdate us = do
             case eres of
                 Left e -> writeIORef currRef $ error $
                     "Control.AutoUpdate.mkAutoUpdate: worker thread exited with exception: "
-                    ++ (show (e :: SomeException))
+                    ++ show (e :: SomeException)
                 Right () -> writeIORef currRef $ error $
                     "Control.AutoUpdate.mkAutoUpdate: worker thread exited normally, "
                     ++ "which should be impossible due to usage of infinite loop"
