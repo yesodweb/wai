@@ -29,7 +29,7 @@ import Network.Wai.Handler.Warp
 import Network.Wai (Application)
 import Network.Socket (Socket, sClose, withSocketsDo)
 import qualified Data.ByteString.Lazy as L
-import Control.Exception (bracket, finally, handle)
+import Control.Exception (bracket, finally, handle, fromException, try, IOException)
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.ByteString as B
 import Data.Streaming.Network (bindPortTCP, acceptSafe, safeRecv)
@@ -41,9 +41,10 @@ import Data.Default.Class (def)
 import qualified Crypto.Random.AESCtr
 import Network.Wai.Handler.Warp.Buffer (allocateBuffer, bufferSize, freeBuffer)
 import Network.Socket.ByteString (sendAll)
-import Control.Monad (unless)
+import Control.Monad (unless, void)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import qualified System.IO as IO
+import System.IO.Error (isEOFError)
 
 data TLSSettings = TLSSettings
     { certFile :: FilePath
@@ -172,11 +173,13 @@ runTLSSocket TLSSettings {..} set sock app = do
                             , connClose =
                                 freeBuffer readBuf `finally`
                                 freeBuffer writeBuf `finally`
-                                TLS.bye ctx `finally`
+                                void (tryIO $ TLS.bye ctx) `finally`
                                 TLS.contextClose ctx
                             , connRecv =
-                                let onEOF TLS.Error_EOF = return B.empty
-                                    onEOF e = throwIO e
+                                let onEOF e
+                                        | Just TLS.Error_EOF <- fromException e = return B.empty
+                                        | Just ioe <- fromException e, isEOFError ioe = return B.empty
+                                        | otherwise = throwIO e
                                     go = do
                                         x <- TLS.recvData ctx
                                         if B.null x
@@ -223,3 +226,6 @@ ciphers =
     , TLSExtra.cipher_RC4_128_MD5
     , TLSExtra.cipher_RC4_128_SHA1
     ]
+
+tryIO :: IO a -> IO (Either IOException a)
+tryIO = try
