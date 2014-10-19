@@ -67,16 +67,17 @@ mapRight f eith = case eith of
 
 fileRange :: H.Status -> H.ResponseHeaders -> FilePath
            -> Maybe FilePart -> Maybe HeaderValue
+          -> IndexedHeader
           -> IO (Either IOException
                         (H.Status, H.ResponseHeaders, Integer, Integer))
-fileRange s0 hs0 path mPart mRange =
+fileRange s0 hs0 path mPart mRange rspidxhdr =
     mapRight (fileRangeSized . fromIntegral . P.fileSize) <$>
         try (P.getFileStatus path)
  where
     fileRangeSized :: Integer -> (H.Status, H.ResponseHeaders, Integer, Integer)
     fileRangeSized fileSize =
         let (beg, end, len, isEntire) = checkPartRange fileSize mPart mRange
-            hs1 = addContentLength len hs0
+            hs1 = addContentLength rspidxhdr len hs0
             hs | isEntire  = hs1
                | otherwise = addContentRange beg end fileSize hs1
             s  | isEntire  = s0
@@ -213,7 +214,7 @@ sendRsp :: Connection
         -> Rsp
         -> IO ()
 sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
-    ex <- fileRange s0 hs path mPart mRange
+    ex <- fileRange s0 hs path mPart mRange rspidxhdr
     case ex of
         Left _ex ->
 #ifdef WARP_DEBUG
@@ -228,6 +229,7 @@ sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
     s2 = H.status404
     hs2 =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
     body = fromByteString "File not found"
+    rspidxhdr = indexResponseHeader hs0
 
 ----------------------------------------------------------------
 
@@ -356,8 +358,10 @@ addAcceptRanges hdrs = (hAcceptRanges, "bytes") : hdrs
 addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
 addTransferEncoding hdrs = (hTransferEncoding, "chunked") : hdrs
 
-addContentLength :: Integer -> H.ResponseHeaders -> H.ResponseHeaders
-addContentLength cl hdrs = (H.hContentLength, len) : hdrs
+addContentLength :: IndexedHeader -> Integer -> H.ResponseHeaders -> H.ResponseHeaders
+addContentLength rspidxhdr cl hdrs = case rspidxhdr ! idxContentLength of
+    Nothing -> (H.hContentLength, len) : hdrs
+    Just _ -> hdrs
   where
     len = B.pack $ show cl
 

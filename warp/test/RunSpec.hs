@@ -378,6 +378,24 @@ spec = do
             Right res <- HTTP.simpleHTTP (HTTP.getRequest $ "http://127.0.0.1:" ++ show port)
             HTTP.rspBody res `shouldBe` "HelloHelloHelloHello"
 
+    it "file with length: one content-length header" $ do
+        let fp = "LICENSE"
+        size <- fmap S.length $ S.readFile fp
+        let app _ = ($ responseFile status200 [("content-length", S8.pack $ show size)] fp Nothing)
+        withApp defaultSettings app $ \port -> do
+            Right res <- HTTP.simpleHTTP (HTTP.getRequest $ "http://127.0.0.1:" ++ show port)
+            map HTTP.hdrValue (HTTP.retrieveHeaders HTTP.HdrContentLength res)
+                `shouldBe` [show size]
+
+    it "file without length: one content-length header" $ do
+        let fp = "LICENSE"
+        size <- fmap S.length $ S.readFile fp
+        let app _ = ($ responseFile status200 [] fp Nothing)
+        withApp defaultSettings app $ \port -> do
+            Right res <- HTTP.simpleHTTP (HTTP.getRequest $ "http://127.0.0.1:" ++ show port)
+            map HTTP.hdrValue (HTTP.retrieveHeaders HTTP.HdrContentLength res)
+                `shouldBe` [show size]
+
 consumeBody :: IO ByteString -> IO [ByteString]
 consumeBody body =
     loop id
