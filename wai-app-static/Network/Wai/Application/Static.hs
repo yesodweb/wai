@@ -212,7 +212,9 @@ staticAppPieces ss rawPieces req sendResponse = liftIO $ do
         mimetype <- ssGetMimeType ss file
         let filesize = fileGetSize file
         let headers = ("Content-Type", mimetype)
-                    : ("Content-Length", S8.pack $ show filesize)
+                    -- Let Warp provide the content-length, since it takes
+                    -- range requests into account
+                    -- : ("Content-Length", S8.pack $ show filesize)
                     : ch
         sendResponse $ fileToResponse file H.status200 headers
 
