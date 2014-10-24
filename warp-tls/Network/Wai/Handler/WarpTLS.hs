@@ -17,6 +17,7 @@ module Network.Wai.Handler.WarpTLS (
     , tlsCiphers
     , defaultTlsSettings
     , tlsSettings
+    , tlsSettingsMemory
     , OnInsecure (..)
     -- * Runner
     , runTLS
@@ -29,6 +30,7 @@ import qualified Network.TLS as TLS
 import Network.Wai.Handler.Warp
 import Network.Wai (Application)
 import Network.Socket (Socket, sClose, withSocketsDo, SockAddr)
+import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Control.Exception (bracket, finally, handle, fromException, try, IOException)
 import qualified Network.TLS.Extra as TLSExtra
@@ -53,6 +55,8 @@ data TLSSettings = TLSSettings {
     certFile :: FilePath
     -- ^ File containing the certificate.
   , keyFile :: FilePath
+  , certMemory :: Maybe S.ByteString
+  , keyMemory :: Maybe S.ByteString
     -- ^ File containing the key
   , onInsecure :: OnInsecure
     -- ^ Do we allow insecure connections with this server as well? Default
@@ -84,6 +88,8 @@ defaultTlsSettings :: TLSSettings
 defaultTlsSettings = TLSSettings {
     certFile = "certificate.pem"
   , keyFile = "key.pem"
+  , certMemory = Nothing
+  , keyMemory = Nothing
   , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
   , tlsLogging = def
   , tlsAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
@@ -116,7 +122,21 @@ tlsSettings cert key = defaultTlsSettings {
   , keyFile = key
   }
 
+-- | A smart constructor for 'TLSSettings', but uses in-memory representations
+-- of the certificate and key
+--
+-- Since 3.0.1
+tlsSettingsMemory
+    :: S.ByteString -- ^ Certificate bytes
+    -> S.ByteString -- ^ Key bytes
+    -> TLSSettings
+tlsSettingsMemory cert key = defaultTlsSettings
+    { certMemory = Just cert
+    , keyMemory = Just key
+    }
+
 ----------------------------------------------------------------
+
 
 -- | Running 'Application' with 'TLSSettings' and 'Settings'.
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
@@ -132,7 +152,12 @@ runTLS tset set app = withSocketsDo $
 --   specified 'Socket'.
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket tlsset@TLSSettings{..} set sock app = do
-    credential <- either error id <$> TLS.credentialLoadX509 certFile keyFile
+    credential <- case (certMemory, keyMemory) of
+        (Nothing, Nothing) -> either error id <$> TLS.credentialLoadX509 certFile keyFile
+        (mcert, mkey) -> do
+            cert <- maybe (S.readFile certFile) return mcert
+            key <- maybe (S.readFile keyFile) return mkey
+            either error return $ TLS.credentialLoadX509FromMemory cert key
     runTLSSocket' tlsset set credential sock app
 
 runTLSSocket' :: TLSSettings -> Settings -> TLS.Credential -> Socket -> Application -> IO ()
