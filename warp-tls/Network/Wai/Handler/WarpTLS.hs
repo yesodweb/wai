@@ -72,7 +72,7 @@ data TLSSettings = TLSSettings {
   , tlsAllowedVersions :: [TLS.Version]
     -- ^ The TLS versions this server accepts.
     --
-    -- Default: '[TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]'.
+    -- Default: '[TLS.TLS10,TLS.TLS11,TLS.TLS12]'.
     --
     -- Since 1.4.2
   , tlsCiphers :: [TLS.Cipher]
@@ -92,7 +92,7 @@ defaultTlsSettings = TLSSettings {
   , keyMemory = Nothing
   , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
   , tlsLogging = def
-  , tlsAllowedVersions = [TLS.SSL3,TLS.TLS10,TLS.TLS11,TLS.TLS12]
+  , tlsAllowedVersions = [TLS.TLS10,TLS.TLS11,TLS.TLS12]
   , tlsCiphers = ciphers
   }
 
