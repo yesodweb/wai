@@ -158,7 +158,7 @@ caseParseRequestBody =
         let content1 = "foo=bar&baz=bin"
         let ctype1 = "application/x-www-form-urlencoded"
         result1 <- parseRequestBody' lbsBackEnd $ toRequest ctype1 content1
-        liftIO $ assertEqual "parsing post x-www-form-urlencoded"
+        assertEqual "parsing post x-www-form-urlencoded"
                     (map (S8.pack *** S8.pack) [("foo", "bar"), ("baz", "bin")], [])
                     result1
 
@@ -173,7 +173,7 @@ caseParseRequestBody =
               [(S8.pack "document", FileInfo (S8.pack "b.txt") textPlain $ L8.pack
                  "This is a file.\nIt has two lines.")]
         let expected2 = (map (S8.pack *** S8.pack) expectedsmap2, expectedfile2)
-        liftIO $ assertEqual "parsing post multipart/form-data"
+        assertEqual "parsing post multipart/form-data"
                     expected2
                     result2
 
@@ -183,24 +183,24 @@ caseParseRequestBody =
         let expectedfile3 = [(S8.pack "yaml", FileInfo (S8.pack "README") (S8.pack "application/octet-stream") $
                                 L8.pack "Photo blog using Hack.\n")]
         let expected3 = (expectedsmap3, expectedfile3)
-        liftIO $ assertEqual "parsing actual post multipart/form-data"
+        assertEqual "parsing actual post multipart/form-data"
                     expected3
                     result3
 
         result2' <- parseRequestBody' lbsBackEnd $ toRequest' ctype2 content2
-        liftIO $ assertEqual "parsing post multipart/form-data 2"
+        assertEqual "parsing post multipart/form-data 2"
                     expected2
                     result2'
 
         result3' <- parseRequestBody' lbsBackEnd $ toRequest' ctype3 content3
-        liftIO $ assertEqual "parsing actual post multipart/form-data 2"
+        assertEqual "parsing actual post multipart/form-data 2"
                     expected3
                     result3'
 
 caseMultipartPlus :: Assertion
 caseMultipartPlus = do
     result <- parseRequestBody' lbsBackEnd $ toRequest ctype content
-    liftIO $ result @?= ([("email", "has+plus")], [])
+    result @?= ([("email", "has+plus")], [])
   where
     content = S8.pack $
         "--AaB03x\n" ++
@@ -213,7 +213,7 @@ caseMultipartPlus = do
 caseMultipartAttrs :: Assertion
 caseMultipartAttrs = do
     result <- parseRequestBody' lbsBackEnd $ toRequest ctype content
-    liftIO $ result @?= ([("email", "has+plus")], [])
+    result @?= ([("email", "has+plus")], [])
   where
     content = S8.pack $
         "--AaB03x\n" ++
@@ -227,7 +227,7 @@ caseUrlEncPlus :: Assertion
 caseUrlEncPlus = do
     result <- runResourceT $ withInternalState $ \state ->
               parseRequestBody' (tempFileBackEnd state) $ toRequest ctype content
-    liftIO $ result @?= ([("email", "has+plus")], [])
+    result @?= ([("email", "has+plus")], [])
   where
     content = S8.pack $ "email=has%2Bplus"
     ctype = "application/x-www-form-urlencoded"
