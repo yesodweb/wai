@@ -78,6 +78,7 @@ test-suite spec
     hs-source-dirs:  test
     main-is:         Spec.hs
     other-modules:   Network.Wai.TestSpec
+                     Network.Wai.ParseSpec
                      WaiExtraSpec
     build-depends:   base                      >= 4        && < 5
                    , wai-extra
