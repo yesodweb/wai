@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module WaiExtraTest (specs) where
+module WaiExtraSpec where
 
 import Test.Hspec
 import Test.HUnit hiding (Test)
@@ -38,8 +38,8 @@ import System.IO (withFile, IOMode (ReadMode))
 
 import qualified Data.IORef as I
 
-specs :: Spec
-specs = do
+spec :: Spec
+spec = do
   describe "Network.Wai.UrlMap" $ do
     mapM_ (uncurry it) casesUrlMap
 
