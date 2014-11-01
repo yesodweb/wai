@@ -11,12 +11,10 @@ import Network.Wai.Parse
 import Network.Wai.UrlMap
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
-import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text.Lazy as T
 import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
-import Control.Arrow
 import Control.Applicative
 import Control.Monad.Trans.Resource (withInternalState, runResourceT)
 
@@ -82,8 +80,7 @@ spec = do
 
 caseParseQueryString :: Assertion
 caseParseQueryString = do
-    let go l r =
-            map (S8.pack *** S8.pack) l @=? parseSimpleQuery (S8.pack r)
+    let go l r = l @=? parseSimpleQuery r
 
     go [] ""
     go [("foo", "")] "foo"
@@ -98,9 +95,7 @@ caseParseQueryString = do
 
 caseParseQueryStringQM :: Assertion
 caseParseQueryStringQM = do
-    let go l r =
-            map (S8.pack *** S8.pack) l
-                @=? parseSimpleQuery (S8.pack $ '?' : r)
+    let go l r = l @=? parseSimpleQuery ("?" <> r)
 
     go [] ""
     go [("foo", "")] "foo"
@@ -137,29 +132,29 @@ caseParseRequestBody :: Assertion
 caseParseRequestBody =
     t
   where
-    content2 = S8.pack $
-        "--AaB03x\n" ++
-        "Content-Disposition: form-data; name=\"document\"; filename=\"b.txt\"\n" ++
-        "Content-Type: text/plain; charset=iso-8859-1\n\n" ++
-        "This is a file.\n" ++
-        "It has two lines.\n" ++
-        "--AaB03x\n" ++
-        "Content-Disposition: form-data; name=\"title\"\n" ++
-        "Content-Type: text/plain; charset=iso-8859-1\n\n" ++
-        "A File\n" ++
-        "--AaB03x\n" ++
-        "Content-Disposition: form-data; name=\"summary\"\n" ++
-        "Content-Type: text/plain; charset=iso-8859-1\n\n" ++
-        "This is my file\n" ++
-        "file test\n" ++
+    content2 =
+        "--AaB03x\n" <>
+        "Content-Disposition: form-data; name=\"document\"; filename=\"b.txt\"\n" <>
+        "Content-Type: text/plain; charset=iso-8859-1\n\n" <>
+        "This is a file.\n" <>
+        "It has two lines.\n" <>
+        "--AaB03x\n" <>
+        "Content-Disposition: form-data; name=\"title\"\n" <>
+        "Content-Type: text/plain; charset=iso-8859-1\n\n" <>
+        "A File\n" <>
+        "--AaB03x\n" <>
+        "Content-Disposition: form-data; name=\"summary\"\n" <>
+        "Content-Type: text/plain; charset=iso-8859-1\n\n" <>
+        "This is my file\n" <>
+        "file test\n" <>
         "--AaB03x--"
-    content3 = S8.pack "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\nContent-Disposition: form-data; name=\"yaml\"; filename=\"README\"\r\nContent-Type: application/octet-stream\r\n\r\nPhoto blog using Hack.\n\r\n------WebKitFormBoundaryB1pWXPZ6lNr8RiLh--\r\n"
+    content3 = "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\nContent-Disposition: form-data; name=\"yaml\"; filename=\"README\"\r\nContent-Type: application/octet-stream\r\n\r\nPhoto blog using Hack.\n\r\n------WebKitFormBoundaryB1pWXPZ6lNr8RiLh--\r\n"
     t = do
         let content1 = "foo=bar&baz=bin"
         let ctype1 = "application/x-www-form-urlencoded"
         result1 <- parseRequestBody' lbsBackEnd $ toRequest ctype1 content1
         assertEqual "parsing post x-www-form-urlencoded"
-                    (map (S8.pack *** S8.pack) [("foo", "bar"), ("baz", "bin")], [])
+                    ([("foo", "bar"), ("baz", "bin")], [])
                     result1
 
         let ctype2 = "multipart/form-data; boundary=AaB03x"
@@ -168,11 +163,10 @@ caseParseRequestBody =
               [ ("title", "A File")
               , ("summary", "This is my file\nfile test")
               ]
-        let textPlain = S8.pack $ "text/plain; charset=iso-8859-1"
+        let textPlain = "text/plain; charset=iso-8859-1"
         let expectedfile2 =
-              [(S8.pack "document", FileInfo (S8.pack "b.txt") textPlain $ L8.pack
-                 "This is a file.\nIt has two lines.")]
-        let expected2 = (map (S8.pack *** S8.pack) expectedsmap2, expectedfile2)
+              [("document", FileInfo "b.txt" textPlain "This is a file.\nIt has two lines.")]
+        let expected2 = (expectedsmap2, expectedfile2)
         assertEqual "parsing post multipart/form-data"
                     expected2
                     result2
@@ -180,8 +174,7 @@ caseParseRequestBody =
         let ctype3 = "multipart/form-data; boundary=----WebKitFormBoundaryB1pWXPZ6lNr8RiLh"
         result3 <- parseRequestBody' lbsBackEnd $ toRequest ctype3 content3
         let expectedsmap3 = []
-        let expectedfile3 = [(S8.pack "yaml", FileInfo (S8.pack "README") (S8.pack "application/octet-stream") $
-                                L8.pack "Photo blog using Hack.\n")]
+        let expectedfile3 = [("yaml", FileInfo "README" "application/octet-stream" "Photo blog using Hack.\n")]
         let expected3 = (expectedsmap3, expectedfile3)
         assertEqual "parsing actual post multipart/form-data"
                     expected3
@@ -202,11 +195,11 @@ caseMultipartPlus = do
     result <- parseRequestBody' lbsBackEnd $ toRequest ctype content
     result @?= ([("email", "has+plus")], [])
   where
-    content = S8.pack $
-        "--AaB03x\n" ++
-        "Content-Disposition: form-data; name=\"email\"\n" ++
-        "Content-Type: text/plain; charset=iso-8859-1\n\n" ++
-        "has+plus\n" ++
+    content =
+        "--AaB03x\n" <>
+        "Content-Disposition: form-data; name=\"email\"\n" <>
+        "Content-Type: text/plain; charset=iso-8859-1\n\n" <>
+        "has+plus\n" <>
         "--AaB03x--"
     ctype = "multipart/form-data; boundary=AaB03x"
 
@@ -215,11 +208,11 @@ caseMultipartAttrs = do
     result <- parseRequestBody' lbsBackEnd $ toRequest ctype content
     result @?= ([("email", "has+plus")], [])
   where
-    content = S8.pack $
-        "--AaB03x\n" ++
-        "Content-Disposition: form-data; name=\"email\"\n" ++
-        "Content-Type: text/plain; charset=iso-8859-1\n\n" ++
-        "has+plus\n" ++
+    content =
+        "--AaB03x\n" <>
+        "Content-Disposition: form-data; name=\"email\"\n" <>
+        "Content-Type: text/plain; charset=iso-8859-1\n\n" <>
+        "has+plus\n" <>
         "--AaB03x--"
     ctype = "multipart/form-data; charset=UTF-8; boundary=AaB03x"
 
@@ -229,7 +222,7 @@ caseUrlEncPlus = do
               parseRequestBody' (tempFileBackEnd state) $ toRequest ctype content
     result @?= ([("email", "has+plus")], [])
   where
-    content = S8.pack $ "email=has%2Bplus"
+    content = "email=has%2Bplus"
     ctype = "application/x-www-form-urlencoded"
 
 toRequest :: S8.ByteString -> S8.ByteString -> SRequest
@@ -249,20 +242,20 @@ toRequest' ctype content = SRequest defaultRequest
 {-
 caseFindBound :: Assertion
 caseFindBound = do
-    findBound (S8.pack "def") (S8.pack "abcdefghi") @?=
-        FoundBound (S8.pack "abc") (S8.pack "ghi")
-    findBound (S8.pack "def") (S8.pack "ABC") @?= NoBound
-    findBound (S8.pack "def") (S8.pack "abcd") @?= PartialBound
-    findBound (S8.pack "def") (S8.pack "abcdE") @?= NoBound
-    findBound (S8.pack "def") (S8.pack "abcdEdef") @?=
-        FoundBound (S8.pack "abcdE") (S8.pack "")
+    findBound "def" "abcdefghi" @?=
+        FoundBound "abc" "ghi"
+    findBound "def" "ABC" @?= NoBound
+    findBound "def" "abcd" @?= PartialBound
+    findBound "def" "abcdE" @?= NoBound
+    findBound "def" "abcdEdef" @?=
+        FoundBound "abcdE" ""
 
 caseSinkTillBound :: Assertion
 caseSinkTillBound = do
     let iter () _ = return ()
-    let src = S8.pack "this is some text"
-        bound1 = S8.pack "some"
-        bound2 = S8.pack "some!"
+    let src = "this is some text"
+        bound1 = "some"
+        bound2 = "some!"
     let enum = enumList 1 [src]
     let helper _ _ = return ()
     (_, res1) <- run_ $ enum $$ sinkTillBound bound1 helper ()
