@@ -28,7 +28,7 @@ import Codec.Compression.GZip (decompress)
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
-import Network.HTTP.Types (parseSimpleQuery, status200)
+import Network.HTTP.Types (status200)
 import System.Log.FastLogger
 
 import qualified Data.IORef as I
@@ -39,8 +39,6 @@ spec = do
     mapM_ (uncurry it) casesUrlMap
 
   describe "Network.Wai" $ do
-    it "parseQueryString" caseParseQueryString
-    it "parseQueryString with question mark" caseParseQueryStringQM
     {-
     , it "findBound" caseFindBound
     , it "sinkTillBound" caseSinkTillBound
@@ -59,36 +57,6 @@ spec = do
     it "method override post" caseMethodOverridePost
     it "accept override" caseAcceptOverride
     it "debug request body" caseDebugRequestBody
-
-caseParseQueryString :: Assertion
-caseParseQueryString = do
-    let go l r = l @=? parseSimpleQuery r
-
-    go [] ""
-    go [("foo", "")] "foo"
-    go [("foo", "bar")] "foo=bar"
-    go [("foo", "bar"), ("baz", "bin")] "foo=bar&baz=bin"
-    go [("%Q", "")] "%Q"
-    go [("%1Q", "")] "%1Q"
-    go [("%1", "")] "%1"
-    go [("/", "")] "%2F"
-    go [("/", "")] "%2f"
-    go [("foo bar", "")] "foo+bar"
-
-caseParseQueryStringQM :: Assertion
-caseParseQueryStringQM = do
-    let go l r = l @=? parseSimpleQuery ("?" <> r)
-
-    go [] ""
-    go [("foo", "")] "foo"
-    go [("foo", "bar")] "foo=bar"
-    go [("foo", "bar"), ("baz", "bin")] "foo=bar&baz=bin"
-    go [("%Q", "")] "%Q"
-    go [("%1Q", "")] "%1Q"
-    go [("%1", "")] "%1"
-    go [("/", "")] "%2F"
-    go [("/", "")] "%2f"
-    go [("foo bar", "")] "foo+bar"
 
 toRequest :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest ctype content = SRequest defaultRequest
