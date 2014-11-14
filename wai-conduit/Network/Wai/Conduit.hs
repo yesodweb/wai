@@ -53,8 +53,8 @@ responseRawSource :: (MonadIO m, MonadIO n)
                   => (Source m ByteString -> Sink ByteString n () -> IO ())
                   -> Response
                   -> Response
-responseRawSource app backup =
-    responseRaw app' backup
+responseRawSource app =
+    responseRaw app'
   where
     app' recv send =
         app src sink
