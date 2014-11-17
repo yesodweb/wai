@@ -1,5 +1,5 @@
 name:            wai-app-static
-version:         3.0.0.2
+version:         3.0.0.3
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -17,6 +17,7 @@ Extra-source-files:
   test/*.hs
   test/a/b
   tests.hs
+  ChangeLog.md
 
 Flag print
     Description:   print debug info

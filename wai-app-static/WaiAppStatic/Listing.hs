@@ -11,7 +11,9 @@ import qualified Data.Text as T
 import Data.Time
 import Data.Time.Clock.POSIX
 import WaiAppStatic.Types
+#if !MIN_VERSION_time(1,5,0)
 import System.Locale (defaultTimeLocale)
+#endif
 import Data.List (sortBy)
 import Util
 
