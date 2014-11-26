@@ -293,7 +293,7 @@ serveConnection conn ii addr isSecure' settings app = do
     errorResponse e = settingsOnExceptionResponse settings e
 
     recvSendLoop istatus fromClient = do
-        (req', idxhdr) <- recvRequest settings conn ii addr fromClient
+        (req', mremainingRef, idxhdr) <- recvRequest settings conn ii addr fromClient
         let req = req' { isSecure = isSecure' }
         -- Let the application run for as long as it wants
         T.pause th
@@ -326,18 +326,36 @@ serveConnection conn ii addr isSecure' settings app = do
         Conc.yield
 
         when keepAlive $ do
-            -- flush the rest of the request body
-            flushBody $ requestBody req
-            T.resume th
-            recvSendLoop istatus fromClient
+            -- If there is an unknown or large amount of data to still be read
+            -- from the request body, simple drop this connection instead of
+            -- reading it all in to satisfy a keep-alive request.
+            let maxToRead = 8192 -- FIXME too low?
+                tryKeepAlive = do
+                    -- flush the rest of the request body
+                    isComplete <- flushBody (requestBody req) maxToRead
+                    when isComplete $ do
+                        T.resume th
+                        recvSendLoop istatus fromClient
+            case mremainingRef of
+                Just ref -> do
+                    remaining <- readIORef ref
+                    when (remaining <= maxToRead) tryKeepAlive
+                Nothing -> tryKeepAlive
 
-flushBody :: IO ByteString -> IO ()
+flushBody :: IO ByteString -- ^ get next chunk
+          -> Int -- ^ maximum to flush
+          -> IO Bool -- ^ True == flushed the entire body, False == we didn't
 flushBody src =
     loop
   where
-    loop = do
+    loop toRead = do
         bs <- src
-        unless (S.null bs) loop
+        let toRead' = toRead - S.length bs
+        case () of
+            ()
+                | S.null bs -> return True
+                | toRead' >= 0 -> loop toRead'
+                | otherwise -> return False
 
 connSource :: Connection -> T.Handle -> IORef Bool -> IO ByteString
 connSource Connection { connRecv = recv } th istatus = do

@@ -1,3 +1,16 @@
+## 3.0.2.4
+
+Modify flushing of request bodies. Previously, regardless of the size of the
+request body, the entire body would be flushed. When uploading large files to a
+web app that does not accept such files (e.g., returns a 413 too large status),
+browsers would still send the entire request body and the servers will still
+receive it.
+
+The new behavior is to detect if there is a large amount of data still to be
+consumed and, if so, immediately terminate the connection. In the case of
+chunked request bodies, up to a maximum number of bytes is consumed before the
+connection is terminated.
+
 ## 3.0.0
 
 WAI no longer uses conduit for its streaming interface.

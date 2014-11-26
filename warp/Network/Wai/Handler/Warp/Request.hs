@@ -47,8 +47,10 @@ recvRequest :: Settings
             -> SockAddr -- ^ Peer's address.
             -> Source -- ^ Where HTTP request comes from.
             -> IO (Request
+                  ,Maybe (I.IORef Int)
                   ,IndexedHeader) -- ^
             -- 'Request' passed to 'Application',
+            -- how many bytes remain to be consumed, if known
             -- 'IndexedHeader' of HTTP request for internal use,
 
 recvRequest settings conn ii addr src = do
@@ -59,7 +61,7 @@ recvRequest settings conn ii addr src = do
         cl = idxhdr ! idxContentLength
         te = idxhdr ! idxTransferEncoding
     handleExpect conn httpversion expect
-    (rbody, bodyLength) <- bodyAndSource src cl te
+    (rbody, remainingRef, bodyLength) <- bodyAndSource src cl te
     rbody' <- timeoutBody th rbody
     let req = Request {
             requestMethod     = method
@@ -77,7 +79,7 @@ recvRequest settings conn ii addr src = do
           , requestHeaderHost = idxhdr ! idxHost
           , requestHeaderRange = idxhdr ! idxRange
           }
-    return (req, idxhdr)
+    return (req, remainingRef, idxhdr)
   where
     th = threadHandle ii
 
@@ -111,15 +113,16 @@ bodyAndSource :: Source
               -> Maybe HeaderValue -- ^ content length
               -> Maybe HeaderValue -- ^ transfer-encoding
               -> IO (IO ByteString
+                    ,Maybe (I.IORef Int)
                     ,RequestBodyLength
                     )
 bodyAndSource src cl te
   | chunked = do
       csrc <- mkCSource src
-      return (readCSource csrc, ChunkedBody)
+      return (readCSource csrc, Nothing, ChunkedBody)
   | otherwise = do
-      isrc <- mkISource src len
-      return (readISource isrc, bodyLen)
+      isrc@(ISource _ remaining) <- mkISource src len
+      return (readISource isrc, Just remaining, bodyLen)
   where
     len = toLength cl
     bodyLen = KnownLength $ fromIntegral len
