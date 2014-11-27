@@ -41,6 +41,7 @@ module Network.Wai.Handler.Warp (
   , setNoParsePath
   , setInstallShutdownHandler
   , setServerName
+  , setMaximumBodyFlush
     -- ** Getters
   , getPort
   , getHost
@@ -210,3 +211,20 @@ setInstallShutdownHandler x y = y { settingsInstallShutdownHandler = x }
 -- Since 3.0.2
 setServerName :: ByteString -> Settings -> Settings
 setServerName x y = y { settingsServerName = x }
+
+-- | The maximum number of bytes to flush from an unconsumed request body.
+--
+-- By default, Warp does not flush the request body so that, if a large body is
+-- present, the connection is simply terminated instead of wasting time and
+-- bandwidth on transmitting it. However, some clients do not deal with that
+-- situation well. You can either change this setting to @Nothing@ to flush the
+-- entire body in all cases, or in your application ensure that you always
+-- consume the entire request body.
+--
+-- Default: 8192 bytes.
+--
+-- Since 3.0.3
+setMaximumBodyFlush :: Maybe Int -> Settings -> Settings
+setMaximumBodyFlush x y
+    | Just x' <- x, x' < 0 = error "setMaximumBodyFlush: must be positive"
+    | otherwise = y { settingsMaximumBodyFlush = x }

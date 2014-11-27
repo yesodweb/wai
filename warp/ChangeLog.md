@@ -1,4 +1,4 @@
-## 3.0.2.4
+## 3.0.3
 
 Modify flushing of request bodies. Previously, regardless of the size of the
 request body, the entire body would be flushed. When uploading large files to a
@@ -10,6 +10,9 @@ The new behavior is to detect if there is a large amount of data still to be
 consumed and, if so, immediately terminate the connection. In the case of
 chunked request bodies, up to a maximum number of bytes is consumed before the
 connection is terminated.
+
+This is controlled by the new setting `setMaximumBodyFlush`. A value of
+@Nothing@ will return the original behavior of flushing the entire body.
 
 ## 3.0.0
 

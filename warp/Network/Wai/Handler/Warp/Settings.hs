@@ -65,6 +65,10 @@ data Settings = Settings
       -- ^ Default server name if application does not set one.
       --
       -- Since 3.0.2
+    , settingsMaximumBodyFlush :: Maybe Int
+      -- ^ See @setMaximumBodyFlush@.
+      --
+      -- Since 3.0.3
     }
 
 -- | The default settings for the Warp server. See the individual settings for
@@ -84,6 +88,7 @@ defaultSettings = Settings
     , settingsNoParsePath = False
     , settingsInstallShutdownHandler = const $ return ()
     , settingsServerName = S8.pack $ "Warp/" ++ showVersion Paths_warp.version
+    , settingsMaximumBodyFlush = Just 8192
     }
 
 -- | Apply the logic provided by 'defaultExceptionHandler' to determine if an

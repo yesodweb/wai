@@ -329,18 +329,31 @@ serveConnection conn ii addr isSecure' settings app = do
             -- If there is an unknown or large amount of data to still be read
             -- from the request body, simple drop this connection instead of
             -- reading it all in to satisfy a keep-alive request.
-            let maxToRead = 8192 -- FIXME too low?
-                tryKeepAlive = do
-                    -- flush the rest of the request body
-                    isComplete <- flushBody (requestBody req) maxToRead
-                    when isComplete $ do
-                        T.resume th
-                        recvSendLoop istatus fromClient
-            case mremainingRef of
-                Just ref -> do
-                    remaining <- readIORef ref
-                    when (remaining <= maxToRead) tryKeepAlive
-                Nothing -> tryKeepAlive
+            case settingsMaximumBodyFlush settings of
+                Nothing -> do
+                    flushEntireBody (requestBody req)
+                    T.resume th
+                    recvSendLoop istatus fromClient
+                Just maxToRead -> do
+                    let tryKeepAlive = do
+                            -- flush the rest of the request body
+                            isComplete <- flushBody (requestBody req) maxToRead
+                            when isComplete $ do
+                                T.resume th
+                                recvSendLoop istatus fromClient
+                    case mremainingRef of
+                        Just ref -> do
+                            remaining <- readIORef ref
+                            when (remaining <= maxToRead) tryKeepAlive
+                        Nothing -> tryKeepAlive
+
+flushEntireBody :: IO ByteString -> IO ()
+flushEntireBody src =
+    loop
+  where
+    loop = do
+        bs <- src
+        unless (S.null bs) loop
 
 flushBody :: IO ByteString -- ^ get next chunk
           -> Int -- ^ maximum to flush
