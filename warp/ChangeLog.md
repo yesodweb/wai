@@ -1,3 +1,7 @@
+## 3.0.4
+
+Added `setFork`.
+
 ## 3.0.3
 
 Modify flushing of request bodies. Previously, regardless of the size of the

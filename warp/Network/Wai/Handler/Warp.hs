@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 ---------------------------------------------------------
@@ -42,6 +43,7 @@ module Network.Wai.Handler.Warp (
   , setInstallShutdownHandler
   , setServerName
   , setMaximumBodyFlush
+  , setFork
     -- ** Getters
   , getPort
   , getHost
@@ -228,3 +230,14 @@ setMaximumBodyFlush :: Maybe Int -> Settings -> Settings
 setMaximumBodyFlush x y
     | Just x' <- x, x' < 0 = error "setMaximumBodyFlush: must be positive"
     | otherwise = y { settingsMaximumBodyFlush = x }
+
+-- | Code to fork a new thread to accept a connection.
+--
+-- This may be useful if you need OS bound threads, or if
+-- you wish to develop an alternative threading model.
+--
+-- Default: void . forkIOWithUnmask
+--
+-- Since 3.0.4
+setFork :: (((forall a. IO a -> IO a) -> IO ()) -> IO ()) -> Settings -> Settings
+setFork fork' s = s { settingsFork = fork' }

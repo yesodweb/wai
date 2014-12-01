@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables, ViewPatterns #-}
 {-# LANGUAGE PatternGuards, RankNTypes #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 
 module Network.Wai.Handler.Warp.Settings where
 
