@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables, ViewPatterns #-}
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternGuards, RankNTypes #-}
 
 module Network.Wai.Handler.Warp.Settings where
 
 import Control.Exception
-import Control.Monad (when)
+import Control.Monad (when, void)
+import Control.Concurrent (forkIOWithUnmask)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Streaming.Network (HostPreference)
@@ -52,6 +53,17 @@ data Settings = Settings
       -- Default: do nothing.
       --
       -- Since 1.3.6
+
+    , settingsFork :: ((forall a. IO a -> IO a) -> IO ()) -> IO ()
+      -- ^ Code to fork a new thread to accept a connection.
+      --
+      -- This may be useful if you need OS bound threads, or if
+      -- you wish to develop an alternative threading model.
+      -- 
+      -- Default: void . forkIOWithUnmask 
+      --
+      -- Since 3.0.4
+
     , settingsNoParsePath :: Bool
       -- ^ Perform no parsing on the rawPathInfo.
       --
@@ -85,6 +97,7 @@ defaultSettings = Settings
     , settingsManager = Nothing
     , settingsFdCacheDuration = 10
     , settingsBeforeMainLoop = return ()
+    , settingsFork = void . forkIOWithUnmask
     , settingsNoParsePath = False
     , settingsInstallShutdownHandler = const $ return ()
     , settingsServerName = S8.pack $ "Warp/" ++ showVersion Paths_warp.version

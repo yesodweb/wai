@@ -7,7 +7,7 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
-import Control.Concurrent (threadDelay, forkIOWithUnmask)
+import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception as E
 import Control.Monad (when, unless, void)
@@ -225,7 +225,7 @@ fork :: Settings
      -> T.Manager
      -> Counter
      -> IO ()
-fork set mkConn addr app dc fc tm counter = void $ forkIOWithUnmask $ \unmask ->
+fork set mkConn addr app dc fc tm counter = settingsFork set $ \ unmask ->
     -- Run the connection maker to get a new connection, and ensure
     -- that the connection is closed. If the mkConn call throws an
     -- exception, we will leak the connection. If the mkConn call is
