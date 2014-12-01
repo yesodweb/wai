@@ -12,12 +12,10 @@ Build-Type:          Simple
 Cabal-Version:       >=1.8
 Stability:           Stable
 extra-source-files:
-  tests.hs
   test/requests/dalvik-request
   test/json
   test/test.html
   test/sample.hs
-  test/WaiExtraTest.hs
 
 Library
   Build-Depends:     base                      >= 4 && < 5
