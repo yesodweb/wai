@@ -10,8 +10,7 @@ import Control.Concurrent
 import Control.Monad
 
 windowsThreadBlockHack :: IO a -> IO a
-windowsThreadBlockHack act = 
-  do
+windowsThreadBlockHack act = do
     var <- newEmptyMVar :: IO (MVar (Either SomeException a))
     void . forkIO $ try act >>= putMVar var
     res <- takeMVar var

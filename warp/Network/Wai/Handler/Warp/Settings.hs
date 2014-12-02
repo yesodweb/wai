@@ -60,8 +60,8 @@ data Settings = Settings
       --
       -- This may be useful if you need OS bound threads, or if
       -- you wish to develop an alternative threading model.
-      -- 
-      -- Default: void . forkIOWithUnmask 
+      --
+      -- Default: void . forkIOWithUnmask
       --
       -- Since 3.0.4
 
