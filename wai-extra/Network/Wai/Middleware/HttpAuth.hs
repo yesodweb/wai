@@ -5,10 +5,8 @@
 module Network.Wai.Middleware.HttpAuth
     ( basicAuth
     , CheckCreds
-    , AuthSettings
-    , authRealm
-    , authOnNoAuth
-    , authIsProtected
+    , AuthSettings(..)
+    , defaultAuthSettings
     ) where
 
 import Network.Wai
@@ -80,18 +78,21 @@ data AuthSettings = AuthSettings
     -- Since 1.3.4
     }
 
+defaultAuthSettings :: AuthSettings
+defaultAuthSettings = AuthSettings
+    { authRealm = "DefaultRealm"
+    , authOnNoAuth = \realm _req f -> f $ responseLBS
+        status401
+        [ ("Content-Type", "text/plain")
+        , ("WWW-Authenticate", S.concat
+            [ "Basic realm=\""
+            , realm
+            , "\""
+            ])
+        ]
+        "Basic authentication is required"
+    , authIsProtected = const $ return True
+    }
+
 instance IsString AuthSettings where
-    fromString s = AuthSettings
-        { authRealm = fromString s
-        , authOnNoAuth = \realm _req f -> f $ responseLBS
-            status401
-            [ ("Content-Type", "text/plain")
-            , ("WWW-Authenticate", S.concat
-                [ "Basic realm=\""
-                , realm
-                , "\""
-                ])
-            ]
-            "Basic authentication is required"
-        , authIsProtected = const $ return True
-        }
+    fromString s = defaultAuthSettings { authRealm = fromString s }
