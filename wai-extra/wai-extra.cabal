@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.0.2.2
+Version:             3.0.3
 Synopsis:            Provides some basic WAI handlers and middleware.
 Description:         The goal here is to provide common features without many dependencies.
 License:             MIT
@@ -16,6 +16,8 @@ extra-source-files:
   test/json
   test/test.html
   test/sample.hs
+  ChangeLog.md
+  README.md
 
 Library
   Build-Depends:     base                      >= 4 && < 5

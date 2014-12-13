@@ -1,4 +1,6 @@
-
+-- |
+--
+-- Since 3.0.3
 module Network.Wai.Middleware.AddHeaders
     ( addHeaders
     ) where
@@ -13,6 +15,8 @@ import Control.Arrow (first)
 
 addHeaders :: [(ByteString, ByteString)] -> Middleware
 -- ^ Prepend a list of headers without any checks
+--
+-- Since 3.0.3
 
 addHeaders h app req respond = app req $ respond . addHeaders' (map (first CI.mk) h)
 
