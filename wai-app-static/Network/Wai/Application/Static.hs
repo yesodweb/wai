@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell, CPP #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PatternGuards #-}
 -- | Static file serving for WAI.
 module Network.Wai.Application.Static
     ( -- * WAI application
@@ -74,14 +75,19 @@ serveFolder :: StaticSettings -> Pieces -> W.Request -> Folder -> IO StaticRespo
 serveFolder ss@StaticSettings {..} pieces req folder@Folder {..} =
     -- first check if there is an index file in this folder
     case getFirst $ mconcat $ map (findIndex $ rights folderContents) ssIndices of
-        Just index -> do
-            let pieces' = setLast pieces index
-             in if ssRedirectToIndex
-                    then return $ Redirect pieces' Nothing
+        Just index ->
+            let pieces' = setLast pieces index in
+            case () of
+              () | ssRedirectToIndex -> return $ Redirect pieces' Nothing
+                 | noTrailingSlash pieces, Just trailing <- toPiece ""  ->
+                    return $ Redirect (pieces ++ [trailing]) Nothing
+                 | otherwise ->
                     -- start the checking process over, with a new set
-                    else checkPieces ss pieces' req
+                    checkPieces ss pieces' req
         Nothing ->
             case ssListing of
+                Just _ | noTrailingSlash pieces, Just trailing <- toPiece "" ->
+                    return $ Redirect (pieces ++ [trailing]) Nothing
                 Just listing -> do
                     -- directory listings turned on, display it
                     builder <- listing pieces folder
@@ -97,6 +103,11 @@ serveFolder ss@StaticSettings {..} pieces req folder@Folder {..} =
     setLast [t] x
         | fromPiece t == "" = [x]
     setLast (a:b) x = a : setLast b x
+
+    noTrailingSlash :: Pieces -> Bool
+    noTrailingSlash [] = False
+    noTrailingSlash [x] = fromPiece x /= ""
+    noTrailingSlash (_:xs) = noTrailingSlash xs
 
     findIndex :: [File] -> Piece -> First Piece
     findIndex files index
