@@ -66,6 +66,7 @@ Library
                      Network.Wai.Middleware.Rewrite
                      Network.Wai.Middleware.Vhost
                      Network.Wai.Middleware.HttpAuth
+                     Network.Wai.Middleware.StreamFile
                      Network.Wai.Parse
                      Network.Wai.UrlMap
                      Network.Wai.Test
