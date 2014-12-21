@@ -1,5 +1,4 @@
 ./wai
-./wai-test
 ./wai-extra
 ./warp
 ./warp-tls
@@ -7,7 +6,7 @@
 ./wai-handler-fastcgi
 ./wai-handler-launch
 ./wai-websockets
-./wai-eventsource
+./wai-frontend-monadcgi
 ./wai-conduit
 ./mime-types
 ./auto-update
