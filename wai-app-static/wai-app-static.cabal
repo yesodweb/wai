@@ -1,11 +1,11 @@
 name:            wai-app-static
-version:         3.0.0.4
+version:         3.0.0.5
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
 maintainer:      Michael Snoyman <michael@snoyman.com>, Greg Weber <greg@gregweber.info>
 synopsis:        WAI application for static serving
-description:     Hackage documentation generation is not reliable. For up to date documentation, please see: <http://www.stackage.org/package/wai-app-static>.
+description:     API docs and the README are available at <http://www.stackage.org/package/wai-app-static>.
 category:        Web, Yesod
 stability:       Stable
 cabal-version:   >= 1.8

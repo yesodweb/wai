@@ -1,18 +1,17 @@
 name:            wai-handler-webkit
-version:         3.0.0
+version:         3.0.0.1
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
 maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        Turn WAI applications into standalone GUIs using QtWebkit.
-description:     Runs any WAI application using
-                 the simpleserver handler and then pops up a Webkit browser
-                 to view it.
+description:     API docs and the README are available at <http://www.stackage.org/package/wai-handler-webkit>.
 category:        Web
 stability:       unstable
 cabal-version:   >= 1.6
 build-type:      Simple
 homepage:        https://github.com/yesodweb/wai/tree/master/wai-handler-webkit
+extra-source-files:  README.md ChangeLog.md
 
 library
     build-depends:     base      >= 4       && < 5

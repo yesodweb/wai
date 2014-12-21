@@ -1,7 +1,8 @@
 Name:                wai
-Version:             3.0.2
+Version:             3.0.2.1
 Synopsis:            Web Application Interface.
 Description:         Provides a common protocol for communication between web applications and web servers.
+description:         API docs and the README are available at <http://www.stackage.org/package/wai>.
 License:             MIT
 License-file:        LICENSE
 Author:              Michael Snoyman
@@ -11,6 +12,7 @@ Category:            Web
 Build-Type:          Simple
 Cabal-Version:       >=1.8
 Stability:           Stable
+extra-source-files:  README.md ChangeLog.md
 
 Source-repository head
     type:            git

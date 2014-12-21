@@ -1,5 +1,5 @@
 Name:                warp-tls
-Version:             3.0.1
+Version:             3.0.1.1
 Synopsis:            HTTP over SSL/TLS support for Warp via the TLS package
 License:             MIT
 License-file:        LICENSE
@@ -10,8 +10,8 @@ Category:            Web, Yesod
 Build-Type:          Simple
 Cabal-Version:       >=1.6
 Stability:           Stable
-Description:         HTTP over SSL/TLS support for Warp via the TLS package.
-extra-source-files:  ChangeLog.md
+description:         API docs and the README are available at <http://www.stackage.org/package/warp-tls>.
+extra-source-files:  ChangeLog.md README.md
 
 Library
   Build-Depends:     base                          >= 4        && < 5

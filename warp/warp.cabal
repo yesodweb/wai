@@ -1,5 +1,5 @@
 Name:                warp
-Version:             3.0.4
+Version:             3.0.4.1
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -10,7 +10,7 @@ Category:            Web, Yesod
 Build-Type:          Simple
 Cabal-Version:       >=1.8
 Stability:           Stable
-Description: The premier WAI handler. For more information, see <http://steve.vinoski.net/blog/2011/05/01/warp-a-haskell-web-server/>.
+description:         API docs and the README are available at <http://www.stackage.org/package/warp>.
 extra-source-files:  attic/hex
                      ChangeLog.md
                      README.md

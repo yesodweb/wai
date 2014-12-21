@@ -1,7 +1,7 @@
 Name:                wai-extra
-Version:             3.0.3
+Version:             3.0.3.1
 Synopsis:            Provides some basic WAI handlers and middleware.
-Description:         The goal here is to provide common features without many dependencies.
+description:         API docs and the README are available at <http://www.stackage.org/package/wai-extra>.
 License:             MIT
 License-file:        LICENSE
 Author:              Michael Snoyman

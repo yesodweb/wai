@@ -5,11 +5,12 @@ license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
 maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        Run CGI apps on WAI.
-description:     Allows programs written against MonadCGI to run with any WAI handler. This is most useful for running your existing CGI apps on Warp. For true "yo dawg"-ness, try running this through the WAI CGI backend.
+description:     API docs and the README are available at <http://www.stackage.org/package/wai-frontend-monadcgi>.
 category:        Web
 stability:       stable
 cabal-version:   >= 1.6
 build-type:      Simple
+extra-source-files: README.md ChangeLog.md
 
 library
     build-depends: base              >= 4        && < 5
