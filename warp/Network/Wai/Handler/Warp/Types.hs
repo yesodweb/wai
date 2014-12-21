@@ -47,6 +47,7 @@ data InvalidRequest = NotEnoughLines [String]
                     | IncompleteHeaders
                     | ConnectionClosedByPeer
                     | OverLargeHeader
+                    | BadProxyHeader String
                     deriving (Eq, Typeable)
 
 instance Show InvalidRequest where
@@ -56,6 +57,7 @@ instance Show InvalidRequest where
     show IncompleteHeaders = "Warp: Request headers did not finish transmission"
     show ConnectionClosedByPeer = "Warp: Client closed connection prematurely"
     show OverLargeHeader = "Warp: Request headers too large, possible memory attack detected. Closing connection."
+    show (BadProxyHeader s) = "Warp: Invalid PROXY protocol header: " ++ show s
 
 instance Exception InvalidRequest
 

@@ -44,6 +44,9 @@ module Network.Wai.Handler.Warp (
   , setServerName
   , setMaximumBodyFlush
   , setFork
+  , setProxyProtocolNone
+  , setProxyProtocolRequired
+  , setProxyProtocolOptional
     -- ** Getters
   , getPort
   , getHost
@@ -241,3 +244,35 @@ setMaximumBodyFlush x y
 -- Since 3.0.4
 setFork :: (((forall a. IO a -> IO a) -> IO ()) -> IO ()) -> Settings -> Settings
 setFork fork' s = s { settingsFork = fork' }
+
+-- | Do not use the PROXY protocol.
+setProxyProtocolNone :: Settings -> Settings
+setProxyProtocolNone y = y { settingsProxyProtocol = ProxyProtocolNone }
+
+-- | Require PROXY header.
+--
+-- This is for cases where a "dumb" TCP/SSL proxy is being used, which cannot
+-- add an @X-Forwarded-For@ HTTP header field but has enabled support for the
+-- PROXY protocol.
+--
+-- See <http://www.haproxy.org/download/1.5/doc/proxy-protocol.txt> and
+-- <http://docs.aws.amazon.com/ElasticLoadBalancing/latest/DeveloperGuide/TerminologyandKeyConcepts.html#proxy-protocol>.
+--
+-- Only the human-readable header format (version 1) is supported. The binary
+-- header format (version 2) is /not/ supported.
+setProxyProtocolRequired :: Settings -> Settings
+setProxyProtocolRequired y = y { settingsProxyProtocol = ProxyProtocolRequired }
+
+-- | Use the PROXY header if it exists, but also accept
+-- connections without the header.  See 'setProxyProtocolRequired'.
+--
+-- WARNING: This is contrary to the PROXY protocol specification and
+-- using it can indicate a security problem with your
+-- architecture if the web server is directly accessable
+-- to the public, since it would allow easy IP address
+-- spoofing.  However, it can be useful in some cases,
+-- such as if a load balancer health check uses regular
+-- HTTP without the PROXY header, but proxied
+-- connections /do/ include the PROXY header.
+setProxyProtocolOptional :: Settings -> Settings
+setProxyProtocolOptional y = y { settingsProxyProtocol = ProxyProtocolOptional }

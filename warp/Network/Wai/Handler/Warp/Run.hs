@@ -13,10 +13,12 @@ import Control.Exception as E
 import Control.Monad (when, unless, void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
+import Data.Char (chr)
+import Data.IP (toHostAddress, toHostAddress6)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Network (sClose, Socket)
-import Network.Socket (accept, withSocketsDo, SockAddr)
+import Network.Socket (accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6))
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer
@@ -24,6 +26,7 @@ import Network.Wai.Handler.Warp.Counter
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import Network.Wai.Handler.Warp.Header
+import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
@@ -271,28 +274,69 @@ serveConnection :: Connection
                 -> Settings
                 -> Application
                 -> IO ()
-serveConnection conn ii addr isSecure' settings app = do
+serveConnection conn ii origAddr isSecure' settings app = do
     istatus <- newIORef False
     src <- mkSource (connSource conn th istatus)
-    recvSendLoop istatus src `E.catch` \e -> do
-        sendErrorResponse istatus e
+    addr <- getProxyProtocolAddr src
+    recvSendLoop addr istatus src `E.catch` \e -> do
+        sendErrorResponse addr istatus e
         throwIO (e :: SomeException)
 
   where
+    getProxyProtocolAddr src =
+        case settingsProxyProtocol settings of
+            ProxyProtocolNone ->
+                return origAddr
+            ProxyProtocolRequired -> do
+                seg <- readSource src
+                parseProxyProtocolHeader src seg
+            ProxyProtocolOptional -> do
+                seg <- readSource src
+                if S.isPrefixOf "PROXY " seg
+                    then parseProxyProtocolHeader src seg
+                    else do leftoverSource src seg
+                            return origAddr
+
+    parseProxyProtocolHeader src seg = do
+        let (header,seg') = S.break (== 0x0d) seg -- 0x0d == CR
+            maybeAddr = case S.split 0x20 header of -- 0x20 == space
+                ["PROXY","TCP4",clientAddr,_,clientPort,_] ->
+                    case [x | (x, t) <- reads (decodeAscii clientAddr), null t] of
+                        [a] -> Just (SockAddrInet (readInt clientPort)
+                                                       (toHostAddress a))
+                        _ -> Nothing
+                ["PROXY","TCP6",clientAddr,_,clientPort,_] ->
+                    case [x | (x, t) <- reads (decodeAscii clientAddr), null t] of
+                        [a] -> Just (SockAddrInet6 (readInt clientPort)
+                                                        0
+                                                        (toHostAddress6 a)
+                                                        0)
+                        _ -> Nothing
+                ("PROXY":"UNKNOWN":_) ->
+                    Just origAddr
+                _ ->
+                    Nothing
+        case maybeAddr of
+            Nothing -> throwIO (BadProxyHeader (decodeAscii header))
+            Just a -> do leftoverSource src (S.drop 2 seg') -- drop CRLF
+                         return a
+
+    decodeAscii = map (chr . fromEnum) . S.unpack
+
     th = threadHandle ii
 
-    sendErrorResponse istatus e = do
+    sendErrorResponse addr istatus e = do
         status <- readIORef istatus
         when status $ void $
             sendResponse
                 (settingsServerName settings)
-                conn ii dummyreq defaultIndexRequestHeader (return S.empty) (errorResponse e)
+                conn ii (dummyreq addr) defaultIndexRequestHeader (return S.empty) (errorResponse e)
 
-    dummyreq = defaultRequest { remoteHost = addr }
+    dummyreq addr = defaultRequest { remoteHost = addr }
 
     errorResponse e = settingsOnExceptionResponse settings e
 
-    recvSendLoop istatus fromClient = do
+    recvSendLoop addr istatus fromClient = do
         (req', mremainingRef, idxhdr) <- recvRequest settings conn ii addr fromClient
         let req = req' { isSecure = isSecure' }
         -- Let the application run for as long as it wants
@@ -333,14 +377,14 @@ serveConnection conn ii addr isSecure' settings app = do
                 Nothing -> do
                     flushEntireBody (requestBody req)
                     T.resume th
-                    recvSendLoop istatus fromClient
+                    recvSendLoop addr istatus fromClient
                 Just maxToRead -> do
                     let tryKeepAlive = do
                             -- flush the rest of the request body
                             isComplete <- flushBody (requestBody req) maxToRead
                             when isComplete $ do
                                 T.resume th
-                                recvSendLoop istatus fromClient
+                                recvSendLoop addr istatus fromClient
                     case mremainingRef of
                         Just ref -> do
                             remaining <- readIORef ref

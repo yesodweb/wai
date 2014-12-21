@@ -82,7 +82,19 @@ data Settings = Settings
       -- ^ See @setMaximumBodyFlush@.
       --
       -- Since 3.0.3
+    , settingsProxyProtocol :: ProxyProtocol
+      -- ^ Specify usage of the PROXY protocol.
+      --
+      -- Since 3.0.5.
     }
+
+-- | Specify usage of the PROXY protocol.
+data ProxyProtocol = ProxyProtocolNone
+                     -- ^ See @setProxyProtocolNone@.
+                   | ProxyProtocolRequired
+                     -- ^ See @setProxyProtocolRequired@.
+                   | ProxyProtocolOptional
+                     -- ^ See @setProxyProtocolOptional@.
 
 -- | The default settings for the Warp server. See the individual settings for
 -- the default value.
@@ -103,6 +115,7 @@ defaultSettings = Settings
     , settingsInstallShutdownHandler = const $ return ()
     , settingsServerName = S8.pack $ "Warp/" ++ showVersion Paths_warp.version
     , settingsMaximumBodyFlush = Just 8192
+    , settingsProxyProtocol = ProxyProtocolNone
     }
 
 -- | Apply the logic provided by 'defaultExceptionHandler' to determine if an
