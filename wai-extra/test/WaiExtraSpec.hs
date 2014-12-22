@@ -432,4 +432,5 @@ caseStreamFile :: Assertion
 caseStreamFile = flip runSession streamFileApp $ do
     sres <- request defaultRequest
     assertStatus 200 sres
+    assertBodyContains "caseStreamFile" sres
     assertNoHeader "Transfer-Encoding" sres
