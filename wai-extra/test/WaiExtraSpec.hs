@@ -59,6 +59,7 @@ spec = do
     it "accept override" caseAcceptOverride
     it "debug request body" caseDebugRequestBody
     it "stream file" caseStreamFile
+    it "stream LBS" caseStreamLBS
 
 toRequest :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest ctype content = SRequest defaultRequest
@@ -434,3 +435,14 @@ caseStreamFile = flip runSession streamFileApp $ do
     assertStatus 200 sres
     assertBodyContains "caseStreamFile" sres
     assertNoHeader "Transfer-Encoding" sres
+
+streamLBSApp :: Application
+streamLBSApp = streamFile $ \_ f -> f $ responseLBS status200
+    [("Content-Type", "text/plain")]
+    "test"
+
+caseStreamLBS :: Assertion
+caseStreamLBS = flip runSession streamLBSApp $ do
+    sres <- request defaultRequest
+    assertStatus 200 sres
+    assertBody "test" sres
