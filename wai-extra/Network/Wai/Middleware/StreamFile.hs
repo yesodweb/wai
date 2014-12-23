@@ -3,16 +3,10 @@
 module Network.Wai.Middleware.StreamFile
     (streamFile) where
 
-import Network.Wai
+import Network.Wai (responseStream)
 import Network.Wai.Internal
 import Network.Wai (Middleware, responseToStream)
-import Network.HTTP.Types (Status, ResponseHeaders)
 import qualified Data.ByteString.Char8 as S8
-import qualified Data.ByteString as S
-import qualified Data.Streaming.Blaze as B
-import qualified Blaze.ByteString.Builder as Blaze
-import Control.Monad (unless)
-import Data.Function (fix)
 import System.Posix
 
 -- |Convert ResponseFile type responses into ResponseStream type
