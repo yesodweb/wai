@@ -15,6 +15,17 @@ import Control.Monad (unless)
 import Data.Function (fix)
 import System.Posix
 
+-- |Convert ResponseFile type responses into ResponseStream type
+--
+-- Checks the response type, and if it's a ResponseFile, converts it
+-- into a ResponseStream. Other response types are passed through
+-- unchanged.
+--
+-- Converted responses get a Content-Length header.
+--
+-- Streaming a file will bypass a sendfile system call, and may be
+-- useful to work around systems without working sendfile
+-- implementations.
 streamFile :: Middleware
 streamFile app env sendResponse = app env $ \res ->
     case res of
