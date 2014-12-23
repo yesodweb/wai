@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.Wai.Middleware.StreamFile where
+module Network.Wai.Middleware.StreamFile
+    (streamFile) where
 
 import Network.Wai
 import Network.Wai.Internal
