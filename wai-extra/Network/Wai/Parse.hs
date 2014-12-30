@@ -383,7 +383,7 @@ wrapTillBound bound src = do
                 NoBound -> do
                     -- don't emit newlines, in case it's part of a bound
                     let (toEmit, front') =
-                            if not (S8.null bs) && S8.last bs `elem` "\r\n"
+                            if not (S8.null bs) && S8.last bs `elem` ['\r','\n']
                                 then let (x, y) = S.splitAt (S.length bs - 2) bs
                                       in (x, S.append y)
                                 else (bs, id)
