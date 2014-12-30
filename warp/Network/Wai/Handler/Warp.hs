@@ -246,6 +246,8 @@ setFork :: (((forall a. IO a -> IO a) -> IO ()) -> IO ()) -> Settings -> Setting
 setFork fork' s = s { settingsFork = fork' }
 
 -- | Do not use the PROXY protocol.
+--
+-- Since 3.0.5
 setProxyProtocolNone :: Settings -> Settings
 setProxyProtocolNone y = y { settingsProxyProtocol = ProxyProtocolNone }
 
@@ -260,6 +262,8 @@ setProxyProtocolNone y = y { settingsProxyProtocol = ProxyProtocolNone }
 --
 -- Only the human-readable header format (version 1) is supported. The binary
 -- header format (version 2) is /not/ supported.
+--
+-- Since 3.0.5
 setProxyProtocolRequired :: Settings -> Settings
 setProxyProtocolRequired y = y { settingsProxyProtocol = ProxyProtocolRequired }
 
@@ -274,5 +278,7 @@ setProxyProtocolRequired y = y { settingsProxyProtocol = ProxyProtocolRequired }
 -- such as if a load balancer health check uses regular
 -- HTTP without the PROXY header, but proxied
 -- connections /do/ include the PROXY header.
+--
+-- Since 3.0.5
 setProxyProtocolOptional :: Settings -> Settings
 setProxyProtocolOptional y = y { settingsProxyProtocol = ProxyProtocolOptional }

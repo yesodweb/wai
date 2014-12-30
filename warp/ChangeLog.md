@@ -1,3 +1,10 @@
+## 3.0.5
+
+Support for PROXY protocol, such as used by Amazon ELB TCP. This is useful
+since, for example, Amazon ELB HTTP does *not* have support for Websockets.
+More information on the protocol [is available from
+Amazon](http://docs.aws.amazon.com/ElasticLoadBalancing/latest/DeveloperGuide/TerminologyandKeyConcepts.html#proxy-protocol).
+
 ## 3.0.4
 
 Added `setFork`.
