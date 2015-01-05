@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.0.4
+Version:             3.0.4.1
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:         API docs and the README are available at <http://www.stackage.org/package/wai-extra>.
 License:             MIT
@@ -45,6 +45,7 @@ Library
                    , lifted-base               >= 0.1.2
                    , deepseq
                    , streaming-commons
+                   , unix-compat
 
   if os(windows)
       cpp-options:   -DWINDOWS

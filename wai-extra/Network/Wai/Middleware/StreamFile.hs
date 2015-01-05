@@ -10,7 +10,7 @@ import Network.Wai (responseStream)
 import Network.Wai.Internal
 import Network.Wai (Middleware, responseToStream)
 import qualified Data.ByteString.Char8 as S8
-import System.Posix
+import System.PosixCompat (getFileStatus, fileSize, FileOffset)
 
 -- |Convert ResponseFile type responses into ResponseStream type
 --
