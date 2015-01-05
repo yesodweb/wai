@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- |
+--
+-- Since 3.0.4
 module Network.Wai.Middleware.StreamFile
     (streamFile) where
 
@@ -20,6 +23,8 @@ import System.Posix
 -- Streaming a file will bypass a sendfile system call, and may be
 -- useful to work around systems without working sendfile
 -- implementations.
+--
+-- Since 3.0.4
 streamFile :: Middleware
 streamFile app env sendResponse = app env $ \res ->
     case res of
