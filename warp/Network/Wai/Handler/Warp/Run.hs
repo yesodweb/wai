@@ -89,7 +89,7 @@ runSettings set app = withSocketsDo $
 -- 'serverPort' record.
 --
 -- When the listen socket in the second argument is closed, all live
--- connections are gracefully shut-downed.
+-- connections are gracefully shut down.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket set socket app = do
     settingsInstallShutdownHandler set closeListenSocket
@@ -259,7 +259,7 @@ fork set mkConn addr app dc fc tm counter = settingsFork set $ \ unmask ->
        bracket (onOpen addr) (onClose addr) $ \goingon ->
 
        -- Actually serve this connection.
-       -- onnClose above ensures the termination of the connection.
+       -- bracket with closeConn above ensures the connection is closed.
        when goingon $ serveConnection conn ii addr isSecure' set app
   where
     closeConn (conn, _isSecure) = connClose conn
