@@ -25,6 +25,7 @@ import Network.Wai.Middleware.MethodOverridePost
 import Network.Wai.Middleware.AcceptOverride
 import Network.Wai.Middleware.RequestLogger
 import Codec.Compression.GZip (decompress)
+import Network.Wai.Middleware.StreamFile
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
@@ -57,6 +58,8 @@ spec = do
     it "method override post" caseMethodOverridePost
     it "accept override" caseAcceptOverride
     it "debug request body" caseDebugRequestBody
+    it "stream file" caseStreamFile
+    it "stream LBS" caseStreamLBS
 
 toRequest :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest ctype content = SRequest defaultRequest
@@ -419,3 +422,27 @@ casesUrlMap = [pair1, pair2, pair3, pair4]
   pair4 = makePair "should 404 if none match" $ do
     res4 <- get "/api/v3"
     assertStatus 404 res4
+
+testFile :: FilePath
+testFile = "test/WaiExtraSpec.hs"
+
+streamFileApp :: Application
+streamFileApp = streamFile $ \_ f -> f $ responseFile status200 [] testFile Nothing
+
+caseStreamFile :: Assertion
+caseStreamFile = flip runSession streamFileApp $ do
+    sres <- request defaultRequest
+    assertStatus 200 sres
+    assertBodyContains "caseStreamFile" sres
+    assertNoHeader "Transfer-Encoding" sres
+
+streamLBSApp :: Application
+streamLBSApp = streamFile $ \_ f -> f $ responseLBS status200
+    [("Content-Type", "text/plain")]
+    "test"
+
+caseStreamLBS :: Assertion
+caseStreamLBS = flip runSession streamLBSApp $ do
+    sres <- request defaultRequest
+    assertStatus 200 sres
+    assertBody "test" sres
