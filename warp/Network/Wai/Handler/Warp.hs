@@ -122,7 +122,7 @@ setHost x y = y { settingsHost = x }
 
 -- | What to do with exceptions thrown by either the application or server.
 -- Default: ignore server-generated exceptions (see 'InvalidRequest') and print
--- application-generated applications to stderr.
+-- application-generated exceptions to stderr.
 --
 -- Since 2.1.0
 setOnException :: (Maybe Request -> SomeException -> IO ()) -> Settings -> Settings
