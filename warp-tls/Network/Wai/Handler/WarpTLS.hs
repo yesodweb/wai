@@ -263,7 +263,14 @@ plainHTTP :: TLSSettings -> Socket -> I.IORef B.ByteString -> IO (Connection, Bo
 plainHTTP TLSSettings{..} s cachedRef = case onInsecure of
     AllowInsecure -> do
         conn' <- socketConnection s
-        return (conn' { connRecv = getNext cachedRef s 4096 }, False)
+        let newRecv = do
+                bs <- I.readIORef cachedRef
+                if B.null bs
+                    then connRecv conn'
+                    else do
+                        I.writeIORef cachedRef B.empty
+                        return bs
+        return (conn' { connRecv = newRecv }, False)
     DenyInsecure lbs -> do
         sendAll s "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
         mapM_ (sendAll s) $ L.toChunks lbs
