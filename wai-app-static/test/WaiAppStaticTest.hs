@@ -14,6 +14,7 @@ import Network.HTTP.Date
 
 import Network.Wai
 import Network.Wai.Test
+import Network.Wai.UrlMap
 
 import Control.Monad.IO.Class (liftIO)
 import Network.Mime
@@ -123,3 +124,15 @@ spec = do
       assertStatus 304 req
       assertNoHeader "Cache-Control" req
 
+    context "301 redirect to add a trailing slash on directories if missing" $ do
+      it "works at the root" $ fileServerApp $ do
+        req <- request (setRawPathInfo defRequest "a")
+        assertStatus 301 req
+        assertHeader "Location" "../a/" req
+
+      let urlMapApp = flip runSession $ mapUrls $
+            mount "subPath" (staticApp $ defaultFileServerSettings "test")
+      it "works in conjunction with UrlMap at the root of the file server" $ urlMapApp $ do
+        req <- request (setRawPathInfo defRequest "subPath")
+        assertStatus 301 req
+        assertHeader "Location" "../subPath/" req
