@@ -88,7 +88,7 @@ instance ToApplication UrlMap where
         case try (pathInfo req) (unUrlMap urlMap) of
             Just (newPath, app) ->
                 app (req { pathInfo = newPath
-                         , rawPathInfo = makeRaw newPath
+                         --, rawPathInfo = makeRaw newPath
                          }) sendResponse
             Nothing ->
                 sendResponse $ responseLBS

@@ -52,6 +52,7 @@ import Network.Mime (MimeType)
 data StaticResponse =
       -- | Just the etag hash or Nothing for no etag hash
       Redirect Pieces (Maybe ByteString)
+    | RawRedirect ByteString
     | NotFound
     | FileResponse File H.ResponseHeaders
     | NotModified
@@ -79,15 +80,15 @@ serveFolder ss@StaticSettings {..} pieces req folder@Folder {..} =
             let pieces' = setLast pieces index in
             case () of
               () | ssRedirectToIndex -> return $ Redirect pieces' Nothing
-                 | noTrailingSlash pieces, Just trailing <- toPiece ""  ->
-                    return $ Redirect (pieces ++ [trailing]) Nothing
+                 | Just path <- addTrailingSlash req ->
+                    return $ RawRedirect path
                  | otherwise ->
                     -- start the checking process over, with a new set
                     checkPieces ss pieces' req
         Nothing ->
             case ssListing of
-                Just _ | noTrailingSlash pieces, Just trailing <- toPiece "" ->
-                    return $ Redirect (pieces ++ [trailing]) Nothing
+                Just _ | Just path <- addTrailingSlash req ->
+                    return $ RawRedirect path
                 Just listing -> do
                     -- directory listings turned on, display it
                     builder <- listing pieces folder
@@ -103,6 +104,15 @@ serveFolder ss@StaticSettings {..} pieces req folder@Folder {..} =
     setLast [t] x
         | fromPiece t == "" = [x]
     setLast (a:b) x = a : setLast b x
+
+    addTrailingSlash :: W.Request -> Maybe ByteString
+    addTrailingSlash req
+        | S8.null rp = Just "/"
+        | rp == "/" = Nothing
+        | S8.last rp == '/' = Nothing
+        | otherwise = Just $ S8.snoc rp '/'
+      where
+        rp = W.rawPathInfo req
 
     noTrailingSlash :: Pieces -> Bool
     noTrailingSlash [] = False
@@ -248,6 +258,12 @@ staticAppPieces ss rawPieces req sendResponse = liftIO $ do
             sendResponse $ W.responseLBS H.status301
                 [ ("Content-Type", "text/plain")
                 , ("Location", S8.append loc $ H.renderQuery True qString)
+                ] "Redirect"
+
+    response (RawRedirect path) =
+            sendResponse $ W.responseLBS H.status301
+                [ ("Content-Type", "text/plain")
+                , ("Location", path)
                 ] "Redirect"
 
     response NotFound = sendResponse $ W.responseLBS H.status404
