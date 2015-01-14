@@ -208,7 +208,7 @@ httpOverTls TLSSettings{..} s cachedRef params = do
         TLS.backendFlush = return ()
       , TLS.backendClose = sClose s
       , TLS.backendSend  = sendAll s
-      , TLS.backendRecv  = getNext cachedRef s
+      , TLS.backendRecv  = recvTLS cachedRef s
       }
     conn ctx readBuf writeBuf = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
@@ -264,7 +264,7 @@ plainHTTP TLSSettings{..} s cachedRef = case onInsecure of
     AllowInsecure -> do
         conn' <- socketConnection s
         let conn'' = conn'
-                { connRecv = recvCheckRef cachedRef (connRecv conn')
+                { connRecv = recvPlain cachedRef (connRecv conn')
                 }
         return (conn'', False)
     DenyInsecure lbs -> do
@@ -275,8 +275,8 @@ plainHTTP TLSSettings{..} s cachedRef = case onInsecure of
 
 ----------------------------------------------------------------
 
-getNext :: I.IORef B.ByteString -> Socket -> Int -> IO B.ByteString
-getNext cachedRef s size = do
+recvTLS :: I.IORef B.ByteString -> Socket -> Int -> IO B.ByteString
+recvTLS cachedRef s size = do
     cached <- I.readIORef cachedRef
     loop cached
   where
@@ -298,8 +298,8 @@ getNext cachedRef s size = do
 -- | Modify the given receive function to first check the given @IORef@ for a
 -- chunk of data. If present, takes the chunk of data from the @IORef@ and
 -- empties out the @IORef@. Otherwise, calls the supplied receive function.
-recvCheckRef :: I.IORef B.ByteString -> IO B.ByteString -> IO B.ByteString
-recvCheckRef ref fallback = do
+recvPlain :: I.IORef B.ByteString -> IO B.ByteString -> IO B.ByteString
+recvPlain ref fallback = do
     bs <- I.readIORef ref
     if B.null bs
         then fallback
