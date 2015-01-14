@@ -95,7 +95,7 @@ test-suite runtests
                    , old-locale
                    , http-date
                    , wai-app-static
-                   , wai-extra
+                   , wai-extra                 >= 3.0.4.2
                    , wai
                    , http-types
                    , network

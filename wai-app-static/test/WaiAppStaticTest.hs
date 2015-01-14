@@ -126,13 +126,13 @@ spec = do
 
     context "301 redirect to add a trailing slash on directories if missing" $ do
       it "works at the root" $ fileServerApp $ do
-        req <- request (setRawPathInfo defRequest "a")
+        req <- request (setRawPathInfo defRequest "/a")
         assertStatus 301 req
-        assertHeader "Location" "../a/" req
+        assertHeader "Location" "/a/" req
 
       let urlMapApp = flip runSession $ mapUrls $
             mount "subPath" (staticApp $ defaultFileServerSettings "test")
       it "works in conjunction with UrlMap at the root of the file server" $ urlMapApp $ do
-        req <- request (setRawPathInfo defRequest "subPath")
+        req <- request (setRawPathInfo defRequest "/subPath")
         assertStatus 301 req
-        assertHeader "Location" "../subPath/" req
+        assertHeader "Location" "/subPath/" req
