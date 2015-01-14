@@ -108,7 +108,6 @@ serveFolder ss@StaticSettings {..} pieces req folder@Folder {..} =
     addTrailingSlash :: W.Request -> Maybe ByteString
     addTrailingSlash req
         | S8.null rp = Just "/"
-        | rp == "/" = Nothing
         | S8.last rp == '/' = Nothing
         | otherwise = Just $ S8.snoc rp '/'
       where
