@@ -1,3 +1,7 @@
+## 3.0.5.2
+
+* [Pass the Request to settingsOnException handlers when available. #326](https://github.com/yesodweb/wai/pull/326)
+
 ## 3.0.5
 
 Support for PROXY protocol, such as used by Amazon ELB TCP. This is useful
