@@ -222,7 +222,7 @@ httpOverTls TLSSettings{..} s cachedRef params = do
       , connBufferSize       = bufferSize
       }
       where
-        sendfile fp offset len tickle headers = do
+        sendfile fp offset len tickle' headers = do
             TLS.sendData ctx $ L.fromChunks headers
             IO.withBinaryFile fp IO.ReadMode $ \h -> do
                 IO.hSeek h IO.AbsoluteSeek offset
@@ -234,7 +234,7 @@ httpOverTls TLSSettings{..} s cachedRef params = do
                 unless (B.null bs) $ do
                     let x = B.take remaining bs
                     TLS.sendData ctx $ L.fromChunks [x]
-                    tickle -- This tickles the Timer.  It MUST be called per chunk.
+                    void $ tickle' -- This tickles the Timer.  It MUST be called per chunk.
                     loop h $ remaining - B.length x
 
         close = freeBuffer readBuf `finally`
