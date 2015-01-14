@@ -263,14 +263,10 @@ plainHTTP :: TLSSettings -> Socket -> I.IORef B.ByteString -> IO (Connection, Bo
 plainHTTP TLSSettings{..} s cachedRef = case onInsecure of
     AllowInsecure -> do
         conn' <- socketConnection s
-        let newRecv = do
-                bs <- I.readIORef cachedRef
-                if B.null bs
-                    then connRecv conn'
-                    else do
-                        I.writeIORef cachedRef B.empty
-                        return bs
-        return (conn' { connRecv = newRecv }, False)
+        let conn'' = conn'
+                { connRecv = recvCheckRef cachedRef (connRecv conn')
+                }
+        return (conn'', False)
     DenyInsecure lbs -> do
         sendAll s "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
         mapM_ (sendAll s) $ L.toChunks lbs
@@ -296,6 +292,20 @@ getNext cachedRef s size = do
             return bs1
           else
             loop $ B.append bs1 bs2
+
+----------------------------------------------------------------
+
+-- | Modify the given receive function to first check the given @IORef@ for a
+-- chunk of data. If present, takes the chunk of data from the @IORef@ and
+-- empties out the @IORef@. Otherwise, calls the supplied receive function.
+recvCheckRef :: I.IORef B.ByteString -> IO B.ByteString -> IO B.ByteString
+recvCheckRef ref fallback = do
+    bs <- I.readIORef ref
+    if B.null bs
+        then fallback
+        else do
+            I.writeIORef ref B.empty
+            return bs
 
 ----------------------------------------------------------------
 
