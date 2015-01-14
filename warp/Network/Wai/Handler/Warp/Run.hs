@@ -339,6 +339,13 @@ serveConnection conn ii origAddr isSecure' settings app = do
     recvSendLoop addr istatus fromClient = do
         (req', mremainingRef, idxhdr) <- recvRequest settings conn ii addr fromClient
         let req = req' { isSecure = isSecure' }
+        processRequest addr istatus fromClient req mremainingRef idxhdr
+            `catch` \e -> do
+                -- Call the user-supplied exception handlers, passing the request.
+                sendErrorResponse addr istatus e
+                onE settings (Just req) e
+
+    processRequest addr istatus fromClient req mremainingRef idxhdr = do
         -- Let the application run for as long as it wants
         T.pause th
 
