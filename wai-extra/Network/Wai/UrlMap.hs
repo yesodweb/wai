@@ -88,9 +88,7 @@ instance ToApplication UrlMap where
         case try (pathInfo req) (unUrlMap urlMap) of
             Just (newPath, app) ->
                 app (req { pathInfo = newPath
-                         -- FIXME decide if this should be left or not. See:
-                         -- https://github.com/yesodweb/wai/issues/325#issuecomment-69971560
-                         , rawPathInfo = makeRaw newPath
+                         --, rawPathInfo = makeRaw newPath
                          }) sendResponse
             Nothing ->
                 sendResponse $ responseLBS
