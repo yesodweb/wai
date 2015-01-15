@@ -28,7 +28,18 @@ data Request = Request {
   -- depending on backend; in a standalone server setting, this is most likely
   -- all information after the domain name. In a CGI application, this would be
   -- the information following the path to the CGI executable itself.
-  -- Do not modify this raw value- modify pathInfo instead.
+  --
+  -- Middlewares and routing tools should not modify this raw value, as it may
+  -- be used for such things as creating redirect destinations by applications.
+  -- Instead, if you are writing a middleware or routing framework, modify the
+  -- @pathInfo@ instead. This is the approach taken by systems like Yesod
+  -- subsites.
+  --
+  -- /Note/: At the time of writing this documentation, there is at least one
+  -- system (@Network.Wai.UrlMap@ from @wai-extra@) that does not follow the
+  -- above recommendation. Therefore, it is recommended that you test the
+  -- behavior of your application when using @rawPathInfo@ and any form of
+  -- library that might modify the @Request@.
   ,  rawPathInfo          :: B.ByteString
   -- | If no query string was specified, this should be empty. This value
   -- /will/ include the leading question mark.
