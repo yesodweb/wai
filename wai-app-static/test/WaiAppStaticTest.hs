@@ -9,12 +9,12 @@ import qualified Data.ByteString.Char8 as S8
 import System.PosixCompat.Files (getFileStatus, modificationTime)
 
 import Network.HTTP.Date
+import Network.HTTP.Types (status500)
 {-import System.Locale (defaultTimeLocale)-}
 {-import Data.Time.Format (formatTime)-}
 
 import Network.Wai
 import Network.Wai.Test
-import Network.Wai.UrlMap
 
 import Control.Monad.IO.Class (liftIO)
 import Network.Mime
@@ -130,9 +130,14 @@ spec = do
         assertStatus 301 req
         assertHeader "Location" "/a/" req
 
-      let urlMapApp = flip runSession $ mapUrls $
-            mount "subPath" (staticApp $ defaultFileServerSettings "test")
-      it "works in conjunction with UrlMap at the root of the file server" $ urlMapApp $ do
+      let urlMapApp = flip runSession $ \req send ->
+            case pathInfo req of
+                "subPath":rest ->
+                    let req' = req { pathInfo = rest }
+                     in (staticApp $ defaultFileServerSettings "test") req' send
+                _ -> send $ responseLBS status500 []
+                    "urlMapApp: only works at subPath"
+      it "works with subpath at the root of the file server" $ urlMapApp $ do
         req <- request (setRawPathInfo defRequest "/subPath")
         assertStatus 301 req
         assertHeader "Location" "/subPath/" req
