@@ -66,23 +66,28 @@ mapRight f eith = case eith of
 ----------------------------------------------------------------
 
 fileRange :: H.Status -> H.ResponseHeaders -> FilePath
-           -> Maybe FilePart -> Maybe HeaderValue
+          -> Maybe FilePart -> Maybe HeaderValue
           -> IO (Either IOException
                         (H.Status, H.ResponseHeaders, Integer, Integer))
-fileRange s0 hs0 path mPart mRange =
-    mapRight (fileRangeSized . fromIntegral . P.fileSize) <$>
-        try (P.getFileStatus path)
- where
-    fileRangeSized :: Integer -> (H.Status, H.ResponseHeaders, Integer, Integer)
-    fileRangeSized fileSize =
-        let (beg, end, len, isEntire) = checkPartRange fileSize mPart mRange
-            hs1 = addContentLength len hs0
-            hs | isEntire  = hs1
-               | otherwise = addContentRange beg end fileSize hs1
-            s  | isEntire  = s0
-               | otherwise = H.status206
-        in  (s, hs, beg, len)
+fileRange s0 hs0 path Nothing mRange =
+    mapRight (fileRangeSized s0 hs0 Nothing mRange . fromIntegral . P.fileSize) <$>
+    try (P.getFileStatus path)
+fileRange s0 hs0 _ mPart@(Just part) mRange =
+    return . Right $ fileRangeSized s0 hs0 mPart mRange size
+  where
+    size = filePartFileSize part
 
+fileRangeSized :: H.Status -> H.ResponseHeaders
+               -> Maybe FilePart -> Maybe HeaderValue -> Integer
+               -> (H.Status, H.ResponseHeaders, Integer, Integer)
+fileRangeSized s0 hs0 mPart mRange fileSize = (s, hs, beg, len)
+  where
+    (beg, end, len, isEntire) = checkPartRange fileSize mPart mRange
+    hs1 = addContentLength len hs0
+    hs | isEntire  = hs1
+       | otherwise = addContentRange beg end fileSize hs1
+    s  | isEntire  = s0
+       | otherwise = H.status206
 
 checkPartRange :: Integer -> Maybe FilePart -> Maybe HeaderValue
                -> (Integer, Integer, Integer, Bool)
