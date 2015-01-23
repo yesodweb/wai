@@ -339,13 +339,16 @@ serveConnection conn ii origAddr isSecure' settings app = do
     recvSendLoop addr istatus fromClient = do
         (req', mremainingRef, idxhdr) <- recvRequest settings conn ii addr fromClient
         let req = req' { isSecure = isSecure' }
-        processRequest addr istatus fromClient req mremainingRef idxhdr
-            `catch` \e -> do
+        keepAlive <- processRequest istatus fromClient req mremainingRef idxhdr
+            `E.catch` \e -> do
                 -- Call the user-supplied exception handlers, passing the request.
                 sendErrorResponse addr istatus e
                 onE settings (Just req) e
+                -- Don't throw the error again to prevent calling onE twice.
+                return False
+        when keepAlive $ recvSendLoop addr istatus fromClient
 
-    processRequest addr istatus fromClient req mremainingRef idxhdr = do
+    processRequest istatus fromClient req mremainingRef idxhdr = do
         -- Let the application run for as long as it wants
         T.pause th
 
@@ -376,7 +379,9 @@ serveConnection conn ii origAddr isSecure' settings app = do
         -- the number of cores is small.
         Conc.yield
 
-        when keepAlive $ do
+        if not keepAlive then
+            return False
+          else do
             -- If there is an unknown or large amount of data to still be read
             -- from the request body, simple drop this connection instead of
             -- reading it all in to satisfy a keep-alive request.
@@ -384,18 +389,23 @@ serveConnection conn ii origAddr isSecure' settings app = do
                 Nothing -> do
                     flushEntireBody (requestBody req)
                     T.resume th
-                    recvSendLoop addr istatus fromClient
+                    return True
                 Just maxToRead -> do
                     let tryKeepAlive = do
                             -- flush the rest of the request body
                             isComplete <- flushBody (requestBody req) maxToRead
-                            when isComplete $ do
+                            if isComplete then do
                                 T.resume th
-                                recvSendLoop addr istatus fromClient
+                                return True
+                              else
+                                return False
                     case mremainingRef of
                         Just ref -> do
                             remaining <- readIORef ref
-                            when (remaining <= maxToRead) tryKeepAlive
+                            if remaining <= maxToRead then
+                                tryKeepAlive
+                              else
+                                return False
                         Nothing -> tryKeepAlive
 
 flushEntireBody :: IO ByteString -> IO ()
