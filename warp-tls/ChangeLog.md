@@ -1,3 +1,7 @@
+## 3.0.1.4
+
+Add additional Diffie-Hellman RSA and DSA ciphers to warp-tls.
+
 ## 3.0.1.3
 
 [Unable to allow insecure connections with warp-tls #324](https://github.com/yesodweb/wai/issues/324)
