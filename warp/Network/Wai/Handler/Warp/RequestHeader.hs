@@ -137,23 +137,21 @@ parseByteRanges bs1 = do
     (r, bs3) <- range bs2
     ranges (r:) bs3
   where
-    range bs2 =
-        case stripPrefix "-" bs2 of
-            Just bs3 -> do
-                (i, bs4) <- B.readInteger bs3
-                Just (HH.ByteRangeSuffix i, bs4)
-            Nothing -> do
-                (i, bs3) <- B.readInteger bs2
+    range bs2 = do
+        (i, bs3) <- B.readInteger bs2
+        if i < 0 -- has prefix "-" ("-0" is not valid, but here treated as "0-")
+            then Just (HH.ByteRangeSuffix (negate i), bs3)
+            else do
                 bs4 <- stripPrefix "-" bs3
                 case B.readInteger bs4 of
-                    Nothing -> Just (HH.ByteRangeFrom i, bs4)
-                    Just (j, bs5) -> Just (HH.ByteRangeFromTo i j, bs5)
-    ranges front bs3 =
-        case stripPrefix "," bs3 of
-            Nothing -> Just (front [])
-            Just bs4 -> do
-                (r, bs5) <- range bs4
-                ranges (front . (r:)) bs5
+                    Just (j, bs5) | j >= i -> Just (HH.ByteRangeFromTo i j, bs5)
+                    _ -> Just (HH.ByteRangeFrom i, bs4)
+    ranges front bs3 
+        | S.null bs3 = Just (front [])
+        | otherwise = do
+            bs4 <- stripPrefix "," bs3
+            (r, bs5) <- range bs4
+            ranges (front . (r:)) bs5
 
     stripPrefix x y
         | x `S.isPrefixOf` y = Just (S.drop (S.length x) y)

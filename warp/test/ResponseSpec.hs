@@ -19,7 +19,7 @@ main = hspec spec
 
 testRange :: S.ByteString -- ^ range value
           -> String -- ^ expected output
-          -> String -- ^ expected content-range value
+          -> Maybe String -- ^ expected content-range value
           -> Spec
 testRange range out crange = it title $ withApp defaultSettings app $ \port -> do
     handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
@@ -31,9 +31,9 @@ testRange range out crange = it title $ withApp defaultSettings app $ \port -> d
     threadDelay 10000
     bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ S.hGetSome handle 1024
     hClose handle
-    out `shouldBe` last bss
+    last bss `shouldBe` out
     let hs = mapMaybe toHeader bss
-    lookup "Content-Range" hs `shouldBe` Just ("bytes " ++ crange)
+    lookup "Content-Range" hs `shouldBe` fmap ("bytes " ++) crange
     lookup "Content-Length" hs `shouldBe` Just (show $ length $ last bss)
   where
     app _ = ($ responseFile status200 [] "attic/hex" Nothing)
@@ -83,10 +83,12 @@ testFileRange desc s rsphdr file mPart mRange ans = it desc $ do
 spec :: Spec
 spec = do
     describe "range requests" $ do
-        testRange "2-3" "23" "2-3/16"
-        testRange "5-" "56789abcdef" "5-15/16"
-        testRange "5-8" "5678" "5-8/16"
-        testRange "-3" "def" "13-15/16"
+        testRange "2-3" "23" $ Just "2-3/16"
+        testRange "5-" "56789abcdef" $ Just "5-15/16"
+        testRange "5-8" "5678" $ Just "5-8/16"
+        testRange "-3" "def" $ Just "13-15/16"
+        testRange "16-" "" $ Just "*/16"
+        testRange "-17" "0123456789abcdef" Nothing
 
     describe "partial files" $ do
         testPartial 16 2 2 "23"
@@ -114,6 +116,10 @@ spec = do
             "gets a file size from file system and handles Range and returns Partical Content"
             status200 [] "attic/hex" Nothing (Just "bytes=2-14")
             $ Right (status206,[("Content-Range","bytes 2-14/16"),("Content-Length","13")],2,13)
+        testFileRange
+            "truncates end point of range to file size"
+            status200 [] "attic/hex" Nothing (Just "bytes=10-20")
+            $ Right (status206,[("Content-Range","bytes 10-15/16"),("Content-Length","6")],10,6)
         testFileRange
             "gets a file size from file system and handles Range and returns OK if Range means the entire"
             status200 [] "attic/hex" Nothing (Just "bytes=0-15")
