@@ -153,14 +153,15 @@ checkPartRange fileSize = checkPart
 --     Status is also changed to 206 if necessary.
 --
 --   ['responseBuilder' :: 'H.Status' -> 'H.ResponseHeaders' -> 'Builder' -> 'Response']
---     HTTP response body is created from 'Source'.
---     Typically, Transfer-Encoding: chunked is used.
---     If Content-Length is specified, Transfer-Encoding: chunked is not used.
---
---   ['responseSource' :: 'H.Status' -> 'H.ResponseHeaders' -> 'Source' 'IO' ('Flush' 'Builder') -> 'Response']
 --     HTTP response body is created from 'Builder'.
---     Typically, Transfer-Encoding: chunked is used.
---     If Content-Length is specified, Transfer-Encoding: chunked is not used.
+--     Transfer-Encoding: chunked is used in HTTP/1.1.
+--
+--   ['responseStream' :: 'H.Status' -> 'H.ResponseHeaders' -> 'StreamingBody' -> 'Response']
+--     HTTP response body is created from 'Builder'.
+--     Transfer-Encoding: chunked is used in HTTP/1.1.
+--
+--   ['responseRaw' :: ('IO' 'ByteString' -> ('ByteString' -> 'IO' ()) -> 'IO' ()) -> 'Response' -> 'Response']
+--     No header is added and no Transfer-Encoding: is applied.
 
 sendResponse :: ByteString -- ^ default server value
              -> Connection
