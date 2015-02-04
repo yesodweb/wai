@@ -278,7 +278,7 @@ serveConnection conn ii origAddr isSecure' settings app = do
     istatus <- newIORef False
     src <- mkSource (connSource conn th istatus)
     addr <- getProxyProtocolAddr src
-    recvSendLoop addr istatus src `E.catch` \e -> do
+    http1 addr istatus src `E.catch` \e -> do
         sendErrorResponse addr istatus e
         throwIO (e :: SomeException)
 
@@ -336,19 +336,19 @@ serveConnection conn ii origAddr isSecure' settings app = do
 
     errorResponse e = settingsOnExceptionResponse settings e
 
-    recvSendLoop addr istatus fromClient = do
-        (req', mremainingRef, idxhdr) <- recvRequest settings conn ii addr fromClient
+    http1 addr istatus src = do
+        (req', mremainingRef, idxhdr) <- recvRequest settings conn ii addr src
         let req = req' { isSecure = isSecure' }
-        keepAlive <- processRequest istatus fromClient req mremainingRef idxhdr
+        keepAlive <- processRequest istatus src req mremainingRef idxhdr
             `E.catch` \e -> do
                 -- Call the user-supplied exception handlers, passing the request.
                 sendErrorResponse addr istatus e
                 onE settings (Just req) e
                 -- Don't throw the error again to prevent calling onE twice.
                 return False
-        when keepAlive $ recvSendLoop addr istatus fromClient
+        when keepAlive $ http1 addr istatus src
 
-    processRequest istatus fromClient req mremainingRef idxhdr = do
+    processRequest istatus src req mremainingRef idxhdr = do
         -- Let the application run for as long as it wants
         T.pause th
 
@@ -364,7 +364,7 @@ serveConnection conn ii origAddr isSecure' settings app = do
             writeIORef istatus False
             keepAlive <- sendResponse
                 (settingsServerName settings)
-                conn ii req idxhdr (readSource fromClient) res
+                conn ii req idxhdr (readSource src) res
             writeIORef keepAliveRef keepAlive
             return ResponseReceived
         keepAlive <- readIORef keepAliveRef
