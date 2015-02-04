@@ -30,9 +30,9 @@ import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Maybe (isJust, listToMaybe)
 #if MIN_VERSION_base(4,5,0)
-import Data.Monoid ((<>))
+import Data.Monoid ((<>), mempty)
 #else
-import Data.Monoid (mappend)
+import Data.Monoid (mappend, mempty)
 #endif
 import Data.Version (showVersion)
 import qualified Network.HTTP.Types as H
@@ -109,8 +109,8 @@ checkPartRange fileSize = checkPart
         isEntire = beg == 0 && len == fileSize
 
     checkRange (H.ByteRangeFrom   beg)     = fromRange beg (fileSize - 1)
-    checkRange (H.ByteRangeFromTo beg end) = fromRange beg end
-    checkRange (H.ByteRangeSuffix count)   = fromRange (fileSize - count) (fileSize - 1)
+    checkRange (H.ByteRangeFromTo beg end) = fromRange beg (min (fileSize - 1) end)
+    checkRange (H.ByteRangeSuffix count)   = fromRange (max 0 (fileSize - count)) (fileSize - 1)
 
     fromRange beg end = (beg, end, len, isEntire)
       where
@@ -225,9 +225,11 @@ sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
           print _ex >>
 #endif
           sendRsp conn ver s2 hs2 (RspBuilder body True)
-        Right (s, hs1, beg, len) -> do
+        Right (s, hs1, beg, len) | len > 0 -> do
             lheader <- composeHeader ver s hs1
             connSendFile conn path beg len hook [lheader]
+          | otherwise -> do
+            sendRsp conn ver H.status416 hs1 (RspBuilder mempty True)
   where
     hs = addAcceptRanges hs0
     s2 = H.status404
@@ -373,11 +375,12 @@ addContentRange beg end total hdrs = (hContentRange, range) : hdrs
     range = B.pack
       -- building with ShowS
       $ 'b' : 'y': 't' : 'e' : 's' : ' '
-      : showInt beg
-      ( '-'
-      : showInt end
+      : (if beg > end then ('*':) else
+          (showInt beg)
+          . ('-' :)
+          . (showInt end))
       ( '/'
-      : showInt total ""))
+      : showInt total "")
 
 addDate :: D.DateCache -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
 addDate dc rspidxhdr hdrs = case rspidxhdr ! idxDate of
