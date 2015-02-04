@@ -6,15 +6,16 @@ module Network.Wai.Handler.Warp.Types where
 
 import Control.Exception
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as S
+import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 import Data.Typeable (Typeable)
+import Data.Word (Word16)
 import Network.HTTP.Types.Header
 import Network.Socket (Socket)
+import Network.Wai.Handler.Warp.Buffer (Buffer,BufSize)
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.Timeout as T
-import Network.Wai.Handler.Warp.Buffer (Buffer,BufSize)
-import qualified Data.ByteString as S
-import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 
 ----------------------------------------------------------------
 
@@ -120,3 +121,18 @@ leftoverSource (Source ref _) bs = writeIORef ref bs
 
 readLeftoverSource :: Source -> IO ByteString
 readLeftoverSource (Source ref _) = readIORef ref
+
+----------------------------------------------------------------
+
+-- | What kind of transport is used for this connection?
+data Transport = TCP -- ^ Plain channel: TCP
+               | TLS {
+                   tlsMajorVersion :: Int
+                 , tlsMinorVersion :: Int
+                 , tlsNegotiatedProtocol :: Maybe ByteString -- ^ The result of Application Layer Protocol Negociation in RFC 7301
+                 , tlsChiperID :: Word16
+                 }  -- ^ Encrypted channel: TLS or SSL
+
+isTransportSecure :: Transport -> Bool
+isTransportSecure TCP = False
+isTransportSecure _   = True

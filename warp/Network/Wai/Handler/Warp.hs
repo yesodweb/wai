@@ -67,6 +67,7 @@ module Network.Wai.Handler.Warp (
   , exceptionResponseForDebug
   , defaultShouldDisplayException
     -- * Data types
+  , Transport (..)
   , HostPreference (..)
   , Port
   , InvalidRequest (..)
