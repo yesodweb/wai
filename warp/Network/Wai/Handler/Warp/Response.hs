@@ -251,26 +251,26 @@ sendRsp conn ver s hs (RspBuilder body needsChunked) = do
 
 ----------------------------------------------------------------
 
-sendRsp conn ver s hs (RspStream withBodyFlush needsChunked th) = do
+sendRsp conn ver s hs (RspStream streamingBody needsChunked th) = do
     header <- composeHeaderBuilder ver s hs needsChunked
     (recv, finish) <- newBlazeRecv $ reuseBufferStrategy
                     $ toBlazeBuffer (connWriteBuffer conn) (connBufferSize conn)
-    let addChunk builder = do
+    let send builder = do
             popper <- recv builder
             let loop = do
                     bs <- popper
                     unless (S.null bs) $ do
-                        connSink conn th bs
+                        sendFragment conn th bs
                         loop
             loop
-        addChunk'
-            | needsChunked = addChunk . chunkedTransferEncoding
-            | otherwise = addChunk
-    addChunk header
-    withBodyFlush addChunk' (addChunk' flush)
-    when needsChunked $ addChunk chunkedTransferTerminator
+        sendChunk
+            | needsChunked = send . chunkedTransferEncoding
+            | otherwise = send
+    send header
+    streamingBody sendChunk (sendChunk flush)
+    when needsChunked $ send chunkedTransferTerminator
     mbs <- finish
-    maybe (return ()) (connSink conn th) mbs
+    maybe (return ()) (sendFragment conn th) mbs
 
 ----------------------------------------------------------------
 
@@ -296,8 +296,8 @@ sendResponseNoBody conn ver s hs = composeHeader ver s hs >>= connSendAll conn
 ----------------------------------------------------------------
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
-connSink :: Connection -> T.Handle -> ByteString -> IO ()
-connSink Connection { connSendAll = send } th bs = do
+sendFragment :: Connection -> T.Handle -> ByteString -> IO ()
+sendFragment Connection { connSendAll = send } th bs = do
     T.resume th
     send bs
     T.pause th
