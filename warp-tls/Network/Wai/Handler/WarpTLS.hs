@@ -99,8 +99,9 @@ defaultTlsSettings = TLSSettings {
 -- taken from stunnel example in tls-extra
 ciphers :: [TLS.Cipher]
 ciphers =
-    [
-      TLSExtra.cipher_DHE_RSA_AES256_SHA256
+    [ TLSExtra.cipher_ECDHE_RSA_AES128GCM_SHA256
+    , TLSExtra.cipher_DHE_RSA_AES128GCM_SHA256
+    , TLSExtra.cipher_DHE_RSA_AES256_SHA256
     , TLSExtra.cipher_DHE_RSA_AES128_SHA256
     , TLSExtra.cipher_DHE_RSA_AES256_SHA1
     , TLSExtra.cipher_DHE_RSA_AES128_SHA1
