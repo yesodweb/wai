@@ -35,6 +35,7 @@ import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
+import System.Environment (getEnvironment)
 import System.IO.Error (isFullErrorType, ioeGetErrorType)
 
 #if WINDOWS
@@ -70,6 +71,16 @@ allowInterrupt = unblock $ return ()
 -- 'defaultSettings'.
 run :: Port -> Application -> IO ()
 run p = runSettings defaultSettings { settingsPort = p }
+
+-- | Run an 'Application' on the port present in the @PORT@ environment variable
+--
+-- Uses the 'Port' given when the variable is unset.
+--
+-- Since X.Y.Z
+runEnv :: Port -> Application -> IO ()
+runEnv p app = do
+    mp <- fmap (lookup "PORT") getEnvironment
+    run (maybe p read mp) app
 
 -- | Run an 'Application' with the given 'Settings'.
 runSettings :: Settings -> Application -> IO ()
