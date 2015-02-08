@@ -80,7 +80,14 @@ run p = runSettings defaultSettings { settingsPort = p }
 runEnv :: Port -> Application -> IO ()
 runEnv p app = do
     mp <- fmap (lookup "PORT") getEnvironment
-    run (maybe p read mp) app
+
+    maybe (run p app) runReadPort mp
+
+  where
+    runReadPort :: String -> IO ()
+    runReadPort sp = case reads sp of
+        ((p', _):_) -> run p' app
+        _ -> fail $ "Invalid value in $PORT: " ++ sp
 
 -- | Run an 'Application' with the given 'Settings'.
 runSettings :: Settings -> Application -> IO ()
