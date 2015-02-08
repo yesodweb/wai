@@ -20,6 +20,7 @@
 module Network.Wai.Handler.Warp (
     -- * Run a Warp server
     run
+  , runEnv
   , runSettings
   , runSettingsSocket
   , runSettingsConnection
