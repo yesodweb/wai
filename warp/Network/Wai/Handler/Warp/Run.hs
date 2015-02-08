@@ -76,7 +76,7 @@ run p = runSettings defaultSettings { settingsPort = p }
 --
 -- Uses the 'Port' given when the variable is unset.
 --
--- Since X.Y.Z
+-- Since 3.0.9
 runEnv :: Port -> Application -> IO ()
 runEnv p app = do
     mp <- fmap (lookup "PORT") getEnvironment

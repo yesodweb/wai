@@ -1,3 +1,7 @@
+## 3.0.9
+
+* Add runEnv: like run but uses $PORT [#334](https://github.com/yesodweb/wai/pull/334)
+
 ## 3.0.5.2
 
 * [Pass the Request to settingsOnException handlers when available. #326](https://github.com/yesodweb/wai/pull/326)
