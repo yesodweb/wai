@@ -16,6 +16,7 @@ module Network.Wai.Handler.WarpTLS (
     , tlsAllowedVersions
     , tlsCiphers
     , tlsWantClientCert
+    , tlsServerHooks
     , defaultTlsSettings
     , tlsSettings
     , tlsSettingsMemory
@@ -83,6 +84,7 @@ data TLSSettings = TLSSettings {
     --
     -- Since 1.4.2
   , tlsWantClientCert :: Bool
+  , tlsServerHooks :: TLS.ServerHooks
   }
 
 -- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name.
@@ -97,6 +99,7 @@ defaultTlsSettings = TLSSettings {
   , tlsAllowedVersions = [TLS.TLS10,TLS.TLS11,TLS.TLS12]
   , tlsCiphers = ciphers
   , tlsWantClientCert = False
+  , tlsServerHooks = def
   }
 
 -- taken from stunnel example in tls-extra
@@ -186,6 +189,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
       , TLS.serverShared = def {
           TLS.sharedCredentials = TLS.Credentials [credential]
         }
+      , TLS.serverHooks = tlsServerHooks
       }
 
 ----------------------------------------------------------------
