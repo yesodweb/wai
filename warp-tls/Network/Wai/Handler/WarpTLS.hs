@@ -84,7 +84,23 @@ data TLSSettings = TLSSettings {
     --
     -- Since 1.4.2
   , tlsWantClientCert :: Bool
+    -- ^ Whether or not to demand a certificate from the client.  If this
+    -- is set to True, you must handle received certificates in a server hook
+    -- or all connections will fail.
+    --
+    -- Default: False
   , tlsServerHooks :: TLS.ServerHooks
+    -- ^ Whether or not to demand a certificate from the client.  If this
+    -- is set to True, you must handle received certificates in a server hook
+    -- or all connections will fail.
+    --
+    -- Default: False
+  , tlsServerHooks :: TLS.ServerHooks
+    -- ^ The server-side hooks called by the tls package, including actions
+    -- to take when a client certificate is received.  See the "Network.TLS"
+    -- module for details.
+    --
+    -- Default: def
   }
 
 -- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name.
