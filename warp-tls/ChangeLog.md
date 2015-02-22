@@ -1,3 +1,7 @@
+## 3.0.2
+
+* Allow warp-tls to request client certificates. [#337](https://github.com/yesodweb/wai/pull/337)
+
 ## 3.0.1.4
 
 Add additional Diffie-Hellman RSA and DSA ciphers to warp-tls.

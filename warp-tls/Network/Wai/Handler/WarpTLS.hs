@@ -89,12 +89,16 @@ data TLSSettings = TLSSettings {
     -- or all connections will fail.
     --
     -- Default: False
+    --
+    -- Since 3.0.2
   , tlsServerHooks :: TLS.ServerHooks
     -- ^ The server-side hooks called by the tls package, including actions
     -- to take when a client certificate is received.  See the "Network.TLS"
     -- module for details.
     --
     -- Default: def
+    --
+    -- Since 3.0.2
   }
 
 -- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name.
