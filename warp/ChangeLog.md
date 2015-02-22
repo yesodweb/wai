@@ -1,3 +1,7 @@
+## 3.0.9.1
+
+Add support for blaze-builder 0.4
+
 ## 3.0.9
 
 * Add runEnv: like run but uses $PORT [#334](https://github.com/yesodweb/wai/pull/334)
