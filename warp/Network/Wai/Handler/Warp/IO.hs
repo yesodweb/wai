@@ -7,6 +7,11 @@ import Data.ByteString.Internal (ByteString(..))
 import Foreign.ForeignPtr (newForeignPtr_)
 import Network.Wai.Handler.Warp.Buffer
 
+-- Support for doctest, where cabal macros are not available
+#ifndef MIN_VERSION_blaze_builder
+#define MIN_VERSION_blaze_builder(x, y, z) 1
+#endif
+
 #if MIN_VERSION_blaze_builder(0,4,0)
 
 import Blaze.ByteString.Builder (Builder)
