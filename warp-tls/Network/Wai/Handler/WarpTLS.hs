@@ -15,6 +15,8 @@ module Network.Wai.Handler.WarpTLS (
     , tlsLogging
     , tlsAllowedVersions
     , tlsCiphers
+    , tlsWantClientCert
+    , tlsServerHooks
     , defaultTlsSettings
     , tlsSettings
     , tlsSettingsMemory
@@ -81,6 +83,18 @@ data TLSSettings = TLSSettings {
     -- Default: '[TLSExtra.cipher_AES128_SHA1, TLSExtra.cipher_AES256_SHA1, TLSEtra.cipher_RC4_128_MD5, TLSExtra.cipher_RC4_128_SHA1]'
     --
     -- Since 1.4.2
+  , tlsWantClientCert :: Bool
+    -- ^ Whether or not to demand a certificate from the client.  If this
+    -- is set to True, you must handle received certificates in a server hook
+    -- or all connections will fail.
+    --
+    -- Default: False
+  , tlsServerHooks :: TLS.ServerHooks
+    -- ^ The server-side hooks called by the tls package, including actions
+    -- to take when a client certificate is received.  See the "Network.TLS"
+    -- module for details.
+    --
+    -- Default: def
   }
 
 -- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name.
@@ -94,6 +108,8 @@ defaultTlsSettings = TLSSettings {
   , tlsLogging = def
   , tlsAllowedVersions = [TLS.TLS10,TLS.TLS11,TLS.TLS12]
   , tlsCiphers = ciphers
+  , tlsWantClientCert = False
+  , tlsServerHooks = def
   }
 
 -- taken from stunnel example in tls-extra
@@ -175,7 +191,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
   where
     get = getter tlsset sock params
     params = def {
-        TLS.serverWantClientCert = False
+        TLS.serverWantClientCert = tlsWantClientCert
       , TLS.serverSupported = def {
           TLS.supportedVersions = tlsAllowedVersions
         , TLS.supportedCiphers  = tlsCiphers
@@ -183,6 +199,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
       , TLS.serverShared = def {
           TLS.sharedCredentials = TLS.Credentials [credential]
         }
+      , TLS.serverHooks = tlsServerHooks
       }
 
 ----------------------------------------------------------------
