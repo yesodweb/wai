@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.0.4.1
+Version:             3.0.4.2
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:         API docs and the README are available at <http://www.stackage.org/package/wai-extra>.
 License:             MIT
@@ -28,7 +28,7 @@ Library
                    , network                   >= 2.2.1.5
                    , directory                 >= 1.0.1
                    , transformers              >= 0.2.2
-                   , blaze-builder             >= 0.2.1.4  && < 0.4
+                   , blaze-builder             >= 0.2.1.4  && < 0.5
                    , http-types                >= 0.7
                    , text                      >= 0.7
                    , case-insensitive          >= 0.2
