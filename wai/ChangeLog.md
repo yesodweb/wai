@@ -1,3 +1,7 @@
+## 3.0.2.3
+
+Allow blaze-builder 0.4
+
 ## 3.0.2.2
 
 * Clarify some documentation on `rawPathInfo`. [Relevant Github
