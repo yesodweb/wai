@@ -1,6 +1,6 @@
 module Network.Wai.Handler.Warp.Buffer where
 
-import qualified Blaze.ByteString.Builder.Internal.Buffer as B (Buffer (..))
+import qualified Data.Streaming.ByteString.Builder.Buffer as B (Buffer (..))
 import Data.Word (Word8)
 import Foreign.ForeignPtr (newForeignPtr_)
 import Foreign.Marshal.Alloc (mallocBytes, free)

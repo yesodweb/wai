@@ -1,12 +1,40 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.IO where
 
-import Blaze.ByteString.Builder.Internal.Types (Builder(..), BuildSignal(..), BufRange(..), runBuildStep, buildStep)
 import Data.ByteString.Internal (ByteString(..))
 import Foreign.ForeignPtr (newForeignPtr_)
-import Foreign.Ptr (plusPtr, minusPtr)
 import Network.Wai.Handler.Warp.Buffer
+
+#if MIN_VERSION_blaze_builder(0,4,0)
+
+import Blaze.ByteString.Builder (Builder)
+import Data.ByteString.Builder.Extra (runBuilder, Next(Done, More, Chunk))
+
+toBufIOWith :: Buffer -> BufSize -> (ByteString -> IO ()) -> Builder -> IO ()
+toBufIOWith buf !size io builder = loop firstWriter
+  where
+    firstWriter = runBuilder builder
+    runIO len = toBS buf len >>= io
+    loop writer = do
+        (len, signal) <- writer buf size
+        case signal of
+             Done -> runIO len
+             More minSize next
+               | size < minSize -> error "toBufIOWith: BufferFull: minSize"
+               | otherwise      -> do
+                   runIO len
+                   loop next
+             Chunk bs next -> do
+                 runIO len
+                 io bs
+                 loop next
+
+#else /* !MIN_VERSION_blaze_builder(0,4,0) */
+
+import Blaze.ByteString.Builder.Internal.Types (Builder(..), BuildSignal(..), BufRange(..), runBuildStep, buildStep)
+import Foreign.Ptr (plusPtr, minusPtr)
 
 toBufIOWith :: Buffer -> BufSize -> (ByteString -> IO ()) -> Builder -> IO ()
 toBufIOWith buf !size io (Builder build) = loop firstStep
@@ -28,6 +56,8 @@ toBufIOWith buf !size io (Builder build) = loop firstStep
                  runIO ptr
                  io bs
                  loop next
+
+#endif /* !MIN_VERSION_blaze_builder(0,4,0) */
 
 toBS :: Buffer -> Int -> IO ByteString
 toBS ptr siz = do
