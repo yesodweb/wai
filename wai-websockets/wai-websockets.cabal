@@ -1,5 +1,5 @@
 Name:                wai-websockets
-Version:             3.0.0.4
+Version:             3.0.0.5
 Synopsis:            Provide a bridge betweeen WAI and the websockets package.
 License:             MIT
 License-file:        LICENSE
@@ -21,7 +21,7 @@ Library
   Build-Depends:     base               >= 3        && < 5
                    , bytestring         >= 0.9.1.4
                    , wai                >= 3.0      && < 3.1
-                   , blaze-builder      >= 0.2.1.4  && < 0.4
+                   , blaze-builder      >= 0.2.1.4  && < 0.5
                    , case-insensitive   >= 0.2
                    , network            >= 2.2.1.5
                    , transformers       >= 0.2
