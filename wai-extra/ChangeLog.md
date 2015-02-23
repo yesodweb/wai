@@ -1,3 +1,7 @@
+## 3.0.4.3
+
+Test suite warning cleanup
+
 ## 3.0.4.2
 
 Allow blaze-builder 0.4
