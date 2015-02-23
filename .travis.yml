@@ -1,6 +1,8 @@
 language: haskell
 
 install:
+    - ghc --version
+    - cabal --version
     - sudo apt-get install libfcgi-dev
     - cabal unpack wai-logger
     - mv wai-logger-* wai-logger
