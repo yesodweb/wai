@@ -1,3 +1,7 @@
+## 3.0.9.2
+
+Fix support for old versions of bytestring
+
 ## 3.0.9.1
 
 Add support for blaze-builder 0.4
