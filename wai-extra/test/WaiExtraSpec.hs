@@ -1,9 +1,14 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 module WaiExtraSpec (spec, toRequest) where
 
 import Test.Hspec
 import Test.HUnit hiding (Test)
-import Data.Monoid (mappend, mempty, (<>))
+#if MIN_VERSION_base(4,8,0)
+import Data.Monoid ((<>))
+#else
+import Data.Monoid (mempty, mappend, (<>))
+#endif
 
 import Network.Wai
 import Network.Wai.Test
