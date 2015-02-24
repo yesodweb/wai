@@ -1,7 +1,69 @@
 Name:                wai-extra
 Version:             3.0.4.3
 Synopsis:            Provides some basic WAI handlers and middleware.
-description:         API docs and the README are available at <http://www.stackage.org/package/wai-extra>.
+description:
+  Provides basic WAI handler and middleware functionality:
+  .
+  * WAI Testing Framework
+  .
+  Hspec testing facilities and helpers for WAI.
+  .
+  * Event Source/Event Stream
+  .
+  Send server events to the client. Compatible with the JavaScript
+  EventSource API.
+  .
+  * Accept Override
+  .
+  Override the Accept header in a request. Special handling for the
+  _accept query parameter (which is used throughout WAI override the
+  Accept header).
+  .
+  * Add Headers
+  .
+  WAI Middleware for adding arbitrary headers to an HTTP request.
+  .
+  * Clean Path
+  .
+  Clean a request path to a canonical form.
+  .
+  * GZip Compression
+  .
+  Negotiate HTTP payload gzip compression.
+  .
+  * HTTP Basic Authentication
+  .
+  WAI Basic Authentication Middleware which uses Authorization header.
+  .
+  * JSONP
+  .
+  \"JSON with Padding\" middleware. Automatic wrapping of JSON
+  responses to convert into JSONP.
+  .
+  * Method Override / Post
+  .
+  Allows overriding of the HTTP request method via the _method query string
+  parameter.
+  .
+  * Request Logging
+  .
+  Request logging middleware for development and production environments
+  .
+  * Request Rewrite
+  .
+  Rewrite request path info based on a custom conversion rules.
+  .
+  * Stream Files
+  .
+  Convert ResponseFile type responses into ResponseStream type.
+  .
+  * Virtual Host
+  .
+  Redirect incoming requests to a new host based on custom rules.
+  .
+  .
+  API docs and the README are available at <http://www.stackage.org/package/wai-extra>.
+
 License:             MIT
 License-file:        LICENSE
 Author:              Michael Snoyman
