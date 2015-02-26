@@ -1,3 +1,7 @@
+## 3.0.4.5
+
+* Allow fast-logger 2.3
+
 ## 3.0.4.3
 
 Test suite warning cleanup
