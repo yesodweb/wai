@@ -30,10 +30,6 @@ Flag use-bytestring-builder
     description: Use bytestring-builder package
     default: False
 
-Flag run-doctests
-    description: Run the doctests as part of testing
-    default: False
-
 Library
   Build-Depends:     base                      >= 3        && < 5
                    , array
@@ -104,12 +100,8 @@ Test-Suite doctest
   HS-Source-Dirs:       test
   Ghc-Options:          -threaded -Wall
   Main-Is:              doctests.hs
-  if flag(run-doctests)
-    buildable: True
-    Build-Depends:      base
+  Build-Depends:        base
                       , doctest >= 0.9.3
-  else
-    buildable: False
 
 Test-Suite spec
     Main-Is:         Spec.hs
