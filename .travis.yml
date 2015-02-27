@@ -1,5 +1,9 @@
 language: haskell
 
+ghc:
+    - 7.6
+    - 7.8
+
 install:
     - ghc --version
     - cabal --version
