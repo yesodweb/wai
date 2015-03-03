@@ -229,12 +229,6 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
                          | otherwise             = []
                  in if null par then [""] else ansiColor White "  Params: " <> par <> ["\n"]
 
-    -- log the request immediately.
-    liftIO $ cb $ mconcat $ map toLogStr $
-        ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
-        params ++
-        ansiColor White "  Accept: " ++ [accept, "\n"]
-
     t0 <- getCurrentTime
     app req' $ \rsp -> do
         let isRaw =
@@ -246,10 +240,14 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
         t1 <- getCurrentTime
 
         -- log the status of the response
-        unless isRaw $ cb $ mconcat $ map toLogStr $
-            ansiColor White "  Status: " ++
-            ansiStatusCode stCode (stCode <> " " <> stMsg) ++
-            [" ", pack $ show $ diffUTCTime t1 t0, "\n"]
+        cb $ mconcat $ map toLogStr $
+            ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
+            params ++
+            ansiColor White "  Accept: " ++ [accept, "\n"] ++
+            if isRaw then [] else
+                ansiColor White "  Status: " ++
+                ansiStatusCode stCode (stCode <> " " <> stMsg) ++
+                [" ", pack $ show $ diffUTCTime t1 t0, "\n"]
 
         sendResponse rsp
   where
