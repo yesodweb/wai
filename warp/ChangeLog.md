@@ -1,3 +1,7 @@
+## 3.0.9.3
+
+* Don't serve a 416 status code for 0-length files [keter issue #75](https://github.com/snoyberg/keter/issues/75)
+
 ## 3.0.9.2
 
 Fix support for old versions of bytestring

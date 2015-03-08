@@ -226,7 +226,7 @@ sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
           print _ex >>
 #endif
           sendRsp conn ver s2 hs2 (RspBuilder body True)
-        Right (s, hs1, beg, len) | len > 0 -> do
+        Right (s, hs1, beg, len) | len >= 0 -> do
             lheader <- composeHeader ver s hs1
             connSendFile conn path beg len hook [lheader]
           | otherwise -> do
