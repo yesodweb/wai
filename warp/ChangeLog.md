@@ -1,6 +1,7 @@
 ## 3.0.9.3
 
 * Don't serve a 416 status code for 0-length files [keter issue #75](https://github.com/snoyberg/keter/issues/75)
+* Don't serve content-length for 416 responses [#346](https://github.com/yesodweb/wai/issues/346)
 
 ## 3.0.9.2
 

@@ -230,7 +230,9 @@ sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
             lheader <- composeHeader ver s hs1
             connSendFile conn path beg len hook [lheader]
           | otherwise -> do
-            sendRsp conn ver H.status416 hs1 (RspBuilder mempty True)
+            sendRsp conn ver H.status416
+                (filter (\(k, _) -> k /= "content-length") hs1)
+                (RspBuilder mempty True)
   where
     hs = addAcceptRanges hs0
     s2 = H.status404
