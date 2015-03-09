@@ -17,7 +17,7 @@ Library
   Build-Depends:     base                          >= 4        && < 5
                    , bytestring                    >= 0.9
                    , wai                           >= 3.0      && < 3.1
-                   , warp                          >= 3.0      && < 3.1
+                   , warp                          >= 3.0.8    && < 3.1
                    , data-default-class            >= 0.0.1
                    , tls                           >= 1.2.16
                    , network                       >= 2.2.1
