@@ -18,8 +18,8 @@ module Network.Wai.Handler.WarpTLS (
     , tlsWantClientCert
     , tlsServerHooks
     , defaultTlsSettings
-    , tlsSettings
-    , tlsSettingsMemory
+    , tlsSettingsChain
+    , tlsSettingsChainMemory
     , OnInsecure (..)
     -- * Runner
     , runTLS
@@ -56,10 +56,13 @@ import System.IO.Error (isEOFError)
 data TLSSettings = TLSSettings {
     certFile :: FilePath
     -- ^ File containing the certificate.
+  , chainCertFiles :: [FilePath]
+    -- ^ Files containing chain certificates.
   , keyFile :: FilePath
-  , certMemory :: Maybe S.ByteString
-  , keyMemory :: Maybe S.ByteString
     -- ^ File containing the key
+  , certMemory :: Maybe S.ByteString
+  , chainCertsMemory :: [S.ByteString]
+  , keyMemory :: Maybe S.ByteString
   , onInsecure :: OnInsecure
     -- ^ Do we allow insecure connections with this server as well? Default
     -- is a simple text response stating that a secure connection is required.
@@ -105,8 +108,10 @@ data TLSSettings = TLSSettings {
 defaultTlsSettings :: TLSSettings
 defaultTlsSettings = TLSSettings {
     certFile = "certificate.pem"
+  , chainCertFiles = []
   , keyFile = "key.pem"
   , certMemory = Nothing
+  , chainCertsMemory = []
   , keyMemory = Nothing
   , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
   , tlsLogging = def
@@ -151,6 +156,21 @@ tlsSettings cert key = defaultTlsSettings {
   , keyFile = key
   }
 
+-- | A smart constructor for 'TLSSettings' that allows specifying
+-- chain certificates.
+--
+-- Since 3.0.3
+tlsSettingsChain
+            :: FilePath -- ^ Certificate file
+            -> [FilePath] -- ^ Chain certificate files
+            -> FilePath -- ^ Key file
+            -> TLSSettings
+tlsSettingsChain cert chainCerts key = defaultTlsSettings {
+    certFile = cert
+  , chainCertFiles = chainCerts
+  , keyFile = key
+  }
+
 -- | A smart constructor for 'TLSSettings', but uses in-memory representations
 -- of the certificate and key
 --
@@ -161,6 +181,21 @@ tlsSettingsMemory
     -> TLSSettings
 tlsSettingsMemory cert key = defaultTlsSettings
     { certMemory = Just cert
+    , keyMemory = Just key
+    }
+
+-- | A smart constructor for 'TLSSettings', but uses in-memory representations
+-- of the certificate and key
+--
+-- Since 3.0.3
+tlsSettingsChainMemory
+    :: S.ByteString -- ^ Certificate bytes
+    -> [S.ByteString] -- ^ Chain certificate bytes
+    -> S.ByteString -- ^ Key bytes
+    -> TLSSettings
+tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings
+    { certMemory = Just cert
+    , chainCertsMemory = chainCerts
     , keyMemory = Just key
     }
 
@@ -182,11 +217,14 @@ runTLS tset set app = withSocketsDo $
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket tlsset@TLSSettings{..} set sock app = do
     credential <- case (certMemory, keyMemory) of
-        (Nothing, Nothing) -> either error id <$> TLS.credentialLoadX509 certFile keyFile
+        (Nothing, Nothing) ->
+            either error id <$>
+            TLS.credentialLoadX509Chain certFile chainCertFiles keyFile
         (mcert, mkey) -> do
             cert <- maybe (S.readFile certFile) return mcert
             key <- maybe (S.readFile keyFile) return mkey
-            either error return $ TLS.credentialLoadX509FromMemory cert key
+            either error return $
+              TLS.credentialLoadX509ChainFromMemory cert chainCertsMemory key
     runTLSSocket' tlsset set credential sock app
 
 runTLSSocket' :: TLSSettings -> Settings -> TLS.Credential -> Socket -> Application -> IO ()
