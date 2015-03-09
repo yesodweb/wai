@@ -18,6 +18,8 @@ module Network.Wai.Handler.WarpTLS (
     , tlsWantClientCert
     , tlsServerHooks
     , defaultTlsSettings
+    , tlsSettings
+    , tlsSettingsMemory
     , tlsSettingsChain
     , tlsSettingsChainMemory
     , OnInsecure (..)
