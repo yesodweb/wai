@@ -1,3 +1,7 @@
+## 3.0.3
+
+* Support chain certs [#349](https://github.com/yesodweb/wai/pull/349)
+
 ## 3.0.2
 
 * Allow warp-tls to request client certificates. [#337](https://github.com/yesodweb/wai/pull/337)
