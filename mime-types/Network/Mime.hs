@@ -1000,6 +1000,7 @@ defaultMimeMap = Map.fromAscList [
     , ("wmx", "video/x-ms-wmx")
     , ("wmz", "application/x-msmetafile")
     , ("woff", "application/font-woff")
+    , ("woff2", "application/font-woff2")
     , ("wpd", "application/vnd.wordperfect")
     , ("wpl", "application/vnd.ms-wpl")
     , ("wps", "application/vnd.ms-works")
