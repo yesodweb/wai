@@ -1,3 +1,7 @@
+## 3.0.4.6
+
+* Access log sequence not valid [#336](https://github.com/yesodweb/wai/issues/336)
+
 ## 3.0.4.5
 
 * Allow fast-logger 2.3
