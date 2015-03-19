@@ -145,11 +145,12 @@ timeoutBody timeoutHandle rbody = do
     return $ do
         isFirst <- I.readIORef isFirstRef
 
-        when isFirst $
+        when isFirst $ do
             -- Timeout handling was paused after receiving the full request
             -- headers. Now we need to resume it to avoid a slowloris
             -- attack during request body sending.
             Timeout.resume timeoutHandle
+            I.writeIORef isFirstRef False
 
         bs <- rbody
 
