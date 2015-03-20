@@ -144,6 +144,7 @@ Test-Suite spec
                    , text
                    , streaming-commons         >= 0.1.10
                    , async
+                   , vault
   if flag(use-bytestring-builder)
       Build-Depends: bytestring                < 0.10.2.0
                    , bytestring-builder
