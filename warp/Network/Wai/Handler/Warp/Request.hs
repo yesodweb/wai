@@ -62,7 +62,7 @@ recvRequest settings conn ii addr src = do
         te = idxhdr ! idxTransferEncoding
     handleExpect conn httpversion expect
     (rbody, remainingRef, bodyLength) <- bodyAndSource src cl te
-    rbody' <- timeoutBody th rbody
+    rbody' <- timeoutBody remainingRef th rbody
     let req = Request {
             requestMethod     = method
           , httpVersion       = httpversion
@@ -138,9 +138,21 @@ isChunked _         = False
 
 ----------------------------------------------------------------
 
-timeoutBody :: Timeout.Handle -> IO ByteString -> IO (IO ByteString)
-timeoutBody timeoutHandle rbody = do
+timeoutBody :: Maybe (I.IORef Int) -- ^ remaining
+            -> Timeout.Handle
+            -> IO ByteString
+            -> IO (IO ByteString)
+timeoutBody remainingRef timeoutHandle rbody = do
     isFirstRef <- I.newIORef True
+
+    let checkEmpty =
+            case remainingRef of
+                Nothing -> return . S.null
+                Just ref -> \bs -> if S.null bs
+                    then return True
+                    else do
+                        x <- I.readIORef ref
+                        return $! x <= 0
 
     return $ do
         isFirst <- I.readIORef isFirstRef
@@ -158,7 +170,8 @@ timeoutBody timeoutHandle rbody = do
         -- because the application is not interested in more bytes, or
         -- because there is no more data available, pause the timeout
         -- handler again.
-        when (S.null bs) (Timeout.pause timeoutHandle)
+        isEmpty <- checkEmpty bs
+        when isEmpty (Timeout.pause timeoutHandle)
 
         return bs
 

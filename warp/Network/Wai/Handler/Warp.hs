@@ -17,6 +17,14 @@
 ---------------------------------------------------------
 
 -- | A fast, light-weight HTTP server handler for WAI.
+--
+-- Note on slowloris timeouts: to prevent slowloris attacks, timeouts are used
+-- at various points in request receiving and response sending. One interesting
+-- corner case is partial request body consumption; in that case, Warp's
+-- timeout handling is still in effect, and the timeout will not be triggered
+-- again. Therefore, it is recommended that once you start consuming the
+-- request body, you consume the entire body promptly. For more information,
+-- see <https://github.com/yesodweb/wai/issues/351>.
 module Network.Wai.Handler.Warp (
     -- * Run a Warp server
     run

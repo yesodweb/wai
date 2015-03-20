@@ -1,6 +1,11 @@
 ## 3.0.9.4
 
 * Fix [missing `IORef` tweak](https://github.com/yesodweb/wai/issues/351)
+* Disable timeouts as soon as request body is fully consumed. This addresses
+  the common case of a non-chunked request body. Previously, we would wait
+  until a zero-length `ByteString` is returned, but that is suboptimal for some
+  cases. For more information, see [issue
+  351](https://github.com/yesodweb/wai/issues/351).
 
 ## 3.0.9.3
 
