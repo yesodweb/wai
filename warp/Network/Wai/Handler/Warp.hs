@@ -23,8 +23,15 @@
 -- corner case is partial request body consumption; in that case, Warp's
 -- timeout handling is still in effect, and the timeout will not be triggered
 -- again. Therefore, it is recommended that once you start consuming the
--- request body, you consume the entire body promptly. For more information,
--- see <https://github.com/yesodweb/wai/issues/351>.
+-- request body, you either:
+--
+-- * consume the entire body promptly
+--
+-- * call the 'pauseTimeout' function
+--
+-- For more information, see <https://github.com/yesodweb/wai/issues/351>.
+--
+--
 module Network.Wai.Handler.Warp (
     -- * Run a Warp server
     run
@@ -81,6 +88,8 @@ module Network.Wai.Handler.Warp (
   , Port
   , InvalidRequest (..)
   , ConnSendFileOverride (..)
+    -- * Per-request utilities
+  , pauseTimeout
     -- * Connection
   , Connection (..)
   , socketConnection
@@ -113,10 +122,12 @@ import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
 import Control.Exception (SomeException)
-import Network.Wai (Request, Response)
+import Network.Wai (Request, Response, vault)
 import Network.Socket (SockAddr)
 import Data.Streaming.Network (HostPreference)
 import Data.ByteString (ByteString)
+import qualified Data.Vault.Lazy as Vault
+import Data.Maybe (fromMaybe)
 
 -- | Port to listen on. Default value: 3000
 --
@@ -292,3 +303,12 @@ setProxyProtocolRequired y = y { settingsProxyProtocol = ProxyProtocolRequired }
 -- Since 3.0.5
 setProxyProtocolOptional :: Settings -> Settings
 setProxyProtocolOptional y = y { settingsProxyProtocol = ProxyProtocolOptional }
+
+-- | Explicitly pause the slowloris timeout.
+--
+-- This is useful for cases where you partially consume a request body. For
+-- more information, see <https://github.com/yesodweb/wai/issues/351>
+--
+-- Since 3.0.10
+pauseTimeout :: Request -> IO ()
+pauseTimeout = fromMaybe (return ()) . Vault.lookup pauseTimeoutKey . vault

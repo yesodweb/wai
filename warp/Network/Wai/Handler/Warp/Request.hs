@@ -6,6 +6,7 @@
 module Network.Wai.Handler.Warp.Request (
     recvRequest
   , headerLines
+  , pauseTimeoutKey
   ) where
 
 import qualified Control.Concurrent as Conc (yield)
@@ -16,7 +17,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
 import qualified Data.IORef as I
-import Data.Monoid (mempty)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
@@ -30,6 +30,8 @@ import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
 import Prelude hiding (lines)
 import Control.Monad (when)
+import qualified Data.Vault.Lazy as Vault
+import System.IO.Unsafe (unsafePerformIO)
 
 ----------------------------------------------------------------
 
@@ -74,7 +76,9 @@ recvRequest settings conn ii addr src = do
           , isSecure          = False
           , remoteHost        = addr
           , requestBody       = rbody'
-          , vault             = mempty
+          , vault             = Vault.insert pauseTimeoutKey
+                                (Timeout.pause th)
+                                Vault.empty
           , requestBodyLength = bodyLength
           , requestHeaderHost = idxhdr ! idxHost
           , requestHeaderRange = idxhdr ! idxRange
@@ -261,3 +265,7 @@ checkCR :: ByteString -> Int -> Int
 checkCR bs pos = if pos > 0 && 13 == S.index bs p then p else pos -- 13 is CR
   where
     !p = pos - 1
+
+pauseTimeoutKey :: Vault.Key (IO ())
+pauseTimeoutKey = unsafePerformIO Vault.newKey
+{-# NOINLINE pauseTimeoutKey #-}

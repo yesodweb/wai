@@ -1,4 +1,4 @@
-## 3.0.9.4
+## 3.0.10
 
 * Fix [missing `IORef` tweak](https://github.com/yesodweb/wai/issues/351)
 * Disable timeouts as soon as request body is fully consumed. This addresses
@@ -6,6 +6,7 @@
   until a zero-length `ByteString` is returned, but that is suboptimal for some
   cases. For more information, see [issue
   351](https://github.com/yesodweb/wai/issues/351).
+* Add `pauseTimeout` function
 
 ## 3.0.9.3
 
