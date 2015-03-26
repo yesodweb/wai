@@ -1,3 +1,7 @@
+## 3.0.5
+
+* add functions to extract authentication data from Authorization header [#352](add functions to extract authentication data from Authorization header #352)
+
 ## 3.0.4.6
 
 * Access log sequence not valid [#336](https://github.com/yesodweb/wai/issues/336)

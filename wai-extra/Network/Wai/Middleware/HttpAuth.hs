@@ -97,6 +97,8 @@ instance IsString AuthSettings where
 
 -- | Extract basic authentication data from usually __Authorization__
 -- header value. Returns username and password
+--
+-- Since 3.0.5
 extractBasicAuth :: ByteString -> Maybe (ByteString, ByteString)
 extractBasicAuth bs =
     let (x, y) = S.break isSpace bs
@@ -111,6 +113,8 @@ extractBasicAuth bs =
 
 -- | Extract bearer authentication data from __Authorization__ header
 -- value. Returns bearer token
+--
+-- Since 3.0.5
 extractBearerAuth :: ByteString -> Maybe ByteString
 extractBearerAuth bs =
     let (x, y) = S.break isSpace bs
