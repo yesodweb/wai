@@ -1,23 +1,30 @@
-{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards, OverloadedStrings, TupleSections #-}
 -- | Implements HTTP Basic Authentication.
 --
 -- This module may add digest authentication in the future.
 module Network.Wai.Middleware.HttpAuth
-    ( basicAuth
+    ( -- * Middleware
+      basicAuth
     , CheckCreds
     , AuthSettings
     , authRealm
     , authOnNoAuth
     , authIsProtected
+      -- * Helping functions
+    , extractBasicAuth
+    , extractBearerAuth
     ) where
 
-import Network.Wai
-import Network.HTTP.Types (status401)
+import Control.Applicative
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as S
+import Data.ByteString.Base64 (decodeLenient)
 import Data.String (IsString (..))
 import Data.Word8 (isSpace, _colon, toLower)
-import Data.ByteString.Base64 (decodeLenient)
+import Network.HTTP.Types (status401)
+import Network.Wai
+
+import qualified Data.ByteString as S
+
 
 -- | Check if a given username and password is valid.
 type CheckCreds = ByteString
@@ -40,24 +47,16 @@ basicAuth checkCreds AuthSettings {..} app req sendResponse = do
         else authOnNoAuth authRealm req sendResponse
   where
     check =
-        case lookup "Authorization" $ requestHeaders req of
+        case (lookup "Authorization" $ requestHeaders req)
+             >>= extractBasicAuth of
             Nothing -> return False
-            Just bs ->
-                let (x, y) = S.break isSpace bs
-                 in if S.map toLower x == "basic"
-                        then checkB64 $ S.dropWhile isSpace y
-                        else return False
-    checkB64 encoded =
-        case S.uncons password' of
-            Just (_, password) -> checkCreds username password
-            Nothing -> return False
-      where
-        raw = decodeLenient encoded
-        (username, password') = S.breakByte _colon raw
+            Just (username, password) -> checkCreds username password
 
--- | Authentication settings. This value is an instance of @IsString@, so the
--- recommended approach to create a value is to provide a string literal (which
--- will be the realm) and then overriding individual fields.
+
+-- | Basic authentication settings. This value is an instance of
+-- @IsString@, so the recommended approach to create a value is to
+-- provide a string literal (which will be the realm) and then
+-- overriding individual fields.
 --
 -- > "My Realm" { authIsProtected = someFunc } :: AuthSettings
 --
@@ -95,3 +94,26 @@ instance IsString AuthSettings where
             "Basic authentication is required"
         , authIsProtected = const $ return True
         }
+
+-- | Extract basic authentication data from usually __Authorization__
+-- header value. Returns username and password
+extractBasicAuth :: ByteString -> Maybe (ByteString, ByteString)
+extractBasicAuth bs =
+    let (x, y) = S.break isSpace bs
+    in if S.map toLower x == "basic"
+       then extract $ S.dropWhile isSpace y
+       else Nothing
+  where
+    extract encoded =
+        let raw = decodeLenient encoded
+            (username, password') = S.breakByte _colon raw
+        in ((username,) . snd) <$> S.uncons password'
+
+-- | Extract bearer authentication data from __Authorization__ header
+-- value. Returns bearer token
+extractBearerAuth :: ByteString -> Maybe ByteString
+extractBearerAuth bs =
+    let (x, y) = S.break isSpace bs
+    in if S.map toLower x == "bearer"
+        then Just $ S.dropWhile isSpace y
+        else Nothing
