@@ -12,8 +12,12 @@ import Control.AutoUpdate (defaultUpdateSettings, updateAction, mkAutoUpdate)
 import Data.ByteString.Char8
 
 #if WINDOWS
-import Data.Time
-import System.Locale
+import Data.Time (formatTime, getCurrentTime)
+# if MIN_VERSION_time(1,5,0)
+import Data.Time (defaultTimeLocale)
+# else
+import System.Locale (defaultTimeLocale)
+# endif
 #else
 import Network.HTTP.Date
 import System.Posix (epochTime)
