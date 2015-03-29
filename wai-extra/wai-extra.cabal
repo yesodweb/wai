@@ -108,6 +108,7 @@ Library
                    , deepseq
                    , streaming-commons
                    , unix-compat
+                   , cookie
 
   if os(windows)
       cpp-options:   -DWINDOWS

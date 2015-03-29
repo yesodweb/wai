@@ -25,8 +25,10 @@ module Network.Wai.Test
 
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
+import Control.Applicative ((<$>))
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.State (StateT, evalStateT)
+import Control.Monad.Trans.Class (lift)
+import qualified Control.Monad.Trans.State as ST
 import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
 import Control.Monad (unless)
 import Control.DeepSeq (deepseq)
@@ -34,9 +36,10 @@ import Control.Exception (throwIO, Exception)
 import Data.Typeable (Typeable)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Web.Cookie as Cookie
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
-import Blaze.ByteString.Builder (toLazyByteString)
+import Blaze.ByteString.Builder (toLazyByteString, toByteString)
 import qualified Blaze.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -47,18 +50,28 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.IORef
 import Data.Monoid (mempty, mappend)
+import Data.Time.Clock (getCurrentTime)
 
-type Session = ReaderT Application (StateT ClientState IO)
+type Session = ReaderT Application (ST.StateT ClientState IO)
+
+type ClientCookies = Map ByteString Cookie.SetCookie
 
 data ClientState = ClientState
-    { _clientCookies :: Map ByteString ByteString
+    { clientCookies :: ClientCookies
     }
+
+getClientCookies :: Session ClientCookies
+getClientCookies = clientCookies <$> lift ST.get
+
+modifyClientCookies :: (ClientCookies -> ClientCookies) -> Session ()
+modifyClientCookies f =
+  lift (ST.modify (\cs -> cs { clientCookies = f $ clientCookies cs }))
 
 initState :: ClientState
 initState = ClientState Map.empty
 
 runSession :: Session a -> Application -> IO a
-runSession session app = evalStateT (runReaderT session app) initState
+runSession session app = ST.evalStateT (runReaderT session app) initState
 
 data SRequest = SRequest
     { simpleRequest :: Request
@@ -93,6 +106,40 @@ setRawPathInfo r rawPinfo =
     dropFrontSlash ("":path) = path
     dropFrontSlash path = path
 
+addCookiesToRequest :: Request -> Session Request
+addCookiesToRequest req = do
+  oldClientCookies <- getClientCookies
+  let requestPath = "/" `T.append` T.intercalate "/" (pathInfo req)
+  currentUTCTime <- liftIO getCurrentTime
+  let cookiesForRequest =
+        Map.filter
+          (\c -> checkCookieTime currentUTCTime c
+              && checkCookiePath requestPath c)
+          oldClientCookies
+  let cookiePairs = [ (Cookie.setCookieName c, Cookie.setCookieValue c)
+                    | c <- map snd $ Map.toList cookiesForRequest
+                    ]
+  let cookieValue = toByteString $ Cookie.renderCookies cookiePairs
+  return $ req { requestHeaders = ("Cookie", cookieValue):requestHeaders req }
+    where checkCookieTime t c =
+            case Cookie.setCookieExpires c of
+              Nothing -> True
+              Just t' -> t < t'
+          checkCookiePath p c =
+            case Cookie.setCookiePath c of
+              Nothing -> True
+              Just p' -> p' `S8.isPrefixOf` TE.encodeUtf8 p
+
+extractSetCookieFromSResponse :: SResponse -> Session SResponse
+extractSetCookieFromSResponse response = do
+  let setCookieHeaders =
+        filter (("Set-Cookie"==) . fst) $ simpleHeaders response
+  let newClientCookies = map (Cookie.parseSetCookie . snd) setCookieHeaders
+  modifyClientCookies
+    (Map.union
+       (Map.fromList [(Cookie.setCookieName c, c) | c <- newClientCookies ]))
+  return response
+
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
     app <- ask
@@ -103,12 +150,12 @@ srequest (SRequest req bod) = do
                     [] -> ([], S.empty)
                     x:y -> (y, x)
             }
-    liftIO $ do
+    req'' <- addCookiesToRequest req'
+    response <- liftIO $ do
         ref <- newIORef $ error "runResponse gave no result"
-        ResponseReceived <- app req' (runResponse ref)
+        ResponseReceived <- app req'' (runResponse ref)
         readIORef ref
-    -- FIXME cookie processing
-    --return sres
+    extractSetCookieFromSResponse response
 
 runResponse :: IORef SResponse -> Response -> IO ResponseReceived
 runResponse ref res = do
