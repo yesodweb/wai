@@ -158,6 +158,9 @@ test-suite spec
                    , resourcet
                    , bytestring
                    , HUnit
+                   , blaze-builder
+                   , cookie
+                   , time
     ghc-options:     -Wall -Werror
 
 source-repository head
