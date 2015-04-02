@@ -154,7 +154,10 @@ addCookiesToRequest req = do
                     | c <- map snd $ Map.toList cookiesForRequest
                     ]
   let cookieValue = toByteString $ Cookie.renderCookies cookiePairs
-  return $ req { requestHeaders = ("Cookie", cookieValue):requestHeaders req }
+      addCookieHeader rest
+        | null cookiePairs = rest
+        | otherwise = ("Cookie", cookieValue) : rest
+  return $ req { requestHeaders = addCookieHeader $ requestHeaders req }
     where checkCookieTime t c =
             case Cookie.setCookieExpires c of
               Nothing -> True

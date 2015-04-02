@@ -1,3 +1,8 @@
+## 3.0.6.1
+
+* Test code: only include a Cookie header if there are cookies. Without this
+  patch, yesod-test cookie handling is broken.
+
 ## 3.0.6
 
 * Add Cookie Handling to Network.Wai.Test [#356](https://github.com/yesodweb/wai/pull/356)
