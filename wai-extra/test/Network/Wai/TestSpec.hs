@@ -150,4 +150,44 @@ spec = do
                    setPath defaultRequest "/get"
       simpleBody sresp `shouldBe` "[\"cookie_name=cookie_value\"]"
 
+    it "sends a cookie set with setClientCookie to server" $ do
+      sresp <- flip runSession cookieApp $ do
+                 setClientCookie
+                   (Cookie.def { Cookie.setCookieName = "cookie_name"
+                               , Cookie.setCookieValue = "cookie_value"
+                               }
+                   )
+                 request $
+                   setPath defaultRequest "/get"
+      simpleBody sresp `shouldBe` "[\"cookie_name=cookie_value\"]"
+
+    it "sends a cookie updated with setClientCookie to server" $ do
+      sresp <- flip runSession cookieApp $ do
+                 setClientCookie
+                   (Cookie.def { Cookie.setCookieName = "cookie_name"
+                               , Cookie.setCookieValue = "cookie_value"
+                               }
+                   )
+                 setClientCookie
+                   (Cookie.def { Cookie.setCookieName = "cookie_name"
+                               , Cookie.setCookieValue = "cookie_value2"
+                               }
+                   )
+                 request $
+                   setPath defaultRequest "/get"
+      simpleBody sresp `shouldBe` "[\"cookie_name=cookie_value2\"]"
+
+    it "does not send a cookie deleted with deleteClientCookie to server" $ do
+      sresp <- flip runSession cookieApp $ do
+                 setClientCookie
+                   (Cookie.def { Cookie.setCookieName = "cookie_name"
+                               , Cookie.setCookieValue = "cookie_value"
+                               }
+                   )
+                 deleteClientCookie "cookie_name"
+                 request $
+                   setPath defaultRequest "/get"
+      simpleBody sresp `shouldBe` "[\"\"]"
+
+
 

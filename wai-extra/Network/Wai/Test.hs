@@ -5,6 +5,12 @@ module Network.Wai.Test
     ( -- * Session
       Session
     , runSession
+      -- * Client Cookies
+    , ClientCookies
+    , getClientCookies
+    , modifyClientCookies
+    , setClientCookie
+    , deleteClientCookie
       -- * Requests
     , request
     , srequest
@@ -20,6 +26,9 @@ module Network.Wai.Test
     , assertBodyContains
     , assertHeader
     , assertNoHeader
+    , assertClientCookieExists
+    , assertNoClientCookieExists
+    , assertClientCookieValue
     , WaiTestFailure (..)
     ) where
 
@@ -66,6 +75,17 @@ getClientCookies = clientCookies <$> lift ST.get
 modifyClientCookies :: (ClientCookies -> ClientCookies) -> Session ()
 modifyClientCookies f =
   lift (ST.modify (\cs -> cs { clientCookies = f $ clientCookies cs }))
+
+setClientCookie :: Cookie.SetCookie -> Session ()
+setClientCookie c =
+  modifyClientCookies
+    (Map.union
+      (Map.singleton (Cookie.setCookieName c) c))
+
+deleteClientCookie :: ByteString -> Session ()
+deleteClientCookie cookieName =
+  modifyClientCookies
+    (Map.delete cookieName)
 
 initState :: ClientState
 initState = ClientState Map.empty
@@ -259,3 +279,33 @@ assertNoHeader header SResponse{simpleHeaders = h} =
             , " containing "
             , show s
             ]
+
+assertClientCookieExists :: String -> ByteString -> Session ()
+assertClientCookieExists s cookieName = do
+  cookies <- getClientCookies
+  assertBool s $ Map.member cookieName cookies
+
+assertNoClientCookieExists :: String -> ByteString -> Session ()
+assertNoClientCookieExists s cookieName = do
+  cookies <- getClientCookies
+  assertBool s $ not $ Map.member cookieName cookies
+
+assertClientCookieValue :: String -> ByteString -> ByteString -> Session ()
+assertClientCookieValue s cookieName cookieValue = do
+  cookies <- getClientCookies
+  case Map.lookup cookieName cookies of
+    Nothing ->
+      assertFailure (s ++ " (cookie does not exist)")
+    Just c  ->
+      assertBool
+        (concat
+          [ s
+          , " (actual value "
+          , show $ Cookie.setCookieValue c
+          , " expected value "
+          , show cookieValue
+          , ")"
+          ]
+        )
+        (Cookie.setCookieValue c == cookieValue)
+
