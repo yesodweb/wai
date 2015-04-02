@@ -108,6 +108,7 @@ Library
                    , deepseq
                    , streaming-commons
                    , unix-compat
+                   , cookie
 
   if os(windows)
       cpp-options:   -DWINDOWS
@@ -157,6 +158,9 @@ test-suite spec
                    , resourcet
                    , bytestring
                    , HUnit
+                   , blaze-builder
+                   , cookie
+                   , time
     ghc-options:     -Wall -Werror
 
 source-repository head
