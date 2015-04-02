@@ -187,7 +187,7 @@ spec = do
                  deleteClientCookie "cookie_name"
                  request $
                    setPath defaultRequest "/get"
-      simpleBody sresp `shouldBe` "[\"\"]"
+      simpleBody sresp `shouldBe` "[]"
 
 
 
