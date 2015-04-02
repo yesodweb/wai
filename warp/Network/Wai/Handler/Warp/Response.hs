@@ -174,6 +174,7 @@ sendResponse :: ByteString -- ^ default server value
 sendResponse defServer conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s req then do
+        -- HEAD comes here even if it does not have body.
         sendRsp conn ver s hs rsp
         T.tickle th
         return ret
@@ -192,8 +193,9 @@ sendResponse defServer conn ii req reqidxhdr src response = do
     mRange = reqidxhdr ! idxRange
     reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
+    isGet = requestMethod req == H.methodGet
     rsp = case response of
-        ResponseFile _ _ path mPart -> RspFile path mPart mRange (T.tickle th)
+        ResponseFile _ _ path mPart -> RspFile path mPart mRange isGet (T.tickle th)
         ResponseBuilder _ _ b       -> RspBuilder b needsChunked
         ResponseStream _ _ fb       -> RspStream fb needsChunked th
         ResponseRaw raw _           -> RspRaw raw src (T.tickle th)
@@ -205,7 +207,7 @@ sendResponse defServer conn ii req reqidxhdr src response = do
 
 ----------------------------------------------------------------
 
-data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) (IO ())
+data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) Bool (IO ())
          | RspBuilder Builder Bool
          | RspStream StreamingBody Bool T.Handle
          | RspRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) (IO ByteString) (IO ())
@@ -218,7 +220,7 @@ sendRsp :: Connection
         -> H.ResponseHeaders
         -> Rsp
         -> IO ()
-sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
+sendRsp conn ver s0 hs0 (RspFile path mPart mRange isGet hook) = do
     ex <- fileRange s0 hs path mPart mRange
     case ex of
         Left _ex ->
@@ -226,9 +228,13 @@ sendRsp conn ver s0 hs0 (RspFile path mPart mRange hook) = do
           print _ex >>
 #endif
           sendRsp conn ver s2 hs2 (RspBuilder body True)
-        Right (s, hs1, beg, len) | len >= 0 -> do
-            lheader <- composeHeader ver s hs1
-            connSendFile conn path beg len hook [lheader]
+        Right (s, hs1, beg, len)
+          | len >= 0 ->
+            if isGet then do
+                lheader <- composeHeader ver s hs1
+                connSendFile conn path beg len hook [lheader]
+              else
+                sendRsp conn ver s hs1 (RspBuilder mempty False)
           | otherwise -> do
             sendRsp conn ver H.status416
                 (filter (\(k, _) -> k /= "content-length") hs1)
@@ -353,7 +359,6 @@ hasBody :: H.Status -> Request -> Bool
 hasBody s req = sc /= 204
              && sc /= 304
              && sc >= 200
-             && method /= H.methodHead
   where
     sc = H.statusCode s
     method = requestMethod req
