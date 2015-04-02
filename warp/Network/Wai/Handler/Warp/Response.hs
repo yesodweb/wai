@@ -193,9 +193,9 @@ sendResponse defServer conn ii req reqidxhdr src response = do
     mRange = reqidxhdr ! idxRange
     reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
-    isGet = requestMethod req == H.methodGet
+    isHead = requestMethod req == H.methodHead
     rsp = case response of
-        ResponseFile _ _ path mPart -> RspFile path mPart mRange isGet (T.tickle th)
+        ResponseFile _ _ path mPart -> RspFile path mPart mRange isHead (T.tickle th)
         ResponseBuilder _ _ b       -> RspBuilder b needsChunked
         ResponseStream _ _ fb       -> RspStream fb needsChunked th
         ResponseRaw raw _           -> RspRaw raw src (T.tickle th)
@@ -220,7 +220,7 @@ sendRsp :: Connection
         -> H.ResponseHeaders
         -> Rsp
         -> IO ()
-sendRsp conn ver s0 hs0 (RspFile path mPart mRange isGet hook) = do
+sendRsp conn ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
     ex <- fileRange s0 hs path mPart mRange
     case ex of
         Left _ex ->
@@ -230,11 +230,11 @@ sendRsp conn ver s0 hs0 (RspFile path mPart mRange isGet hook) = do
           sendRsp conn ver s2 hs2 (RspBuilder body True)
         Right (s, hs1, beg, len)
           | len >= 0 ->
-            if isGet then do
+            if isHead then
+                sendRsp conn ver s hs1 (RspBuilder mempty False)
+              else do
                 lheader <- composeHeader ver s hs1
                 connSendFile conn path beg len hook [lheader]
-              else
-                sendRsp conn ver s hs1 (RspBuilder mempty False)
           | otherwise -> do
             sendRsp conn ver H.status416
                 (filter (\(k, _) -> k /= "content-length") hs1)
