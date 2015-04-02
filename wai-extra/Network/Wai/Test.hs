@@ -63,25 +63,39 @@ import Data.Time.Clock (getCurrentTime)
 
 type Session = ReaderT Application (ST.StateT ClientState IO)
 
+-- |
+--
+-- Since 3.0.6
 type ClientCookies = Map ByteString Cookie.SetCookie
 
 data ClientState = ClientState
     { clientCookies :: ClientCookies
     }
 
+-- |
+--
+-- Since 3.0.6
 getClientCookies :: Session ClientCookies
 getClientCookies = clientCookies <$> lift ST.get
 
+-- |
+--
+-- Since 3.0.6
 modifyClientCookies :: (ClientCookies -> ClientCookies) -> Session ()
 modifyClientCookies f =
   lift (ST.modify (\cs -> cs { clientCookies = f $ clientCookies cs }))
 
+-- |
+--
+-- Since 3.0.6
 setClientCookie :: Cookie.SetCookie -> Session ()
 setClientCookie c =
   modifyClientCookies
-    (Map.union
-      (Map.singleton (Cookie.setCookieName c) c))
+    (Map.insert (Cookie.setCookieName c) c)
 
+-- |
+--
+-- Since 3.0.6
 deleteClientCookie :: ByteString -> Session ()
 deleteClientCookie cookieName =
   modifyClientCookies
@@ -280,16 +294,25 @@ assertNoHeader header SResponse{simpleHeaders = h} =
             , show s
             ]
 
+-- |
+--
+-- Since 3.0.6
 assertClientCookieExists :: String -> ByteString -> Session ()
 assertClientCookieExists s cookieName = do
   cookies <- getClientCookies
   assertBool s $ Map.member cookieName cookies
 
+-- |
+--
+-- Since 3.0.6
 assertNoClientCookieExists :: String -> ByteString -> Session ()
 assertNoClientCookieExists s cookieName = do
   cookies <- getClientCookies
   assertBool s $ not $ Map.member cookieName cookies
 
+-- |
+--
+-- Since 3.0.6
 assertClientCookieValue :: String -> ByteString -> ByteString -> Session ()
 assertClientCookieValue s cookieName cookieValue = do
   cookies <- getClientCookies

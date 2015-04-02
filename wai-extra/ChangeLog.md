@@ -1,3 +1,7 @@
+## 3.0.6
+
+* Add Cookie Handling to Network.Wai.Test [#356](https://github.com/yesodweb/wai/pull/356)
+
 ## 3.0.5
 
 * add functions to extract authentication data from Authorization header [#352](add functions to extract authentication data from Authorization header #352)
