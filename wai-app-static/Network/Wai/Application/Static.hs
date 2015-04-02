@@ -214,10 +214,10 @@ staticApp set req = staticAppPieces set (W.pathInfo req) req
 
 staticAppPieces :: StaticSettings -> [Text] -> W.Application
 staticAppPieces _ _ req sendResponse
-    | W.requestMethod req /= "GET" = sendResponse $ W.responseLBS
+    | notElem (W.requestMethod req) ["GET", "HEAD"] = sendResponse $ W.responseLBS
         H.status405
         [("Content-Type", "text/plain")]
-        "Only GET is supported"
+        "Only GET or HEAD is supported"
 staticAppPieces _ [".hidden", "folder.png"] _ sendResponse = sendResponse $ W.responseLBS H.status200 [("Content-Type", "image/png")] $ L.fromChunks [$(embedFile "images/folder.png")]
 staticAppPieces _ [".hidden", "haskell.png"] _ sendResponse = sendResponse $ W.responseLBS H.status200 [("Content-Type", "image/png")] $ L.fromChunks [$(embedFile "images/haskell.png")]
 staticAppPieces ss rawPieces req sendResponse = liftIO $ do
