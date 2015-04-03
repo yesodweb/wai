@@ -14,7 +14,6 @@ import Options.Applicative
 import Text.Printf (printf)
 import System.Directory (canonicalizePath)
 import Control.Monad (unless)
-import Network.Wai.Middleware.Autohead
 import Network.Wai.Middleware.RequestLogger (logStdout)
 import Network.Wai.Middleware.Gzip
 import qualified Data.Map as Map
@@ -100,7 +99,6 @@ runCommandLine middleware = do
     unless quiet $ printf "Serving directory %s on port %d with %s index files.\n" docroot' port (if noindex then "no" else show index)
     let middle = gzip def { gzipFiles = GzipCompress }
                . (if verbose then logStdout else id)
-               . autohead
                . (middleware args)
     runSettings defaultSettings
         { settingsPort = port
