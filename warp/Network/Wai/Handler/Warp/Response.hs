@@ -138,19 +138,20 @@ checkPartRange fileSize = checkPart
 --   There are three basic APIs to create 'Response':
 --
 --   ['responseFile' :: 'H.Status' -> 'H.ResponseHeaders' -> 'FilePath' -> 'Maybe' 'FilePart' -> 'Response']
---     HTTP response body is sent by sendfile().
+--     HTTP response body is sent by sendfile() for GET method.
+--     HTTP response body is not sent by HEAD method.
 --     Applications are categorized into simple and sophisticated.
 --     Simple applications should specify 'Nothing' to
 --     'Maybe' 'FilePart'. The size of the specified file is obtained
 --     by disk access. Then Range is handled.
 --     Sophisticated applications should specify 'Just' to
 --     'Maybe' 'FilePart'. They should treat Range (and If-Range) by
---     thierselves. In both cases,
+--     themselves. In both cases,
 --     Content-Length and Content-Range (if necessary) are automatically
 --     added into the HTTP response header.
 --     If Content-Length and Content-Range exist in the HTTP response header,
 --     they would cause inconsistency.
---     Status is also changed to 206 if necessary.
+--     Status is also changed to 206 (Partial Content) if necessary.
 --
 --   ['responseBuilder' :: 'H.Status' -> 'H.ResponseHeaders' -> 'Builder' -> 'Response']
 --     HTTP response body is created from 'Builder'.
