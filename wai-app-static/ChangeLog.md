@@ -1,3 +1,7 @@
+## 3.0.1
+
+* Better HEAD support [#354](https://github.com/yesodweb/wai/issues/354)
+
 ## 3.0.0.6
 
 Fix trailing slashes for `UrlMap` and other non-root setups [#325](https://github.com/yesodweb/wai/issues/325)

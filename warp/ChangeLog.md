@@ -1,3 +1,7 @@
+## 3.0.11
+
+* Better HEAD support for files [#357](https://github.com/yesodweb/wai/pull/357)
+
 ## 3.0.10
 
 * Fix [missing `IORef` tweak](https://github.com/yesodweb/wai/issues/351)
