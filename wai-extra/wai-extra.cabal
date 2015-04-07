@@ -132,6 +132,7 @@ Library
                      Network.Wai.Middleware.HttpAuth
                      Network.Wai.Middleware.StreamFile
                      Network.Wai.Parse
+                     Network.Wai.Request
                      Network.Wai.UrlMap
                      Network.Wai.Test
                      Network.Wai.EventSource
