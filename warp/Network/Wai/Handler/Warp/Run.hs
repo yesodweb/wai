@@ -355,9 +355,9 @@ serveConnection conn ii origAddr transport settings app = do
     errorResponse e = settingsOnExceptionResponse settings e
 
     http1 addr istatus src = do
-        (req', mremainingRef, idxhdr) <- recvRequest settings conn ii addr src
+        (req', mremainingRef, idxhdr, nextBodyFlush) <- recvRequest settings conn ii addr src
         let req = req' { isSecure = isTransportSecure transport }
-        keepAlive <- processRequest istatus src req mremainingRef idxhdr
+        keepAlive <- processRequest istatus src req mremainingRef idxhdr nextBodyFlush
             `E.catch` \e -> do
                 -- Call the user-supplied exception handlers, passing the request.
                 sendErrorResponse addr istatus e
@@ -366,7 +366,7 @@ serveConnection conn ii origAddr transport settings app = do
                 return False
         when keepAlive $ http1 addr istatus src
 
-    processRequest istatus src req mremainingRef idxhdr = do
+    processRequest istatus src req mremainingRef idxhdr nextBodyFlush = do
         -- Let the application run for as long as it wants
         T.pause th
 
@@ -405,13 +405,13 @@ serveConnection conn ii origAddr transport settings app = do
             -- reading it all in to satisfy a keep-alive request.
             case settingsMaximumBodyFlush settings of
                 Nothing -> do
-                    flushEntireBody (requestBody req)
+                    flushEntireBody nextBodyFlush
                     T.resume th
                     return True
                 Just maxToRead -> do
                     let tryKeepAlive = do
                             -- flush the rest of the request body
-                            isComplete <- flushBody (requestBody req) maxToRead
+                            isComplete <- flushBody nextBodyFlush maxToRead
                             if isComplete then do
                                 T.resume th
                                 return True
