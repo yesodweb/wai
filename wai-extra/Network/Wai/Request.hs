@@ -21,6 +21,8 @@ import qualified Data.ByteString.Char8 as C
 -- @'isSecure'@. This is not always the case though: for example, deciding to
 -- force a non-SSL request to SSL by redirect. One can safely choose not to
 -- redirect when the request /appears/ secure, even if it's actually not.
+--
+-- Since 3.0.7
 appearsSecure :: Request -> Bool
 appearsSecure request = isSecure request || any (uncurry matchHeader)
     [ ("HTTPS"                  , (== "on"))

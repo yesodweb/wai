@@ -1,3 +1,8 @@
+## 3.0.7
+
+* Add appearsSecure: check if a request appears to be using SSL even in the
+  presence of reverse proxies [#362](https://github.com/yesodweb/wai/pull/362)
+
 ## 3.0.6.1
 
 * Test code: only include a Cookie header if there are cookies. Without this
