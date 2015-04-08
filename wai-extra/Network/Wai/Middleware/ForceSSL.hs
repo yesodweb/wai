@@ -28,7 +28,7 @@ redirectResponse :: Request -> Maybe Response
 redirectResponse req = do
     (host:_) <- C.split ':' <$> requestHeaderHost req
 
-    return $ responseBuilder status [(hLocation, location host)] mempty
+    return $ responseBuilder status [(hLocation, location host)] ""
 
   where
     location h = "https://" <> h <> rawPathInfo req <> rawQueryString req
