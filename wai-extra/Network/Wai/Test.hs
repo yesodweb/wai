@@ -32,9 +32,13 @@ module Network.Wai.Test
     , WaiTestFailure (..)
     ) where
 
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative ((<$>))
+import Data.Monoid (mempty, mappend)
+#endif
+
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
-import Control.Applicative ((<$>))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import qualified Control.Monad.Trans.State as ST
@@ -58,7 +62,6 @@ import qualified Data.ByteString as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.IORef
-import Data.Monoid (mempty, mappend)
 import Data.Time.Clock (getCurrentTime)
 
 type Session = ReaderT Application (ST.StateT ClientState IO)
