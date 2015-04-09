@@ -109,6 +109,7 @@ Library
                    , streaming-commons
                    , unix-compat
                    , cookie
+                   , vault
 
   if os(windows)
       cpp-options:   -DWINDOWS
@@ -119,6 +120,7 @@ Library
                      Network.Wai.Handler.SCGI
                      Network.Wai.Middleware.AcceptOverride
                      Network.Wai.Middleware.AddHeaders
+                     Network.Wai.Middleware.Approot
                      Network.Wai.Middleware.Autohead
                      Network.Wai.Middleware.CleanPath
                      Network.Wai.Middleware.Local
@@ -147,6 +149,9 @@ test-suite spec
     main-is:         Spec.hs
     other-modules:   Network.Wai.TestSpec
                      Network.Wai.ParseSpec
+                     Network.Wai.RequestSpec
+                     Network.Wai.Middleware.ApprootSpec
+                     Network.Wai.Middleware.ForceSSLSpec
                      WaiExtraSpec
     build-depends:   base                      >= 4        && < 5
                    , wai-extra
