@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- | Redirect non-SSL requests to https
+--
+-- Since 3.0.7
 module  Network.Wai.Middleware.ForceSSL
     ( forceSSL
     ) where
@@ -10,14 +12,18 @@ import Network.Wai.Request
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative ((<$>))
+import Data.Monoid (mempty)
 #endif
 
 import Data.Monoid ((<>))
 import Network.HTTP.Types (hLocation, methodGet, status301, status307)
 
-import qualified Data.ByteString.Char8 as C
+import qualified Data.ByteString as S
+import Data.Word8 (_colon)
 
 -- | For requests that don't appear secure, redirect to https
+--
+-- Since 3.0.7
 forceSSL :: Middleware
 forceSSL app req sendResponse =
     case (appearsSecure req, redirectResponse req) of
@@ -26,9 +32,9 @@ forceSSL app req sendResponse =
 
 redirectResponse :: Request -> Maybe Response
 redirectResponse req = do
-    (host:_) <- C.split ':' <$> requestHeaderHost req
+    (host, _) <- S.break (== _colon) <$> requestHeaderHost req
 
-    return $ responseBuilder status [(hLocation, location host)] ""
+    return $ responseBuilder status [(hLocation, location host)] mempty
 
   where
     location h = "https://" <> h <> rawPathInfo req <> rawQueryString req
