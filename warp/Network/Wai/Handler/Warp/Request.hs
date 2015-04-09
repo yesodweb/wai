@@ -50,10 +50,12 @@ recvRequest :: Settings
             -> Source -- ^ Where HTTP request comes from.
             -> IO (Request
                   ,Maybe (I.IORef Int)
-                  ,IndexedHeader) -- ^
+                  ,IndexedHeader
+                  ,IO ByteString) -- ^
             -- 'Request' passed to 'Application',
             -- how many bytes remain to be consumed, if known
             -- 'IndexedHeader' of HTTP request for internal use,
+            -- Body producing action used for flushing the request body
 
 recvRequest settings conn ii addr src = do
     hdrlines <- headerLines src
@@ -62,9 +64,12 @@ recvRequest settings conn ii addr src = do
         expect = idxhdr ! idxExpect
         cl = idxhdr ! idxContentLength
         te = idxhdr ! idxTransferEncoding
-    handleExpect conn httpversion expect
+        handle100Continue = handleExpect conn httpversion expect
     (rbody, remainingRef, bodyLength) <- bodyAndSource src cl te
-    rbody' <- timeoutBody remainingRef th rbody
+    -- body producing function which will produce '100-continue', if needed
+    rbody' <- timeoutBody remainingRef th rbody handle100Continue
+    -- body producing function which will never produce 100-continue
+    rbodyFlush <- timeoutBody remainingRef th rbody (return ())
     let req = Request {
             requestMethod     = method
           , httpVersion       = httpversion
@@ -83,7 +88,7 @@ recvRequest settings conn ii addr src = do
           , requestHeaderHost = idxhdr ! idxHost
           , requestHeaderRange = idxhdr ! idxRange
           }
-    return (req, remainingRef, idxhdr)
+    return (req, remainingRef, idxhdr, rbodyFlush)
   where
     th = threadHandle ii
 
@@ -145,8 +150,9 @@ isChunked _         = False
 timeoutBody :: Maybe (I.IORef Int) -- ^ remaining
             -> Timeout.Handle
             -> IO ByteString
+            -> IO ()
             -> IO (IO ByteString)
-timeoutBody remainingRef timeoutHandle rbody = do
+timeoutBody remainingRef timeoutHandle rbody handle100Continue = do
     isFirstRef <- I.newIORef True
 
     let checkEmpty =
@@ -162,6 +168,9 @@ timeoutBody remainingRef timeoutHandle rbody = do
         isFirst <- I.readIORef isFirstRef
 
         when isFirst $ do
+            -- Only check if we need to produce the 100 Continue status
+            -- when asking for the first chunk of the body
+            handle100Continue
             -- Timeout handling was paused after receiving the full request
             -- headers. Now we need to resume it to avoid a slowloris
             -- attack during request body sending.
