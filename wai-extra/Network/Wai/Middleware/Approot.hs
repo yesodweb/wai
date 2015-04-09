@@ -24,6 +24,7 @@ module Network.Wai.Middleware.Approot
     , fromRequest
       -- * Functions for applications
     , getApproot
+    , getApprootMay
     ) where
 
 import           Control.Exception     (Exception, throw)
@@ -34,7 +35,7 @@ import           Data.Maybe            (fromMaybe)
 import           Data.Typeable         (Typeable)
 import qualified Data.Vault.Lazy       as V
 import           Network.Wai (Request, vault, Middleware, requestHeaderHost)
-import           Network.Wai.Request   (appearsSecure)
+import           Network.Wai.Request   (appearsSecure, guessApproot)
 import           System.Environment    (getEnvironment)
 import           System.IO.Unsafe      (unsafePerformIO)
 
@@ -100,21 +101,23 @@ hardcoded ar = approotMiddleware (const $ return ar)
 --
 -- Since 3.0.7
 fromRequest :: Middleware
-fromRequest = approotMiddleware (return . extract)
-
-extract :: Request -> ByteString
-extract req =
-    (if appearsSecure req then "https://" else "http://") `S.append`
-    (fromMaybe "localhost" (requestHeaderHost req))
+fromRequest = approotMiddleware (return . guessApproot)
 
 data ApprootMiddlewareNotSetup = ApprootMiddlewareNotSetup
     deriving (Show, Typeable)
 instance Exception ApprootMiddlewareNotSetup
 
 -- | Get the approot set by the middleware. If the middleware is not in use,
--- then this function will return an exception.
+-- then this function will return an exception. For a total version of the
+-- function, see 'getApprootMay'.
 --
 -- Since 3.0.7
 getApproot :: Request -> ByteString
-getApproot req = fromMaybe (throw ApprootMiddlewareNotSetup)
-               $ V.lookup approotKey $ vault req
+getApproot = fromMaybe (throw ApprootMiddlewareNotSetup) . getApprootMay
+
+-- | A total version of 'getApproot', which returns 'Nothing' if the middleware
+-- is not in use.
+--
+-- Since 3.0.7
+getApprootMay :: Request -> Maybe ByteString
+getApprootMay req = V.lookup approotKey $ vault req
