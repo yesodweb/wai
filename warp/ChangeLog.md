@@ -1,3 +1,7 @@
+## 3.0.12
+
+* Only conditionally produce HTTP 100 Continue
+
 ## 3.0.11
 
 * Better HEAD support for files [#357](https://github.com/yesodweb/wai/pull/357)
