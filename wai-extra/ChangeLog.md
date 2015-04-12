@@ -3,6 +3,7 @@
 * Add appearsSecure: check if a request appears to be using SSL even in the
   presence of reverse proxies [#362](https://github.com/yesodweb/wai/pull/362)
 * Add ForceSSL middleware [#363](https://github.com/yesodweb/wai/pull/363)
+* Add Approot middleware
 
 ## 3.0.6.1
 

@@ -3,12 +3,15 @@
 
 module Network.Wai.Request
     ( appearsSecure
+    , guessApproot
     ) where
 
 import Data.ByteString (ByteString)
+import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (HeaderName)
-import Network.Wai (Request, isSecure, requestHeaders)
+import Network.Wai (Request, isSecure, requestHeaders, requestHeaderHost)
 
+import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C
 
 -- | Does this request appear to have been made over an SSL connection?
@@ -34,3 +37,15 @@ appearsSecure request = isSecure request || any (uncurry matchHeader)
   where
     matchHeader :: HeaderName -> (ByteString -> Bool) -> Bool
     matchHeader h f = maybe False f $ lookup h $ requestHeaders request
+
+-- | Guess the \"application root\" based on the given request.
+--
+-- The application root is the basis for forming URLs pointing at the current
+-- application. For more information and relevant caveats, please see
+-- "Network.Wai.Middleware.Approot".
+--
+-- Since 3.0.7
+guessApproot :: Request -> ByteString
+guessApproot req =
+    (if appearsSecure req then "https://" else "http://") `S.append`
+    (fromMaybe "localhost" $ requestHeaderHost req)
