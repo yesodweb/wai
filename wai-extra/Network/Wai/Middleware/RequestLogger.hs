@@ -57,6 +57,9 @@ data Destination = Handle Handle
 
 type Callback = LogStr -> IO ()
 
+-- | @RequestLoggerSettings@ is an instance of Default. See <https://hackage.haskell.org/package/data-default Data.Default> for more information.
+--
+-- @outputFormat@, @autoFlush@, and @destination@ are relevant fields for @RequestLoggerSettings@.
 data RequestLoggerSettings = RequestLoggerSettings
     {
       -- | Default value: @Detailed@ @True@.
