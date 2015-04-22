@@ -59,7 +59,9 @@ type Callback = LogStr -> IO ()
 
 -- | @RequestLoggerSettings@ is an instance of Default. See <https://hackage.haskell.org/package/data-default Data.Default> for more information.
 --
--- @outputFormat@, @autoFlush@, and @destination@ are relevant fields for @RequestLoggerSettings@.
+-- @outputFormat@, @autoFlush@, and @destination@ are record fields
+-- for the record type @RequestLoggerSettings@, so they can be used to
+-- modify settings values using record syntax.
 data RequestLoggerSettings = RequestLoggerSettings
     {
       -- | Default value: @Detailed@ @True@.
