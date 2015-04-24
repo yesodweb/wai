@@ -1,3 +1,7 @@
+## 3.0.12.1
+
+* Fix for: HEAD requests returning non-empty entity body [#369](https://github.com/yesodweb/wai/issues/369)
+
 ## 3.0.12
 
 * Only conditionally produce HTTP 100 Continue
