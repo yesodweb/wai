@@ -192,8 +192,9 @@ sendResponse defServer conn ii req reqidxhdr src response = do
     dc = dateCacher ii
     addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
     mRange = reqidxhdr ! idxRange
-    reqinfo@(isPersist,_) = infoFromRequest req reqidxhdr
-    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr reqinfo
+    (isPersist,isChunked0) = infoFromRequest req reqidxhdr
+    isChunked = if isHead then False else isChunked0
+    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist,isChunked)
     isHead = requestMethod req == H.methodHead
     rsp = case response of
         ResponseFile _ _ path mPart -> RspFile path mPart mRange isHead (T.tickle th)
