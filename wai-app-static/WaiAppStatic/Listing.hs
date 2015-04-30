@@ -48,7 +48,7 @@ defaultListing pieces (Folder contents) = do
                                               , "a { text-decoration: none }"
                                               ]
              H.body $ do
-                 H.h1 $ showFolder $ filter (not . T.null . fromPiece) pieces
+                 H.h1 $ showFolder' $ filter (not . T.null . fromPiece) pieces
                  renderDirectoryContentsTable haskellSrc folderSrc fps''
   where
     image x = T.unpack $ T.concat [(relativeDirFromPieces pieces), ".hidden/", x, ".png"]
@@ -57,8 +57,12 @@ defaultListing pieces (Folder contents) = do
     showName "" = "root"
     showName x = x
 
+    -- Add a link to the root of the tree
+    showFolder' :: Pieces -> H.Html
+    showFolder' pieces  = showFolder (unsafeToPiece "root" : pieces)
+
     showFolder :: Pieces -> H.Html
-    showFolder [] = "/"
+    showFolder [] = "/" -- won't happen
     showFolder [x] = H.toHtml $ showName $ fromPiece x
     showFolder (x:xs) = do
         let href = concat $ replicate (length xs) "../" :: String
