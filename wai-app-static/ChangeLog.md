@@ -1,3 +1,7 @@
+## 3.0.1.1
+
+* Fix root links
+
 ## 3.0.1
 
 * Better HEAD support [#354](https://github.com/yesodweb/wai/issues/354)
