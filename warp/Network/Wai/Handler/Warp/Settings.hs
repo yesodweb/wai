@@ -45,7 +45,7 @@ data Settings = Settings
     , settingsOnClose :: SockAddr -> IO ()  -- ^ What to do when a connection is close. Default: do nothing.
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
-    , settingsFdCacheDuration :: Int -- ^ Cache duratoin time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 10
+    , settingsFdCacheDuration :: Int -- ^ Cache duratoin time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 0
     , settingsBeforeMainLoop :: IO ()
       -- ^ Code to run after the listening socket is ready but before entering
       -- the main event loop. Useful for signaling to tests that they can start
@@ -108,7 +108,7 @@ defaultSettings = Settings
     , settingsOnClose = const $ return ()
     , settingsTimeout = 30
     , settingsManager = Nothing
-    , settingsFdCacheDuration = 10
+    , settingsFdCacheDuration = 0
     , settingsBeforeMainLoop = return ()
     , settingsFork = void . forkIOWithUnmask
     , settingsNoParsePath = False

@@ -184,7 +184,15 @@ setTimeout x y = y { settingsTimeout = x }
 setManager :: Manager -> Settings -> Settings
 setManager x y = y { settingsManager = Just x }
 
--- | Cache duration time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 10
+-- | Cache duration time of file descriptors in seconds. 0 means that the cache mechanism is not used.
+--
+-- The FD cache is an optimization that is useful for servers dealing with
+-- static files. However, if files are being modified, it can cause incorrect
+-- results in some cases. Therefore, we disable it by default. If you know that
+-- your files will be static, it's recommended to turn this on; a reasonable
+-- value for those cases is 10.
+--
+-- Default value: since 3.0.13, default value is 0, was previously 10
 setFdCacheDuration :: Int -> Settings -> Settings
 setFdCacheDuration x y = y { settingsFdCacheDuration = x }
 
