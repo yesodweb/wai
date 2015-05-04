@@ -189,8 +189,10 @@ setManager x y = y { settingsManager = Just x }
 -- The FD cache is an optimization that is useful for servers dealing with
 -- static files. However, if files are being modified, it can cause incorrect
 -- results in some cases. Therefore, we disable it by default. If you know that
--- your files will be static, it's recommended to turn this on; a reasonable
--- value for those cases is 10.
+-- your files will be static or you prefer performance to file consistency,
+-- it's recommended to turn this on; a reasonable value for those cases is 10.
+-- Enabling this cache results in drastic performance improvement for file
+-- transfers.
 --
 -- Default value: since 3.0.13, default value is 0, was previously 10
 setFdCacheDuration :: Int -> Settings -> Settings
