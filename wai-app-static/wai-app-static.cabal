@@ -1,5 +1,5 @@
 name:            wai-app-static
-version:         3.0.1.1
+version:         3.1.0
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -41,8 +41,6 @@ library
                    , base64-bytestring         >= 0.1
                    , byteable
                    , cryptohash                >= 0.11
-                   , system-filepath           >= 0.4
-                   , system-fileio             >= 0.3
                    , http-date
                    , blaze-html                >= 0.5
                    , blaze-markup              >= 0.5.1

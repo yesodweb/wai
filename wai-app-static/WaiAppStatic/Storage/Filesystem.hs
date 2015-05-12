@@ -11,10 +11,8 @@ module WaiAppStatic.Storage.Filesystem
     ) where
 
 import WaiAppStatic.Types
-import Prelude hiding (FilePath)
-import Filesystem.Path.CurrentOS (FilePath, (</>))
-import qualified Filesystem.Path.CurrentOS as F
-import qualified Filesystem as F
+import System.FilePath ((</>))
+import System.Directory (doesFileExist, doesDirectoryExist, getDirectoryContents)
 import Data.List (foldl')
 import Control.Monad (forM)
 import Util
@@ -29,10 +27,11 @@ import qualified Crypto.Hash.Conduit (hashFile)
 import Data.Byteable (toBytes)
 import Crypto.Hash (MD5, Digest)
 import qualified Data.ByteString.Base64 as B64
+import qualified Data.Text as T
 
 -- | Construct a new path from a root and some @Pieces@.
 pathFromPieces :: FilePath -> Pieces -> FilePath
-pathFromPieces = foldl' (\fp p -> fp </> F.fromText (fromPiece p))
+pathFromPieces = foldl' (\fp p -> fp </> T.unpack (fromPiece p))
 
 -- | Settings optimized for a web application. Files will have aggressive
 -- caching applied and hashes calculated, and indices and listings are disabled.
@@ -86,12 +85,12 @@ fileHelper :: ETagLookup
            -> Piece -- ^ file name
            -> IO (Maybe File)
 fileHelper hashFunc fp name = do
-    efs <- try $ getFileStatus $ F.encodeString fp
+    efs <- try $ getFileStatus fp
     case efs of
         Left (_ :: SomeException) -> return Nothing
         Right fs | isRegularFile fs -> return $ Just File
             { fileGetSize = fromIntegral $ fileSize fs
-            , fileToResponse = \s h -> W.responseFile s h (F.encodeString fp) Nothing
+            , fileToResponse = \s h -> W.responseFile s h fp Nothing
             , fileName = name
             , fileGetHash = hashFunc fp
             , fileGetModified = Just $ modificationTime fs
@@ -117,7 +116,7 @@ webAppLookup hashFunc prefix pieces =
 -- exists.
 hashFile :: FilePath -> IO ByteString
 hashFile fp = do
-    h <- Crypto.Hash.Conduit.hashFile (F.encodeString fp)
+    h <- Crypto.Hash.Conduit.hashFile fp
     return $ B64.encode $ toBytes (h :: Digest MD5)
 
 hashFileIfExists :: ETagLookup
@@ -128,12 +127,9 @@ hashFileIfExists fp = do
         Right x -> Just x
 
 isVisible :: FilePath -> Bool
-isVisible =
-    go . F.encodeString . F.filename
-  where
-    go ('.':_) = False
-    go "" = False
-    go _ = True
+isVisible ('.':_) = False
+isVisible "" = False
+isVisible _ = True
 
 -- | Get a proper @LookupResult@, checking if the path is a file or folder.
 -- Compare with @webAppLookup@, which only deals with files.
@@ -141,17 +137,18 @@ fileSystemLookup :: ETagLookup
                  -> FilePath -> Pieces -> IO LookupResult
 fileSystemLookup hashFunc prefix pieces = do
     let fp = pathFromPieces prefix pieces
-    fe <- F.isFile fp
+    fe <- doesFileExist fp
     if fe
         then fileHelperLR hashFunc fp lastPiece
         else do
-            de <- F.isDirectory fp
+            de <- doesDirectoryExist fp
             if de
                 then do
-                    entries' <- fmap (filter isVisible) $ F.listDirectory fp
-                    entries <- forM entries' $ \fp' -> do
-                        let name = unsafeToPiece $ either id id $ F.toText $ F.filename fp'
-                        de' <- F.isDirectory fp'
+                    entries' <- fmap (filter isVisible) $ getDirectoryContents fp
+                    entries <- forM entries' $ \fpRel' -> do
+                        let name = unsafeToPiece $ T.pack fpRel'
+                            fp' = fp </> fpRel'
+                        de' <- doesDirectoryExist fp'
                         if de'
                             then return $ Just $ Left name
                             else do

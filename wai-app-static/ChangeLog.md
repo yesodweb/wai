@@ -1,3 +1,7 @@
+## 3.1.0
+
+* Drop system-filepath
+
 ## 3.0.1.1
 
 * Fix root links
