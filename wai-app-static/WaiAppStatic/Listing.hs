@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 module WaiAppStatic.Listing
     ( defaultListing
     ) where
@@ -104,7 +105,10 @@ renderDirectoryContentsTable haskellSrc folderSrc fps =
                             Left{} -> H.img ! A.src (H.toValue folderSrc)
                                             ! A.alt "Folder"
                             Right{} -> return ()
-                   let name = either id fileName md
+                   let name =
+                           case either id fileName md of
+                               (fromPiece -> "") -> unsafeToPiece ".."
+                               x -> x
                    let isFile = either (const False) (const True) md
                    H.td (H.a ! A.href (H.toValue $ fromPiece name `T.append` if isFile then "" else "/") $ H.toHtml $ fromPiece name)
                    H.td ! A.class_ "date" $ H.toHtml $
