@@ -390,8 +390,8 @@ serveConnection conn ii origAddr transport settings app = do
         -- We just send a Response and it takes a time to
         -- receive a Request again. If we immediately call recv,
         -- it is likely to fail and the IO manager works.
-        -- It is very costy. So, we yield to another Haskell
-        -- thread hoping that the next Request will arraive
+        -- It is very costly. So, we yield to another Haskell
+        -- thread hoping that the next Request will arrive
         -- when this Haskell thread will be re-scheduled.
         -- This improves performance at least when
         -- the number of cores is small.
