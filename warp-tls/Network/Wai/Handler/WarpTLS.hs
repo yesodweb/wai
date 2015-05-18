@@ -33,13 +33,13 @@ module Network.Wai.Handler.WarpTLS (
 import qualified Network.TLS as TLS
 import Network.Wai.Handler.Warp
 import Network.Wai (Application)
-import Network.Socket (Socket, sClose, withSocketsDo, SockAddr)
+import Network.Socket (Socket, sClose, withSocketsDo, SockAddr, accept)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Control.Exception (bracket, finally, handle, fromException, try, IOException)
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.ByteString as B
-import Data.Streaming.Network (bindPortTCP, acceptSafe, safeRecv)
+import Data.Streaming.Network (bindPortTCP, safeRecv)
 import Control.Applicative ((<$>))
 import qualified Data.IORef as I
 import Control.Exception (Exception, throwIO)
@@ -250,7 +250,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
 
 getter :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (IO (Connection, Transport), SockAddr)
 getter tlsset@TLSSettings{..} sock params = do
-    (s, sa) <- acceptSafe sock
+    (s, sa) <- accept sock
     return (mkConn tlsset s params, sa)
 
 mkConn :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (Connection, Transport)
