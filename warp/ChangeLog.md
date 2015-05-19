@@ -1,3 +1,7 @@
+## 3.0.13.1
+
+* Remove dependency on the void package [#375](https://github.com/yesodweb/wai/pull/375)
+
 ## 3.0.13
 
 * Turn off file descriptor cache by default [#371](https://github.com/yesodweb/wai/issues/371)
