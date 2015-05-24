@@ -7,4 +7,4 @@ main :: IO ()
 main = run "Sample App" app
 
 app :: Application
-app _ = return $ responseLBS status200 [("Content-Type", "text/html")] "<h1>Hello World!</h1>"
+app _ response = response $ responseLBS status200 [("Content-Type", "text/html")] "<h1>Hello World!</h1>"
