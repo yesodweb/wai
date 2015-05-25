@@ -1,0 +1,16 @@
+resolver: lts-2.9
+packages:
+- ./wai
+- ./wai-extra
+- ./warp
+- ./warp-tls
+- ./wai-app-static
+- ./wai-handler-fastcgi
+- ./wai-handler-launch
+- ./wai-websockets
+- ./wai-conduit
+- ./mime-types
+- ./auto-update
+extra-deps:
+- fast-logger-2.3.1
+- wai-logger-2.2.4
