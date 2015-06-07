@@ -36,7 +36,7 @@ import Network.Wai (Application)
 import Network.Socket (Socket, sClose, withSocketsDo, SockAddr, accept)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import Control.Exception (bracket, finally, handle, fromException, try, IOException)
+import Control.Exception (bracket, finally, handle, fromException, try, IOException, onException)
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.ByteString as B
 import Data.Streaming.Network (bindPortTCP, safeRecv)
@@ -257,10 +257,10 @@ mkConn :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (Connect
 mkConn tlsset s params = do
     firstBS <- safeRecv s 4096
     cachedRef <- I.newIORef firstBS
-    if not (B.null firstBS) && B.head firstBS == 0x16 then
+    (if not (B.null firstBS) && B.head firstBS == 0x16 then
         httpOverTls tlsset s cachedRef params
       else
-        plainHTTP tlsset s cachedRef
+        plainHTTP tlsset s cachedRef) `onException` sClose s
 
 ----------------------------------------------------------------
 
