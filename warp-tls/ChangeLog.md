@@ -1,3 +1,7 @@
+## 3.0.4.1
+
+* Fix for leaked FDs [#378](https://github.com/yesodweb/wai/issues/378)
+
 ## 3.0.4
 
 * Replace `acceptSafe` with `accept`, see [#361](https://github.com/yesodweb/wai/issues/361)
