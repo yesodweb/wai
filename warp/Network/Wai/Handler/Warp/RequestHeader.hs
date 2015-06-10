@@ -127,7 +127,7 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
 
 parseHeader :: ByteString -> H.Header
 parseHeader s =
-    let (k, rest) = S.breakByte 58 s -- ':'
+    let (k, rest) = S.break (== 58) s -- ':'
         rest' = S.dropWhile (\c -> c == 32 || c == 9) $ S.drop 1 rest
      in (CI.mk k, rest')
 
