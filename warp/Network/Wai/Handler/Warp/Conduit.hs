@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Network.Wai.Handler.Warp.Conduit where
 
 import Control.Exception
@@ -7,7 +9,10 @@ import Data.ByteString.Lazy.Char8 (pack)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
-import Data.Word (Word, Word8)
+#if __GLASGOW_HASKELL__ < 709
+import Data.Word (Word)
+#endif
+import Data.Word (Word8)
 import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------

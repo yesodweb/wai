@@ -17,7 +17,9 @@ module Network.Wai.Handler.Warp.Response (
 
 import Blaze.ByteString.Builder (fromByteString, Builder, flush)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
+#endif
 import Control.Exception
 import Data.Array ((!))
 import Data.ByteString (ByteString)
@@ -30,7 +32,10 @@ import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Maybe (isJust, listToMaybe)
 #if MIN_VERSION_base(4,5,0)
-import Data.Monoid ((<>), mempty)
+# if __GLASGOW_HASKELL__ < 709
+import Data.Monoid (mempty)
+# endif
+import Data.Monoid ((<>))
 #else
 import Data.Monoid (mappend, mempty)
 #endif

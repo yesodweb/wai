@@ -22,7 +22,9 @@ module Network.Wai.Handler.Warp.FdCache (
   , Refresh
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>), (<*>))
+#endif
 import Control.Exception (bracket)
 import Data.Hashable (hash)
 import Network.Wai.Handler.Warp.IORef

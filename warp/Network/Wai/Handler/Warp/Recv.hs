@@ -5,7 +5,9 @@ module Network.Wai.Handler.Warp.Recv (
     receive
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
+#endif
 import Control.Monad (void)
 import qualified Data.ByteString as BS (empty)
 import Data.ByteString.Internal (ByteString(..), mallocByteString)
