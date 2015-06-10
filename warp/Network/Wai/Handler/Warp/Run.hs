@@ -67,14 +67,14 @@ allowInterrupt :: IO ()
 allowInterrupt = unblock $ return ()
 #endif
 
--- | Run an 'Application' on the given port. This calls 'runSettings' with
--- 'defaultSettings'.
+-- | Run an 'Application' on the given port.
+-- This calls 'runSettings' with 'defaultSettings'.
 run :: Port -> Application -> IO ()
 run p = runSettings defaultSettings { settingsPort = p }
 
--- | Run an 'Application' on the port present in the @PORT@ environment variable
---
--- Uses the 'Port' given when the variable is unset.
+-- | Run an 'Application' on the port present in the @PORT@
+-- environment variable. Uses the 'Port' given when the variable is unset.
+-- This calls 'runSettings' with 'defaultSettings'.
 --
 -- Since 3.0.9
 runEnv :: Port -> Application -> IO ()
@@ -90,6 +90,8 @@ runEnv p app = do
         _ -> fail $ "Invalid value in $PORT: " ++ sp
 
 -- | Run an 'Application' with the given 'Settings'.
+-- This opens a listen socket on the port defined in 'Settings' and
+-- calls 'runSettingsSocket'.
 runSettings :: Settings -> Application -> IO ()
 runSettings set app = withSocketsDo $
     bracket
@@ -99,15 +101,17 @@ runSettings set app = withSocketsDo $
             setSocketCloseOnExec socket
             runSettingsSocket set socket app)
 
--- | Same as 'runSettings', but uses a user-supplied socket instead of opening
--- one. This allows the user to provide, for example, Unix named socket, which
+-- | This installs a shutdown handler for the given socket and
+-- calls 'runSettingsConnection' with the default connection setup action
+-- which handles plain (non-cipher) HTTP.
+-- When the listen socket in the second argument is closed, all live
+-- connections are gracefully shut down.
+--
+-- The supplied socket can be a Unix named socket, which
 -- can be used when reverse HTTP proxying into your application.
 --
 -- Note that the 'settingsPort' will still be passed to 'Application's via the
 -- 'serverPort' record.
---
--- When the listen socket in the second argument is closed, all live
--- connections are gracefully shut down.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket set socket app = do
     settingsInstallShutdownHandler set closeListenSocket
@@ -125,10 +129,13 @@ runSettingsSocket set socket app = do
 
     closeListenSocket = sClose socket
 
--- | Allows you to provide a function which will return a 'Connection'. In
--- cases where creating the @Connection@ can be expensive, this allows the
--- expensive computations to be performed in a separate thread instead of the
--- main server loop.
+-- | The connection setup action would be expensive. An good example
+-- is initialization of TLS.
+-- So, this convers the connection setup action to the connection maker
+-- which will be executed after forking a new worker thread.
+-- Then this calles 'runSettingsConnectionMaker' with the connection maker.
+-- This allows the expensive computations to be performed
+-- in a separate worker thread instead of the main server loop.
 --
 -- Since 1.3.5
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
@@ -138,6 +145,8 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
       (conn, sa) <- getConn
       return (return conn, sa)
 
+-- | This modifies the connection maker so that it returns 'TCP' for 'Transport'
+-- (i.e. plain HTTP) then calls 'runSettingsConnectionMakerSecure'.
 runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
 runSettingsConnectionMaker x y =
     runSettingsConnectionMakerSecure x (go y)
@@ -146,8 +155,10 @@ runSettingsConnectionMaker x y =
 
 ----------------------------------------------------------------
 
--- | Allows you to provide a function which will return a function
--- which will return 'Connection'.
+-- | The core run function which takes 'Settings',
+-- a connection maker and 'Application'.
+-- The connection maker can return a connection of either plain HTTP
+-- or HTTP over TLS.
 --
 -- Since 2.1.4
 runSettingsConnectionMakerSecure :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
