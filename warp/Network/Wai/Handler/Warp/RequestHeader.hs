@@ -146,7 +146,7 @@ parseByteRanges bs1 = do
                 case B.readInteger bs4 of
                     Just (j, bs5) | j >= i -> Just (HH.ByteRangeFromTo i j, bs5)
                     _ -> Just (HH.ByteRangeFrom i, bs4)
-    ranges front bs3 
+    ranges front bs3
         | S.null bs3 = Just (front [])
         | otherwise = do
             bs4 <- stripPrefix "," bs3
