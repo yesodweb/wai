@@ -49,7 +49,6 @@ import Network.Socket (fdSocket)
 socketConnection :: Socket -> IO Connection
 socketConnection s = do
     bufferPool <- newBufferPool
-    readBuf <- allocateBuffer 0 -- kept for backward compatibility
     writeBuf <- allocateBuffer bufferSize
     return Connection {
         connSendMany = Sock.sendMany s
@@ -58,7 +57,6 @@ socketConnection s = do
       , connClose = sClose s >> freeBuffer writeBuf
       , connRecv = receive s bufferPool
       , connBufferPool = bufferPool
-      , connReadBuffer = readBuf
       , connWriteBuffer = writeBuf
       , connBufferSize = bufferSize
       , connSendFileOverride = Override s

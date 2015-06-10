@@ -80,10 +80,8 @@ data Connection = Connection
     , connClose    :: IO ()
     , connRecv     :: IO ByteString
     , connBufferPool :: BufferPool
-    , connReadBuffer       :: Buffer
-    -- ^ NOTE: This is kept just for backwards compatibility, and is no longer used at all.
     , connWriteBuffer      :: Buffer
-    , connBufferSize       :: BufSize
+    , connBufferSize       :: BufSize -- ^ The size of 'connWriteBuffer'
     , connSendFileOverride :: ConnSendFileOverride
     }
 

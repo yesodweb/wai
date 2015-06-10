@@ -272,10 +272,9 @@ httpOverTls TLSSettings{..} s cachedRef params = do
     ctx <- TLS.contextNew backend params gen
     TLS.contextHookSetLogging ctx tlsLogging
     TLS.handshake ctx
-    readBuf <- allocateBuffer bufferSize
     writeBuf <- allocateBuffer bufferSize
     tls <- getTLSinfo ctx
-    return (conn ctx readBuf writeBuf, tls)
+    return (conn ctx writeBuf, tls)
   where
     backend = TLS.Backend {
         TLS.backendFlush = return ()
@@ -283,14 +282,13 @@ httpOverTls TLSSettings{..} s cachedRef params = do
       , TLS.backendSend  = sendAll s
       , TLS.backendRecv  = recvTLS cachedRef s
       }
-    conn ctx readBuf writeBuf = Connection {
+    conn ctx writeBuf = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = TLS.sendData ctx . L.fromChunks . return
       , connSendFile         = sendfile
       , connClose            = close
       , connRecv             = recv
       , connSendFileOverride = NotOverride
-      , connReadBuffer       = readBuf
       , connWriteBuffer      = writeBuf
       , connBufferSize       = bufferSize
       }
@@ -310,8 +308,7 @@ httpOverTls TLSSettings{..} s cachedRef params = do
                     void $ tickle' -- This tickles the Timer.  It MUST be called per chunk.
                     loop h $ remaining - B.length x
 
-        close = freeBuffer readBuf `finally`
-                freeBuffer writeBuf `finally`
+        close = freeBuffer writeBuf `finally`
                 void (tryIO $ TLS.bye ctx) `finally`
                 TLS.contextClose ctx
 
