@@ -179,7 +179,7 @@ sendResponse :: ByteString -- ^ default server value
              -> IO Bool -- ^ Returing True if the connection is persistent.
 sendResponse defServer conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
-    if hasBody s req then do
+    if hasBody s then do
         -- HEAD comes here even if it does not have body.
         sendRsp conn ver s hs rsp
         T.tickle th
@@ -362,13 +362,12 @@ infoFromResponse rspidxhdr (isPersist,isChunked) = (isKeepAlive, needsChunked)
 
 ----------------------------------------------------------------
 
-hasBody :: H.Status -> Request -> Bool
-hasBody s req = sc /= 204
-             && sc /= 304
-             && sc >= 200
+hasBody :: H.Status -> Bool
+hasBody s = sc /= 204
+         && sc /= 304
+         && sc >= 200
   where
     sc = H.statusCode s
-    method = requestMethod req
 
 ----------------------------------------------------------------
 
