@@ -46,6 +46,7 @@ Library
                    , text
                    , streaming-commons         >= 0.1.10
                    , vault                     >= 0.3
+                   , stm                       >= 2.3
   if flag(network-bytestring)
       Build-Depends: network                   >= 2.2.1.5  && < 2.2.3
                    , network-bytestring        >= 0.1.3    && < 0.1.4
@@ -143,6 +144,7 @@ Test-Suite spec
                    , streaming-commons         >= 0.1.10
                    , async
                    , vault
+                   , stm                       >= 2.3
   if flag(use-bytestring-builder)
       Build-Depends: bytestring                < 0.10.2.0
                    , bytestring-builder
