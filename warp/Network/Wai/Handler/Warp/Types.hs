@@ -12,7 +12,7 @@ import Data.Typeable (Typeable)
 import Data.Word (Word16)
 import Network.HTTP.Types.Header
 import Network.Socket (Socket)
-import Network.Wai.Handler.Warp.Buffer (Buffer,BufSize)
+import Network.Wai.Handler.Warp.Buffer (Buffer,BufSize,BufferPool)
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.Timeout as T
@@ -79,9 +79,9 @@ data Connection = Connection
     , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> IO () -- ^ filepath, offset, length, hook action, HTTP headers
     , connClose    :: IO ()
     , connRecv     :: IO ByteString
-    , connReadBuffer       :: Buffer
+    , connBufferPool :: BufferPool
     , connWriteBuffer      :: Buffer
-    , connBufferSize       :: BufSize
+    , connBufferSize       :: BufSize -- ^ The size of 'connWriteBuffer'
     , connSendFileOverride :: ConnSendFileOverride
     }
 
