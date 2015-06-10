@@ -25,7 +25,7 @@ mallocBuffer :: Int -> IO ByteString
 mallocBuffer size = do
     ptr <- mallocBytes size
     fptr <- newForeignPtr finalizerFree ptr
-    return $! PS fptr 0 size 
+    return $! PS fptr 0 size
 {-# INLINE mallocBuffer #-}
 
 createBuffer :: Int -> IO ByteString
