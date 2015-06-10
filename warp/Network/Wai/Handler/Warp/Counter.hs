@@ -1,24 +1,27 @@
 module Network.Wai.Handler.Warp.Counter (
     Counter
   , newCounter
-  , isZero
+  , waitForZero
   , increase
   , decrease
   ) where
 
-import Network.Wai.Handler.Warp.IORef
+import Control.Concurrent.STM
+import Control.Monad (unless)
 import Control.Applicative ((<$>))
 
-newtype Counter = Counter (IORef Int)
+newtype Counter = Counter (TVar Int)
 
 newCounter :: IO Counter
-newCounter = Counter <$> newIORef 0
+newCounter = Counter <$> newTVarIO 0
 
-isZero :: Counter -> IO Bool
-isZero (Counter ref) = (== 0) <$> readIORef ref
+waitForZero :: Counter -> IO ()
+waitForZero (Counter ref) = atomically $ do
+    x <- readTVar ref
+    unless (x == 0) retry
 
 increase :: Counter -> IO ()
-increase (Counter ref) = atomicModifyIORef' ref $ \x -> (x + 1, ())
+increase (Counter ref) = atomically $ modifyTVar' ref $ \x -> x + 1
 
 decrease :: Counter -> IO ()
-decrease (Counter ref) = atomicModifyIORef' ref $ \x -> (x - 1, ())
+decrease (Counter ref) = atomically $ modifyTVar' ref $ \x -> x - 1
