@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE CPP #-}
 
 -- | HTTP over SSL/TLS support for Warp via the TLS package.
 
@@ -40,7 +41,9 @@ import Control.Exception (bracket, finally, handle, fromException, try, IOExcept
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Data.ByteString as B
 import Data.Streaming.Network (bindPortTCP, safeRecv)
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
+#endif
 import qualified Data.IORef as I
 import Control.Exception (Exception, throwIO)
 import Data.Typeable (Typeable)
