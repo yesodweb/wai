@@ -63,9 +63,11 @@ withBufferPool pool f = do
 type Buffer = Ptr Word8
 type BufSize = Int
 
--- FIXME come up with good values here
+-- 2^14 = 1024 * 16
+-- The maximum size of TLS record
+-- The maximum size of HTTP/2 frame payload (excluding frame header)
 bufferSize :: BufSize
-bufferSize = 4096
+bufferSize = 16384
 
 allocateBuffer :: Int -> IO Buffer
 allocateBuffer = mallocBytes
