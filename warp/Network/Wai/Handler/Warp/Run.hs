@@ -129,11 +129,11 @@ runSettingsSocket set socket app = do
 
     closeListenSocket = sClose socket
 
--- | The connection setup action would be expensive. An good example
+-- | The connection setup action would be expensive. A good example
 -- is initialization of TLS.
--- So, this convers the connection setup action to the connection maker
+-- So, this converts the connection setup action to the connection maker
 -- which will be executed after forking a new worker thread.
--- Then this calles 'runSettingsConnectionMaker' with the connection maker.
+-- Then this calls 'runSettingsConnectionMaker' with the connection maker.
 -- This allows the expensive computations to be performed
 -- in a separate worker thread instead of the main server loop.
 --
