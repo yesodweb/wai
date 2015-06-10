@@ -31,28 +31,27 @@ module Network.Wai.Handler.WarpTLS (
     , WarpTLSException (..)
     ) where
 
-import qualified Network.TLS as TLS
-import Network.Wai.Handler.Warp
-import Network.Wai (Application)
-import Network.Socket (Socket, sClose, withSocketsDo, SockAddr, accept)
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
-import Control.Exception (bracket, finally, handle, fromException, try, IOException, onException)
-import qualified Network.TLS.Extra as TLSExtra
-import qualified Data.ByteString as B
-import Data.Streaming.Network (bindPortTCP, safeRecv)
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import qualified Data.IORef as I
-import Control.Exception (Exception, throwIO)
-import Data.Typeable (Typeable)
-import Data.Default.Class (def)
-import qualified Crypto.Random.AESCtr
-import Network.Wai.Handler.Warp.Buffer (allocateBuffer, bufferSize, freeBuffer)
-import Network.Socket.ByteString (sendAll)
+import Control.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException)
 import Control.Monad (unless, void)
+import qualified Crypto.Random.AESCtr
+import qualified Data.ByteString as B
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
+import Data.Default.Class (def)
+import qualified Data.IORef as I
+import Data.Streaming.Network (bindPortTCP, safeRecv)
+import Data.Typeable (Typeable)
+import Network.Socket (Socket, sClose, withSocketsDo, SockAddr, accept)
+import Network.Socket.ByteString (sendAll)
+import qualified Network.TLS as TLS
+import qualified Network.TLS.Extra as TLSExtra
+import Network.Wai (Application)
+import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp.Buffer (allocateBuffer, bufferSize, freeBuffer)
 import qualified System.IO as IO
 import System.IO.Error (isEOFError)
 
