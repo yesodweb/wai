@@ -289,13 +289,13 @@ httpOverTls TLSSettings{..} s cachedRef params = do
       , connSendFile         = sendfile
       , connClose            = close
       , connRecv             = recv
-      , connSendFileOverride = NotOverride
       , connBufferPool       = pool
       , connWriteBuffer      = writeBuf
       , connBufferSize       = bufferSize
       }
       where
-        sendfile fp offset len tickle' headers = do
+        sendfile fid offset len tickle' headers = do
+            let fp = fileIdPath fid
             TLS.sendData ctx $ L.fromChunks headers
             IO.withBinaryFile fp IO.ReadMode $ \h -> do
                 IO.hSeek h IO.AbsoluteSeek offset

@@ -88,14 +88,15 @@ module Network.Wai.Handler.Warp (
   , HostPreference (..)
   , Port
   , InvalidRequest (..)
-  , ConnSendFileOverride (..)
     -- * Per-request utilities
   , pauseTimeout
     -- * Connection
   , Connection (..)
+  , SendFile
+  , FileId (..)
   , socketConnection
   , newBufferPool
-  -- * Internal
+    -- * Internal
     -- ** Version
   , warpVersion
     -- ** Data types
