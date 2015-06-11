@@ -11,7 +11,6 @@ import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 import Data.Typeable (Typeable)
 import Data.Word (Word16)
 import Network.HTTP.Types.Header
-import Network.Socket (Socket)
 import Network.Wai.Handler.Warp.Buffer (Buffer,BufSize,BufferPool)
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
