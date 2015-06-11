@@ -50,10 +50,11 @@ socketConnection :: Socket -> IO Connection
 socketConnection s = do
     bufferPool <- newBufferPool
     writeBuf <- allocateBuffer bufferSize
+    let sendall = Sock.sendAll s
     return Connection {
         connSendMany = Sock.sendMany s
-      , connSendAll = Sock.sendAll s
-      , connSendFile = defaultSendFile s
+      , connSendAll = sendall
+      , connSendFile = defaultSendFile s writeBuf bufferSize sendall
       , connClose = sClose s >> freeBuffer writeBuf
       , connRecv = receive s bufferPool
       , connBufferPool = bufferPool

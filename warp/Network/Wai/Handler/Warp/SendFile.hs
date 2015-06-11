@@ -21,19 +21,17 @@ import System.Posix.Types
 
 ----------------------------------------------------------------
 
-defaultSendFile :: Socket -> SendFile
+defaultSendFile :: Socket -> Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 #ifdef SENDFILEFD
-defaultSendFile s fid off len act hdr = case mfid of
-    Nothing -> sendfileWithHeader   s path (PartOfFile off len) act hdr
+defaultSendFile s _ _ _ fid off len act hdr = case mfid of
     Just fd -> sendfileFdWithHeader s fd   (PartOfFile off len) act hdr
+    -- never reached, just in case
+    Nothing -> sendfileWithHeader   s path (PartOfFile off len) act hdr
   where
     path = fileIdPath fid
     mfid = fileIdFd fid
 #else
-defaultSendFile s fid off len act hdr =
-    sendfileWithHeader s path (PartOfFile off len) act hdr
-  where
-    path = fileIdPath fid
+defaultSendFile _ = readSendFile
 #endif
 
 ----------------------------------------------------------------
