@@ -2,7 +2,6 @@
 
 module Network.Wai.Handler.Warp.SendFile where
 
-import Control.Monad (when, void)
 import Data.ByteString.Internal
 import Data.Word (Word8)
 import Foreign.ForeignPtr (newForeignPtr_, withForeignPtr)
@@ -10,13 +9,17 @@ import Network.Sendfile
 import Network.Socket (Socket)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Types
-import qualified System.IO as IO
 
-#ifndef WINDOWS
+#ifdef WINDOWS
+import Control.Monad (when, void)
+import qualified System.IO as IO
+#else
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
 import System.Posix.Types
 #endif
+
+----------------------------------------------------------------
 
 defaultSendFile :: Socket -> SendFile
 #ifdef SENDFILEFD
@@ -32,6 +35,8 @@ defaultSendFile s fid off len act hdr =
   where
     path = fileIdPath fid
 #endif
+
+----------------------------------------------------------------
 
 packHeader :: Buffer -> BufSize -> (ByteString -> IO ())
            -> IO () -> [ByteString]
@@ -57,6 +62,7 @@ packHeader buf siz send hook (PS bsfp off len : bss) n
   where
     room = siz - n
 
+#ifdef WINDOWS
 readSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 readSendFile buf siz send fid off0 len0 hook headers = do
     fptr <- newForeignPtr_ buf
@@ -82,10 +88,9 @@ readSendFile buf siz send fid off0 len0 hook headers = do
             send bs
             void $ hook
             loop fptr h $ len - fromIntegral n
-
-#ifndef WINDOWS
-preadSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
-preadSendFile buf siz send fid off0 len0 hook headers = do
+#else
+readSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
+readSendFile buf siz send fid off0 len0 hook headers = do
     fptr <- newForeignPtr_ buf
     hn <- packHeader buf siz send hook headers 0
     let room = siz - hn
