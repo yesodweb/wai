@@ -268,13 +268,14 @@ mkConn tlsset s params = do
 
 httpOverTls :: TLS.TLSParams params => TLSSettings -> Socket -> I.IORef B.ByteString -> params -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} s cachedRef params = do
+    pool <- newBufferPool
     gen <- Crypto.Random.AESCtr.makeSystem
     ctx <- TLS.contextNew backend params gen
     TLS.contextHookSetLogging ctx tlsLogging
     TLS.handshake ctx
     writeBuf <- allocateBuffer bufferSize
     tls <- getTLSinfo ctx
-    return (conn ctx writeBuf, tls)
+    return (conn ctx pool writeBuf, tls)
   where
     backend = TLS.Backend {
         TLS.backendFlush = return ()
@@ -282,13 +283,14 @@ httpOverTls TLSSettings{..} s cachedRef params = do
       , TLS.backendSend  = sendAll s
       , TLS.backendRecv  = recvTLS cachedRef s
       }
-    conn ctx writeBuf = Connection {
+    conn ctx pool writeBuf = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = TLS.sendData ctx . L.fromChunks . return
       , connSendFile         = sendfile
       , connClose            = close
       , connRecv             = recv
       , connSendFileOverride = NotOverride
+      , connBufferPool       = pool
       , connWriteBuffer      = writeBuf
       , connBufferSize       = bufferSize
       }

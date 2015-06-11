@@ -94,7 +94,8 @@ module Network.Wai.Handler.Warp (
     -- * Connection
   , Connection (..)
   , socketConnection
-    -- * Internal
+  , newBufferPool
+  -- * Internal
     -- ** Version
   , warpVersion
     -- ** Data types
@@ -113,6 +114,7 @@ module Network.Wai.Handler.Warp (
   , sendResponse
   ) where
 
+import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Date
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.Header
