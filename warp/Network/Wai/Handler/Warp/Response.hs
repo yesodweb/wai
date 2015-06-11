@@ -244,16 +244,16 @@ sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
                 sendRsp conn mfdc ver s hs1 (RspBuilder mempty False)
               else do
                 lheader <- composeHeader ver s hs1
-#ifdef SENDFILEFD
+#ifdef WINDOWS
+                let fid = FileId path Nothing
+                    hook' = hook
+#else
                 (mfd, hook') <- case mfdc of
                    Nothing  -> return (Nothing, hook)
                    Just fdc -> do
                       (fd, fresher) <- F.getFd fdc path
                       return (Just fd, hook >> fresher)
                 let fid = FileId path mfd
-#else
-                let fid = FileId path Nothing
-                    hook' = hook
 #endif
                 connSendFile conn fid beg len hook' [lheader]
           | otherwise -> do

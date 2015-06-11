@@ -3,7 +3,7 @@
 module FdCacheSpec where
 
 import Test.Hspec
-#ifdef SENDFILEFD
+#ifndef WINDOWS
 import Data.IORef
 import Network.Wai.Handler.Warp.FdCache
 import System.Posix.IO (fdRead)

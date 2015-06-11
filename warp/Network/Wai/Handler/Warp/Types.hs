@@ -16,7 +16,7 @@ import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.Timeout as T
 
-#ifdef SENDFILEFD
+#ifndef WINDOWS
 import System.Posix.Types (Fd)
 #endif
 
@@ -67,7 +67,7 @@ instance Exception InvalidRequest
 
 ----------------------------------------------------------------
 
-#ifndef SENDFILEFD
+#ifdef WINDOWS
 type Fd = ()
 #endif
 
