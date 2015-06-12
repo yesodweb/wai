@@ -14,8 +14,10 @@ import Network.Wai.Handler.Warp.Types
 import Control.Monad (when, void)
 import qualified System.IO as IO
 #else
+import Control.Exception
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
+import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types
 #endif
 
@@ -23,12 +25,11 @@ import System.Posix.Types
 
 defaultSendFile :: Socket -> Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 #ifdef SENDFILEFD
-defaultSendFile s _ _ _ fid off len act hdr = case mfid of
-    Just fd -> sendfileFdWithHeader s fd   (PartOfFile off len) act hdr
+defaultSendFile s buf siz sendall fid off len act hdr = case mfid of
     -- settingsFdCacheDuration is 0
-    Nothing -> sendfileWithHeader   s path (PartOfFile off len) act hdr
+    Nothing -> readSendFile buf siz sendall fid off len act hdr
+    Just fd -> sendfileFdWithHeader s fd (PartOfFile off len) act hdr
   where
-    path = fileIdPath fid
     mfid = fileIdFd fid
 #else
 defaultSendFile _ = readSendFile
@@ -88,7 +89,8 @@ readSendFile buf siz send fid off0 len0 hook headers = do
             loop fptr h $ len - fromIntegral n
 #else
 readSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
-readSendFile buf siz send fid off0 len0 hook headers = do
+readSendFile buf siz send fid off0 len0 hook headers =
+  bracket setup teardown $ \fd -> do
     fptr <- newForeignPtr_ buf
     hn <- packHeader buf siz send hook headers 0
     let room = siz - hn
@@ -98,13 +100,19 @@ readSendFile buf siz send fid off0 len0 hook headers = do
         n' = fromIntegral n
     send bs
     hook
-    loop fptr (len0 - n') (off0 + n')
+    loop fd fptr (len0 - n') (off0 + n')
   where
-    Just fd = fileIdFd fid -- fixme
+    path = fileIdPath fid
+    setup = case fileIdFd fid of
+       Just fd -> return fd
+       Nothing -> openFd path ReadOnly Nothing defaultFileFlags{nonBlock=True}
+    teardown fd = case fileIdFd fid of
+       Just _  -> return ()
+       Nothing -> closeFd fd
     mini i n
       | fromIntegral i < n = i
       | otherwise          = fromIntegral n
-    loop fptr len off
+    loop fd fptr len off
       | len <= 0  = return ()
       | otherwise = do
           n <- positionRead fd buf (mini siz len) off
@@ -112,7 +120,7 @@ readSendFile buf siz send fid off0 len0 hook headers = do
               n' = fromIntegral n
           send bs
           hook
-          loop fptr (len - n') (off + n')
+          loop fd fptr (len - n') (off + n')
 
 positionRead :: Fd -> Ptr Word8 -> Int -> Integer -> IO Int
 positionRead (Fd fd) buf siz off =
