@@ -25,12 +25,13 @@ import System.Posix.Types
 
 defaultSendFile :: Socket -> Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 #ifdef SENDFILEFD
-defaultSendFile s buf siz sendall fid off len act hdr = case mfid of
+defaultSendFile s _ _ _ fid off len act hdr = case mfid of
     -- settingsFdCacheDuration is 0
-    Nothing -> readSendFile buf siz sendall fid off len act hdr
-    Just fd -> sendfileFdWithHeader s fd (PartOfFile off len) act hdr
+    Nothing -> sendfileWithHeader   s path (PartOfFile off len) act hdr
+    Just fd -> sendfileFdWithHeader s fd   (PartOfFile off len) act hdr
   where
     mfid = fileIdFd fid
+    path = fileIdPath fid
 #else
 defaultSendFile _ = readSendFile
 #endif
