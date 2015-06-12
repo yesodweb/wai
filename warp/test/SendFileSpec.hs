@@ -33,18 +33,20 @@ spec = do
         tryPackHeader 10 ["01234567890", "12"] `shouldReturn` 3
     it "returns how much the buffer is consumed (6)" $
         tryPackHeader 10 ["012345678901234567890123456789012", "34"] `shouldReturn` 5
-    it "returns how much the buffer is consumed (1)" $
+
+    it "sends headers correctly (1)" $
         tryPackHeader2 10 ["foo"] "" `shouldReturn` True
-    it "returns how much the buffer is consumed (2)" $
+    it "sends headers correctly (2)" $
         tryPackHeader2 10 ["foo", "bar"] "" `shouldReturn` True
-    it "returns how much the buffer is consumed (3)" $
+    it "sends headers correctly (3)" $
         tryPackHeader2 10 ["0123456789"] "0123456789" `shouldReturn` True
-    it "returns how much the buffer is consumed (4)" $
+    it "sends headers correctly (4)" $
         tryPackHeader2 10 ["01234", "56789"] "0123456789" `shouldReturn` True
-    it "returns how much the buffer is consumed (5)" $
+    it "sends headers correctly (5)" $
         tryPackHeader2 10 ["01234567890", "12"] "0123456789" `shouldReturn` True
-    it "returns how much the buffer is consumed (6)" $
+    it "sends headers correctly (6)" $
         tryPackHeader2 10 ["012345678901234567890123456789012", "34"] "012345678901234567890123456789" `shouldReturn` True
+
   describe "readSendFile" $ do
     it "sends a file correctly (1)" $
         tryReadSendFile 10 0 1474 ["foo"] `shouldReturn` ExitSuccess
