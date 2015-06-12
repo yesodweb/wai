@@ -249,6 +249,7 @@ sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
                     hook' = hook
 #else
                 (mfd, hook') <- case mfdc of
+                   -- Windows or settingsFdCacheDuration is 0
                    Nothing  -> return (Nothing, hook)
                    Just fdc -> do
                       (fd, fresher) <- F.getFd fdc path

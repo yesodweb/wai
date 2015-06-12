@@ -25,7 +25,7 @@ defaultSendFile :: Socket -> Buffer -> BufSize -> (ByteString -> IO ()) -> SendF
 #ifdef SENDFILEFD
 defaultSendFile s _ _ _ fid off len act hdr = case mfid of
     Just fd -> sendfileFdWithHeader s fd   (PartOfFile off len) act hdr
-    -- never reached, just in case
+    -- settingsFdCacheDuration is 0
     Nothing -> sendfileWithHeader   s path (PartOfFile off len) act hdr
   where
     path = fileIdPath fid
