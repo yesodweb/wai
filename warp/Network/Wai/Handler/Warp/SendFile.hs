@@ -13,6 +13,7 @@ import Network.Wai.Handler.Warp.Types
 #ifdef WINDOWS
 import Control.Monad (when, void)
 import qualified System.IO as IO
+import Foreign.Ptr (plusPtr)
 #else
 import Control.Exception
 import Foreign.C.Types
