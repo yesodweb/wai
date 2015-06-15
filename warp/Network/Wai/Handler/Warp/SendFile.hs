@@ -1,6 +1,10 @@
 {-# LANGUAGE CPP, ForeignFunctionInterface #-}
 
-module Network.Wai.Handler.Warp.SendFile where
+module Network.Wai.Handler.Warp.SendFile (
+    defaultSendFile
+  , readSendFile
+  , packHeader -- for testing
+  ) where
 
 import Data.ByteString.Internal
 import Foreign.ForeignPtr (newForeignPtr_, withForeignPtr)
