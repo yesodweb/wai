@@ -18,6 +18,9 @@ import Control.Monad (when)
 import qualified System.IO as IO
 import Foreign.Ptr (plusPtr)
 #else
+# if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<$>))
+# endif
 import Data.Word (Word8)
 import Control.Exception
 import Foreign.C.Types
