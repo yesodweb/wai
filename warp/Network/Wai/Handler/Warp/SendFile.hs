@@ -3,7 +3,6 @@
 module Network.Wai.Handler.Warp.SendFile where
 
 import Data.ByteString.Internal
-import Data.Word (Word8)
 import Foreign.ForeignPtr (newForeignPtr_, withForeignPtr)
 import Network.Sendfile
 import Network.Socket (Socket)
@@ -11,10 +10,11 @@ import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Types
 
 #ifdef WINDOWS
-import Control.Monad (when, void)
+import Control.Monad (when)
 import qualified System.IO as IO
 import Foreign.Ptr (plusPtr)
 #else
+import Data.Word (Word8)
 import Control.Exception
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
@@ -63,6 +63,11 @@ packHeader buf siz send hook (PS bsfp off len : bss) n
   where
     room = siz - n
 
+mini :: Int -> Integer -> Int
+mini i n
+  | fromIntegral i < n = i
+  | otherwise          = fromIntegral n
+
 #ifdef WINDOWS
 readSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 readSendFile buf siz send fid off0 len0 hook headers = do
@@ -72,23 +77,24 @@ readSendFile buf siz send fid off0 len0 hook headers = do
         buf' = buf `plusPtr` hn
     IO.withBinaryFile path IO.ReadMode $ \h -> do
         IO.hSeek h IO.AbsoluteSeek off0
-        n <- IO.hGetBufSome h buf' room
+        n <- IO.hGetBufSome h buf' (mini room len0)
         let bs = PS fptr 0 (hn + n)
-            len = len0 - fromIntegral n
+            n' = fromIntegral n
         send bs
         hook
-        loop fptr h len
+        loop h fptr (len0 - n')
   where
     path = fileIdPath fid
-    loop fptr h len
+    loop h fptr len
       | len <= 0  = return ()
       | otherwise = do
-        n <- IO.hGetBufSome h buf siz
+        n <- IO.hGetBufSome h buf (mini siz len)
         when (n /= 0) $ do
             let bs = PS fptr 0 n
+                n' = fromIntegral n
             send bs
-            void $ hook
-            loop fptr h $ len - fromIntegral n
+            hook
+            loop h fptr (len - n')
 #else
 readSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 readSendFile buf siz send fid off0 len0 hook headers =
@@ -111,9 +117,6 @@ readSendFile buf siz send fid off0 len0 hook headers =
     teardown fd = case fileIdFd fid of
        Just _  -> return ()
        Nothing -> closeFd fd
-    mini i n
-      | fromIntegral i < n = i
-      | otherwise          = fromIntegral n
     loop fd fptr len off
       | len <= 0  = return ()
       | otherwise = do
