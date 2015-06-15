@@ -11,11 +11,14 @@ import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 import Data.Typeable (Typeable)
 import Data.Word (Word16)
 import Network.HTTP.Types.Header
-import Network.Socket (Socket)
 import Network.Wai.Handler.Warp.Buffer (Buffer,BufSize,BufferPool)
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.Timeout as T
+
+#ifndef WINDOWS
+import System.Posix.Types (Fd)
+#endif
 
 ----------------------------------------------------------------
 
@@ -64,25 +67,28 @@ instance Exception InvalidRequest
 
 ----------------------------------------------------------------
 
--- | Whether or not 'ConnSendFileOverride' in 'Connection' can be
---   overridden. This is a kind of hack to keep the signature of
---   'Connection' clean.
-data ConnSendFileOverride = NotOverride     -- ^ Don't override
-                          | Override Socket -- ^ Override with this 'Socket'
+#ifdef WINDOWS
+type Fd = ()
+#endif
 
-----------------------------------------------------------------
+data FileId = FileId {
+    fileIdPath :: FilePath
+  , fileIdFd   :: Maybe Fd
+  }
+
+-- |  fileid, offset, length, hook action, HTTP headers
+type SendFile = FileId -> Integer -> Integer -> IO () -> [ByteString] -> IO ()
 
 -- | Data type to manipulate IO actions for connections.
 data Connection = Connection
-    { connSendMany :: [ByteString] -> IO ()
-    , connSendAll  :: ByteString -> IO ()
-    , connSendFile :: FilePath -> Integer -> Integer -> IO () -> [ByteString] -> IO () -- ^ filepath, offset, length, hook action, HTTP headers
-    , connClose    :: IO ()
-    , connRecv     :: IO ByteString
-    , connBufferPool :: BufferPool
-    , connWriteBuffer      :: Buffer
-    , connBufferSize       :: BufSize -- ^ The size of 'connWriteBuffer'
-    , connSendFileOverride :: ConnSendFileOverride
+    { connSendMany    :: [ByteString] -> IO ()
+    , connSendAll     :: ByteString -> IO ()
+    , connSendFile    :: SendFile
+    , connClose       :: IO ()
+    , connRecv        :: IO ByteString
+    , connBufferPool  :: BufferPool
+    , connWriteBuffer :: Buffer
+    , connBufferSize  :: BufSize -- ^ The size of 'connWriteBuffer'
     }
 
 ----------------------------------------------------------------

@@ -50,16 +50,16 @@ socketConnection :: Socket -> IO Connection
 socketConnection s = do
     bufferPool <- newBufferPool
     writeBuf <- allocateBuffer bufferSize
+    let sendall = Sock.sendAll s
     return Connection {
         connSendMany = Sock.sendMany s
-      , connSendAll = Sock.sendAll s
-      , connSendFile = defaultSendFile s
+      , connSendAll = sendall
+      , connSendFile = defaultSendFile s writeBuf bufferSize sendall
       , connClose = sClose s >> freeBuffer writeBuf
       , connRecv = receive s bufferPool
       , connBufferPool = bufferPool
       , connWriteBuffer = writeBuf
       , connBufferSize = bufferSize
-      , connSendFileOverride = Override s
       }
 
 #if __GLASGOW_HASKELL__ < 702
@@ -268,14 +268,13 @@ fork set mkConn addr app dc fc tm counter = settingsFork set $ \ unmask ->
     -- We grab the connection before registering timeouts since the
     -- timeouts will be useless during connection creation, due to the
     -- fact that async exceptions are still masked.
-    bracket mkConn closeConn $ \(conn0, transport) ->
+    bracket mkConn closeConn $ \(conn, transport) ->
 
     -- We need to register a timeout handler for this thread, and
     -- cancel that handler as soon as we exit.
     bracket (T.registerKillThread tm) T.cancel $ \th ->
 
     let ii = InternalInfo th fc dc
-        conn = setSendFile conn0 fc
         -- We now have fully registered a connection close handler
         -- in the case of all exceptions, so it is safe to one
         -- again allow async exceptions.

@@ -42,12 +42,13 @@ import Data.Monoid (mappend, mempty)
 import Data.Version (showVersion)
 import qualified Network.HTTP.Types as H
 import Network.Wai
-import qualified Network.Wai.Handler.Warp.Date as D
 import Network.Wai.Handler.Warp.Buffer (toBlazeBuffer)
+import qualified Network.Wai.Handler.Warp.Date as D
+import qualified Network.Wai.Handler.Warp.FdCache as F
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.IO (toBufIOWith)
-import Network.Wai.Handler.Warp.ResponseHeader
 import Network.Wai.Handler.Warp.RequestHeader (parseByteRanges)
+import Network.Wai.Handler.Warp.ResponseHeader
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
@@ -181,7 +182,7 @@ sendResponse defServer conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s then do
         -- HEAD comes here even if it does not have body.
-        sendRsp conn ver s hs rsp
+        sendRsp conn mfdc ver s hs rsp
         T.tickle th
         return ret
       else do
@@ -195,6 +196,7 @@ sendResponse defServer conn ii req reqidxhdr src response = do
     rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
     dc = dateCacher ii
+    mfdc = fdCacher ii
     addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
     mRange = reqidxhdr ! idxRange
     (isPersist,isChunked0) = infoFromRequest req reqidxhdr
@@ -222,28 +224,41 @@ data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) Bool (IO ())
 ----------------------------------------------------------------
 
 sendRsp :: Connection
+        -> Maybe F.MutableFdCache
         -> H.HttpVersion
         -> H.Status
         -> H.ResponseHeaders
         -> Rsp
         -> IO ()
-sendRsp conn ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
+sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
     ex <- fileRange s0 hs path mPart mRange
     case ex of
         Left _ex ->
 #ifdef WARP_DEBUG
           print _ex >>
 #endif
-          sendRsp conn ver s2 hs2 (RspBuilder body True)
+          sendRsp conn mfdc ver s2 hs2 (RspBuilder body True)
         Right (s, hs1, beg, len)
           | len >= 0 ->
             if isHead then
-                sendRsp conn ver s hs1 (RspBuilder mempty False)
+                sendRsp conn mfdc ver s hs1 (RspBuilder mempty False)
               else do
                 lheader <- composeHeader ver s hs1
-                connSendFile conn path beg len hook [lheader]
+#ifdef WINDOWS
+                let fid = FileId path Nothing
+                    hook' = hook
+#else
+                (mfd, hook') <- case mfdc of
+                   -- Windows or settingsFdCacheDuration is 0
+                   Nothing  -> return (Nothing, hook)
+                   Just fdc -> do
+                      (fd, fresher) <- F.getFd fdc path
+                      return (Just fd, hook >> fresher)
+                let fid = FileId path mfd
+#endif
+                connSendFile conn fid beg len hook' [lheader]
           | otherwise -> do
-            sendRsp conn ver H.status416
+            sendRsp conn mfdc ver H.status416
                 (filter (\(k, _) -> k /= "content-length") hs1)
                 (RspBuilder mempty True)
   where
@@ -254,7 +269,7 @@ sendRsp conn ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
 
 ----------------------------------------------------------------
 
-sendRsp conn ver s hs (RspBuilder body needsChunked) = do
+sendRsp conn _ ver s hs (RspBuilder body needsChunked) = do
     header <- composeHeaderBuilder ver s hs needsChunked
     let hdrBdy
          | needsChunked = header <> chunkedTransferEncoding body
@@ -266,7 +281,7 @@ sendRsp conn ver s hs (RspBuilder body needsChunked) = do
 
 ----------------------------------------------------------------
 
-sendRsp conn ver s hs (RspStream streamingBody needsChunked th) = do
+sendRsp conn _ ver s hs (RspStream streamingBody needsChunked th) = do
     header <- composeHeaderBuilder ver s hs needsChunked
     (recv, finish) <- newBlazeRecv $ reuseBufferStrategy
                     $ toBlazeBuffer (connWriteBuffer conn) (connBufferSize conn)
@@ -289,7 +304,7 @@ sendRsp conn ver s hs (RspStream streamingBody needsChunked th) = do
 
 ----------------------------------------------------------------
 
-sendRsp conn _ _ _ (RspRaw withApp src tickle) =
+sendRsp conn _ _ _ _ (RspRaw withApp src tickle) =
     withApp recv send
   where
     recv = do

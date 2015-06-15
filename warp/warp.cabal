@@ -115,6 +115,7 @@ Test-Suite spec
                      ResponseHeaderSpec
                      ResponseSpec
                      RunSpec
+                     SendFileSpec
     Hs-Source-Dirs:  test, .
     Type:            exitcode-stdio-1.0
 
@@ -145,6 +146,8 @@ Test-Suite spec
                    , async
                    , vault
                    , stm                       >= 2.3
+                   , directory
+                   , process
   if flag(use-bytestring-builder)
       Build-Depends: bytestring                < 0.10.2.0
                    , bytestring-builder

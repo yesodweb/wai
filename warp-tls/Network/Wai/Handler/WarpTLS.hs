@@ -35,12 +35,11 @@ module Network.Wai.Handler.WarpTLS (
 import Control.Applicative ((<$>))
 #endif
 import Control.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException)
-import Control.Monad (unless, void)
+import Control.Monad (void)
 import qualified Crypto.Random.AESCtr
 import qualified Data.ByteString as B
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Data.Default.Class (def)
 import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, safeRecv)
@@ -52,7 +51,6 @@ import qualified Network.TLS.Extra as TLSExtra
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Buffer (allocateBuffer, bufferSize, freeBuffer)
-import qualified System.IO as IO
 import System.IO.Error (isEOFError)
 
 ----------------------------------------------------------------
@@ -285,30 +283,18 @@ httpOverTls TLSSettings{..} s cachedRef params = do
       }
     conn ctx pool writeBuf = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
-      , connSendAll          = TLS.sendData ctx . L.fromChunks . return
+      , connSendAll          = sendall
       , connSendFile         = sendfile
       , connClose            = close
       , connRecv             = recv
-      , connSendFileOverride = NotOverride
       , connBufferPool       = pool
       , connWriteBuffer      = writeBuf
       , connBufferSize       = bufferSize
       }
       where
-        sendfile fp offset len tickle' headers = do
-            TLS.sendData ctx $ L.fromChunks headers
-            IO.withBinaryFile fp IO.ReadMode $ \h -> do
-                IO.hSeek h IO.AbsoluteSeek offset
-                loop h $ fromIntegral len
-          where
-            loop _ remaining | remaining <= 0 = return ()
-            loop h remaining = do
-                bs <- B.hGetSome h defaultChunkSize
-                unless (B.null bs) $ do
-                    let x = B.take remaining bs
-                    TLS.sendData ctx $ L.fromChunks [x]
-                    void $ tickle' -- This tickles the Timer.  It MUST be called per chunk.
-                    loop h $ remaining - B.length x
+        sendall = TLS.sendData ctx . L.fromChunks . return
+        sendfile fid offset len hook headers =
+            readSendFile writeBuf bufferSize sendall fid offset len hook headers
 
         close = freeBuffer writeBuf `finally`
                 void (tryIO $ TLS.bye ctx) `finally`
