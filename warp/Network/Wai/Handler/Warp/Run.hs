@@ -179,9 +179,7 @@ runSettingsConnectionMakerSecure set getConnMaker app = do
                    f
 
 onE :: Settings -> Maybe Request -> SomeException -> IO ()
-onE set mreq e = case fromException e of
-    Just (NotEnoughLines []) -> return ()
-    _                        -> settingsOnException set mreq e
+onE set mreq e = settingsOnException set mreq e
 
 -- Note that there is a thorough discussion of the exception safety of the
 -- following code at: https://github.com/yesodweb/wai/issues/146
