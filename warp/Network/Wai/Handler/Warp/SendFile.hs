@@ -7,8 +7,8 @@ module Network.Wai.Handler.Warp.SendFile (
   ) where
 
 import Control.Monad (void)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal
 import Network.Sendfile
 import Network.Socket (Socket)
 import Network.Wai.Handler.Warp.Buffer

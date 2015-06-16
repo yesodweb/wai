@@ -3,7 +3,7 @@
 
 module Network.Wai.Handler.Warp.IO where
 
-import Data.ByteString.Internal (ByteString(..))
+import Data.ByteString (ByteString)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Types
 
