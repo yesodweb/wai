@@ -10,7 +10,6 @@ import Data.ByteString.Internal
 import Foreign.ForeignPtr (newForeignPtr_, withForeignPtr)
 import Network.Sendfile
 import Network.Socket (Socket)
-import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Types
 
 #ifdef WINDOWS

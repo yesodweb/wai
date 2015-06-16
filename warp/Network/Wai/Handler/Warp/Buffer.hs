@@ -1,22 +1,21 @@
 module Network.Wai.Handler.Warp.Buffer where
 
 import Control.Monad (when)
-import qualified Data.Streaming.ByteString.Builder.Buffer as B (Buffer (..))
-import Data.Word (Word8)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.ByteString (ByteString, empty, length)
 import Data.ByteString.Internal (ByteString(PS), mallocByteString)
 import Data.ByteString.Unsafe (unsafeTake, unsafeDrop)
+import Data.IORef (newIORef, readIORef, writeIORef)
+import qualified Data.Streaming.ByteString.Builder.Buffer as B (Buffer (..))
 import Foreign.ForeignPtr (newForeignPtr, newForeignPtr_, withForeignPtr)
 import Foreign.Marshal.Alloc (mallocBytes, free, finalizerFree)
-import Foreign.Ptr (Ptr, castPtr, plusPtr)
+import Foreign.Ptr (castPtr, plusPtr)
+import Network.Wai.Handler.Warp.Types
 
 largeBufferSize :: Int
 largeBufferSize = 16384
+
 minBufferSize :: Int
 minBufferSize = 2048
-
-type BufferPool = IORef ByteString
 
 newBufferPool :: IO BufferPool
 newBufferPool = newIORef Data.ByteString.empty
@@ -48,20 +47,17 @@ putBuffer :: BufferPool -> ByteString -> IO ()
 putBuffer pool buffer = when (usefulBuffer buffer) $ writeIORef pool buffer
 {-# INLINE putBuffer #-}
 
-withForeignBuffer :: ByteString -> ((Ptr Word8, Int) -> IO Int) -> IO Int
+withForeignBuffer :: ByteString -> ((Buffer, BufSize) -> IO Int) -> IO Int
 withForeignBuffer (PS ps s l) f = withForeignPtr ps $ \p -> f (castPtr p `plusPtr` s, l)
 {-# INLINE withForeignBuffer #-}
 
-withBufferPool :: BufferPool -> ((Ptr Word8, Int) -> IO Int) -> IO ByteString
+withBufferPool :: BufferPool -> ((Buffer, BufSize) -> IO Int) -> IO ByteString
 withBufferPool pool f = do
     buffer <- getBuffer pool
     consumed <- withForeignBuffer buffer f
     putBuffer pool $! unsafeDrop consumed buffer
     return $! unsafeTake consumed buffer
 {-# INLINE withBufferPool #-}
-
-type Buffer = Ptr Word8
-type BufSize = Int
 
 -- 2^14 = 1024 * 16
 -- The maximum size of TLS record

@@ -15,6 +15,7 @@ import Foreign.C.Types
 import Foreign.Ptr (Ptr, castPtr)
 import GHC.Conc (threadWaitRead)
 import Network.Socket (Socket, fdSocket)
+import Network.Wai.Handler.Warp.Types
 import Network.Wai.Handler.Warp.Buffer
 import System.Posix.Types (Fd(..))
 

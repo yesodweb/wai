@@ -5,7 +5,7 @@ module Network.Wai.Handler.Warp.IO where
 
 import Data.ByteString.Internal (ByteString(..))
 import Foreign.ForeignPtr (newForeignPtr_)
-import Network.Wai.Handler.Warp.Buffer
+import Network.Wai.Handler.Warp.Types
 
 -- Support for doctest, where cabal macros are not available
 #ifndef MIN_VERSION_blaze_builder

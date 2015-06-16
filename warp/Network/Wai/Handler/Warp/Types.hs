@@ -9,9 +9,9 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 import Data.Typeable (Typeable)
-import Data.Word (Word16)
+import Data.Word (Word16, Word8)
+import Foreign.Ptr (Ptr)
 import Network.HTTP.Types.Header
-import Network.Wai.Handler.Warp.Buffer (Buffer,BufSize,BufferPool)
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.Timeout as T
@@ -78,6 +78,10 @@ data FileId = FileId {
 
 -- |  fileid, offset, length, hook action, HTTP headers
 type SendFile = FileId -> Integer -> Integer -> IO () -> [ByteString] -> IO ()
+
+type BufferPool = IORef ByteString
+type Buffer = Ptr Word8
+type BufSize = Int
 
 -- | Data type to manipulate IO actions for connections.
 data Connection = Connection
