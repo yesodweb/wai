@@ -6,14 +6,14 @@ module Network.Wai.Handler.Warp.ResponseHeader (composeHeader) where
 import Control.Monad
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import Data.ByteString.Internal (ByteString(..), create, memcpy)
+import Data.ByteString.Internal (create)
 import qualified Data.CaseInsensitive as CI
 import Data.List (foldl')
 import Data.Word (Word8)
-import Foreign.ForeignPtr
 import Foreign.Ptr
 import GHC.Storable
 import qualified Network.HTTP.Types as H
+import Network.Wai.Handler.Warp.Buffer (copy)
 
 ----------------------------------------------------------------
 
@@ -26,12 +26,6 @@ composeHeader !httpversion !status !responseHeaders = create len $ \ptr -> do
     !len = 17 + slen + foldl' fieldLength 0 responseHeaders
     fieldLength !l !(k,v) = l + S.length (CI.original k) + S.length v + 4
     !slen = S.length $ H.statusMessage status
-
-{-# INLINE copy #-}
-copy :: Ptr Word8 -> ByteString -> IO (Ptr Word8)
-copy !ptr (PS fp o l) = withForeignPtr fp $ \p -> do
-    memcpy ptr (p `plusPtr` o) (fromIntegral l)
-    return $! ptr `plusPtr` l
 
 httpVer11 :: ByteString
 httpVer11 = "HTTP/1.1 "
@@ -90,5 +84,3 @@ cr :: Word8
 cr = 13
 lf :: Word8
 lf = 10
-
-

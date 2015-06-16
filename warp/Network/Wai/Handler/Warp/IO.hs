@@ -4,7 +4,7 @@
 module Network.Wai.Handler.Warp.IO where
 
 import Data.ByteString.Internal (ByteString(..))
-import Foreign.ForeignPtr (newForeignPtr_)
+import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Types
 
 -- Support for doctest, where cabal macros are not available
@@ -63,8 +63,3 @@ toBufIOWith buf !size io (Builder build) = loop firstStep
                  loop next
 
 #endif /* !MIN_VERSION_blaze_builder(0,4,0) */
-
-toBS :: Buffer -> Int -> IO ByteString
-toBS ptr siz = do
-    fptr <- newForeignPtr_ ptr
-    return $ PS fptr 0 siz

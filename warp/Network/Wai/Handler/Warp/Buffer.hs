@@ -1,14 +1,17 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Network.Wai.Handler.Warp.Buffer where
 
 import Control.Monad (when)
-import Data.ByteString (ByteString, empty, length)
-import Data.ByteString.Internal (ByteString(PS), mallocByteString)
+import qualified Data.ByteString as BS
+import Data.ByteString.Internal
 import Data.ByteString.Unsafe (unsafeTake, unsafeDrop)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import qualified Data.Streaming.ByteString.Builder.Buffer as B (Buffer (..))
-import Foreign.ForeignPtr (newForeignPtr, newForeignPtr_, withForeignPtr)
+import Data.Word (Word8)
+import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc (mallocBytes, free, finalizerFree)
-import Foreign.Ptr (castPtr, plusPtr)
+import Foreign.Ptr (Ptr, castPtr, plusPtr)
 import Network.Wai.Handler.Warp.Types
 
 largeBufferSize :: Int
@@ -18,7 +21,7 @@ minBufferSize :: Int
 minBufferSize = 2048
 
 newBufferPool :: IO BufferPool
-newBufferPool = newIORef Data.ByteString.empty
+newBufferPool = newIORef BS.empty
 
 mallocBuffer :: Int -> IO ByteString
 mallocBuffer size = do
@@ -34,7 +37,7 @@ createBuffer size = do
 {-# INLINE createBuffer #-}
 
 usefulBuffer :: ByteString -> Bool
-usefulBuffer buffer = Data.ByteString.length buffer >= minBufferSize
+usefulBuffer buffer = BS.length buffer >= minBufferSize
 {-# INLINE usefulBuffer #-}
 
 getBuffer :: BufferPool -> IO ByteString
@@ -75,3 +78,15 @@ toBlazeBuffer :: Buffer -> BufSize -> IO B.Buffer
 toBlazeBuffer ptr size = do
     fptr <- newForeignPtr_ ptr
     return $ B.Buffer fptr ptr ptr (ptr `plusPtr` size)
+
+{-# INLINE copy #-}
+copy :: Ptr Word8 -> ByteString -> IO (Ptr Word8)
+copy !ptr (PS fp o l) = withForeignPtr fp $ \p -> do
+    memcpy ptr (p `plusPtr` o) (fromIntegral l)
+    return $! ptr `plusPtr` l
+
+{-# INLINE toBS #-}
+toBS :: Buffer -> Int -> IO ByteString
+toBS ptr siz = do
+    fptr <- newForeignPtr_ ptr
+    return $ PS fptr 0 siz

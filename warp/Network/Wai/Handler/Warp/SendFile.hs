@@ -6,10 +6,12 @@ module Network.Wai.Handler.Warp.SendFile (
   , packHeader -- for testing
   ) where
 
+import Control.Monad (void)
+import qualified Data.ByteString as BS
 import Data.ByteString.Internal
-import Foreign.ForeignPtr (newForeignPtr_, withForeignPtr)
 import Network.Sendfile
 import Network.Socket (Socket)
+import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Types
 
 #ifdef WINDOWS
@@ -50,23 +52,21 @@ packHeader :: Buffer -> BufSize -> (ByteString -> IO ())
            -> Int
            -> IO Int
 packHeader _   _   _    _    [] n = return n
-packHeader buf siz send hook (PS bsfp off len : bss) n
-  | len < room = withForeignPtr bsfp $ \bsp -> do
+packHeader buf siz send hook (bs:bss) n
+  | len < room = do
       let dst = buf `plusPtr` n
-          src = bsp `plusPtr` off
-      memcpy dst src len
+      void $ copy dst bs
       packHeader buf siz send hook bss (n + len)
-  | otherwise  = withForeignPtr bsfp $ \bsp -> do
+  | otherwise  = do
       let dst = buf `plusPtr` n
-          src = bsp `plusPtr` off
-      memcpy dst src room
-      fptr <- newForeignPtr_ buf
-      let entire = PS fptr 0 siz
-          bs = PS bsfp (off + room) (len - room)
+          (bs1, bs2) = BS.splitAt room bs
+      void $ copy dst bs1
+      entire <- toBS buf siz
       send entire
       hook
-      packHeader buf siz send hook (bs:bss) 0
+      packHeader buf siz send hook (bs2:bss) 0
   where
+    len = BS.length bs
     room = siz - n
 
 mini :: Int -> Integer -> Int
@@ -77,15 +77,14 @@ mini i n
 #ifdef WINDOWS
 readSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 readSendFile buf siz send fid off0 len0 hook headers = do
-    fptr <- newForeignPtr_ buf
     hn <- packHeader buf siz send hook headers 0
     let room = siz - hn
         buf' = buf `plusPtr` hn
     IO.withBinaryFile path IO.ReadMode $ \h -> do
         IO.hSeek h IO.AbsoluteSeek off0
         n <- IO.hGetBufSome h buf' (mini room len0)
-        let bs = PS fptr 0 (hn + n)
-            n' = fromIntegral n
+        bs <- toBSD buf (hn + n)
+        let n' = fromIntegral n
         send bs
         hook
         loop h fptr (len0 - n')
@@ -105,16 +104,15 @@ readSendFile buf siz send fid off0 len0 hook headers = do
 readSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 readSendFile buf siz send fid off0 len0 hook headers =
   bracket setup teardown $ \fd -> do
-    fptr <- newForeignPtr_ buf
     hn <- packHeader buf siz send hook headers 0
     let room = siz - hn
         buf' = buf `plusPtr` hn
     n <- positionRead fd buf' (mini room len0) off0
-    let bs = PS fptr 0 (hn + n)
-        n' = fromIntegral n
+    bs <- toBS buf (hn + n)
+    let n' = fromIntegral n
     send bs
     hook
-    loop fd fptr (len0 - n') (off0 + n')
+    loop fd (len0 - n') (off0 + n')
   where
     path = fileIdPath fid
     setup = case fileIdFd fid of
@@ -123,15 +121,15 @@ readSendFile buf siz send fid off0 len0 hook headers =
     teardown fd = case fileIdFd fid of
        Just _  -> return ()
        Nothing -> closeFd fd
-    loop fd fptr len off
+    loop fd len off
       | len <= 0  = return ()
       | otherwise = do
           n <- positionRead fd buf (mini siz len) off
-          let bs = PS fptr 0 n
-              n' = fromIntegral n
+          bs <- toBS buf n
+          let n' = fromIntegral n
           send bs
           hook
-          loop fd fptr (len - n') (off + n')
+          loop fd (len - n') (off + n')
 
 positionRead :: Fd -> Ptr Word8 -> Int -> Integer -> IO Int
 positionRead (Fd fd) buf siz off =
