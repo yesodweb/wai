@@ -103,6 +103,7 @@ module Network.Wai.Handler.Warp (
     -- ** Sendfile
   , FileId (..)
   , SendFile
+  , sendFile
   , readSendFile
     -- * Internal
     -- ** Version

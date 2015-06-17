@@ -54,7 +54,7 @@ socketConnection s = do
     return Connection {
         connSendMany = Sock.sendMany s
       , connSendAll = sendall
-      , connSendFile = defaultSendFile s writeBuf bufferSize sendall
+      , connSendFile = sendFile s writeBuf bufferSize sendall
       , connClose = sClose s >> freeBuffer writeBuf
       , connRecv = receive s bufferPool
       , connWriteBuffer = writeBuf

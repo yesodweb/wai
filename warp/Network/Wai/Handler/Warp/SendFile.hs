@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP, ForeignFunctionInterface #-}
 
 module Network.Wai.Handler.Warp.SendFile (
-    defaultSendFile
+    sendFile
   , readSendFile
   , packHeader -- for testing
   ) where
@@ -32,9 +32,12 @@ import System.Posix.Types
 
 ----------------------------------------------------------------
 
-defaultSendFile :: Socket -> Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
+-- | Function to send a file based on sendfiel() for Linux\/Mac\/FreeBSD.
+--   This makes use of the file descriptor cache.
+--   For other OSes, this is identical to 'readSendFile'.
+sendFile :: Socket -> Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 #ifdef SENDFILEFD
-defaultSendFile s _ _ _ fid off len act hdr = case mfid of
+sendFile s _ _ _ fid off len act hdr = case mfid of
     -- settingsFdCacheDuration is 0
     Nothing -> sendfileWithHeader   s path (PartOfFile off len) act hdr
     Just fd -> sendfileFdWithHeader s fd   (PartOfFile off len) act hdr
@@ -42,7 +45,7 @@ defaultSendFile s _ _ _ fid off len act hdr = case mfid of
     mfid = fileIdFd fid
     path = fileIdPath fid
 #else
-defaultSendFile _ = readSendFile
+sendFile _ = readSendFile
 #endif
 
 ----------------------------------------------------------------
@@ -74,6 +77,9 @@ mini i n
   | fromIntegral i < n = i
   | otherwise          = fromIntegral n
 
+-- | Function to send a file based on pread()\/send() for Unix.
+--   This makes use of the file descriptor cache.
+--   For Windows, this is emulated by 'Handle'.
 #ifdef WINDOWS
 readSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 readSendFile buf siz send fid off0 len0 hook headers = do
