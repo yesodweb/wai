@@ -1,6 +1,15 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Network.Wai.Handler.Warp.Buffer where
+module Network.Wai.Handler.Warp.Buffer (
+    bufferSize
+  , allocateBuffer
+  , freeBuffer
+  , newBufferPool
+  , withBufferPool
+  , toBlazeBuffer
+  , copy
+  , toBS
+  ) where
 
 import Control.Monad (when)
 import qualified Data.ByteString as BS
@@ -13,6 +22,25 @@ import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc (mallocBytes, free, finalizerFree)
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
 import Network.Wai.Handler.Warp.Types
+
+----------------------------------------------------------------
+
+-- | The default size of the write buffer: 16384 (2^14 = 1024 * 16).
+--   This is the maximum size of TLS record.
+--   This is also the maximum size of HTTP/2 frame payload
+--   (excluding frame header).
+bufferSize :: BufSize
+bufferSize = 16384
+
+-- | Allocating a buffer with malloc().
+allocateBuffer :: Int -> IO Buffer
+allocateBuffer = mallocBytes
+
+-- | Releasing a buffer with free().
+freeBuffer :: Buffer -> IO ()
+freeBuffer = free
+
+----------------------------------------------------------------
 
 largeBufferSize :: Int
 largeBufferSize = 16384
@@ -30,11 +58,13 @@ mallocBuffer size = do
     return $! PS fptr 0 size
 {-# INLINE mallocBuffer #-}
 
+{-
 createBuffer :: Int -> IO ByteString
 createBuffer size = do
     fptr <- mallocByteString size
     return $! PS fptr 0 size
 {-# INLINE createBuffer #-}
+-}
 
 usefulBuffer :: ByteString -> Bool
 usefulBuffer buffer = BS.length buffer >= minBufferSize
@@ -62,17 +92,10 @@ withBufferPool pool f = do
     return $! unsafeTake consumed buffer
 {-# INLINE withBufferPool #-}
 
--- 2^14 = 1024 * 16
--- The maximum size of TLS record
--- The maximum size of HTTP/2 frame payload (excluding frame header)
-bufferSize :: BufSize
-bufferSize = 16384
-
-allocateBuffer :: Int -> IO Buffer
-allocateBuffer = mallocBytes
-
-freeBuffer :: Buffer -> IO ()
-freeBuffer = free
+----------------------------------------------------------------
+--
+-- Utilities
+--
 
 toBlazeBuffer :: Buffer -> BufSize -> IO B.Buffer
 toBlazeBuffer ptr size = do
