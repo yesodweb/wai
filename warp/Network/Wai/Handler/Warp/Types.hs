@@ -84,15 +84,23 @@ type Buffer = Ptr Word8
 type BufSize = Int
 
 -- | Data type to manipulate IO actions for connections.
-data Connection = Connection
-    { connSendMany    :: [ByteString] -> IO ()
+data Connection = Connection {
+    -- | This is not used at this moment.
+      connSendMany    :: [ByteString] -> IO ()
+    -- | The sending function.
     , connSendAll     :: ByteString -> IO ()
+    -- | The sending function for files in HTTP/1.1.
     , connSendFile    :: SendFile
+    -- | The connection closing function.
     , connClose       :: IO ()
+    -- | The connection receiving function.
     , connRecv        :: IO ByteString
+    -- | This is not used at this moment.
     , connBufferPool  :: BufferPool
+    -- | The write buffer.
     , connWriteBuffer :: Buffer
-    , connBufferSize  :: BufSize -- ^ The size of 'connWriteBuffer'
+    -- | The size of the write buffer.
+    , connBufferSize  :: BufSize
     }
 
 ----------------------------------------------------------------
