@@ -98,7 +98,7 @@ headerLines :: Source -> IO [ByteString]
 headerLines src = do
     bs <- readSource src
     if S.null bs
-        then throwIO $ NotEnoughLines []
+        then throwIO $ ConnectionClosedByPeer
         else push src (THStatus 0 id id) bs
 
 ----------------------------------------------------------------

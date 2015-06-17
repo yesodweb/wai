@@ -81,9 +81,12 @@ module Network.Wai.Handler.Warp (
   , settingsFdCacheDuration
   , settingsBeforeMainLoop
   , settingsNoParsePath
-    -- ** Debugging
-  , exceptionResponseForDebug
+    -- ** Exception handler
+  , defaultOnException
   , defaultShouldDisplayException
+    -- ** Exception response handler
+  , defaultOnExceptionResponse
+  , exceptionResponseForDebug
     -- * Data types
   , Transport (..)
   , HostPreference (..)
@@ -157,8 +160,7 @@ setHost :: HostPreference -> Settings -> Settings
 setHost x y = y { settingsHost = x }
 
 -- | What to do with exceptions thrown by either the application or server.
--- Default: ignore server-generated exceptions (see 'InvalidRequest') and print
--- application-generated exceptions to stderr.
+-- Default: 'defaultOnException'
 --
 -- Since 2.1.0
 setOnException :: (Maybe Request -> SomeException -> IO ()) -> Settings -> Settings
@@ -166,7 +168,7 @@ setOnException x y = y { settingsOnException = x }
 
 -- | A function to create a `Response` when an exception occurs.
 --
--- Default: 500, text/plain, \"Something went wrong\"
+-- Default: 'defaultOnExceptionResponse'
 --
 -- Since 2.1.0
 setOnExceptionResponse :: (SomeException -> Response) -> Settings -> Settings
