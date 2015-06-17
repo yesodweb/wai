@@ -39,6 +39,7 @@ module Network.Wai.Handler.Warp (
   , runEnv
   , runSettings
   , runSettingsSocket
+    -- ** Low level run functions
   , runSettingsConnection
   , runSettingsConnectionMaker
   , runSettingsConnectionMakerSecure
@@ -94,6 +95,9 @@ module Network.Wai.Handler.Warp (
   , Connection (..)
   , SendFile
   , FileId (..)
+  , Buffer
+  , BufSize
+  , BufferPool
   , socketConnection
   , newBufferPool
   , readSendFile
