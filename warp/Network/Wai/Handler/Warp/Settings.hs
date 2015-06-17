@@ -102,8 +102,8 @@ defaultSettings :: Settings
 defaultSettings = Settings
     { settingsPort = 3000
     , settingsHost = "*4"
-    , settingsOnException = defaultExceptionHandler
-    , settingsOnExceptionResponse = defaultExceptionResponse
+    , settingsOnException = defaultOnException
+    , settingsOnExceptionResponse = defaultOnExceptionResponse
     , settingsOnOpen = const $ return True
     , settingsOnClose = const $ return ()
     , settingsTimeout = 30
@@ -118,7 +118,7 @@ defaultSettings = Settings
     , settingsProxyProtocol = ProxyProtocolNone
     }
 
--- | Apply the logic provided by 'defaultExceptionHandler' to determine if an
+-- | Apply the logic provided by 'defaultOnException' to determine if an
 -- exception should be shown or not. The goal is to hide exceptions which occur
 -- under the normal course of the web server running.
 --
@@ -132,15 +132,21 @@ defaultShouldDisplayException se
     | Just TimeoutThread <- fromException se = False
     | otherwise = True
 
-defaultExceptionHandler :: Maybe Request -> SomeException -> IO ()
-defaultExceptionHandler _ e =
+-- | Printing an exception to standard error
+--   if `defaultShouldDisplayException` returns `True`.
+defaultOnException :: Maybe Request -> SomeException -> IO ()
+defaultOnException _ e =
     when (defaultShouldDisplayException e)
         $ TIO.hPutStrLn stderr $ T.pack $ show e
 
-defaultExceptionResponse :: SomeException -> Response
-defaultExceptionResponse _ = responseLBS H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")] "Something went wrong"
+-- | Sending 400 for bad requests. Sending 500 for internal server errors.
+defaultOnExceptionResponse :: SomeException -> Response
+defaultOnExceptionResponse e
+  | Just (_ :: InvalidRequest) <- fromException e = responseLBS H.badRequest400  [(H.hContentType, "text/plain; charset=utf-8")] "Bad Request"
+  | otherwise                                     = responseLBS H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")] "Something went wrong"
 
--- | Default implementation of 'settingsOnExceptionResponse' for the debugging purpose. 500, text/plain, a showed exception.
+-- | Default implementation of 'settingsOnExceptionResponse'
+--   for the debugging purpose. 500, text/plain, a showed exception.
 exceptionResponseForDebug :: SomeException -> Response
 exceptionResponseForDebug e = responseLBS H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")] (TLE.encodeUtf8 $ TL.pack $ "Exception: " ++ show e)
 
