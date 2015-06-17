@@ -50,7 +50,6 @@ import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra as TLSExtra
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp
-import Network.Wai.Handler.Warp.Buffer (allocateBuffer, bufferSize, freeBuffer)
 import System.IO.Error (isEOFError)
 
 ----------------------------------------------------------------
