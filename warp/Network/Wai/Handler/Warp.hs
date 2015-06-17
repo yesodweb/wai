@@ -89,8 +89,6 @@ module Network.Wai.Handler.Warp (
   , HostPreference (..)
   , Port
   , InvalidRequest (..)
-    -- * Per-request utilities
-  , pauseTimeout
     -- * Connection
   , Connection (..)
   , socketConnection
@@ -105,6 +103,8 @@ module Network.Wai.Handler.Warp (
   , SendFile
   , sendFile
   , readSendFile
+    -- * Per-request utilities
+  , pauseTimeout
     -- * Internal
     -- ** Version
   , warpVersion
