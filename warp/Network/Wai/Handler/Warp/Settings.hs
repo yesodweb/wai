@@ -145,8 +145,8 @@ defaultOnExceptionResponse e
   | Just (_ :: InvalidRequest) <- fromException e = responseLBS H.badRequest400  [(H.hContentType, "text/plain; charset=utf-8")] "Bad Request"
   | otherwise                                     = responseLBS H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")] "Something went wrong"
 
--- | Default implementation of 'settingsOnExceptionResponse'
---   for the debugging purpose. 500, text/plain, a showed exception.
+-- | Exception handler for the debugging purpose.
+--   500, text/plain, a showed exception.
 exceptionResponseForDebug :: SomeException -> Response
 exceptionResponseForDebug e = responseLBS H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")] (TLE.encodeUtf8 $ TL.pack $ "Exception: " ++ show e)
 
