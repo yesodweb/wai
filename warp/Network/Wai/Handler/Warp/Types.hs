@@ -71,6 +71,9 @@ instance Exception InvalidRequest
 type Fd = ()
 #endif
 
+-- | Data type to abstract file identifiers.
+--   On Unix, a file descriptor would be specified to make use of
+--   the file descriptor cache.
 data FileId = FileId {
     fileIdPath :: FilePath
   , fileIdFd   :: Maybe Fd
