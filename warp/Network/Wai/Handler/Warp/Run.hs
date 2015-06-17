@@ -45,7 +45,7 @@ import System.Posix.IO (FdOption(CloseOnExec), setFdOption)
 import Network.Socket (fdSocket)
 #endif
 
--- | Default action value for 'Connection'.
+-- | Creating 'Connection' for plain HTTP based on a given socket.
 socketConnection :: Socket -> IO Connection
 socketConnection s = do
     bufferPool <- newBufferPool
