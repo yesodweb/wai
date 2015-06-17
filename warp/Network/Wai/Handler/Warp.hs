@@ -93,13 +93,16 @@ module Network.Wai.Handler.Warp (
   , pauseTimeout
     -- * Connection
   , Connection (..)
-  , SendFile
-  , FileId (..)
+  , socketConnection
+    -- ** Buffer
   , Buffer
   , BufSize
-  , BufferPool
-  , socketConnection
-  , newBufferPool
+  , bufferSize
+  , allocateBuffer
+  , freeBuffer
+    -- ** Sendfile
+  , FileId (..)
+  , SendFile
   , readSendFile
     -- * Internal
     -- ** Version
