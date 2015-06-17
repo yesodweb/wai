@@ -57,7 +57,6 @@ socketConnection s = do
       , connSendFile = defaultSendFile s writeBuf bufferSize sendall
       , connClose = sClose s >> freeBuffer writeBuf
       , connRecv = receive s bufferPool
-      , connBufferPool = bufferPool
       , connWriteBuffer = writeBuf
       , connBufferSize = bufferSize
       }

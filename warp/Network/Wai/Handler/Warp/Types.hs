@@ -101,8 +101,6 @@ data Connection = Connection {
     , connClose       :: IO ()
     -- | The connection receiving function.
     , connRecv        :: IO ByteString
-    -- | This is not used at this moment.
-    , connBufferPool  :: BufferPool
     -- | The write buffer.
     , connWriteBuffer :: Buffer
     -- | The size of the write buffer.
