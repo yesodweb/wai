@@ -79,8 +79,13 @@ data FileId = FileId {
 -- |  fileid, offset, length, hook action, HTTP headers
 type SendFile = FileId -> Integer -> Integer -> IO () -> [ByteString] -> IO ()
 
+-- | Type for read buffer pool
 type BufferPool = IORef ByteString
+
+-- | Type for buffer
 type Buffer = Ptr Word8
+
+-- | Type for buffer size
 type BufSize = Int
 
 -- | Data type to manipulate IO actions for connections.
