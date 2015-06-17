@@ -120,6 +120,7 @@ module Network.Wai.Handler.Warp (
     -- ** Date
   , module Network.Wai.Handler.Warp.Date
     -- ** Request and response
+  , Source
   , recvRequest
   , sendResponse
   ) where

@@ -121,6 +121,7 @@ data InternalInfo = InternalInfo {
 
 ----------------------------------------------------------------
 
+-- | Type for input streaming.
 data Source = Source !(IORef ByteString) !(IO ByteString)
 
 mkSource :: IO ByteString -> IO Source
