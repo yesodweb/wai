@@ -178,9 +178,6 @@ runSettingsConnectionMakerSecure set getConnMaker app = do
                    T.stopManager
                    f
 
-onE :: Settings -> Maybe Request -> SomeException -> IO ()
-onE set mreq e = settingsOnException set mreq e
-
 -- Note that there is a thorough discussion of the exception safety of the
 -- following code at: https://github.com/yesodweb/wai/issues/146
 --
@@ -232,7 +229,7 @@ acceptConnection set getConnMaker app dc fc tm counter = do
         case ex of
             Right x -> return $ Just x
             Left  e  -> do
-                onE set Nothing $ toException e
+                settingsOnException set Nothing $ toException e
                 if isFullErrorType (ioeGetErrorType e) then do
                     -- "resource exhausted (Too many open files)" may
                     -- happen by accept().  Wait a second hoping that
@@ -278,7 +275,7 @@ fork set mkConn addr app dc fc tm counter = settingsFork set $ \ unmask ->
     in unmask .
        -- Call the user-supplied on exception code if any
        -- exceptions are thrown.
-       handle (onE set Nothing) .
+       handle (settingsOnException set Nothing) .
 
        -- Call the user-supplied code for connection open and close events
        bracket (onOpen addr) (onClose addr) $ \goingon ->
@@ -368,8 +365,8 @@ serveConnection conn ii origAddr transport settings app = do
             `E.catch` \e -> do
                 -- Call the user-supplied exception handlers, passing the request.
                 sendErrorResponse addr istatus e
-                onE settings (Just req) e
-                -- Don't throw the error again to prevent calling onE twice.
+                settingsOnException settings (Just req) e
+                -- Don't throw the error again to prevent calling settingsOnException twice.
                 return False
         when keepAlive $ http1 addr istatus src
 
