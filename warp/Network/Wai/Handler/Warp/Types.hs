@@ -89,6 +89,7 @@ type Buffer = Ptr Word8
 type BufSize = Int
 
 -- | Data type to manipulate IO actions for connections.
+--   This is used to abstract IO actions for plain HTTP and HTTP over TLS.
 data Connection = Connection {
     -- | This is not used at this moment.
       connSendMany    :: [ByteString] -> IO ()
