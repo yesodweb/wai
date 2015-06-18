@@ -90,7 +90,7 @@ module Network.Wai.Handler.Warp (
     -- * Per-request utilities
   , pauseTimeout
     -- * Internal
-    -- | The following APIs will move to Network.Wai.Handler.Warp.Internal.
+    -- | The following APIs will be removed. They are also exported in Network.Wai.Handler.Warp.Internal. Please use the Internal module instead.
 
     -- ** Low level run functions
   , runSettingsConnection
