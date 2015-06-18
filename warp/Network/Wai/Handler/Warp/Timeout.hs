@@ -5,6 +5,9 @@
 
 -- |
 --
+-- Note that this module will not be exported in the near future.
+-- Please use Network.Wai.Handler.Warp.Internal instead.
+--
 -- In order to provide slowloris protection, Warp provides timeout handlers. We
 -- follow these rules:
 --

@@ -39,10 +39,6 @@ module Network.Wai.Handler.Warp (
   , runEnv
   , runSettings
   , runSettingsSocket
-    -- ** Low level run functions
-  , runSettingsConnection
-  , runSettingsConnectionMaker
-  , runSettingsConnectionMakerSecure
     -- * Settings
   , Settings
   , defaultSettings
@@ -88,10 +84,19 @@ module Network.Wai.Handler.Warp (
   , defaultOnExceptionResponse
   , exceptionResponseForDebug
     -- * Data types
-  , Transport (..)
   , HostPreference (..)
   , Port
   , InvalidRequest (..)
+    -- * Per-request utilities
+  , pauseTimeout
+    -- * Internal
+    -- | The following APIs will move to Network.Wai.Handler.Warp.Internal.
+
+    -- ** Low level run functions
+  , runSettingsConnection
+  , runSettingsConnectionMaker
+  , runSettingsConnectionMakerSecure
+  , Transport (..)
     -- * Connection
   , Connection (..)
   , socketConnection
@@ -106,9 +111,6 @@ module Network.Wai.Handler.Warp (
   , SendFile
   , sendFile
   , readSendFile
-    -- * Per-request utilities
-  , pauseTimeout
-    -- * Internal
     -- ** Version
   , warpVersion
     -- ** Data types
