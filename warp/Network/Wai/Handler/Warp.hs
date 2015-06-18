@@ -39,10 +39,6 @@ module Network.Wai.Handler.Warp (
   , runEnv
   , runSettings
   , runSettingsSocket
-    -- ** Low level run functions
-  , runSettingsConnection
-  , runSettingsConnectionMaker
-  , runSettingsConnectionMakerSecure
     -- * Settings
   , Settings
   , defaultSettings
@@ -88,10 +84,19 @@ module Network.Wai.Handler.Warp (
   , defaultOnExceptionResponse
   , exceptionResponseForDebug
     -- * Data types
-  , Transport (..)
   , HostPreference (..)
   , Port
   , InvalidRequest (..)
+    -- * Per-request utilities
+  , pauseTimeout
+    -- * Internal
+    -- | The following APIs will move to Network.Wai.Handler.Warp.Internal.
+
+    -- ** Low level run functions
+  , runSettingsConnection
+  , runSettingsConnectionMaker
+  , runSettingsConnectionMakerSecure
+  , Transport (..)
     -- * Connection
   , Connection (..)
   , socketConnection
@@ -106,9 +111,6 @@ module Network.Wai.Handler.Warp (
   , SendFile
   , sendFile
   , readSendFile
-    -- * Per-request utilities
-  , pauseTimeout
-    -- * Internal
     -- ** Version
   , warpVersion
     -- ** Data types
@@ -150,7 +152,7 @@ import Network.Wai.Handler.Warp.Types
 -- | Port to listen on. Default value: 3000
 --
 -- Since 2.1.0
-setPort :: Int -> Settings -> Settings
+setPort :: Port -> Settings -> Settings
 setPort x y = y { settingsPort = x }
 
 -- | Interface to bind to. Default value: HostIPv4
@@ -238,7 +240,7 @@ setNoParsePath x y = y { settingsNoParsePath = x }
 -- | Get the listening port.
 --
 -- Since 2.1.1
-getPort :: Settings -> Int
+getPort :: Settings -> Port
 getPort = settingsPort
 
 -- | Get the interface to bind to.
