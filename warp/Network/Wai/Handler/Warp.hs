@@ -152,7 +152,7 @@ import Network.Wai.Handler.Warp.Types
 -- | Port to listen on. Default value: 3000
 --
 -- Since 2.1.0
-setPort :: Int -> Settings -> Settings
+setPort :: Port -> Settings -> Settings
 setPort x y = y { settingsPort = x }
 
 -- | Interface to bind to. Default value: HostIPv4
@@ -240,7 +240,7 @@ setNoParsePath x y = y { settingsNoParsePath = x }
 -- | Get the listening port.
 --
 -- Since 2.1.1
-getPort :: Settings -> Int
+getPort :: Settings -> Port
 getPort = settingsPort
 
 -- | Get the interface to bind to.

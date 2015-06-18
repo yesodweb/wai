@@ -32,7 +32,7 @@ import qualified Paths_warp
 --
 -- > setTimeout 20 defaultSettings
 data Settings = Settings
-    { settingsPort :: Int -- ^ Port to listen on. Default value: 3000
+    { settingsPort :: Port -- ^ Port to listen on. Default value: 3000
     , settingsHost :: HostPreference -- ^ Default value: HostIPv4
     , settingsOnException :: Maybe Request -> SomeException -> IO () -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
     , settingsOnExceptionResponse :: SomeException -> Response
