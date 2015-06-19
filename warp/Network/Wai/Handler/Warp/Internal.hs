@@ -3,10 +3,6 @@
 module Network.Wai.Handler.Warp.Internal (
     -- * Settings
     Settings (..)
-    -- ** Getters
-  , getOnOpen
-  , getOnClose
-  , getOnException
     -- * Low level run functions
   , runSettingsConnection
   , runSettingsConnectionMaker
@@ -76,12 +72,3 @@ import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
-
-getOnOpen :: Settings -> SockAddr -> IO Bool
-getOnOpen = settingsOnOpen
-
-getOnClose :: Settings -> SockAddr -> IO ()
-getOnClose = settingsOnClose
-
-getOnException :: Settings -> Maybe Request -> SomeException -> IO ()
-getOnException = settingsOnException

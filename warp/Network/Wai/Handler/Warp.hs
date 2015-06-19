@@ -64,6 +64,9 @@ module Network.Wai.Handler.Warp (
     -- ** Getters
   , getPort
   , getHost
+  , getOnOpen
+  , getOnClose
+  , getOnException
     -- ** Exception handler
   , defaultOnException
   , defaultShouldDisplayException
@@ -235,6 +238,18 @@ getPort = settingsPort
 -- Since 2.1.1
 getHost :: Settings -> HostPreference
 getHost = settingsHost
+
+-- | Get the action on opening connection.
+getOnOpen :: Settings -> SockAddr -> IO Bool
+getOnOpen = settingsOnOpen
+
+-- | Get the action on closeing connection.
+getOnClose :: Settings -> SockAddr -> IO ()
+getOnClose = settingsOnClose
+
+-- | Get the exception handler.
+getOnException :: Settings -> Maybe Request -> SomeException -> IO ()
+getOnException = settingsOnException
 
 -- | A code to install shutdown handler.
 --
