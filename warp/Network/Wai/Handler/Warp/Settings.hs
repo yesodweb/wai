@@ -134,12 +134,16 @@ defaultShouldDisplayException se
 
 -- | Printing an exception to standard error
 --   if `defaultShouldDisplayException` returns `True`.
+--
+-- Since: 3.1.0
 defaultOnException :: Maybe Request -> SomeException -> IO ()
 defaultOnException _ e =
     when (defaultShouldDisplayException e)
         $ TIO.hPutStrLn stderr $ T.pack $ show e
 
 -- | Sending 400 for bad requests. Sending 500 for internal server errors.
+--
+-- Since: 3.1.0
 defaultOnExceptionResponse :: SomeException -> Response
 defaultOnExceptionResponse e
   | Just (_ :: InvalidRequest) <- fromException e = responseLBS H.badRequest400  [(H.hContentType, "text/plain; charset=utf-8")] "Bad Request"
@@ -147,6 +151,8 @@ defaultOnExceptionResponse e
 
 -- | Exception handler for the debugging purpose.
 --   500, text/plain, a showed exception.
+--
+-- Since: 2.0.3.2
 exceptionResponseForDebug :: SomeException -> Response
 exceptionResponseForDebug e = responseLBS H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")] (TLE.encodeUtf8 $ TL.pack $ "Exception: " ++ show e)
 

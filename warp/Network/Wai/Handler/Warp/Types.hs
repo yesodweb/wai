@@ -74,12 +74,16 @@ type Fd = ()
 -- | Data type to abstract file identifiers.
 --   On Unix, a file descriptor would be specified to make use of
 --   the file descriptor cache.
+--
+-- Since: 3.1.0
 data FileId = FileId {
     fileIdPath :: FilePath
   , fileIdFd   :: Maybe Fd
   }
 
 -- |  fileid, offset, length, hook action, HTTP headers
+--
+-- Since: 3.1.0
 type SendFile = FileId -> Integer -> Integer -> IO () -> [ByteString] -> IO ()
 
 -- | Type for read buffer pool
