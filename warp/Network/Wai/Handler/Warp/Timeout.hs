@@ -3,45 +3,24 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-} -- for GHC 7.4 or earlier
 
--- |
---
--- Note that this module will not be exported in Warp 3.2.0.
--- Please use Network.Wai.Handler.Warp.Internal instead.
---
--- In order to provide slowloris protection, Warp provides timeout handlers. We
--- follow these rules:
---
--- * A timeout is created when a connection is opened.
---
--- * When all request headers are read, the timeout is tickled.
---
--- * Every time at least 2048 bytes of the request body are read, the timeout
---   is tickled.
---
--- * The timeout is paused while executing user code. This will apply to both
---   the application itself, and a ResponseSource response. The timeout is
---   resumed as soon as we return from user code.
---
--- * Every time data is successfully sent to the client, the timeout is tickled.
-
 module Network.Wai.Handler.Warp.Timeout (
-  -- * Types
+  -- ** Types
     Manager
   , TimeoutAction
   , Handle
-  -- * Manager
+  -- ** Manager
   , initialize
   , stopManager
   , withManager
-  -- * Registration
+  -- ** Registration
   , register
   , registerKillThread
-  -- * Control
+  -- ** Control
   , tickle
   , cancel
   , pause
   , resume
-  -- * Exceptions
+  -- ** Exceptions
   , TimeoutThread (..)
   ) where
 

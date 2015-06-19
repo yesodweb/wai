@@ -118,8 +118,6 @@ module Network.Wai.Handler.Warp (
   , HeaderValue
   , IndexedHeader
   , requestMaxIndex
-    -- ** Time out manager
-  , module Network.Wai.Handler.Warp.Timeout
     -- ** File descriptor cache
   , module Network.Wai.Handler.Warp.FdCache
     -- ** Date
@@ -128,6 +126,7 @@ module Network.Wai.Handler.Warp (
   , Source
   , recvRequest
   , sendResponse
+  , module Network.Wai.Handler.Warp.Timeout
   ) where
 
 import Control.Exception (SomeException)

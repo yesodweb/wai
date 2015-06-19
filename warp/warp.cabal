@@ -59,7 +59,6 @@ Library
       Build-Depends: bytestring                >= 0.10.2.0
   Exposed-modules:   Network.Wai.Handler.Warp
                      Network.Wai.Handler.Warp.Internal
-                     Network.Wai.Handler.Warp.Timeout
   Other-modules:     Network.Wai.Handler.Warp.Buffer
                      Network.Wai.Handler.Warp.Conduit
                      Network.Wai.Handler.Warp.Counter
@@ -77,6 +76,7 @@ Library
                      Network.Wai.Handler.Warp.Run
                      Network.Wai.Handler.Warp.SendFile
                      Network.Wai.Handler.Warp.Settings
+                     Network.Wai.Handler.Warp.Timeout
                      Network.Wai.Handler.Warp.Types
                      Network.Wai.Handler.Warp.Windows
                      Paths_warp
