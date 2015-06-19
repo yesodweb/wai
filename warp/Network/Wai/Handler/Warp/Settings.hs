@@ -155,15 +155,3 @@ defaultOnExceptionResponse e
 -- Since: 2.0.3.2
 exceptionResponseForDebug :: SomeException -> Response
 exceptionResponseForDebug e = responseLBS H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")] (TLE.encodeUtf8 $ TL.pack $ "Exception: " ++ show e)
-
-{-# DEPRECATED settingsPort "Use setPort instead" #-}
-{-# DEPRECATED settingsHost "Use setHost instead" #-}
-{-# DEPRECATED settingsOnException "Use setOnException instead" #-}
-{-# DEPRECATED settingsOnExceptionResponse "Use setOnExceptionResponse instead" #-}
-{-# DEPRECATED settingsOnOpen "Use setOnOpen instead" #-}
-{-# DEPRECATED settingsOnClose "Use setOnClose instead" #-}
-{-# DEPRECATED settingsTimeout "Use setTimeout instead" #-}
-{-# DEPRECATED settingsManager "Use setManager instead" #-}
-{-# DEPRECATED settingsFdCacheDuration "Use setFdCacheDuration instead" #-}
-{-# DEPRECATED settingsBeforeMainLoop "Use setBeforeMainLoop instead" #-}
-{-# DEPRECATED settingsNoParsePath "Use setNoParsePath instead" #-}
