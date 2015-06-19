@@ -3,6 +3,7 @@
 module Network.Wai.Handler.Warp.Internal (
     -- * Settings
     Settings (..)
+  , ProxyProtocol(..)
     -- * Low level run functions
   , runSettingsConnection
   , runSettingsConnectionMaker
