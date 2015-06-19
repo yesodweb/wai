@@ -74,7 +74,7 @@ module Network.Wai.Handler.Warp (
   , HostPreference (..)
   , Port
   , InvalidRequest (..)
-    -- * Per-request utilities
+    -- * Utilities
   , pauseTimeout
     -- * Internal
     -- | The following APIs will be removed in Warp 3.2.0. Please use ones exported from Network.Wai.Handler.Warp.Internal.
@@ -84,7 +84,7 @@ module Network.Wai.Handler.Warp (
   , runSettingsConnectionMaker
   , runSettingsConnectionMakerSecure
   , Transport (..)
-    -- * Connection
+    -- ** Connection
   , Connection (..)
   , socketConnection
     -- ** Buffer
@@ -113,6 +113,7 @@ module Network.Wai.Handler.Warp (
   , Source
   , recvRequest
   , sendResponse
+    -- ** Time out manager
   , module Network.Wai.Handler.Warp.Timeout
   ) where
 
