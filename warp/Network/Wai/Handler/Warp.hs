@@ -64,19 +64,6 @@ module Network.Wai.Handler.Warp (
     -- ** Getters
   , getPort
   , getHost
-    -- ** Accessors
-    -- | Note: these accessors are deprecated, please use the @set@ versions instead.
-  , settingsPort
-  , settingsHost
-  , settingsOnException
-  , settingsOnExceptionResponse
-  , settingsOnOpen
-  , settingsOnClose
-  , settingsTimeout
-  , settingsManager
-  , settingsFdCacheDuration
-  , settingsBeforeMainLoop
-  , settingsNoParsePath
     -- ** Exception handler
   , defaultOnException
   , defaultShouldDisplayException
