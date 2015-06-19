@@ -59,9 +59,6 @@ module Network.Wai.Handler.Warp.Internal (
   , sendResponse
   ) where
 
-import Control.Exception (SomeException)
-import Network.Socket (SockAddr)
-import Network.Wai (Request)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Date
 import Network.Wai.Handler.Warp.FdCache
