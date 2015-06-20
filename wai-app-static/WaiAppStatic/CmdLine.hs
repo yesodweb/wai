@@ -8,8 +8,7 @@ module WaiAppStatic.CmdLine
 import Network.Wai (Middleware)
 import Network.Wai.Application.Static (staticApp, defaultFileServerSettings)
 import Network.Wai.Handler.Warp
-    ( runSettings, defaultSettings, settingsHost, settingsPort
-    )
+    ( runSettings, defaultSettings, setHost, setPort )
 import Options.Applicative
 import Text.Printf (printf)
 import System.Directory (canonicalizePath)
@@ -100,10 +99,8 @@ runCommandLine middleware = do
     let middle = gzip def { gzipFiles = GzipCompress }
                . (if verbose then logStdout else id)
                . (middleware args)
-    runSettings defaultSettings
-        { settingsPort = port
-        , settingsHost = fromString host
-        } $ middle $ staticApp (defaultFileServerSettings $ fromString docroot)
+    runSettings (setPort port $ setHost (fromString host) $ defaultSettings)
+        $ middle $ staticApp (defaultFileServerSettings $ fromString docroot)
         { ssIndices = if noindex then [] else mapMaybe (toPiece . pack) index
         , ssGetMimeType = return . mimeByExt mimeMap defaultMimeType . fromPiece . fileName
         }

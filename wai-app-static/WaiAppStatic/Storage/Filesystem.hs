@@ -28,6 +28,7 @@ import Data.Byteable (toBytes)
 import Crypto.Hash (MD5, Digest)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.Text as T
+import qualified Data.ByteArray as DBA
 
 -- | Construct a new path from a root and some @Pieces@.
 pathFromPieces :: FilePath -> Pieces -> FilePath
@@ -117,7 +118,8 @@ webAppLookup hashFunc prefix pieces =
 hashFile :: FilePath -> IO ByteString
 hashFile fp = do
     h <- Crypto.Hash.Conduit.hashFile fp
-    return $ B64.encode $ toBytes (h :: Digest MD5)
+    return $ B64.encode $ toBytes
+      (DBA.copyAndFreeze (h :: Digest MD5) (\_ -> return ()) :: ByteString)
 
 hashFileIfExists :: ETagLookup
 hashFileIfExists fp = do

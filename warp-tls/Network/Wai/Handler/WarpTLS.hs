@@ -36,7 +36,6 @@ import Control.Applicative ((<$>))
 #endif
 import Control.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException)
 import Control.Monad (void)
-import qualified Crypto.Random.AESCtr
 import qualified Data.ByteString as B
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -265,8 +264,7 @@ mkConn tlsset s params = do
 
 httpOverTls :: TLS.TLSParams params => TLSSettings -> Socket -> I.IORef B.ByteString -> params -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} s cachedRef params = do
-    gen <- Crypto.Random.AESCtr.makeSystem
-    ctx <- TLS.contextNew backend params gen
+    ctx <- TLS.contextNew backend params
     TLS.contextHookSetLogging ctx tlsLogging
     TLS.handshake ctx
     writeBuf <- allocateBuffer bufferSize

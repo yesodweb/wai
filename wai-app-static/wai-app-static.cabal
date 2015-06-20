@@ -40,7 +40,7 @@ library
                    , blaze-builder             >= 0.2.1.4
                    , base64-bytestring         >= 0.1
                    , byteable
-                   , cryptohash                >= 0.11
+                   , cryptonite                >= 0.3
                    , http-date
                    , blaze-html                >= 0.5
                    , blaze-markup              >= 0.5.1
@@ -51,7 +51,8 @@ library
                    , filepath
                    , wai-extra                 >= 3.0      && < 3.1
                    , optparse-applicative      >= 0.7
-                   , warp                      >= 3.0.11   && < 3.1
+                   , warp                      >= 3.0.11   && < 3.2
+                   , memory                    >= 0.7
                    -- Used exclusively for hashFile function
                    , cryptohash-conduit
 

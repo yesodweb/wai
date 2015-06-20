@@ -76,9 +76,8 @@ actual server.
 > main = do
 >     putStrLn "http://localhost:9160/client.html"
 >     state <- newMVar newServerState
->     Warp.runSettings Warp.defaultSettings
->       { Warp.settingsPort = 9160
->       } $ WaiWS.websocketsOr WS.defaultConnectionOptions (application state) staticApp
+>     Warp.runSettings (Warp.setPort 9160 $ Warp.defaultSettings)
+>       $ WaiWS.websocketsOr WS.defaultConnectionOptions (application state) staticApp
 
 > staticApp :: Network.Wai.Application
 > staticApp = Static.staticApp $ Static.embeddedSettings $(embedDir "static")

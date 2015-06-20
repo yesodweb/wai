@@ -41,7 +41,7 @@ import qualified Data.Text as T
 
 import Data.Either (rights)
 import Network.HTTP.Date (parseHTTPDate, epochTimeToHTTPDate, formatHTTPDate)
-import Data.Monoid (First (First, getFirst), mconcat)
+import Data.Monoid (First (First, getFirst))
 
 import WaiAppStatic.Types
 import Util
@@ -106,17 +106,19 @@ serveFolder ss@StaticSettings {..} pieces req folder@Folder {..} =
     setLast (a:b) x = a : setLast b x
 
     addTrailingSlash :: W.Request -> Maybe ByteString
-    addTrailingSlash req
+    addTrailingSlash req'
         | S8.null rp = Just "/"
         | S8.last rp == '/' = Nothing
         | otherwise = Just $ S8.snoc rp '/'
       where
-        rp = W.rawPathInfo req
+        rp = W.rawPathInfo req'
 
+    {-
     noTrailingSlash :: Pieces -> Bool
     noTrailingSlash [] = False
     noTrailingSlash [x] = fromPiece x /= ""
     noTrailingSlash (_:xs) = noTrailingSlash xs
+    -}
 
     findIndex :: [File] -> Piece -> First Piece
     findIndex files index
@@ -230,7 +232,7 @@ staticAppPieces ss rawPieces req sendResponse = liftIO $ do
     response :: StaticResponse -> IO W.ResponseReceived
     response (FileResponse file ch) = do
         mimetype <- ssGetMimeType ss file
-        let filesize = fileGetSize file
+        -- let filesize = fileGetSize file
         let headers = ("Content-Type", mimetype)
                     -- Let Warp provide the content-length, since it takes
                     -- range requests into account

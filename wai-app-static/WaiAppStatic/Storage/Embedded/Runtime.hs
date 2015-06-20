@@ -20,6 +20,7 @@ import Data.Byteable (toBytes)
 import qualified Data.ByteString.Base64 as B64
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import System.FilePath (isPathSeparator)
+import qualified Data.ByteArray as DBA
 
 -- | Serve the list of path/content pairs directly from memory.
 embeddedSettings :: [(Prelude.FilePath, ByteString)] -> StaticSettings
@@ -95,4 +96,5 @@ bsToFile name bs = File
     }
 
 runHash :: ByteString -> ByteString
-runHash = B64.encode . toBytes . (hash :: S.ByteString -> Digest MD5)
+runHash x = B64.encode $ toBytes $
+      (DBA.copyAndFreeze (hash x :: Digest MD5) (\_ -> return ()) :: ByteString)
