@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -266,8 +267,12 @@ mkConn tlsset s params = do
 
 httpOverTls :: TLS.TLSParams params => TLSSettings -> Socket -> I.IORef B.ByteString -> params -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} s cachedRef params = do
+#if MIN_VERSION_tls(1,3,0)
+    ctx <- TLS.contextNew backend params
+#else
     gen <- Crypto.Random.AESCtr.makeSystem
     ctx <- TLS.contextNew backend params gen
+#endif
     TLS.contextHookSetLogging ctx tlsLogging
     TLS.handshake ctx
     readBuf <- allocateBuffer bufferSize
