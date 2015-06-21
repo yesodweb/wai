@@ -1,3 +1,7 @@
+## 3.0.4.2
+
+* tls 1.3 support [#390](https://github.com/yesodweb/wai/issues/390)
+
 ## 3.0.4.1
 
 * Fix for leaked FDs [#378](https://github.com/yesodweb/wai/issues/378)
