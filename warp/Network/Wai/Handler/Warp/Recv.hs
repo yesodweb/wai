@@ -30,8 +30,7 @@ receive :: Socket -> BufferPool -> IO ByteString
 receive sock pool = withBufferPool pool $ \ (ptr, size) -> do
     let sock' = fdSocket sock
         size' = fromIntegral size
-    received <- fromIntegral <$> receiveloop sock' ptr size'
-    return received
+    fromIntegral <$> receiveloop sock' ptr size'
 
 receiveloop :: CInt -> Ptr Word8 -> CSize -> IO CInt
 receiveloop sock ptr size = do

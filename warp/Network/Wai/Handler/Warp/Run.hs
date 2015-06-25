@@ -203,7 +203,7 @@ acceptConnection set getConnMaker app dc fc tm counter = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
-    void $ mask_ $ acceptLoop
+    void $ mask_ acceptLoop
     gracefulShutdown counter
   where
     acceptLoop = do
@@ -403,7 +403,7 @@ serveConnection conn ii origAddr transport settings app = do
 
         if not keepAlive then
             return False
-          else do
+          else
             -- If there is an unknown or large amount of data to still be read
             -- from the request body, simple drop this connection instead of
             -- reading it all in to satisfy a keep-alive request.

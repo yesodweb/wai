@@ -200,7 +200,7 @@ sendResponse defServer conn ii req reqidxhdr src response = do
     addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
     mRange = reqidxhdr ! idxRange
     (isPersist,isChunked0) = infoFromRequest req reqidxhdr
-    isChunked = if isHead then False else isChunked0
+    isChunked = not isHead && isChunked0
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist,isChunked)
     isHead = requestMethod req == H.methodHead
     rsp = case response of
@@ -257,7 +257,7 @@ sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
                 let fid = FileId path mfd
 #endif
                 connSendFile conn fid beg len hook' [lheader]
-          | otherwise -> do
+          | otherwise ->
             sendRsp conn mfdc ver H.status416
                 (filter (\(k, _) -> k /= "content-length") hs1)
                 (RspBuilder mempty True)
@@ -405,9 +405,9 @@ addContentRange beg end total hdrs = (hContentRange, range) : hdrs
       -- building with ShowS
       $ 'b' : 'y': 't' : 'e' : 's' : ' '
       : (if beg > end then ('*':) else
-          (showInt beg)
+          showInt beg
           . ('-' :)
-          . (showInt end))
+          . showInt end)
       ( '/'
       : showInt total "")
 
