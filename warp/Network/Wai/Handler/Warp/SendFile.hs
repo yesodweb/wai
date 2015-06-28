@@ -32,7 +32,7 @@ import System.Posix.Types
 
 ----------------------------------------------------------------
 
--- | Function to send a file based on sendfiel() for Linux\/Mac\/FreeBSD.
+-- | Function to send a file based on sendfile() for Linux\/Mac\/FreeBSD.
 --   This makes use of the file descriptor cache.
 --   For other OSes, this is identical to 'readSendFile'.
 --
