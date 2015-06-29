@@ -38,6 +38,11 @@ makeReceiveN bs0 recv recvBuf = do
     ref <- newIORef bs0
     return $ receiveN ref recv recvBuf
 
+-- | This function returns a receiving function
+--   based on two receiving functions.
+--   The returned function efficiently manages received data
+--   which is initialized by the first argument.
+--   The returned function may allocate a byte string with malloc().
 makePlainReceiveN :: Socket -> ByteString -> IO (BufSize -> IO ByteString)
 makePlainReceiveN s bs0 = do
     ref <- newIORef bs0

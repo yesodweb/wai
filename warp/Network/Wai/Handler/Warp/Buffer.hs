@@ -102,11 +102,13 @@ toBlazeBuffer ptr size = do
     fptr <- newForeignPtr_ ptr
     return $ B.Buffer fptr ptr ptr (ptr `plusPtr` size)
 
-{-# INLINE copy #-}
+-- | Copying the bytestring to the buffer.
+--   This function returns the point where the next copy should start.
 copy :: Buffer -> ByteString -> IO Buffer
 copy !ptr (PS fp o l) = withForeignPtr fp $ \p -> do
     memcpy ptr (p `plusPtr` o) (fromIntegral l)
     return $! ptr `plusPtr` l
+{-# INLINE copy #-}
 
 {-# INLINE toBS #-}
 toBS :: Buffer -> Int -> IO ByteString
