@@ -95,6 +95,13 @@ type Buffer = Ptr Word8
 -- | Type for buffer size
 type BufSize = Int
 
+-- | Type for the action to receive input data
+type Recv = IO ByteString
+
+-- | Type for the action to receive input data with a buffer.
+--   The result boolean indicates whether or not the buffer is fully filled.
+type RecvBuf = Buffer -> BufSize -> IO Bool
+
 -- | Data type to manipulate IO actions for connections.
 --   This is used to abstract IO actions for plain HTTP and HTTP over TLS.
 data Connection = Connection {
@@ -106,8 +113,8 @@ data Connection = Connection {
     , connSendFile    :: SendFile
     -- | The connection closing function.
     , connClose       :: IO ()
-    -- | The connection receiving function.
-    , connRecv        :: IO ByteString
+    -- | The connection receiving function. This returns "" for EOF.
+    , connRecv        :: Recv
     -- | The write buffer.
     , connWriteBuffer :: Buffer
     -- | The size of the write buffer.

@@ -50,6 +50,7 @@ import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra as TLSExtra
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp.Internal
 import System.IO.Error (isEOFError)
 
 ----------------------------------------------------------------
@@ -255,21 +256,21 @@ getter tlsset@TLSSettings{..} sock params = do
 mkConn :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (Connection, Transport)
 mkConn tlsset s params = do
     firstBS <- safeRecv s 4096
-    cachedRef <- I.newIORef firstBS
     (if not (S.null firstBS) && S.head firstBS == 0x16 then
-        httpOverTls tlsset s cachedRef params
+        httpOverTls tlsset s firstBS params
       else
-        plainHTTP tlsset s cachedRef) `onException` sClose s
+        plainHTTP tlsset s firstBS) `onException` sClose s
 
 ----------------------------------------------------------------
 
-httpOverTls :: TLS.TLSParams params => TLSSettings -> Socket -> I.IORef S.ByteString -> params -> IO (Connection, Transport)
-httpOverTls TLSSettings{..} s cachedRef params = do
+httpOverTls :: TLS.TLSParams params => TLSSettings -> Socket -> S.ByteString -> params -> IO (Connection, Transport)
+httpOverTls TLSSettings{..} s bs0 params = do
+    recvN <- makePlainReceiveN s bs0
 #if MIN_VERSION_tls(1,3,0)
-    ctx <- TLS.contextNew backend params
+    ctx <- TLS.contextNew (backend recvN) params
 #else
     gen <- Crypto.Random.AESCtr.makeSystem
-    ctx <- TLS.contextNew backend params gen
+    ctx <- TLS.contextNew (backend recvN) params gen
 #endif
     TLS.contextHookSetLogging ctx tlsLogging
     TLS.handshake ctx
@@ -277,11 +278,11 @@ httpOverTls TLSSettings{..} s cachedRef params = do
     tls <- getTLSinfo ctx
     return (conn ctx writeBuf, tls)
   where
-    backend = TLS.Backend {
+    backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
       , TLS.backendClose = sClose s
       , TLS.backendSend  = sendAll s
-      , TLS.backendRecv  = recvTLS cachedRef s
+      , TLS.backendRecv  = recvN
       }
     conn ctx writeBuf = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
@@ -338,10 +339,11 @@ tryIO = try
 
 ----------------------------------------------------------------
 
-plainHTTP :: TLSSettings -> Socket -> I.IORef S.ByteString -> IO (Connection, Transport)
-plainHTTP TLSSettings{..} s cachedRef = case onInsecure of
+plainHTTP :: TLSSettings -> Socket -> S.ByteString -> IO (Connection, Transport)
+plainHTTP TLSSettings{..} s bs0 = case onInsecure of
     AllowInsecure -> do
         conn' <- socketConnection s
+        cachedRef <- I.newIORef bs0
         let conn'' = conn'
                 { connRecv = recvPlain cachedRef (connRecv conn')
                 }
@@ -351,26 +353,6 @@ plainHTTP TLSSettings{..} s cachedRef = case onInsecure of
         mapM_ (sendAll s) $ L.toChunks lbs
         sClose s
         throwIO InsecureConnectionDenied
-
-----------------------------------------------------------------
-
-recvTLS :: I.IORef S.ByteString -> Socket -> Int -> IO S.ByteString
-recvTLS cachedRef s size = do
-    cached <- I.readIORef cachedRef
-    loop cached
-  where
-    loop bs | S.length bs >= size = do
-        let (x, y) = S.splitAt size bs
-        I.writeIORef cachedRef y
-        return x
-    loop bs1 = do
-        bs2 <- safeRecv s 4096
-        if S.null bs2 then do
-            -- FIXME does this deserve an exception being thrown?
-            I.writeIORef cachedRef S.empty
-            return bs1
-          else
-            loop $ S.append bs1 bs2
 
 ----------------------------------------------------------------
 
