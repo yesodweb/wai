@@ -38,7 +38,6 @@ import Control.Applicative ((<$>))
 import Control.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException)
 import Control.Monad (void)
 import qualified Crypto.Random.AESCtr
-import qualified Data.ByteString as B
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Data.Default.Class (def)
@@ -257,14 +256,14 @@ mkConn :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (Connect
 mkConn tlsset s params = do
     firstBS <- safeRecv s 4096
     cachedRef <- I.newIORef firstBS
-    (if not (B.null firstBS) && B.head firstBS == 0x16 then
+    (if not (S.null firstBS) && S.head firstBS == 0x16 then
         httpOverTls tlsset s cachedRef params
       else
         plainHTTP tlsset s cachedRef) `onException` sClose s
 
 ----------------------------------------------------------------
 
-httpOverTls :: TLS.TLSParams params => TLSSettings -> Socket -> I.IORef B.ByteString -> params -> IO (Connection, Transport)
+httpOverTls :: TLS.TLSParams params => TLSSettings -> Socket -> I.IORef S.ByteString -> params -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} s cachedRef params = do
 #if MIN_VERSION_tls(1,3,0)
     ctx <- TLS.contextNew backend params
@@ -305,11 +304,11 @@ httpOverTls TLSSettings{..} s cachedRef params = do
         recv = handle onEOF go
           where
             onEOF e
-              | Just TLS.Error_EOF <- fromException e       = return B.empty
-              | Just ioe <- fromException e, isEOFError ioe = return B.empty                  | otherwise                                   = throwIO e
+              | Just TLS.Error_EOF <- fromException e       = return S.empty
+              | Just ioe <- fromException e, isEOFError ioe = return S.empty                  | otherwise                                   = throwIO e
             go = do
                 x <- TLS.recvData ctx
-                if B.null x then
+                if S.null x then
                     go
                   else
                     return x
@@ -339,7 +338,7 @@ tryIO = try
 
 ----------------------------------------------------------------
 
-plainHTTP :: TLSSettings -> Socket -> I.IORef B.ByteString -> IO (Connection, Transport)
+plainHTTP :: TLSSettings -> Socket -> I.IORef S.ByteString -> IO (Connection, Transport)
 plainHTTP TLSSettings{..} s cachedRef = case onInsecure of
     AllowInsecure -> do
         conn' <- socketConnection s
@@ -355,36 +354,36 @@ plainHTTP TLSSettings{..} s cachedRef = case onInsecure of
 
 ----------------------------------------------------------------
 
-recvTLS :: I.IORef B.ByteString -> Socket -> Int -> IO B.ByteString
+recvTLS :: I.IORef S.ByteString -> Socket -> Int -> IO S.ByteString
 recvTLS cachedRef s size = do
     cached <- I.readIORef cachedRef
     loop cached
   where
-    loop bs | B.length bs >= size = do
-        let (x, y) = B.splitAt size bs
+    loop bs | S.length bs >= size = do
+        let (x, y) = S.splitAt size bs
         I.writeIORef cachedRef y
         return x
     loop bs1 = do
         bs2 <- safeRecv s 4096
-        if B.null bs2 then do
+        if S.null bs2 then do
             -- FIXME does this deserve an exception being thrown?
-            I.writeIORef cachedRef B.empty
+            I.writeIORef cachedRef S.empty
             return bs1
           else
-            loop $ B.append bs1 bs2
+            loop $ S.append bs1 bs2
 
 ----------------------------------------------------------------
 
 -- | Modify the given receive function to first check the given @IORef@ for a
 -- chunk of data. If present, takes the chunk of data from the @IORef@ and
 -- empties out the @IORef@. Otherwise, calls the supplied receive function.
-recvPlain :: I.IORef B.ByteString -> IO B.ByteString -> IO B.ByteString
+recvPlain :: I.IORef S.ByteString -> IO S.ByteString -> IO S.ByteString
 recvPlain ref fallback = do
     bs <- I.readIORef ref
-    if B.null bs
+    if S.null bs
         then fallback
         else do
-            I.writeIORef ref B.empty
+            I.writeIORef ref S.empty
             return bs
 
 ----------------------------------------------------------------
