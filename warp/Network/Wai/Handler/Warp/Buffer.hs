@@ -1,9 +1,10 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
 module Network.Wai.Handler.Warp.Buffer (
     bufferSize
   , allocateBuffer
   , freeBuffer
+  , mallocByteString
   , newBufferPool
   , withBufferPool
   , toBlazeBuffer
@@ -13,14 +14,13 @@ module Network.Wai.Handler.Warp.Buffer (
 
 import Control.Monad (when)
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal
+import Data.ByteString.Internal (ByteString(..), memcpy)
 import Data.ByteString.Unsafe (unsafeTake, unsafeDrop)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import qualified Data.Streaming.ByteString.Builder.Buffer as B (Buffer (..))
-import Data.Word (Word8)
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc (mallocBytes, free, finalizerFree)
-import Foreign.Ptr (Ptr, castPtr, plusPtr)
+import Foreign.Ptr (castPtr, plusPtr)
 import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
@@ -51,12 +51,12 @@ minBufferSize = 2048
 newBufferPool :: IO BufferPool
 newBufferPool = newIORef BS.empty
 
-mallocBuffer :: Int -> IO ByteString
-mallocBuffer size = do
-    ptr <- mallocBytes size
+mallocByteString :: Int -> IO ByteString
+mallocByteString size = do
+    ptr <- allocateBuffer size
     fptr <- newForeignPtr finalizerFree ptr
     return $! PS fptr 0 size
-{-# INLINE mallocBuffer #-}
+{-# INLINE mallocByteString #-}
 
 {-
 createBuffer :: Int -> IO ByteString
@@ -73,7 +73,7 @@ usefulBuffer buffer = BS.length buffer >= minBufferSize
 getBuffer :: BufferPool -> IO ByteString
 getBuffer pool = do
     buffer <- readIORef pool
-    if usefulBuffer buffer then return buffer else mallocBuffer largeBufferSize
+    if usefulBuffer buffer then return buffer else mallocByteString largeBufferSize
 {-# INLINE getBuffer #-}
 
 putBuffer :: BufferPool -> ByteString -> IO ()
@@ -103,7 +103,7 @@ toBlazeBuffer ptr size = do
     return $ B.Buffer fptr ptr ptr (ptr `plusPtr` size)
 
 {-# INLINE copy #-}
-copy :: Ptr Word8 -> ByteString -> IO (Ptr Word8)
+copy :: Buffer -> ByteString -> IO Buffer
 copy !ptr (PS fp o l) = withForeignPtr fp $ \p -> do
     memcpy ptr (p `plusPtr` o) (fromIntegral l)
     return $! ptr `plusPtr` l
