@@ -59,26 +59,34 @@ receiveN ref recv recvBuf size = do
 ----------------------------------------------------------------
 
 spell :: ByteString -> BufSize -> IO ByteString -> RecvBuf -> IO (ByteString, ByteString)
-spell initial siz recv recvBuf
-  | siz <= len0 = return $ BS.splitAt siz initial
-  | siz <= 4096 = do
-      bs <- recv
-      if bs == "" then
-          return ("", "")
-        else do
-          let (bs1, leftover) = BS.splitAt (siz - len0) bs
-          return (BS.append initial bs1, leftover)
-  | otherwise = do
-      bs@(PS fptr _ _) <- mallocBS siz
+spell init0 siz0 recv recvBuf
+  | siz0 <= len0 = return $ BS.splitAt siz0 init0
+  -- fixme: hard coding 4096
+  | siz0 <= 4096 = loop [init0] (siz0 - len0)
+  | otherwise    = do
+      bs@(PS fptr _ _) <- mallocBS siz0
       withForeignPtr fptr $ \ptr -> do
-          ptr' <- copy ptr initial
-          full <- recvBuf ptr' (siz - len0)
+          ptr' <- copy ptr init0
+          full <- recvBuf ptr' (siz0 - len0)
           if full then
               return (bs, "")
-             else
+            else
               return ("", "") -- fixme
   where
-    len0 = BS.length initial
+    len0 = BS.length init0
+    loop bss siz = do
+        bs <- recv
+        let len = BS.length bs
+        if len == 0 then
+            return ("", "")
+          else if len >= siz then do
+            let (consume, leftover) = BS.splitAt siz bs
+                ret = BS.concat $ reverse (consume : bss)
+            return (ret, leftover)
+          else do
+            let bss' = bs : bss
+                siz' = siz - len
+            loop bss' siz'
 
 receive :: Socket -> BufferPool -> Recv
 receive sock pool = withBufferPool pool $ \ (ptr, size) -> do

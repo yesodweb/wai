@@ -37,9 +37,11 @@ Library
                    , blaze-builder             >= 0.3.3    && < 0.5
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2
+                   , containers
                    , ghc-prim
                    , http-types                >= 0.8.5
                    , iproute                   >= 1.3.1
+                   , http2
                    , simple-sendfile           >= 0.2.7    && < 0.3
                    , unix-compat               >= 0.2
                    , wai                       >= 3.0      && < 3.1
@@ -47,6 +49,7 @@ Library
                    , streaming-commons         >= 0.1.10
                    , vault                     >= 0.3
                    , stm                       >= 2.3
+                   , word8
   if flag(network-bytestring)
       Build-Depends: network                   >= 2.2.1.5  && < 2.2.3
                    , network-bytestring        >= 0.1.3    && < 0.1.4
@@ -64,6 +67,14 @@ Library
                      Network.Wai.Handler.Warp.Counter
                      Network.Wai.Handler.Warp.Date
                      Network.Wai.Handler.Warp.FdCache
+                     Network.Wai.Handler.Warp.HTTP2
+                     Network.Wai.Handler.Warp.HTTP2.EncodeFrame
+                     Network.Wai.Handler.Warp.HTTP2.HPACK
+                     Network.Wai.Handler.Warp.HTTP2.Receiver
+                     Network.Wai.Handler.Warp.HTTP2.Request
+                     Network.Wai.Handler.Warp.HTTP2.Sender
+                     Network.Wai.Handler.Warp.HTTP2.Types
+                     Network.Wai.Handler.Warp.HTTP2.Worker
                      Network.Wai.Handler.Warp.Header
                      Network.Wai.Handler.Warp.IO
                      Network.Wai.Handler.Warp.IORef
@@ -148,6 +159,9 @@ Test-Suite spec
                    , stm                       >= 2.3
                    , directory
                    , process
+                   , containers
+                   , http2
+                   , word8
   if flag(use-bytestring-builder)
       Build-Depends: bytestring                < 0.10.2.0
                    , bytestring-builder

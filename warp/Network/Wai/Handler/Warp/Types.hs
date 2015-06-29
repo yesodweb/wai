@@ -115,6 +115,9 @@ data Connection = Connection {
     , connClose       :: IO ()
     -- | The connection receiving function. This returns "" for EOF.
     , connRecv        :: Recv
+    -- | The connection receiving function. This tries to fill the buffer.
+    --   This returns when the buffer is filled or reaches EOF.
+    , connRecvBuf     :: RecvBuf
     -- | The write buffer.
     , connWriteBuffer :: Buffer
     -- | The size of the write buffer.
@@ -126,6 +129,7 @@ data Connection = Connection {
 -- | Internal information.
 data InternalInfo = InternalInfo {
     threadHandle :: T.Handle
+  , timeoutManager :: T.Manager
   , fdCacher :: Maybe F.MutableFdCache
   , dateCacher :: D.DateCache
   }
