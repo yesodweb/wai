@@ -130,6 +130,7 @@ Library
                      Network.Wai.Middleware.MethodOverride
                      Network.Wai.Middleware.MethodOverridePost
                      Network.Wai.Middleware.Rewrite
+                     Network.Wai.Middleware.StripHeaders
                      Network.Wai.Middleware.Vhost
                      Network.Wai.Middleware.HttpAuth
                      Network.Wai.Middleware.StreamFile
@@ -152,6 +153,7 @@ test-suite spec
                      Network.Wai.RequestSpec
                      Network.Wai.Middleware.ApprootSpec
                      Network.Wai.Middleware.ForceSSLSpec
+                     Network.Wai.Middleware.StripHeadersSpec
                      WaiExtraSpec
     build-depends:   base                      >= 4        && < 5
                    , wai-extra
@@ -168,6 +170,7 @@ test-suite spec
                    , blaze-builder
                    , cookie
                    , time
+                   , case-insensitive
     ghc-options:     -Wall -Werror
 
 source-repository head
