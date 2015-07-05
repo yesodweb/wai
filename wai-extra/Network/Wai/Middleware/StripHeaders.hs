@@ -14,27 +14,19 @@ module Network.Wai.Middleware.StripHeaders
     , stripHeadersIf
     ) where
 
-import Network.Wai                       (Middleware, Request)
+import Network.Wai                       (Middleware, Request, modifyResponse, mapResponseHeaders, ifRequest)
 import Network.Wai.Internal (Response)
 import Data.ByteString                   (ByteString)
-import Network.Wai.Middleware.AddHeaders (mapResponseHeader)
 
 import qualified Data.CaseInsensitive as CI
 
-ifRequest :: (Request -> Bool) -> Middleware -> Middleware
-ifRequest rpred middle app req | rpred req = middle app req
-                               | otherwise =        app req
-
-modifyResponse :: (Response -> Response) -> Middleware
-modifyResponse f app req respond = app req $ respond . f
-
 stripHeader :: ByteString -> (Response -> Response)
-stripHeader h = mapResponseHeader (filter (\ hdr -> fst hdr /= CI.mk h))
+stripHeader h = mapResponseHeaders (filter (\ hdr -> fst hdr /= CI.mk h))
 
 stripHeaders :: [ByteString] -> (Response -> Response)
 stripHeaders hs =
   let hnames = map CI.mk hs
-  in mapResponseHeader (filter (\ hdr -> fst hdr `notElem` hnames))
+  in mapResponseHeaders (filter (\ hdr -> fst hdr `notElem` hnames))
 
 -- | If the request satisifes the provided predicate, strip headers matching
 -- the provided header name.
