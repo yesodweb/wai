@@ -171,7 +171,7 @@ test-suite spec
                    , cookie
                    , time
                    , case-insensitive
-    ghc-options:     -Wall -Werror
+    ghc-options:     -Wall
 
 source-repository head
   type:     git
