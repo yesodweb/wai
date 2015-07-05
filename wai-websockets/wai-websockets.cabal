@@ -1,5 +1,5 @@
 Name:                wai-websockets
-Version:             3.0.0.5
+Version:             3.0.0.6
 Synopsis:            Provide a bridge between WAI and the websockets package.
 License:             MIT
 License-file:        LICENSE
