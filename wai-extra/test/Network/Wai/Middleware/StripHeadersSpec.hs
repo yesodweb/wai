@@ -30,8 +30,8 @@ spec = describe "stripHeader" $ do
 
     it "strips a specific header" $ do
         resp1 <- runApp host (addHeaders testHeaders) defaultRequest
-        resp2 <- runApp host (stripHeader "Foo" (const False) . addHeaders testHeaders) defaultRequest
-        resp3 <- runApp host (stripHeader "Foo" (const True) . addHeaders testHeaders) defaultRequest
+        resp2 <- runApp host (stripHeaderIf "Foo" (const False) . addHeaders testHeaders) defaultRequest
+        resp3 <- runApp host (stripHeaderIf "Foo" (const True) . addHeaders testHeaders) defaultRequest
 
         simpleHeaders resp1 `shouldBe` ciTestHeaders
         simpleHeaders resp2 `shouldBe` ciTestHeaders
@@ -39,8 +39,8 @@ spec = describe "stripHeader" $ do
 
     it "strips specific set of headers" $ do
         resp1 <- runApp host (addHeaders testHeaders) defaultRequest
-        resp2 <- runApp host (stripHeaders ["Bar", "Foo"] (const False) . addHeaders testHeaders) defaultRequest
-        resp3 <- runApp host (stripHeaders ["Bar", "Foo"] (const True) . addHeaders testHeaders) defaultRequest
+        resp2 <- runApp host (stripHeadersIf ["Bar", "Foo"] (const False) . addHeaders testHeaders) defaultRequest
+        resp3 <- runApp host (stripHeadersIf ["Bar", "Foo"] (const True) . addHeaders testHeaders) defaultRequest
 
         simpleHeaders resp1 `shouldBe` ciTestHeaders
         simpleHeaders resp2 `shouldBe` ciTestHeaders

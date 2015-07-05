@@ -10,34 +10,36 @@
 module Network.Wai.Middleware.StripHeaders
     ( stripHeader
     , stripHeaders
+    , stripHeaderIf
+    , stripHeadersIf
     ) where
 
-import Network.Wai                       (Middleware, Request)
+import Network.Wai                       (Middleware, Request, modifyResponse, mapResponseHeaders, ifRequest)
+import Network.Wai.Internal (Response)
 import Data.ByteString                   (ByteString)
-import Network.Wai.Middleware.AddHeaders (mapResponseHeader)
 
 import qualified Data.CaseInsensitive as CI
 
+stripHeader :: ByteString -> (Response -> Response)
+stripHeader h = mapResponseHeaders (filter (\ hdr -> fst hdr /= CI.mk h))
+
+stripHeaders :: [ByteString] -> (Response -> Response)
+stripHeaders hs =
+  let hnames = map CI.mk hs
+  in mapResponseHeaders (filter (\ hdr -> fst hdr `notElem` hnames))
 
 -- | If the request satisifes the provided predicate, strip headers matching
 -- the provided header name.
 --
 -- Since 3.0.8
-
-stripHeader :: ByteString -> (Request -> Bool) -> Middleware
-stripHeader h rpred app req respond
-    | rpred req = app req $ respond . mapResponseHeader (filter (\ hdr -> fst hdr /= CI.mk h))
-    | otherwise = app req respond
-
+stripHeaderIf :: ByteString -> (Request -> Bool) -> Middleware
+stripHeaderIf h rpred =
+  ifRequest rpred (modifyResponse $ stripHeader h)
 
 -- | If the request satisifes the provided predicate, strip all headers whose
 -- header name is in the list of provided header names.
 --
 -- Since 3.0.8
-
-stripHeaders :: [ByteString] -> (Request -> Bool) -> Middleware
-stripHeaders hs rpred app req respond
-    | rpred req = do
-        let hnames = map CI.mk hs
-        app req $ respond . mapResponseHeader (filter (\ hdr -> fst hdr `notElem` hnames))
-    | otherwise = app req respond
+stripHeadersIf :: [ByteString] -> (Request -> Bool) -> Middleware
+stripHeadersIf hs rpred
+  = ifRequest rpred (modifyResponse $ stripHeaders hs)
