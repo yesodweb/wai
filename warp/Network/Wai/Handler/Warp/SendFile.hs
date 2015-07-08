@@ -9,15 +9,16 @@ module Network.Wai.Handler.Warp.SendFile (
 import Control.Monad (void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import Network.Sendfile
 import Network.Socket (Socket)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Types
 
 #ifdef WINDOWS
 import Control.Monad (when)
-import qualified System.IO as IO
+import Data.ByteString.Internal (ByteString(..))
+import Foreign.ForeignPtr (newForeignPtr_)
 import Foreign.Ptr (plusPtr)
+import qualified System.IO as IO
 #else
 # if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
@@ -26,6 +27,7 @@ import Data.Word (Word8)
 import Control.Exception
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
+import Network.Sendfile
 import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types
 #endif
@@ -93,10 +95,11 @@ readSendFile buf siz send fid off0 len0 hook headers = do
     IO.withBinaryFile path IO.ReadMode $ \h -> do
         IO.hSeek h IO.AbsoluteSeek off0
         n <- IO.hGetBufSome h buf' (mini room len0)
-        bs <- toBSD buf (hn + n)
+        bs <- toBS buf (hn + n)
         let n' = fromIntegral n
         send bs
         hook
+        fptr <- newForeignPtr_ buf
         loop h fptr (len0 - n')
   where
     path = fileIdPath fid
