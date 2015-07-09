@@ -118,13 +118,11 @@ customMiddleware cb getdate formatter app req sendResponse = app req $ \res -> d
     sendResponse res
 
 -- | Production request logger middleware.
--- Implemented on top of "logCallback", but prints to 'stdout'
 {-# NOINLINE logStdout #-}
 logStdout :: Middleware
 logStdout = unsafePerformIO $ mkRequestLogger def { outputFormat = Apache FromSocket }
 
 -- | Development request logger middleware.
--- Implemented on top of "logCallbackDev", but prints to 'stdout'
 --
 -- Flushes 'stdout' on each request, which would be inefficient in production use.
 -- Use "logStdout" in production.
