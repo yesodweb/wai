@@ -21,7 +21,7 @@ toBufIOWith :: Buffer -> BufSize -> (ByteString -> IO ()) -> Builder -> IO ()
 toBufIOWith buf !size io builder = loop firstWriter
   where
     firstWriter = runBuilder builder
-    runIO len = toBS buf len >>= io
+    runIO len = bufferIO buf len io
     loop writer = do
         (len, signal) <- writer buf size
         case signal of

@@ -9,7 +9,7 @@ module Network.Wai.Handler.Warp.Buffer (
   , withBufferPool
   , toBlazeBuffer
   , copy
-  , toBS
+  , bufferIO
   ) where
 
 import Control.Monad (when)
@@ -102,8 +102,7 @@ copy !ptr (PS fp o l) = withForeignPtr fp $ \p -> do
     return $! ptr `plusPtr` l
 {-# INLINE copy #-}
 
-{-# INLINE toBS #-}
-toBS :: Buffer -> Int -> IO ByteString
-toBS ptr siz = do
+bufferIO :: Buffer -> Int -> (ByteString -> IO ()) -> IO ()
+bufferIO ptr siz io = do
     fptr <- newForeignPtr_ ptr
-    return $ PS fptr 0 siz
+    io $ PS fptr 0 siz
