@@ -5,9 +5,7 @@ module Network.Wai.Handler.Warp.Conduit where
 import Control.Exception
 import Control.Monad (when, unless)
 import Data.ByteString (ByteString)
-import Data.ByteString.Lazy.Char8 (pack)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
 #if __GLASGOW_HASKELL__ < 709
 import Data.Word (Word)
@@ -80,9 +78,6 @@ data ChunkState = NeedLen
                 | HaveLen Word
                 | DoneChunking
     deriving Show
-
-bsCRLF :: L.ByteString
-bsCRLF = pack "\r\n"
 
 mkCSource :: Source -> IO CSource
 mkCSource src = do

@@ -18,12 +18,13 @@ import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
 import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Encoding as TLE
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
 import Data.Version (showVersion)
 import qualified Paths_warp
+import Blaze.ByteString.Builder (copyByteString)
+import Blaze.ByteString.Builder.Char.Utf8 (fromShow)
+import Data.Monoid (mappend)
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
 -- type so that new settings can be added without breaking backwards
@@ -154,4 +155,5 @@ defaultOnExceptionResponse e
 --
 -- Since: 2.0.3.2
 exceptionResponseForDebug :: SomeException -> Response
-exceptionResponseForDebug e = responseLBS H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")] (TLE.encodeUtf8 $ TL.pack $ "Exception: " ++ show e)
+exceptionResponseForDebug e = responseBuilder H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")]
+    $ copyByteString "Exception: " `mappend` fromShow e
