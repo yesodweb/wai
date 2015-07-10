@@ -4,7 +4,7 @@ module Network.Wai.Handler.Warp.Buffer (
     bufferSize
   , allocateBuffer
   , freeBuffer
-  , mallocByteString
+  , mallocBS
   , newBufferPool
   , withBufferPool
   , toBlazeBuffer
@@ -51,20 +51,12 @@ minBufferSize = 2048
 newBufferPool :: IO BufferPool
 newBufferPool = newIORef BS.empty
 
-mallocByteString :: Int -> IO ByteString
-mallocByteString size = do
+mallocBS :: Int -> IO ByteString
+mallocBS size = do
     ptr <- allocateBuffer size
     fptr <- newForeignPtr finalizerFree ptr
     return $! PS fptr 0 size
-{-# INLINE mallocByteString #-}
-
-{-
-createBuffer :: Int -> IO ByteString
-createBuffer size = do
-    fptr <- mallocByteString size
-    return $! PS fptr 0 size
-{-# INLINE createBuffer #-}
--}
+{-# INLINE mallocBS #-}
 
 usefulBuffer :: ByteString -> Bool
 usefulBuffer buffer = BS.length buffer >= minBufferSize
@@ -73,7 +65,7 @@ usefulBuffer buffer = BS.length buffer >= minBufferSize
 getBuffer :: BufferPool -> IO ByteString
 getBuffer pool = do
     buffer <- readIORef pool
-    if usefulBuffer buffer then return buffer else mallocByteString largeBufferSize
+    if usefulBuffer buffer then return buffer else mallocBS largeBufferSize
 {-# INLINE getBuffer #-}
 
 putBuffer :: BufferPool -> ByteString -> IO ()

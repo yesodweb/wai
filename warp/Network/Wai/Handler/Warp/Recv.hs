@@ -69,7 +69,7 @@ spell initial siz recv recvBuf
           let (bs1, leftover) = BS.splitAt (siz - len0) bs
           return (BS.append initial bs1, leftover)
   | otherwise = do
-      bs@(PS fptr _ _) <- mallocByteString siz
+      bs@(PS fptr _ _) <- mallocBS siz
       withForeignPtr fptr $ \ptr -> do
           ptr' <- copy ptr initial
           full <- recvBuf ptr' (siz - len0)
