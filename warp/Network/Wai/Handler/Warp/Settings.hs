@@ -1,30 +1,32 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables, ViewPatterns #-}
 {-# LANGUAGE PatternGuards, RankNTypes #-}
-{-# LANGUAGE ImpredicativeTypes #-}
+{-# LANGUAGE ImpredicativeTypes, CPP #-}
 
 module Network.Wai.Handler.Warp.Settings where
 
+import Blaze.ByteString.Builder (copyByteString)
+import Blaze.ByteString.Builder.Char.Utf8 (fromShow)
+import Control.Concurrent (forkIOWithUnmask)
 import Control.Exception
 import Control.Monad (when, void)
-import Control.Concurrent (forkIOWithUnmask)
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as S8
+#if __GLASGOW_HASKELL__ < 709
+import Data.Monoid (mappend)
+#endif
+import Data.Streaming.Network (HostPreference)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import Data.Streaming.Network (HostPreference)
+import Data.Version (showVersion)
 import GHC.IO.Exception (IOErrorType(..))
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
+import qualified Paths_warp
 import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as S8
-import Data.Version (showVersion)
-import qualified Paths_warp
-import Blaze.ByteString.Builder (copyByteString)
-import Blaze.ByteString.Builder.Char.Utf8 (fromShow)
-import Data.Monoid (mappend)
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
 -- type so that new settings can be added without breaking backwards
