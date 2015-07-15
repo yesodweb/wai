@@ -46,9 +46,9 @@ unlessClosed ctx
     unless (isClosed state) body
   where
     resetStream e = do
+        closed ctx strm (ResetByMe e)
         let rst = resetFrame InternalError streamNumber
         connSendAll rst
-        closed ctx strm (ResetByMe e)
 
 checkWindowSize :: TVar WindowSize -> TVar WindowSize -> PriorityTree Output -> Output -> Priority -> (WindowSize -> IO ()) -> IO ()
 checkWindowSize connWindow strmWindow outQ out pri body = do
@@ -102,8 +102,13 @@ frameSender ctx@Context{outputQ,connectionWindow,wait}
                     Next datPayloadLen mnext <- fillResponseBodyGetNext conn ii datPayloadOff lim rsp
                     fillDataHeaderSend strm total datPayloadLen mnext pri
                   else do
-                    bufferIO connWriteBuffer total connSendAll
+                    -- Some implementation send the next request
+                    -- immediately after receiving end of stream
+                    -- even IP packets of the tail portion of DATA frame
+                    -- is not received. So, decrease the concurrency counter
+                    -- first.
                     closed ctx strm Finished
+                    bufferIO connWriteBuffer total connSendAll
                 Persist sq tvar -> do
                     let datPayloadOff = total + frameHeaderLength
                     Next datPayloadLen mnext <- fillStreamBodyGetNext conn datPayloadOff lim sq tvar
@@ -155,12 +160,20 @@ frameSender ctx@Context{outputQ,connectionWindow,wait}
                 CFinish -> setEndStream defaultFlags
                 _       -> defaultFlags
         fillFrameHeader FrameData datPayloadLen sid flag buf
+        -- Some implementation send the next request
+        -- immediately after receiving end of stream
+        -- even IP packets of the tail portion of DATA frame
+        -- is not received. So, decrease the concurrency counter
+        -- first.
+        case mnext of
+            CFinish    -> closed ctx strm Finished
+            _          -> return ()
         bufferIO connWriteBuffer total connSendAll
         atomically $ do
            modifyTVar' connectionWindow (subtract datPayloadLen)
            modifyTVar' (streamWindow strm) (subtract datPayloadLen)
         case mnext of
-            CFinish    -> closed ctx strm Finished
+            CFinish    -> return ()
             CNext next -> enqueue outputQ (ONext strm next) pri
             CNone      -> return ()
 
