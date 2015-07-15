@@ -84,16 +84,23 @@ data Leftover = LZero
 
 ----------------------------------------------------------------
 
+-- | The context for HTTP/2 connection.
 data Context = Context {
     http2settings      :: IORef Settings
   , streamTable        :: StreamTable
   , concurrency        :: IORef Int
+  -- | RFC 7540 says "Other frames (from any stream) MUST NOT
+  --   occur between the HEADERS frame and any CONTINUATION
+  --   frames that might follow". This field is used to implement
+  --   this requirement.
   , continued          :: IORef (Maybe StreamId)
   , currentStreamId    :: IORef StreamId
   , inputQ             :: TQueue Input
   , outputQ            :: PriorityTree Output
   , encodeDynamicTable :: IORef DynamicTable
   , decodeDynamicTable :: IORef DynamicTable
+  -- | This is used to synchronization of sender and receiver
+  --   when the HTTP/2 connection is terminated.
   , wait               :: MVar ()
   , connectionWindow   :: TVar WindowSize
   }
