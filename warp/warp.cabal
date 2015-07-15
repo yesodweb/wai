@@ -41,7 +41,7 @@ Library
                    , ghc-prim
                    , http-types                >= 0.8.5
                    , iproute                   >= 1.3.1
-                   , http2
+                   , http2                     >= 1.0.2
                    , simple-sendfile           >= 0.2.7    && < 0.3
                    , unix-compat               >= 0.2
                    , wai                       >= 3.0      && < 3.1
@@ -160,7 +160,7 @@ Test-Suite spec
                    , directory
                    , process
                    , containers
-                   , http2
+                   , http2                     >= 1.0.2
                    , word8
   if flag(use-bytestring-builder)
       Build-Depends: bytestring                < 0.10.2.0
