@@ -102,11 +102,9 @@ frameSender ctx@Context{outputQ,connectionWindow,wait}
                     Next datPayloadLen mnext <- fillResponseBodyGetNext conn ii datPayloadOff lim rsp
                     fillDataHeaderSend strm total datPayloadLen mnext pri
                   else do
-                    -- Some implementation send the next request
-                    -- immediately after receiving end of stream
-                    -- even IP packets of the tail portion of DATA frame
-                    -- is not received. So, decrease the concurrency counter
-                    -- first.
+                    -- "closed" must be before "connSendAll". If not,
+                    -- the context would be switched to the receiver,
+                    -- resulting the inconsistency of concurrency.
                     closed ctx strm Finished
                     bufferIO connWriteBuffer total connSendAll
                 Persist sq tvar -> do
@@ -160,11 +158,9 @@ frameSender ctx@Context{outputQ,connectionWindow,wait}
                 CFinish -> setEndStream defaultFlags
                 _       -> defaultFlags
         fillFrameHeader FrameData datPayloadLen sid flag buf
-        -- Some implementation send the next request
-        -- immediately after receiving end of stream
-        -- even IP packets of the tail portion of DATA frame
-        -- is not received. So, decrease the concurrency counter
-        -- first.
+        -- "closed" must be before "connSendAll". If not,
+        -- the context would be switched to the receiver,
+        -- resulting the inconsistency of concurrency.
         case mnext of
             CFinish    -> closed ctx strm Finished
             _          -> return ()
