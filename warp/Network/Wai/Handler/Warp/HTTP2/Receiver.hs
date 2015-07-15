@@ -1,8 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE NamedFieldPuns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Receiver (frameReceiver) where
 
@@ -28,17 +27,17 @@ import Network.Wai.Handler.Warp.Types
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> MkReq -> (BufSize -> IO ByteString) -> IO ()
-frameReceiver ctx@Context{ http2settings
-                         , streamTable
-                         , concurrency
-                         , continued
-                         , currentStreamId
-                         , inputQ
-                         , outputQ
-                         , wait}
-              mkreq recvN =
+frameReceiver ctx mkreq recvN =
     E.handle sendGoaway loop `E.finally` takeMVar wait
   where
+    Context{ http2settings
+           , streamTable
+           , concurrency
+           , continued
+           , currentStreamId
+           , inputQ
+           , outputQ
+           , wait} = ctx
     sendGoaway (ConnectionError err msg) = do
         csid <- readIORef currentStreamId
         let frame = goawayFrame csid err msg
