@@ -289,6 +289,7 @@ httpOverTls TLSSettings{..} s bs0 params = do
     TLS.contextHookSetLogging ctx tlsLogging
     TLS.handshake ctx
     writeBuf <- allocateBuffer bufferSize
+    -- Creating a cache for leftover input data.
     ref <- I.newIORef ""
     tls <- getTLSinfo ctx
     return (conn ctx writeBuf ref, tls)
@@ -318,6 +319,8 @@ httpOverTls TLSSettings{..} s bs0 params = do
                 void (tryIO $ TLS.bye ctx) `finally`
                 TLS.contextClose ctx
 
+        -- TLS version of recv with a cache for leftover input data.
+        -- The cache is shared with recvBuf.
         recv cref = do
             cached <- I.readIORef cref
             if cached /= "" then do
@@ -326,6 +329,7 @@ httpOverTls TLSSettings{..} s bs0 params = do
               else
                 recv'
 
+        -- TLS version of recv (decrypting) without a cache.
         recv' = handle onEOF go
           where
             onEOF e
@@ -338,6 +342,7 @@ httpOverTls TLSSettings{..} s bs0 params = do
                   else
                     return x
 
+        -- TLS version of recvBuf with a cache for leftover input data.
         recvBuf cref buf siz = do
             cached <- I.readIORef cref
             (ret, leftover) <- fill cached buf siz recv'
