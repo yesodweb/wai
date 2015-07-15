@@ -1,5 +1,6 @@
-{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Sender (frameSender) where
 
@@ -37,7 +38,10 @@ import System.Posix.Types
 ----------------------------------------------------------------
 
 unlessClosed :: Context -> Connection -> Stream -> IO () -> IO ()
-unlessClosed ctx Connection{..} strm@Stream{..} body = E.handle resetStream $ do
+unlessClosed ctx
+             Connection{connSendAll}
+             strm@Stream{streamState,streamNumber}
+             body = E.handle resetStream $ do
     state <- readIORef streamState
     unless (isClosed state) body
   where
@@ -64,7 +68,9 @@ checkWindowSize connWindow strmWindow outQ out pri body = do
        body (min cw sw)
 
 frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> IO ()
-frameSender ctx@Context{..} conn@Connection{..} ii settings = do
+frameSender ctx@Context{outputQ,connectionWindow,wait}
+            conn@Connection{connWriteBuffer,connBufferSize,connSendAll}
+            ii settings = do
     connSendAll initialFrame
     loop `E.finally` putMVar wait ()
   where
@@ -172,14 +178,16 @@ ResponseRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) Response
 -}
 
 fillResponseBodyGetNext :: Connection -> InternalInfo -> Int -> WindowSize -> Response -> IO Next
-fillResponseBodyGetNext Connection{..} _ off lim (ResponseBuilder _ _ bb) = do
+fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
+                        _ off lim (ResponseBuilder _ _ bb) = do
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (len, signal) <- B.runBuilder bb datBuf room
     return $ nextForBuilder connWriteBuffer connBufferSize len signal
 
 #ifdef WINDOWS
-fillResponseBodyGetNext Connection{..} _ off lim (ResponseFile _ _ path mpart) = do
+fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
+                        _ off lim (ResponseFile _ _ path mpart) = do
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (start, bytes) <- fileStartEnd path mpart
@@ -190,7 +198,8 @@ fillResponseBodyGetNext Connection{..} _ off lim (ResponseFile _ _ path mpart) =
     let bytes' = bytes - fromIntegral len
     return $ nextForFile len connWriteBuffer connBufferSize h bytes' (return ())
 #else
-fillResponseBodyGetNext Connection{..} ii off lim (ResponseFile _ _ path mpart) = do
+fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
+                        ii off lim (ResponseFile _ _ path mpart) = do
     let Just fdcache = fdCacher ii
     (fd, refresh) <- getFd fdcache path
     let datBuf = connWriteBuffer `plusPtr` off
@@ -214,7 +223,8 @@ fileStartEnd _ (Just part) =
 ----------------------------------------------------------------
 
 fillStreamBodyGetNext :: Connection -> Int -> WindowSize -> TBQueue Sequence -> TVar Sync -> IO Next
-fillStreamBodyGetNext Connection{..} off lim sq tvar = do
+fillStreamBodyGetNext Connection{connWriteBuffer,connBufferSize}
+                      off lim sq tvar = do
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (leftover, cont, len) <- runStreamBuilder datBuf room sq

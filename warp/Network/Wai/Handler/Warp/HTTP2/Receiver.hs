@@ -28,7 +28,15 @@ import Network.Wai.Handler.Warp.Types
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> MkReq -> (BufSize -> IO ByteString) -> IO ()
-frameReceiver ctx@Context{..} mkreq recvN =
+frameReceiver ctx@Context{ http2settings
+                         , streamTable
+                         , concurrency
+                         , continued
+                         , currentStreamId
+                         , inputQ
+                         , outputQ
+                         , wait}
+              mkreq recvN =
     E.handle sendGoaway loop `E.finally` takeMVar wait
   where
     sendGoaway (ConnectionError err msg) = do

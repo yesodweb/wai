@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Worker where
 
@@ -25,7 +25,7 @@ import Network.Wai.Internal (Response(..), ResponseReceived(..))
 type Responder = Stream -> Priority -> Request -> Response -> IO ResponseReceived
 
 response :: Context -> Responder
-response Context{..} strm pri req rsp = do
+response Context{outputQ} strm pri req rsp = do
     case rsp of
         ResponseStream _ _ strmbdy -> do
             -- fixme: spawn a new worker thread.
@@ -57,7 +57,7 @@ data Break = Break deriving (Show, Typeable)
 instance Exception Break
 
 worker :: Context -> S.Settings -> T.Manager -> Application -> Responder -> IO ()
-worker ctx@Context{..} set tm app responder = do
+worker ctx@Context{inputQ,outputQ} set tm app responder = do
     tid <- myThreadId
     ref <- newIORef Nothing
     bracket (T.register tm (E.throwTo tid Break)) T.cancel $ \th ->

@@ -1,4 +1,5 @@
-{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.HPACK where
 
@@ -20,7 +21,7 @@ import Network.Wai.Handler.Warp.Types
 
 hpackEncodeHeader :: Context -> InternalInfo -> S.Settings -> Response
                   -> IO Builder
-hpackEncodeHeader Context{..} ii settings rsp = do
+hpackEncodeHeader Context{encodeDynamicTable} ii settings rsp = do
     hdr1 <- addServerAndDate hdr0
     let hdr2 = (":status", status) : map (first foldedCase) hdr1
     ehdrtbl <- readIORef encodeDynamicTable
@@ -39,7 +40,7 @@ hpackEncodeHeader Context{..} ii settings rsp = do
 ----------------------------------------------------------------
 
 hpackDecodeHeader :: HeaderBlockFragment -> Context -> IO HeaderList
-hpackDecodeHeader hdrblk Context{..} = do
+hpackDecodeHeader hdrblk Context{decodeDynamicTable} = do
     hdrtbl <- readIORef decodeDynamicTable
     (hdrtbl', hdr) <- decodeHeader hdrtbl hdrblk `E.onException` cleanup
     writeIORef decodeDynamicTable hdrtbl'
