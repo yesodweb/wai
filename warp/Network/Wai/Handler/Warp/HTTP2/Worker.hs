@@ -1,12 +1,13 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
+{-# LANGUAGE PatternGuards #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Worker where
 
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception as E
-import Control.Monad (void, forever, when)
+import Control.Monad (void, when)
 import Data.Typeable
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
@@ -18,7 +19,7 @@ import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Response as R
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
-import Network.Wai.Internal (Response(..), ResponseReceived(..))
+import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceived(..))
 
 ----------------------------------------------------------------
 
@@ -60,28 +61,35 @@ worker :: Context -> S.Settings -> T.Manager -> Application -> Responder -> IO (
 worker ctx@Context{inputQ,outputQ} set tm app responder = do
     tid <- myThreadId
     ref <- newIORef Nothing
-    bracket (T.register tm (E.throwTo tid Break)) T.cancel $ \th ->
-        go th ref `E.catch` gonext th ref
+    let setup = T.register tm $ E.throwTo tid Break
+    bracket setup T.cancel $ go ref
   where
-    go th ref = forever $ do
+    go ref th = do
+        T.pause th
         Input strm req pri <- atomically $ readTQueue inputQ
+        T.resume th
         T.tickle th
         writeIORef ref (Just strm)
-        -- catching IO errors.
-        E.handle (S.settingsOnException set Nothing)
-                 (void $ app req $ responder strm pri req)
-    gonext th ref Break = handleErrorAndGo `E.catch` gonext th ref
-      where
-        handleErrorAndGo = do
-            m <- readIORef ref
-            case m of
-                Nothing   -> return ()
-                Just strm -> do
-                    let frame = resetFrame InternalError (streamNumber strm)
-                    enqueue outputQ (OFrame frame) highestPriority
-                    closed ctx strm Killed
-                    writeIORef ref Nothing
-                    go th ref
+        ex <- E.try $ app req $ responder strm pri req
+        case ex of
+            Right ResponseReceived -> return ()
+            Left  e@(SomeException _)
+              | Just Break        <- fromException e -> cleanup ref
+              -- killed by the sender
+              | Just ThreadKilled <- fromException e -> cleanup ref
+              | otherwise -> do
+                    cleanup ref
+                    S.settingsOnException set (Just req) e
+        go ref th
+    cleanup ref = do
+        m <- readIORef ref
+        case m of
+            Nothing   -> return ()
+            Just strm -> do
+                closed ctx strm Killed
+                let frame = resetFrame InternalError (streamNumber strm)
+                enqueue outputQ (OFrame frame) highestPriority
+                writeIORef ref Nothing
 
 waiter :: TVar Sync -> TBQueue Sequence
        -> (Output -> Priority -> IO ()) -> Stream -> Priority
