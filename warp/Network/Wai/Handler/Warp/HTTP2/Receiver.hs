@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Receiver (frameReceiver) where
 
@@ -48,9 +49,9 @@ frameReceiver ctx@Context{..} mkreq recvN =
             cont <- processStreamGuardingError $ decodeFrameHeader hd
             when cont loop
 
-    processStreamGuardingError (_, FrameHeader{..})
+    processStreamGuardingError (_, FrameHeader{streamId})
       | isResponse streamId = E.throwIO $ ConnectionError ProtocolError "stream id should be odd"
-    processStreamGuardingError (FrameUnknown _, FrameHeader{..}) = do
+    processStreamGuardingError (FrameUnknown _, FrameHeader{payloadLength}) = do
         mx <- readIORef continued
         case mx of
             Nothing -> do
@@ -60,7 +61,7 @@ frameReceiver ctx@Context{..} mkreq recvN =
             Just _  -> E.throwIO $ ConnectionError ProtocolError "unknown frame"
     processStreamGuardingError (FramePushPromise, _) =
         E.throwIO $ ConnectionError ProtocolError "push promise is not allowed"
-    processStreamGuardingError typhdr@(ftyp, header@FrameHeader{..}) = do
+    processStreamGuardingError typhdr@(ftyp, header@FrameHeader{payloadLength}) = do
         settings <- readIORef http2settings
         case checkFrameHeader settings typhdr of
             Left h2err -> case h2err of
@@ -78,13 +79,13 @@ frameReceiver ctx@Context{..} mkreq recvN =
                     Left connErr -> E.throw connErr
                     Right cont -> return cont
 
-    controlOrStream ftyp header@FrameHeader{..}
+    controlOrStream ftyp header@FrameHeader{streamId, payloadLength}
       | isControl streamId = do
           pl <- recvN payloadLength
           control ftyp header pl ctx
       | otherwise = do
           checkContinued
-          strm@Stream{..} <- getStream
+          strm@Stream{streamState,streamContentLength} <- getStream
           pl <- recvN payloadLength
           state <- readIORef streamState
           state' <- stream ftyp header pl ctx state strm
@@ -159,7 +160,7 @@ frameReceiver ctx@Context{..} mkreq recvN =
 ----------------------------------------------------------------
 
 control :: FrameTypeId -> FrameHeader -> ByteString -> Context -> IO Bool
-control FrameSettings header@FrameHeader{..} bs Context{..} = do
+control FrameSettings header@FrameHeader{flags} bs Context{http2settings, outputQ} = do
     SettingsFrame alist <- guardIt $ decodeSettingsFrame header bs
     case checkSettingsList alist of
         Just x  -> E.throwIO x
@@ -170,7 +171,7 @@ control FrameSettings header@FrameHeader{..} bs Context{..} = do
         enqueue outputQ (OFrame frame) highestPriority
     return True
 
-control FramePing FrameHeader{..} bs Context{..} =
+control FramePing FrameHeader{flags} bs Context{outputQ} =
     if testAck flags then
         E.throwIO $ ConnectionError ProtocolError "the ack flag of this ping frame must not be set"
       else do
@@ -178,11 +179,11 @@ control FramePing FrameHeader{..} bs Context{..} =
         enqueue outputQ (OFrame frame) defaultPriority
         return True
 
-control FrameGoAway _ _ Context{..} = do
+control FrameGoAway _ _ Context{outputQ} = do
     enqueue outputQ OFinish highestPriority
     return False
 
-control FrameWindowUpdate header@FrameHeader{..} bs Context{..} = do
+control FrameWindowUpdate header bs Context{connectionWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
     w <- (n +) <$> atomically (readTVar connectionWindow)
     when (isWindowOverflow w) $ E.throwIO $ ConnectionError FlowControlError "control window should be less than 2^31"
@@ -208,7 +209,7 @@ checkPriority p me
     dep = streamDependency p
 
 stream :: FrameTypeId -> FrameHeader -> ByteString -> Context -> StreamState -> Stream -> IO StreamState
-stream FrameHeaders header@FrameHeader{..} bs ctx (Open JustOpened) Stream{..} = do
+stream FrameHeaders header@FrameHeader{flags} bs ctx (Open JustOpened) Stream{streamNumber} = do
     HeadersFrame mp frag <- guardIt $ decodeHeadersFrame header bs
     pri <- case mp of
         Nothing -> return defaultPriority
@@ -227,7 +228,7 @@ stream FrameHeaders header@FrameHeader{..} bs ctx (Open JustOpened) Stream{..} =
         let !siz = BS.length frag
         return $ Open $ Continued [frag] siz 1 endOfStream pri
 
-stream FrameHeaders header@FrameHeader{..} bs _ s@(Open (Body q)) Stream{..} = do
+stream FrameHeaders header@FrameHeader{flags} bs _ s@(Open (Body q)) _ = do
     -- trailer is not supported.
     -- let's read and ignore it.
     HeadersFrame _ _ <- guardIt $ decodeHeadersFrame header bs
@@ -238,7 +239,11 @@ stream FrameHeaders header@FrameHeader{..} bs _ s@(Open (Body q)) Stream{..} = d
       else
         return s
 
-stream FrameData header@FrameHeader{..} bs Context{..} s@(Open (Body q)) Stream{..} = do
+stream FrameData
+       header@FrameHeader{flags,payloadLength,streamId}
+       bs
+       Context{outputQ} s@(Open (Body q))
+       Stream{streamNumber,streamBodyLength,streamContentLength} = do
     DataFrame body <- guardIt $ decodeDataFrame header bs
     let endOfStream = testEndStream flags
     len0 <- readIORef streamBodyLength
@@ -260,7 +265,7 @@ stream FrameData header@FrameHeader{..} bs Context{..} s@(Open (Body q)) Stream{
       else
         return s
 
-stream FrameContinuation FrameHeader{..} frag ctx (Open (Continued rfrags siz n endOfStream pri)) _ = do
+stream FrameContinuation FrameHeader{flags} frag ctx (Open (Continued rfrags siz n endOfStream pri)) _ = do
     let endOfHeader = testEndHeader flags
         rfrags' = frag : rfrags
         siz' = siz + BS.length frag
@@ -281,7 +286,7 @@ stream FrameContinuation FrameHeader{..} frag ctx (Open (Continued rfrags siz n 
 
 stream FrameContinuation _ _ _ _ _ = E.throwIO $ ConnectionError ProtocolError "continue frame cannot come here"
 
-stream FrameWindowUpdate header@FrameHeader{..} bs Context{..} s Stream{..} = do
+stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
     w <- (n +) <$> atomically (readTVar streamWindow)
     when (isWindowOverflow w) $
@@ -295,7 +300,7 @@ stream FrameRSTStream header bs ctx _ strm = do
     closed ctx strm cc
     return $ Closed cc -- will be written to streamState again
 
-stream FramePriority header bs Context{..} s Stream{..} = do
+stream FramePriority header bs Context{outputQ} s Stream{streamNumber} = do
     PriorityFrame p <- guardIt $ decodePriorityFrame header bs
     checkPriority p streamNumber
     prepare outputQ streamNumber p
@@ -303,5 +308,5 @@ stream FramePriority header bs Context{..} s Stream{..} = do
 
 -- this ordering is important
 stream _ _ _ _ (Open Continued{}) _ = E.throwIO $ ConnectionError ProtocolError "an illegal frame follows header/continuation frames"
-stream FrameData FrameHeader{..} _ _ _ _ = E.throwIO $ StreamError StreamClosed streamId
-stream _ FrameHeader{..} _ _ _ _ = E.throwIO $ StreamError ProtocolError streamId
+stream FrameData FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError StreamClosed streamId
+stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError ProtocolError streamId
