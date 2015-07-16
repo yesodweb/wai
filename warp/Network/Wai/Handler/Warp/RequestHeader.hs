@@ -51,6 +51,8 @@ parseHeaderLines (firstLine:otherLines) = do
 -- *** Exception: Warp: Invalid first line of request: "GET "
 -- >>> parseRequestLine "GET /NotHTTP UNKNOWN/1.1"
 -- *** Exception: Warp: Request line specified a non-HTTP request
+-- >>> parseRequestLine "PRI * HTTP/2.0"
+-- ("PRI","*","",HTTP/2.0)
 parseRequestLine :: ByteString
                  -> IO (H.Method
                        ,ByteString -- Path
@@ -101,12 +103,13 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
         check httpptr 4 47 -- '/'
         check httpptr 6 46 -- '.'
     httpVersion httpptr = do
-        major <- peek $ httpptr `plusPtr` 5
-        minor <- peek $ httpptr `plusPtr` 7
-        return $ if major == (49 :: Word8) && minor == (49 :: Word8) then
-            H.http11
-          else
-            H.http10
+        major <- peek (httpptr `plusPtr` 5) :: IO Word8
+        minor <- peek (httpptr `plusPtr` 7) :: IO Word8
+        let version
+              | major == 49 = if minor == 49 then H.http11 else H.http10
+              | major == 50 && minor == 48 = H.HttpVersion 2 0
+              | otherwise   = H.http10
+        return version
     bs ptr p0 p1 = PS fptr o l
       where
         o = p0 `minusPtr` ptr

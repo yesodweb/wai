@@ -239,12 +239,26 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
       , TLS.serverSupported = def {
           TLS.supportedVersions = tlsAllowedVersions
         , TLS.supportedCiphers  = tlsCiphers
+        , TLS.supportedHashSignatures = [
+            (TLS.HashSHA256, TLS.SignatureRSA)
+          , (TLS.HashSHA1, TLS.SignatureRSA)
+          ]
         }
       , TLS.serverShared = def {
           TLS.sharedCredentials = TLS.Credentials [credential]
         }
-      , TLS.serverHooks = tlsServerHooks
+      , TLS.serverHooks = tlsServerHooks {
+          TLS.onALPNClientSuggest = Just alpn
+        }
       }
+
+alpn :: [S.ByteString] -> IO S.ByteString
+alpn xs
+  | "h2"    `elem` xs = return "h2"
+  | "h2-16" `elem` xs = return "h2-16"
+  | "h2-15" `elem` xs = return "h2-15"
+  | "h2-14" `elem` xs = return "h2-14"
+  | otherwise         = return "http/1.1"
 
 ----------------------------------------------------------------
 
@@ -275,8 +289,10 @@ httpOverTls TLSSettings{..} s bs0 params = do
     TLS.contextHookSetLogging ctx tlsLogging
     TLS.handshake ctx
     writeBuf <- allocateBuffer bufferSize
+    -- Creating a cache for leftover input data.
+    ref <- I.newIORef ""
     tls <- getTLSinfo ctx
-    return (conn ctx writeBuf, tls)
+    return (conn ctx writeBuf ref, tls)
   where
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
@@ -284,12 +300,13 @@ httpOverTls TLSSettings{..} s bs0 params = do
       , TLS.backendSend  = sendAll s
       , TLS.backendRecv  = recvN
       }
-    conn ctx writeBuf = Connection {
+    conn ctx writeBuf ref = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
       , connSendFile         = sendfile
       , connClose            = close
-      , connRecv             = recv
+      , connRecv             = recv ref
+      , connRecvBuf          = recvBuf ref
       , connWriteBuffer      = writeBuf
       , connBufferSize       = bufferSize
       }
@@ -302,7 +319,18 @@ httpOverTls TLSSettings{..} s bs0 params = do
                 void (tryIO $ TLS.bye ctx) `finally`
                 TLS.contextClose ctx
 
-        recv = handle onEOF go
+        -- TLS version of recv with a cache for leftover input data.
+        -- The cache is shared with recvBuf.
+        recv cref = do
+            cached <- I.readIORef cref
+            if cached /= "" then do
+                I.writeIORef cref ""
+                return cached
+              else
+                recv'
+
+        -- TLS version of recv (decrypting) without a cache.
+        recv' = handle onEOF go
           where
             onEOF e
               | Just TLS.Error_EOF <- fromException e       = return S.empty
@@ -313,6 +341,37 @@ httpOverTls TLSSettings{..} s bs0 params = do
                     go
                   else
                     return x
+
+        -- TLS version of recvBuf with a cache for leftover input data.
+        recvBuf cref buf siz = do
+            cached <- I.readIORef cref
+            (ret, leftover) <- fill cached buf siz recv'
+            I.writeIORef cref leftover
+            return ret
+
+fill :: S.ByteString -> Buffer -> BufSize -> Recv -> IO (Bool,S.ByteString)
+fill bs0 buf0 siz0 recv
+  | siz0 <= len0 = do
+      let (bs, leftover) = S.splitAt siz0 bs0
+      void $ copy buf0 bs
+      return (True, leftover)
+  | otherwise = do
+      buf <- copy buf0 bs0
+      loop buf (siz0 - len0)
+  where
+    len0 = S.length bs0
+    loop _   0   = return (True, "")
+    loop buf siz = do
+      bs <- recv
+      let len = S.length bs
+      if len == 0 then return (False, "")
+        else if (len <= siz) then do
+          buf' <- copy buf bs
+          loop buf' (siz - len)
+        else do
+          let (bs1,bs2) = S.splitAt siz bs
+          void $ copy buf bs1
+          return (True, bs2)
 
 getTLSinfo :: TLS.Context -> IO Transport
 getTLSinfo ctx = do

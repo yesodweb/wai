@@ -4,6 +4,9 @@ module Network.Wai.Handler.Warp.SendFile (
     sendFile
   , readSendFile
   , packHeader -- for testing
+#ifndef WINDOWS
+  , positionRead
+#endif
   ) where
 
 import Control.Monad (void)
@@ -23,7 +26,6 @@ import qualified System.IO as IO
 # if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 # endif
-import Data.Word (Word8)
 import Control.Exception
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
@@ -140,10 +142,10 @@ readSendFile buf siz send fid off0 len0 hook headers =
           hook
           loop fd (len - n') (off + n')
 
-positionRead :: Fd -> Ptr Word8 -> Int -> Integer -> IO Int
-positionRead (Fd fd) buf siz off =
+positionRead :: Fd -> Buffer -> BufSize -> Integer -> IO Int
+positionRead fd buf siz off =
     fromIntegral <$> c_pread fd (castPtr buf) (fromIntegral siz) (fromIntegral off)
 
 foreign import ccall unsafe "pread"
-  c_pread :: CInt -> Ptr CChar -> ByteCount -> FileOffset -> IO ByteCount -- fixme
+  c_pread :: Fd -> Ptr CChar -> ByteCount -> FileOffset -> IO CSsize
 #endif

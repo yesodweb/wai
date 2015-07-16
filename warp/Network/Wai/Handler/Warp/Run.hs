@@ -25,6 +25,7 @@ import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Counter
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
+import Network.Wai.Handler.Warp.HTTP2
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Recv
@@ -57,6 +58,7 @@ socketConnection s = do
       , connSendFile = sendFile s writeBuf bufferSize sendall
       , connClose = sClose s >> freeBuffer writeBuf
       , connRecv = receive s bufferPool
+      , connRecvBuf = receiveBuf s
       , connWriteBuffer = writeBuf
       , connBufferSize = bufferSize
       }
@@ -268,7 +270,7 @@ fork set mkConn addr app dc fc tm counter = settingsFork set $ \ unmask ->
     -- cancel that handler as soon as we exit.
     bracket (T.registerKillThread tm) T.cancel $ \th ->
 
-    let ii = InternalInfo th fc dc
+    let ii = InternalInfo th tm fc dc
         -- We now have fully registered a connection close handler
         -- in the case of all exceptions, so it is safe to one
         -- again allow async exceptions.
@@ -297,13 +299,28 @@ serveConnection :: Connection
                 -> Application
                 -> IO ()
 serveConnection conn ii origAddr transport settings app = do
-    istatus <- newIORef False
-    src <- mkSource (connSource conn th istatus)
-    addr <- getProxyProtocolAddr src
-    http1 addr istatus src `E.catch` \e -> do
-        sendErrorResponse addr istatus e
-        throwIO (e :: SomeException)
-
+    -- fixme: Upgrading to HTTP/2 should be supported.
+    (h2,bs) <- if isHTTP2 transport then
+                   return (True, "")
+                 else do
+                   bs0 <- connRecv conn
+                   if S.length bs0 >= 4 && "PRI " `S.isPrefixOf` bs0 then
+                       return (True, bs0)
+                     else
+                       return (False, bs0)
+    if h2 then do
+        recvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
+        -- fixme: origAddr
+        http2 conn ii origAddr transport settings recvN app
+      else do
+        istatus <- newIORef False
+        src <- mkSource (wrappedRecv conn th istatus)
+        writeIORef istatus True
+        leftoverSource src bs
+        addr <- getProxyProtocolAddr src
+        http1 addr istatus src `E.catch` \e -> do
+            sendErrorResponse addr istatus e
+            throwIO (e :: SomeException)
   where
     getProxyProtocolAddr src =
         case settingsProxyProtocol settings of
@@ -453,8 +470,8 @@ flushBody src =
                 | toRead' >= 0 -> loop toRead'
                 | otherwise -> return False
 
-connSource :: Connection -> T.Handle -> IORef Bool -> IO ByteString
-connSource Connection { connRecv = recv } th istatus = do
+wrappedRecv :: Connection -> T.Handle -> IORef Bool -> IO ByteString
+wrappedRecv Connection { connRecv = recv } th istatus = do
     bs <- recv
     unless (S.null bs) $ do
         writeIORef istatus True
