@@ -23,10 +23,10 @@ import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceive
 
 ----------------------------------------------------------------
 
-type Responder = Stream -> Priority -> Request -> Response -> IO ResponseReceived
+type Responder = T.Handle -> Stream -> Priority -> Request -> Response -> IO ResponseReceived
 
 response :: Context -> Responder
-response Context{outputQ} strm pri req rsp = do
+response Context{outputQ} th strm pri req rsp = do
     case rsp of
         ResponseStream _ _ strmbdy -> do
             -- fixme: spawn a new worker thread.
@@ -38,13 +38,14 @@ response Context{outputQ} strm pri req rsp = do
             sq <- newTBQueueIO 10
             tvar <- newTVarIO SyncNone
             enqueue outputQ (OResponse strm rsp (Persist sq tvar)) pri
-            let push b = atomically $ writeTBQueue sq (SBuilder b)
+            let push b = do
+                    atomically $ writeTBQueue sq (SBuilder b)
+                    T.tickle th
                 flush  = atomically $ writeTBQueue sq SFlush
             -- Since we must not enqueue an empty queue to the priority
             -- queue, we spawn a thread to ensure that the designated
             -- queue is not empty.
             void $ forkIO $ waiter tvar sq (enqueue outputQ) strm pri
-            -- fixme: tickle?
             strmbdy push flush
             atomically $ writeTBQueue sq SFinish
         _ -> do
@@ -71,7 +72,7 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
             writeIORef ref $ Just (strm,req)
             T.resume th
             T.tickle th
-            app req $ responder strm pri req
+            app req $ responder th strm pri req
         cont <- case ex of
             Right ResponseReceived -> return True
             Left  e@(SomeException _)
