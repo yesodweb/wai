@@ -65,30 +65,38 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
     bracket setup T.cancel $ go ref
   where
     go ref th = do
-        T.pause th
-        Input strm req pri <- atomically $ readTQueue inputQ
-        T.resume th
-        T.tickle th
-        writeIORef ref (Just strm)
-        ex <- E.try $ app req $ responder strm pri req
-        case ex of
-            Right ResponseReceived -> return ()
+        ex <- E.try $ do
+            T.pause th
+            Input strm req pri <- atomically $ readTQueue inputQ
+            writeIORef ref $ Just (strm,req)
+            T.resume th
+            T.tickle th
+            app req $ responder strm pri req
+        cont <- case ex of
+            Right ResponseReceived -> return True
             Left  e@(SomeException _)
-              | Just Break        <- fromException e -> cleanup ref
+              | Just Break        <- fromException e -> do
+                  cleanup ref Nothing
+                  return True
               -- killed by the sender
-              | Just ThreadKilled <- fromException e -> cleanup ref
+              | Just ThreadKilled <- fromException e -> do
+                  cleanup ref Nothing
+                  return False
               | otherwise -> do
-                    cleanup ref
-                    S.settingsOnException set (Just req) e
-        go ref th
-    cleanup ref = do
+                  cleanup ref (Just e)
+                  return True
+        when cont $ go ref th
+    cleanup ref me = do
         m <- readIORef ref
         case m of
-            Nothing   -> return ()
-            Just strm -> do
+            Nothing -> return ()
+            Just (strm,req) -> do
                 closed ctx strm Killed
                 let frame = resetFrame InternalError (streamNumber strm)
                 enqueue outputQ (OFrame frame) highestPriority
+                case me of
+                    Nothing -> return ()
+                    Just e  -> S.settingsOnException set (Just req) e
                 writeIORef ref Nothing
 
 waiter :: TVar Sync -> TBQueue Sequence
