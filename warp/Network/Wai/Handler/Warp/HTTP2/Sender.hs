@@ -96,20 +96,20 @@ frameSender ctx@Context{outputQ,connectionWindow,wait}
             len <- headerContinue sid rsp endOfStream
             let total = len + frameHeaderLength
             case aux of
-                Oneshot hasBody -> if hasBody then do
+                Oneshot True -> do -- hasBody
                     -- Data frame payload
-                    let datPayloadOff = total + frameHeaderLength
-                    Next datPayloadLen mnext <- fillResponseBodyGetNext conn ii datPayloadOff lim rsp
+                    off <- sendHeadersIfNecessary total
+                    Next datPayloadLen mnext <- fillResponseBodyGetNext conn ii off lim rsp
                     fillDataHeaderSend strm total datPayloadLen mnext pri
-                  else do
+                Oneshot False -> do
                     -- "closed" must be before "connSendAll". If not,
                     -- the context would be switched to the receiver,
                     -- resulting the inconsistency of concurrency.
                     closed ctx strm Finished
                     bufferIO connWriteBuffer total connSendAll
                 Persist sq tvar -> do
-                    let datPayloadOff = total + frameHeaderLength
-                    Next datPayloadLen mnext <- fillStreamBodyGetNext conn datPayloadOff lim sq tvar
+                    off <- sendHeadersIfNecessary total
+                    Next datPayloadLen mnext <- fillStreamBodyGetNext conn off lim sq tvar
                     fillDataHeaderSend strm total datPayloadLen mnext pri
         loop
     switch out@(ONext strm curr) pri = unlessClosed ctx conn strm $ do
@@ -131,7 +131,8 @@ frameSender ctx@Context{outputQ,connectionWindow,wait}
 
     continue _   len B.Done = return len
     continue sid len (B.More _ writer) = do
-        bufferIO connWriteBuffer (len + frameHeaderLength) connSendAll
+        let total = len + frameHeaderLength
+        bufferIO connWriteBuffer total connSendAll
         (len', signal') <- writer bufHeaderPayload headerPayloadLim
         let flag = case signal' of
                 B.Done -> setEndHeader defaultFlags
@@ -139,7 +140,8 @@ frameSender ctx@Context{outputQ,connectionWindow,wait}
         fillFrameHeader FrameContinuation len' sid flag connWriteBuffer
         continue sid len' signal'
     continue sid len (B.Chunk bs writer) = do
-        bufferIO connWriteBuffer (len + frameHeaderLength) connSendAll
+        let total = len + frameHeaderLength
+        bufferIO connWriteBuffer total connSendAll
         let (bs1,bs2) = BS.splitAt headerPayloadLim bs
             len' = BS.length bs1
         void $ copy bufHeaderPayload bs1
@@ -148,6 +150,14 @@ frameSender ctx@Context{outputQ,connectionWindow,wait}
             continue sid len' (B.More 0 writer)
           else
             continue sid len' (B.Chunk bs2 writer)
+
+    sendHeadersIfNecessary total = do
+        let datPayloadOff = total + frameHeaderLength
+        if datPayloadOff < connBufferSize then
+            return datPayloadOff
+          else do
+            bufferIO connWriteBuffer total connSendAll
+            return frameHeaderLength
 
     fillDataHeaderSend strm otherLen datPayloadLen mnext pri = do
         -- Data frame header
