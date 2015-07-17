@@ -1,0 +1,74 @@
+module Network.Wai.Handler.Warp.HTTP2.Manager (
+    start
+  , stop
+  , spawn
+  , replace
+  , setAction
+  , Manager
+  ) where
+
+import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Monad (void)
+import Data.Set (Set)
+import qualified Data.Set as Set
+import Network.Wai.Handler.Warp.IORef
+
+----------------------------------------------------------------
+
+data Command = Stop | Spawn | Replace ThreadId
+
+data Manager = Manager (TQueue Command) (IORef (IO ()))
+
+start :: IO Manager
+start = do
+    tset <- newThreadSet
+    q <- newTQueueIO
+    ref <- newIORef (return ())
+    void $ forkIO $ go q tset ref
+    return $ Manager q ref
+  where
+    go q tset ref = do
+        x <- atomically $ readTQueue q
+        case x of
+            Stop           -> kill tset
+            Spawn          -> next
+            Replace oldtid -> do
+                del tset oldtid
+                next
+      where
+        next = do
+            action <- readIORef ref
+            newtid <- forkIO $ action
+            add tset newtid
+            go q tset ref
+
+setAction :: Manager -> IO () -> IO ()
+setAction (Manager _ ref) action = writeIORef ref action
+
+stop :: Manager -> IO ()
+stop (Manager q _) = atomically $ writeTQueue q Stop
+
+spawn :: Manager -> IO ()
+spawn (Manager q _) = atomically $ writeTQueue q Spawn
+
+replace :: Manager -> ThreadId -> IO ()
+replace (Manager q _) tid = atomically $ writeTQueue q $ Replace tid
+
+----------------------------------------------------------------
+
+newtype ThreadSet = ThreadSet (IORef (Set ThreadId))
+
+newThreadSet :: IO ThreadSet
+newThreadSet = ThreadSet <$> newIORef Set.empty
+
+add :: ThreadSet -> ThreadId -> IO ()
+add (ThreadSet ref) tid =
+    atomicModifyIORef' ref (\set -> (Set.insert tid set, ()))
+
+del :: ThreadSet -> ThreadId -> IO ()
+del (ThreadSet ref) tid =
+    atomicModifyIORef' ref (\set -> (Set.delete tid set, ()))
+
+kill :: ThreadSet -> IO ()
+kill (ThreadSet ref) = Set.toList <$> readIORef ref >>= mapM_ killThread

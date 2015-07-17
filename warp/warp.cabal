@@ -74,6 +74,7 @@ Library
                      Network.Wai.Handler.Warp.HTTP2
                      Network.Wai.Handler.Warp.HTTP2.EncodeFrame
                      Network.Wai.Handler.Warp.HTTP2.HPACK
+                     Network.Wai.Handler.Warp.HTTP2.Manager
                      Network.Wai.Handler.Warp.HTTP2.Receiver
                      Network.Wai.Handler.Warp.HTTP2.Request
                      Network.Wai.Handler.Warp.HTTP2.Sender

@@ -5,12 +5,13 @@ module Network.Wai.Handler.Warp.HTTP2 (isHTTP2, http2) where
 
 import Control.Concurrent (forkIO, killThread)
 import qualified Control.Exception as E
-import Control.Monad (when, unless, replicateM)
+import Control.Monad (when, unless, replicateM_)
 import Data.ByteString (ByteString)
 import Network.HTTP2
 import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
+import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Receiver
 import Network.Wai.Handler.Warp.HTTP2.Request
 import Network.Wai.Handler.Warp.HTTP2.Sender
@@ -27,19 +28,23 @@ http2 conn ii addr transport settings readN app = do
     ok <- checkPreface
     when ok $ do
         ctx <- newContext
-        let responder = response ctx
-            mkreq = mkRequest settings addr
+        -- Workers & Manager
+        mgr <- start
+        let responder = response ctx mgr
+            action = worker ctx settings tm app responder
+        setAction mgr action
+        -- fixme: hard coding: 10
+        replicateM_ 10 $ spawn mgr
+        -- Receiver
+        let mkreq = mkRequest settings addr
         tid <- forkIO $ frameReceiver ctx mkreq readN
-        -- fixme: 10 is hard-coded
-        -- To prevent thread-leak, we executed the fixed number of threads
-        -- statically at this moment. But ResponseStream occupies one
-        -- worker thread. So, this should be dynamic.
-        tids <- replicateM 10 $ forkIO $ worker ctx settings tm app responder
+        -- Sender
         -- frameSender is the main thread because it ensures to send
         -- a goway frame.
         frameSender ctx conn ii settings `E.finally` do
             clearContext ctx
-            mapM_ killThread (tid:tids)
+            stop mgr
+            killThread tid
   where
     tm = timeoutManager ii
     checkTLS = case transport of

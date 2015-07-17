@@ -117,7 +117,7 @@ newContext = Context <$> newIORef defaultSettings
                      <*> newTVarIO defaultInitialWindowSize
 
 clearContext :: Context -> IO ()
-clearContext ctx = stop $ streamTable ctx
+clearContext ctx = void $ reaperStop $ streamTable ctx
 
 ----------------------------------------------------------------
 
@@ -232,7 +232,3 @@ insert strmtbl k v = reaperAdd strmtbl (k,v)
 
 search :: StreamTable -> M.Key -> IO (Maybe Stream)
 search strmtbl k = M.lookup k <$> reaperRead strmtbl
-
-stop :: StreamTable -> IO ()
-stop strmtbl = void $ reaperStop strmtbl
-
