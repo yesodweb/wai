@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 {-# LANGUAGE PatternGuards, BangPatterns #-}
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Worker (
     Responder
@@ -8,6 +9,9 @@ module Network.Wai.Handler.Warp.HTTP2.Worker (
   , worker
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative
+#endif
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (Exception, SomeException(..), AsyncException(..))
