@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Network.Wai.Handler.Warp.HTTP2.Manager (
     start
   , stop
@@ -7,6 +9,9 @@ module Network.Wai.Handler.Warp.HTTP2.Manager (
   , Manager
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative
+#endif
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad (void)
