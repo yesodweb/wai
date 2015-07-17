@@ -10,7 +10,11 @@ Category:            Web, Yesod
 Build-Type:          Simple
 Cabal-Version:       >=1.8
 Stability:           Stable
-description:         API docs and the README are available at <http://www.stackage.org/package/warp>.
+description:         HTTP\/1.0, HTTP\/1.1 and HTTP\/2 are supported.
+                     For HTTP\/2,  Warp supports direct and ALPN (in TLS)
+                     but not upgrade.
+                     API docs and the README are available at
+                     <http://www.stackage.org/package/warp>.
 extra-source-files:  attic/hex
                      ChangeLog.md
                      README.md

@@ -19,6 +19,9 @@
 
 -- | A fast, light-weight HTTP server handler for WAI.
 --
+-- HTTP\/1.0, HTTP\/1.1 and HTTP\/2 are supported. For HTTP\/2,
+-- Warp supports direct and ALPN (in TLS) but not upgrade.
+--
 -- Note on slowloris timeouts: to prevent slowloris attacks, timeouts are used
 -- at various points in request receiving and response sending. One interesting
 -- corner case is partial request body consumption; in that case, Warp's
