@@ -35,7 +35,7 @@ response Context{outputQ} th strm pri req rsp = do
             -- If the application exits, streaming would be also closed.
             -- Since 'StreamingBody' is loop, we cannot control it.
             -- So, let's serialize 'Builder' with a designated queue.
-            sq <- newTBQueueIO 10
+            sq <- newTBQueueIO 10 -- fixme: hard coding: 10
             tvar <- newTVarIO SyncNone
             enqueue outputQ (OResponse strm rsp (Persist sq tvar)) pri
             let push b = do
