@@ -6,7 +6,8 @@ module Network.Wai.Handler.Warp.HTTP2.Worker where
 
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Exception as E
+import Control.Exception (Exception, SomeException(..), AsyncException(..))
+import qualified Control.Exception as E
 import Control.Monad (void, when)
 import Data.Typeable
 import qualified Network.HTTP.Types as H
@@ -63,7 +64,7 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
     tid <- myThreadId
     ref <- newIORef Nothing
     let setup = T.register tm $ E.throwTo tid Break
-    bracket setup T.cancel $ go ref
+    E.bracket setup T.cancel $ go ref
   where
     go ref th = do
         ex <- E.try $ do
@@ -76,11 +77,11 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
         cont <- case ex of
             Right ResponseReceived -> return True
             Left  e@(SomeException _)
-              | Just Break        <- fromException e -> do
+              | Just Break        <- E.fromException e -> do
                   cleanup ref Nothing
                   return True
               -- killed by the sender
-              | Just ThreadKilled <- fromException e -> do
+              | Just ThreadKilled <- E.fromException e -> do
                   cleanup ref Nothing
                   return False
               | otherwise -> do

@@ -7,7 +7,6 @@ import Blaze.ByteString.Builder (Builder)
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>),(<*>))
 #endif
-import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (SomeException)
 import Control.Monad (void)
@@ -100,9 +99,6 @@ data Context = Context {
   , outputQ            :: PriorityTree Output
   , encodeDynamicTable :: IORef DynamicTable
   , decodeDynamicTable :: IORef DynamicTable
-  -- | This is used to synchronization of sender and receiver
-  --   when the HTTP/2 connection is terminated.
-  , wait               :: MVar ()
   , connectionWindow   :: TVar WindowSize
   }
 
@@ -118,7 +114,6 @@ newContext = Context <$> newIORef defaultSettings
                      <*> newPriorityTree
                      <*> (newDynamicTableForEncoding defaultDynamicTableSize >>= newIORef)
                      <*> (newDynamicTableForDecoding defaultDynamicTableSize >>= newIORef)
-                     <*> newEmptyMVar
                      <*> newTVarIO defaultInitialWindowSize
 
 clearContext :: Context -> IO ()

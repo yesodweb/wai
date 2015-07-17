@@ -2,13 +2,13 @@
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE PatternGuards #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Receiver (frameReceiver) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
-import Control.Concurrent (takeMVar)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (when, unless, void)
@@ -27,8 +27,7 @@ import Network.Wai.Handler.Warp.Types
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> MkReq -> (BufSize -> IO ByteString) -> IO ()
-frameReceiver ctx mkreq recvN =
-    E.handle sendGoaway loop `E.finally` takeMVar wait
+frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
   where
     Context{ http2settings
            , streamTable
@@ -37,12 +36,13 @@ frameReceiver ctx mkreq recvN =
            , currentStreamId
            , inputQ
            , outputQ
-           , wait} = ctx
-    sendGoaway (ConnectionError err msg) = do
-        csid <- readIORef currentStreamId
-        let frame = goawayFrame csid err msg
-        enqueue outputQ (OGoaway frame) highestPriority
-    sendGoaway _                         = return ()
+           } = ctx
+    sendGoaway e
+      | Just (ConnectionError err msg) <- E.fromException e = do
+          csid <- readIORef currentStreamId
+          let frame = goawayFrame csid err msg
+          enqueue outputQ (OGoaway frame) highestPriority
+      | otherwise = return ()
 
     sendReset err sid = do
         let frame = resetFrame err sid

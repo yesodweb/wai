@@ -12,6 +12,7 @@ module Network.Wai.Handler.Warp.Recv (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
+import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..))
 import Data.Word (Word8)
@@ -50,11 +51,14 @@ makePlainReceiveN s bs0 = do
     return $ receiveN ref (receive s pool) (receiveBuf s)
 
 receiveN :: IORef ByteString -> Recv -> RecvBuf -> BufSize -> IO ByteString
-receiveN ref recv recvBuf size = do
+receiveN ref recv recvBuf size = E.handle handler $ do
     cached <- readIORef ref
     (bs, leftover) <- spell cached size recv recvBuf
     writeIORef ref leftover
     return bs
+ where
+   handler :: E.SomeException -> IO ByteString
+   handler _ = return ""
 
 ----------------------------------------------------------------
 

@@ -7,7 +7,7 @@ module Network.Wai.Handler.Warp.HTTP2.Sender (frameSender) where
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
-import Control.Concurrent (putMVar, forkIO)
+import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (void, unless)
@@ -68,18 +68,23 @@ checkWindowSize connWindow strmWindow outQ out pri body = do
        body (min cw sw)
 
 frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> IO ()
-frameSender ctx@Context{outputQ,connectionWindow,wait}
+frameSender ctx@Context{outputQ,connectionWindow}
             conn@Connection{connWriteBuffer,connBufferSize,connSendAll}
-            ii settings = do
-    connSendAll initialFrame
-    loop `E.finally` putMVar wait ()
+            ii settings = go `E.catch` ignore
   where
     initialSettings = [(SettingsMaxConcurrentStreams,recommendedConcurrency)]
     initialFrame = settingsFrame id initialSettings
     bufHeaderPayload = connWriteBuffer `plusPtr` frameHeaderLength
     headerPayloadLim = connBufferSize - frameHeaderLength
 
+    go = do
+        connSendAll initialFrame
+        loop
+
     loop = dequeue outputQ >>= \(out, pri) -> switch out pri
+
+    ignore :: E.SomeException -> IO ()
+    ignore _ = return ()
 
     switch OFinish         _ = return ()
     switch (OGoaway frame) _ = connSendAll frame
