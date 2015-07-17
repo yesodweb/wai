@@ -118,7 +118,7 @@ Test-Suite doctest
   Ghc-Options:          -threaded -Wall
   Main-Is:              doctests.hs
   Build-Depends:        base
-                      , doctest >= 0.9.3
+                      , doctest >= 0.10.1
 
 Test-Suite spec
     Main-Is:         Spec.hs
