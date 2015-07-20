@@ -25,7 +25,9 @@ defRequest = defaultRequest
 spec :: Spec
 spec = do
   let webApp = flip runSession $ staticApp $ defaultWebAppSettings "test"
-  let fileServerApp = flip runSession $ staticApp $ defaultFileServerSettings "test"
+  let fileServerApp = flip runSession $ staticApp (defaultFileServerSettings "test")
+        { ssAddTrailingSlash = True
+        }
 
   let etag = "1B2M2Y8AsgTpgAmY7PhCfg=="
   let file = "a/b"
@@ -134,7 +136,9 @@ spec = do
             case pathInfo req of
                 "subPath":rest ->
                     let req' = req { pathInfo = rest }
-                     in (staticApp $ defaultFileServerSettings "test") req' send
+                     in (staticApp (defaultFileServerSettings "test")
+                            { ssAddTrailingSlash = True
+                            }) req' send
                 _ -> send $ responseLBS status500 []
                     "urlMapApp: only works at subPath"
       it "works with subpath at the root of the file server" $ urlMapApp $ do
