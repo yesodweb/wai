@@ -1,3 +1,7 @@
+## 3.0.9
+
+* Network.Wai.Middleware.Routed module added
+
 ## 3.0.7
 
 * Add appearsSecure: check if a request appears to be using SSL even in the
