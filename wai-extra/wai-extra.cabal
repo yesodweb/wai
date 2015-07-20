@@ -135,6 +135,7 @@ Library
                      Network.Wai.Middleware.HttpAuth
                      Network.Wai.Middleware.StreamFile
                      Network.Wai.Middleware.ForceSSL
+                     Network.Wai.Middleware.Routed
                      Network.Wai.Parse
                      Network.Wai.Request
                      Network.Wai.UrlMap
@@ -153,6 +154,7 @@ test-suite spec
                      Network.Wai.RequestSpec
                      Network.Wai.Middleware.ApprootSpec
                      Network.Wai.Middleware.ForceSSLSpec
+                     Network.Wai.Middleware.RoutedSpec
                      Network.Wai.Middleware.StripHeadersSpec
                      WaiExtraSpec
     build-depends:   base                      >= 4        && < 5
