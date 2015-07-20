@@ -21,6 +21,7 @@ module Network.Wai.Application.Static
     , ssIndices
     , ssMaxAge
     , ssRedirectToIndex
+    , ssAddTrailingSlash
     ) where
 
 import Prelude hiding (FilePath)
@@ -80,14 +81,14 @@ serveFolder ss@StaticSettings {..} pieces req folder@Folder {..} =
             let pieces' = setLast pieces index in
             case () of
               () | ssRedirectToIndex -> return $ Redirect pieces' Nothing
-                 | Just path <- addTrailingSlash req ->
+                 | Just path <- addTrailingSlash req, ssAddTrailingSlash ->
                     return $ RawRedirect path
                  | otherwise ->
                     -- start the checking process over, with a new set
                     checkPieces ss pieces' req
         Nothing ->
             case ssListing of
-                Just _ | Just path <- addTrailingSlash req ->
+                Just _ | Just path <- addTrailingSlash req, ssAddTrailingSlash ->
                     return $ RawRedirect path
                 Just listing -> do
                     -- directory listings turned on, display it

@@ -141,4 +141,7 @@ data StaticSettings = StaticSettings
 
       -- | Prefer usage of etag caching to last-modified caching.
     , ssUseHash :: Bool
+
+      -- | Force a trailing slash at the end of directories
+    , ssAddTrailingSlash :: Bool
     }

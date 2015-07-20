@@ -49,8 +49,12 @@ defaultListing pieces (Folder contents) = do
                                               , "a { text-decoration: none }"
                                               ]
              H.body $ do
-                 H.h1 $ showFolder' $ filter (not . T.null . fromPiece) pieces
-                 renderDirectoryContentsTable haskellSrc folderSrc fps''
+                 let hasTrailingSlash =
+                        case map fromPiece $ reverse $ pieces of
+                            "":_ -> True
+                            _ -> False
+                 H.h1 $ showFolder' hasTrailingSlash $ filter (not . T.null . fromPiece) pieces
+                 renderDirectoryContentsTable (map fromPiece pieces) haskellSrc folderSrc fps''
   where
     image x = T.unpack $ T.concat [(relativeDirFromPieces pieces), ".hidden/", x, ".png"]
     folderSrc = image "folder"
@@ -59,17 +63,20 @@ defaultListing pieces (Folder contents) = do
     showName x = x
 
     -- Add a link to the root of the tree
-    showFolder' :: Pieces -> H.Html
-    showFolder' pieces  = showFolder (unsafeToPiece "root" : pieces)
+    showFolder' :: Bool -> Pieces -> H.Html
+    showFolder' hasTrailingSlash pieces  = showFolder hasTrailingSlash (unsafeToPiece "root" : pieces)
 
-    showFolder :: Pieces -> H.Html
-    showFolder [] = "/" -- won't happen
-    showFolder [x] = H.toHtml $ showName $ fromPiece x
-    showFolder (x:xs) = do
-        let href = concat $ replicate (length xs) "../" :: String
+    showFolder :: Bool -> Pieces -> H.Html
+    showFolder _ [] = "/" -- won't happen
+    showFolder _ [x] = H.toHtml $ showName $ fromPiece x
+    showFolder hasTrailingSlash (x:xs) = do
+        let len = length xs - (if hasTrailingSlash then 0 else 1)
+            href
+                | len == 0 = "."
+                | otherwise = concat $ replicate len "../" :: String
         H.a ! A.href (H.toValue href) $ H.toHtml $ showName $ fromPiece x
         " / " :: H.Html
-        showFolder xs
+        showFolder hasTrailingSlash xs
 
 -- | a function to generate an HTML table showing the contents of a directory on the disk
 --
@@ -79,11 +86,12 @@ defaultListing pieces (Folder contents) = do
 -- a new page template to wrap around this HTML.
 --
 -- see also: 'getMetaData', 'renderDirectoryContents'
-renderDirectoryContentsTable :: String
+renderDirectoryContentsTable :: [T.Text] -- ^ requested path info
+                             -> String
                              -> String
                              -> [Either FolderName File]
                              -> H.Html
-renderDirectoryContentsTable haskellSrc folderSrc fps =
+renderDirectoryContentsTable pathInfo' haskellSrc folderSrc fps =
            H.table $ do H.thead $ do H.th ! (A.class_ "first") $ H.img ! (A.src $ H.toValue haskellSrc)
                                      H.th "Name"
                                      H.th "Modified"
@@ -110,7 +118,13 @@ renderDirectoryContentsTable haskellSrc folderSrc fps =
                                (fromPiece -> "") -> unsafeToPiece ".."
                                x -> x
                    let isFile = either (const False) (const True) md
-                   H.td (H.a ! A.href (H.toValue $ fromPiece name `T.append` if isFile then "" else "/") $ H.toHtml $ fromPiece name)
+                       href = addCurrentDir $ fromPiece name
+                       addCurrentDir x =
+                           case reverse pathInfo' of
+                               "":_ -> x -- has a trailing slash
+                               [] -> x -- at the root
+                               currentDir:_ -> T.concat [currentDir, "/", x]
+                   H.td (H.a ! A.href (H.toValue href) $ H.toHtml $ fromPiece name)
                    H.td ! A.class_ "date" $ H.toHtml $
                        case md of
                            Right File { fileGetModified = Just t } ->

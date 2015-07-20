@@ -46,6 +46,7 @@ defaultWebAppSettings root = StaticSettings
     , ssIndices = []
     , ssRedirectToIndex = False
     , ssUseHash = True
+    , ssAddTrailingSlash = False
     }
 
 -- | Settings optimized for a file server. More conservative caching will be
@@ -61,6 +62,7 @@ defaultFileServerSettings root = StaticSettings
     , ssIndices = map unsafeToPiece ["index.html", "index.htm"]
     , ssRedirectToIndex = False
     , ssUseHash = False
+    , ssAddTrailingSlash = False
     }
 
 -- | Same as @defaultWebAppSettings@, but additionally uses a specialized
