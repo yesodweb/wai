@@ -25,6 +25,7 @@ module Network.Wai.Handler.WarpTLS (
     , tlsCiphers
     , tlsWantClientCert
     , tlsServerHooks
+    , tlsAllowSecureRenegotiation
     , onInsecure
     , OnInsecure (..)
     -- * Smart constructors
@@ -117,6 +118,13 @@ data TLSSettings = TLSSettings {
     -- Default: def
     --
     -- Since 3.0.2
+  , tlsAllowSecureRenegotiation :: Bool
+    -- ^Whether or not renegotiation is used.
+    --
+    -- >>> tlsAllowSecureRenegotiation defaultTlsSettings
+    -- True
+    --
+    -- Since 3.1.0
   }
 
 -- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name (aka accessors).
@@ -134,6 +142,7 @@ defaultTlsSettings = TLSSettings {
   , tlsCiphers = ciphers
   , tlsWantClientCert = False
   , tlsServerHooks = def
+  , tlsAllowSecureRenegotiation = True
   }
 
 -- taken from stunnel example in tls-extra
@@ -275,7 +284,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
         , (TLS.HashSHA1,   TLS.SignatureRSA)
         , (TLS.HashSHA1,   TLS.SignatureDSS)
         ]
-      , TLS.supportedSecureRenegotiation = True
+      , TLS.supportedSecureRenegotiation = tlsAllowSecureRenegotiation
       , TLS.supportedSession             = True
       }
 
