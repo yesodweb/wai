@@ -13,7 +13,6 @@ import Control.Monad (void)
 import Control.Reaper
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Builder.Extra as B
 import Data.IntMap.Strict (IntMap, IntMap)
 import qualified Data.IntMap.Strict as M
 import qualified Network.HTTP.Types as H
@@ -77,10 +76,6 @@ data Sync = SyncNone
 
 data Aux = Oneshot Bool
          | Persist (TBQueue Sequence) (TVar Sync)
-
-data Leftover = LZero
-              | LOne B.BufferWriter
-              | LTwo ByteString B.BufferWriter
 
 ----------------------------------------------------------------
 

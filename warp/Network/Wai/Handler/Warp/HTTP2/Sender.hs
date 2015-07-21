@@ -37,6 +37,12 @@ import System.Posix.Types
 
 ----------------------------------------------------------------
 
+data Leftover = LZero
+              | LOne B.BufferWriter
+              | LTwo BS.ByteString B.BufferWriter
+
+----------------------------------------------------------------
+
 unlessClosed :: Context -> Connection -> Stream -> IO () -> IO ()
 unlessClosed ctx
              Connection{connSendAll}
