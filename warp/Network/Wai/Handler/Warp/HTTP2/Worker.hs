@@ -169,6 +169,7 @@ getThreadContinue (ThreadContinue ref) = readIORef ref
 
 ----------------------------------------------------------------
 
+-- | The type to store enough information for 'settingsOnException'.
 newtype StreamInfo = StreamInfo (IORef (Maybe (Stream,Request)))
 
 newStreamInfo :: IO StreamInfo
