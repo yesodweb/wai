@@ -238,17 +238,19 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
     runSettingsConnectionMakerSecure set get app
   where
     get = getter tlsset sock params
-    params = def {
+    params = TLS.ServerParams {
         TLS.serverWantClientCert = tlsWantClientCert
-      , TLS.serverSupported = def {
-          TLS.supportedVersions = tlsAllowedVersions
-        , TLS.supportedCiphers  = tlsCiphers
+      , TLS.serverCACertificates = []
+      , TLS.serverDHEParams      = Nothing
+      , TLS.serverHooks = tlsServerHooks {
+          TLS.onALPNClientSuggest = Just alpn
         }
       , TLS.serverShared = def {
           TLS.sharedCredentials = TLS.Credentials [credential]
         }
-      , TLS.serverHooks = tlsServerHooks {
-          TLS.onALPNClientSuggest = Just alpn
+      , TLS.serverSupported = def {
+          TLS.supportedVersions = tlsAllowedVersions
+        , TLS.supportedCiphers  = tlsCiphers
         }
       }
 
