@@ -149,6 +149,13 @@ waiter tvar sq enq strm pri = do
 
 ----------------------------------------------------------------
 
+-- | It would nice if responders could return values to workers.
+--   Unfortunately, 'ResponseReceived' is already defined in WAI 2.0.
+--   It is not wise to change this type.
+--   So, a reference is shared by a responder and its worker.
+--   The reference refers a value of this type as a return value.
+--   If 'True', the worker continue to serve requests.
+--   Otherwise, the worker get finished.
 newtype ThreadContinue = ThreadContinue (IORef Bool)
 
 newThreadContinue :: IO ThreadContinue
