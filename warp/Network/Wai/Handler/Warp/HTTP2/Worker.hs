@@ -33,8 +33,15 @@ import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceive
 
 ----------------------------------------------------------------
 
-type Responder = ThreadContinue -> T.Handle -> Stream -> Priority -> Request -> Response -> IO ResponseReceived
+-- | The wai definition is 'type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived'.
+--   This type implements the second argument (Response -> IO ResponseReceived)
+--   with extra arguments.
+type Responder = ThreadContinue -> T.Handle -> Stream -> Priority -> Request ->
+                 Response -> IO ResponseReceived
 
+-- | This function is passed to workers.
+--   They also pass 'Response's from 'Application's to this function.
+--   This function enqueues commands for the HTTP/2 sender.
 response :: Context -> Manager -> Responder
 response Context{outputQ} mgr tconf th strm pri req rsp = do
     case rsp of
