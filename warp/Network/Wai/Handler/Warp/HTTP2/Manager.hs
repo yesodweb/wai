@@ -1,5 +1,8 @@
 {-# LANGUAGE CPP #-}
 
+-- | A thread pool manager.
+--   The manager has responsibility to spawn and kill
+--   worker threads.
 module Network.Wai.Handler.Warp.HTTP2.Manager (
     Manager
   , start
@@ -26,8 +29,9 @@ data Command = Stop | Spawn | Replace ThreadId
 data Manager = Manager (TQueue Command) (IORef (IO ()))
 
 -- | Starting a thread pool manager.
---   Its action is 'return ()' to allow the action can include
---   this manager itself.
+--   Its action is initially set to 'return ()' and should be set
+--   by 'setAction'. This allows that the action can include
+--   the manager itself.
 start :: IO Manager
 start = do
     tset <- newThreadSet
