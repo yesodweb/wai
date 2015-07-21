@@ -242,16 +242,31 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
         TLS.serverWantClientCert = tlsWantClientCert
       , TLS.serverCACertificates = []
       , TLS.serverDHEParams      = Nothing
-      , TLS.serverHooks = tlsServerHooks {
-          TLS.onALPNClientSuggest = Just alpn
-        }
-      , TLS.serverShared = def {
-          TLS.sharedCredentials = TLS.Credentials [credential]
-        }
-      , TLS.serverSupported = def {
-          TLS.supportedVersions = tlsAllowedVersions
-        , TLS.supportedCiphers  = tlsCiphers
-        }
+      , TLS.serverHooks          = hooks
+      , TLS.serverShared         = shared
+      , TLS.serverSupported      = supported
+      }
+    -- Adding alpn to user's tlsServerHooks.
+    hooks = tlsServerHooks {
+        TLS.onALPNClientSuggest = Just alpn
+      }
+    shared = def {
+        TLS.sharedCredentials = TLS.Credentials [credential]
+      }
+    supported = TLS.Supported {
+        TLS.supportedVersions       = tlsAllowedVersions
+      , TLS.supportedCiphers        = tlsCiphers
+      , TLS.supportedCompressions   = [TLS.nullCompression]
+      , TLS.supportedHashSignatures = [
+          (TLS.HashSHA512, TLS.SignatureRSA)
+        , (TLS.HashSHA384, TLS.SignatureRSA)
+        , (TLS.HashSHA256, TLS.SignatureRSA)
+        , (TLS.HashSHA224, TLS.SignatureRSA)
+        , (TLS.HashSHA1,   TLS.SignatureRSA)
+        , (TLS.HashSHA1,   TLS.SignatureDSS)
+        ]
+      , TLS.supportedSecureRenegotiation = True
+      , TLS.supportedSession             = True
       }
 
 alpn :: [S.ByteString] -> IO S.ByteString
