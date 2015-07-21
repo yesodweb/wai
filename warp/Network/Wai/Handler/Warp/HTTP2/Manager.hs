@@ -1,12 +1,12 @@
 {-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Manager (
-    start
-  , stop
-  , spawn
-  , replace
+    Manager
+  , start
   , setAction
-  , Manager
+  , stop
+  , spawnAction
+  , replaceWithAction
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -57,11 +57,11 @@ setAction (Manager _ ref) action = writeIORef ref action
 stop :: Manager -> IO ()
 stop (Manager q _) = atomically $ writeTQueue q Stop
 
-spawn :: Manager -> IO ()
-spawn (Manager q _) = atomically $ writeTQueue q Spawn
+spawnAction :: Manager -> IO ()
+spawnAction (Manager q _) = atomically $ writeTQueue q Spawn
 
-replace :: Manager -> ThreadId -> IO ()
-replace (Manager q _) tid = atomically $ writeTQueue q $ Replace tid
+replaceWithAction :: Manager -> ThreadId -> IO ()
+replaceWithAction (Manager q _) tid = atomically $ writeTQueue q $ Replace tid
 
 ----------------------------------------------------------------
 

@@ -34,7 +34,7 @@ http2 conn ii addr transport settings readN app = do
             action = worker ctx settings tm app responder
         setAction mgr action
         -- fixme: hard coding: 10
-        replicateM_ 10 $ spawn mgr
+        replicateM_ 10 $ spawnAction mgr
         -- Receiver
         let mkreq = mkRequest settings addr
         tid <- forkIO $ frameReceiver ctx mkreq readN

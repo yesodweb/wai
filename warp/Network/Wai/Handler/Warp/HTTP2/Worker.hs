@@ -44,7 +44,7 @@ response Context{outputQ} mgr tconf th strm pri req rsp = do
             -- So, this work occupies this thread.
             --
             -- We need to increase the number of workers.
-            myThreadId >>= replace mgr
+            myThreadId >>= replaceWithAction mgr
             -- After this work, this thread stops to decease
             -- the number of workers.
             setThreadContinue tconf False
