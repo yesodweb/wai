@@ -15,20 +15,22 @@
 module Network.Wai.Handler.WarpTLS (
     -- * Settings
       TLSSettings
+    , defaultTlsSettings
+    -- * Accessors
     , certFile
     , keyFile
-    , onInsecure
     , tlsLogging
     , tlsAllowedVersions
     , tlsCiphers
     , tlsWantClientCert
     , tlsServerHooks
-    , defaultTlsSettings
+    , onInsecure
+    , OnInsecure (..)
+    -- * Smart constructors
     , tlsSettings
     , tlsSettingsMemory
     , tlsSettingsChain
     , tlsSettingsChainMemory
-    , OnInsecure (..)
     -- * Runner
     , runTLS
     , runTLSSocket
@@ -59,6 +61,7 @@ import System.IO.Error (isEOFError)
 
 ----------------------------------------------------------------
 
+-- | Settings for WarpTLS.
 data TLSSettings = TLSSettings {
     certFile :: FilePath
     -- ^ File containing the certificate.
@@ -70,8 +73,10 @@ data TLSSettings = TLSSettings {
   , chainCertsMemory :: [S.ByteString]
   , keyMemory :: Maybe S.ByteString
   , onInsecure :: OnInsecure
-    -- ^ Do we allow insecure connections with this server as well? Default
-    -- is a simple text response stating that a secure connection is required.
+    -- ^ Do we allow insecure connections with this server as well?
+    --
+    -- >>> onInsecure defaultTlsSettings
+    -- DenyInsecure "This server only accepts secure HTTPS connections."
     --
     -- Since 1.4.0
   , tlsLogging :: TLS.Logging
@@ -83,13 +88,15 @@ data TLSSettings = TLSSettings {
   , tlsAllowedVersions :: [TLS.Version]
     -- ^ The TLS versions this server accepts.
     --
-    -- Default: '[TLS.TLS10,TLS.TLS11,TLS.TLS12]'.
+    -- >>> tlsAllowedVersions defaultTlsSettings
+    -- [TLS12,TLS11,TLS10]
     --
     -- Since 1.4.2
   , tlsCiphers :: [TLS.Cipher]
     -- ^ The TLS ciphers this server accepts.
     --
-    -- Default: '[TLSExtra.cipher_AES128_SHA1, TLSExtra.cipher_AES256_SHA1, TLSEtra.cipher_RC4_128_MD5, TLSExtra.cipher_RC4_128_SHA1]'
+    -- >>> tlsCiphers defaultTlsSettings
+    -- [ECDHE-RSA-AES128GCM-SHA256,DHE-RSA-AES128GCM-SHA256,DHE-RSA-AES256-SHA256,DHE-RSA-AES128-SHA256,DHE-RSA-AES256-SHA1,DHE-RSA-AES128-SHA1,DHE-DSA-AES128-SHA1,DHE-DSA-AES256-SHA1,DHE-DSA-RC4-SHA1,RSA-aes128-sha1,RSA-aes256-sha1,RSA-rc4-128-md5,RSA-rc4-128-sha1]
     --
     -- Since 1.4.2
   , tlsWantClientCert :: Bool
@@ -97,7 +104,8 @@ data TLSSettings = TLSSettings {
     -- is set to True, you must handle received certificates in a server hook
     -- or all connections will fail.
     --
-    -- Default: False
+    -- >>> tlsWantClientCert defaultTlsSettings
+    -- False
     --
     -- Since 3.0.2
   , tlsServerHooks :: TLS.ServerHooks
@@ -110,7 +118,7 @@ data TLSSettings = TLSSettings {
     -- Since 3.0.2
   }
 
--- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name.
+-- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name (aka accessors).
 defaultTlsSettings :: TLSSettings
 defaultTlsSettings = TLSSettings {
     certFile = "certificate.pem"
@@ -150,6 +158,7 @@ ciphers =
 -- | An action when a plain HTTP comes to HTTP over TLS/SSL port.
 data OnInsecure = DenyInsecure L.ByteString
                 | AllowInsecure
+                deriving (Show)
 
 ----------------------------------------------------------------
 
