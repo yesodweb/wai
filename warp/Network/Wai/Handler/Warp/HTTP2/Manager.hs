@@ -25,6 +25,9 @@ data Command = Stop | Spawn | Replace ThreadId
 
 data Manager = Manager (TQueue Command) (IORef (IO ()))
 
+-- | Starting a thread pool manager.
+--   Its action is 'return ()' to allow the action can include
+--   this manager itself.
 start :: IO Manager
 start = do
     tset <- newThreadSet
