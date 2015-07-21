@@ -9,8 +9,8 @@
 -- | HTTP over TLS support for Warp via the TLS package.
 --
 --   Support for SSL is now obsoleted.
---   If HTTP/2 is negotiated by ALPN, HTTP/2 over TLS is used.
---   Otherwise HTTP/1.1 over TLS is used.
+--   If HTTP\/2 is negotiated by ALPN, HTTP\/2 over TLS is used.
+--   Otherwise HTTP\/1.1 over TLS is used.
 
 module Network.Wai.Handler.WarpTLS (
     -- * Settings
