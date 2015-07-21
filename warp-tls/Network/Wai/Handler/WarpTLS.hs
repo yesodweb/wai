@@ -243,10 +243,6 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
       , TLS.serverSupported = def {
           TLS.supportedVersions = tlsAllowedVersions
         , TLS.supportedCiphers  = tlsCiphers
-        , TLS.supportedHashSignatures = [
-            (TLS.HashSHA256, TLS.SignatureRSA)
-          , (TLS.HashSHA1, TLS.SignatureRSA)
-          ]
         }
       , TLS.serverShared = def {
           TLS.sharedCredentials = TLS.Credentials [credential]
