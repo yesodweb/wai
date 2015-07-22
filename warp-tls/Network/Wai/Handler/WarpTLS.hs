@@ -97,7 +97,7 @@ data TLSSettings = TLSSettings {
     -- ^ The TLS ciphers this server accepts.
     --
     -- >>> tlsCiphers defaultTlsSettings
-    -- [ECDHE-RSA-AES128GCM-SHA256,DHE-RSA-AES128GCM-SHA256,DHE-RSA-AES256-SHA256,DHE-RSA-AES128-SHA256,DHE-RSA-AES256-SHA1,DHE-RSA-AES128-SHA1,DHE-DSA-AES128-SHA1,DHE-DSA-AES256-SHA1,DHE-DSA-RC4-SHA1,RSA-aes128-sha1,RSA-aes256-sha1,RSA-rc4-128-md5,RSA-rc4-128-sha1]
+    -- [ECDHE-RSA-AES128GCM-SHA256,DHE-RSA-AES128GCM-SHA256,DHE-RSA-AES256-SHA256,DHE-RSA-AES128-SHA256,DHE-RSA-AES256-SHA1,DHE-RSA-AES128-SHA1,DHE-DSA-AES128-SHA1,DHE-DSA-AES256-SHA1,RSA-aes128-sha1,RSA-aes256-sha1]
     --
     -- Since 1.4.2
   , tlsWantClientCert :: Bool
@@ -147,11 +147,8 @@ ciphers =
     , TLSExtra.cipher_DHE_RSA_AES128_SHA1
     , TLSExtra.cipher_DHE_DSS_AES128_SHA1
     , TLSExtra.cipher_DHE_DSS_AES256_SHA1
-    , TLSExtra.cipher_DHE_DSS_RC4_SHA1
     , TLSExtra.cipher_AES128_SHA1
     , TLSExtra.cipher_AES256_SHA1
-    , TLSExtra.cipher_RC4_128_MD5
-    , TLSExtra.cipher_RC4_128_SHA1
     ]
 
 ----------------------------------------------------------------
