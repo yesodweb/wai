@@ -17,6 +17,11 @@ module Network.Wai.Handler.WarpTLS (
     -- * Settings
       TLSSettings
     , defaultTlsSettings
+    -- * Smart constructors
+    , tlsSettings
+    , tlsSettingsMemory
+    , tlsSettingsChain
+    , tlsSettingsChainMemory
     -- * Accessors
     , certFile
     , keyFile
@@ -27,11 +32,6 @@ module Network.Wai.Handler.WarpTLS (
     , tlsServerHooks
     , onInsecure
     , OnInsecure (..)
-    -- * Smart constructors
-    , tlsSettings
-    , tlsSettingsMemory
-    , tlsSettingsChain
-    , tlsSettingsChainMemory
     -- * Runner
     , runTLS
     , runTLSSocket
@@ -163,7 +163,7 @@ data OnInsecure = DenyInsecure L.ByteString
 
 ----------------------------------------------------------------
 
--- | A smart constructor for 'TLSSettings'.
+-- | A smart constructor for 'TLSSettings' based on 'defaultTlsSettings'.
 tlsSettings :: FilePath -- ^ Certificate file
             -> FilePath -- ^ Key file
             -> TLSSettings
@@ -173,7 +173,7 @@ tlsSettings cert key = defaultTlsSettings {
   }
 
 -- | A smart constructor for 'TLSSettings' that allows specifying
--- chain certificates.
+-- chain certificates based on 'defaultTlsSettings'.
 --
 -- Since 3.0.3
 tlsSettingsChain
@@ -188,7 +188,7 @@ tlsSettingsChain cert chainCerts key = defaultTlsSettings {
   }
 
 -- | A smart constructor for 'TLSSettings', but uses in-memory representations
--- of the certificate and key
+-- of the certificate and key based on 'defaultTlsSettings'.
 --
 -- Since 3.0.1
 tlsSettingsMemory
@@ -201,7 +201,7 @@ tlsSettingsMemory cert key = defaultTlsSettings
     }
 
 -- | A smart constructor for 'TLSSettings', but uses in-memory representations
--- of the certificate and key
+-- of the certificate and key based on 'defaultTlsSettings'.
 --
 -- Since 3.0.3
 tlsSettingsChainMemory
