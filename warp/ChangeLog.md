@@ -1,3 +1,8 @@
+## 3.1.0
+
+* Supporting HTTP/2 [#399](https://github.com/yesodweb/wai/pull/399)
+* Cleaning up APIs [#387](https://github.com/yesodweb/wai/issues/387)
+
 ## 3.0.13.1
 
 * Remove dependency on the void package [#375](https://github.com/yesodweb/wai/pull/375)

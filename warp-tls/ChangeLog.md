@@ -1,3 +1,8 @@
+## 3.1.0
+
+* Supporting HTTP/2 [#399](https://github.com/yesodweb/wai/pull/399)
+* Removing RC4 [#400](https://github.com/yesodweb/wai/issues/400)
+
 ## 3.0.4.2
 
 * tls 1.3 support [#390](https://github.com/yesodweb/wai/issues/390)
