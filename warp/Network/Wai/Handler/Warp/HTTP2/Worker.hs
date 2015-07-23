@@ -73,7 +73,7 @@ response Context{outputQ} mgr tconf th strm pri req rsp = do
         _ -> do
             setThreadContinue tconf True
             let hasBody = requestMethod req /= H.methodHead
-                       || R.hasBody (responseStatus rsp)
+                       && R.hasBody (responseStatus rsp)
             enqueue outputQ (OResponse strm rsp (Oneshot hasBody)) pri
     return ResponseReceived
 
