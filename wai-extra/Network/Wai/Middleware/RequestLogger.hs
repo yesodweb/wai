@@ -222,6 +222,7 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
                  return (req', body)
             _ -> return (req, [])
 
+    let reqbody = if null body then [""] else ansiColor White "  Request Body: " <> body <> ["\n"]
     postParams <- if requestMethod req `elem` ["GET", "HEAD"]
         then return []
         else do postParams <- liftIO $ allPostParams body
@@ -247,7 +248,7 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
         -- log the status of the response
         cb $ mconcat $ map toLogStr $
             ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
-            params ++
+            params ++ reqbody ++
             ansiColor White "  Accept: " ++ [accept, "\n"] ++
             if isRaw then [] else
                 ansiColor White "  Status: " ++
