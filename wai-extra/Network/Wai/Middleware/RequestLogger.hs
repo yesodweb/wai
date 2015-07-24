@@ -44,6 +44,7 @@ import Network.Wai.Internal (Response (ResponseRaw))
 import Data.Default.Class (Default (def))
 import Network.Wai.Logger
 import Network.Wai.Middleware.RequestLogger.Internal
+import Data.Text.Encoding (decodeUtf8')
 
 data OutputFormat = Apache IPAddrSource
                   | Detailed Bool -- ^ use colors?
@@ -222,6 +223,8 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
                  return (req', body)
             _ -> return (req, [])
 
+    let reqbodylog _ = if null body then [""] else ansiColor White "  Request Body: " <> body <> ["\n"]
+        reqbody = concatMap (either (const [""]) reqbodylog . decodeUtf8') body
     postParams <- if requestMethod req `elem` ["GET", "HEAD"]
         then return []
         else do postParams <- liftIO $ allPostParams body
@@ -247,7 +250,7 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
         -- log the status of the response
         cb $ mconcat $ map toLogStr $
             ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
-            params ++
+            params ++ reqbody ++
             ansiColor White "  Accept: " ++ [accept, "\n"] ++
             if isRaw then [] else
                 ansiColor White "  Status: " ++
