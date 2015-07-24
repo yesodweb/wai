@@ -1,3 +1,7 @@
+## 3.0.10
+
+* Adding Request Body to RequestLogger [#401](https://github.com/yesodweb/wai/pull/401)
+
 ## 3.0.9
 
 * Network.Wai.Middleware.Routed module added
