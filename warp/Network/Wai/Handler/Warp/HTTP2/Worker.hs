@@ -71,7 +71,7 @@ response Context{outputQ} mgr tconf th strm req rsp = do
                     T.tickle th
                 flush  = atomically $ writeTBQueue sq SFlush
             strmbdy push flush
-            atomically $ writeTBQueue sq SFinish
+            atomically $ writeTBQueue sq $ SFinish []
         _ -> do
             setThreadContinue tconf True
             let hasBody = requestMethod req /= H.methodHead

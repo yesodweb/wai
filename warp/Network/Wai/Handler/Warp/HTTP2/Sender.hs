@@ -221,10 +221,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
         let sid = streamNumber strm
             buf = connWriteBuffer `plusPtr` otherLen
             total = otherLen + frameHeaderLength + datPayloadLen
-            flag = case mnext of
-                CFinish -> setEndStream defaultFlags
-                _       -> defaultFlags
-        fillFrameHeader FrameData datPayloadLen sid flag buf
+        fillFrameHeader FrameData datPayloadLen sid defaultFlags buf
         -- "closed" must be before "connSendAll". If not,
         -- the context would be switched to the receiver,
         -- resulting the inconsistency of concurrency.
@@ -356,7 +353,7 @@ runStreamBuilder buf0 room0 sq = loop buf0 room0 0
                     B.More  _ writer  -> return (LOne writer, Nothing, total')
                     B.Chunk bs writer -> return (LTwo bs writer, Nothing, total')
             Just SFlush  -> return (LZero, Nothing, total)
-            Just SFinish -> return (LZero, Just [], total)
+            Just (SFinish trailers) -> return (LZero, Just trailers, total)
 
 fillBufStream :: Buffer -> BufSize -> Leftover -> TBQueue Sequence -> TVar Sync -> Stream -> DynaNext
 fillBufStream buf0 siz0 leftover0 sq tvar strm lim0 = do
