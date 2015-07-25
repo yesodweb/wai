@@ -5,6 +5,7 @@ module Network.Wai.Handler.Warp.HTTP2.HPACK where
 
 import Control.Arrow (first)
 import qualified Control.Exception as E
+import qualified Data.ByteString as B
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Char8 as B8
 import Data.CaseInsensitive (foldedCase)
@@ -13,6 +14,7 @@ import Network.HPACK
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.Wai
+import Network.Wai.HTTP2 (Trailers)
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Response
@@ -21,13 +23,10 @@ import Network.Wai.Handler.Warp.Types
 
 hpackEncodeHeader :: Context -> InternalInfo -> S.Settings -> Response
                   -> IO Builder
-hpackEncodeHeader Context{encodeDynamicTable} ii settings rsp = do
+hpackEncodeHeader ctx ii settings rsp = do
     hdr1 <- addServerAndDate hdr0
     let hdr2 = (":status", status) : map (first foldedCase) hdr1
-    ehdrtbl <- readIORef encodeDynamicTable
-    (ehdrtbl', builder) <- encodeHeaderBuilder defaultEncodeStrategy ehdrtbl hdr2
-    writeIORef encodeDynamicTable ehdrtbl'
-    return builder
+    hpackEncodeRawHeaders ctx hdr2
   where
     hdr0 = responseHeaders rsp
     status = B8.pack $ show $ H.statusCode $ responseStatus rsp
@@ -36,6 +35,15 @@ hpackEncodeHeader Context{encodeDynamicTable} ii settings rsp = do
     defServer = S.settingsServerName settings
     addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
 
+hpackEncodeTrailers :: Context -> Trailers -> IO Builder
+hpackEncodeTrailers ctx = hpackEncodeRawHeaders ctx . map (first foldedCase)
+
+hpackEncodeRawHeaders :: Context -> [(B.ByteString, B.ByteString)] -> IO Builder
+hpackEncodeRawHeaders Context{encodeDynamicTable} hdr = do
+    ehdrtbl <- readIORef encodeDynamicTable
+    (ehdrtbl', builder) <- encodeHeaderBuilder defaultEncodeStrategy ehdrtbl hdr
+    writeIORef encodeDynamicTable ehdrtbl'
+    return builder
 
 ----------------------------------------------------------------
 
