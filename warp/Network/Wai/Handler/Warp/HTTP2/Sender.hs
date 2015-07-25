@@ -16,6 +16,7 @@ import Foreign.Ptr
 import Network.HTTP2
 import Network.HTTP2.Priority
 import Network.Wai
+import Network.Wai.HTTP2 (Trailers)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.HPACK
@@ -340,22 +341,22 @@ nextForBuilder buf siz len (B.Chunk bs writer)
 ----------------------------------------------------------------
 
 runStreamBuilder :: Buffer -> BufSize -> TBQueue Sequence
-                 -> IO (Leftover, Bool, BytesFilled)
+                 -> IO (Leftover, Maybe Trailers, BytesFilled)
 runStreamBuilder buf0 room0 sq = loop buf0 room0 0
   where
     loop !buf !room !total = do
         mbuilder <- atomically $ tryReadTBQueue sq
         case mbuilder of
-            Nothing      -> return (LZero, True, total)
+            Nothing      -> return (LZero, Nothing, total)
             Just (SBuilder builder) -> do
                 (len, signal) <- B.runBuilder builder buf room
                 let !total' = total + len
                 case signal of
                     B.Done -> loop (buf `plusPtr` len) (room - len) total'
-                    B.More  _ writer  -> return (LOne writer, True, total')
-                    B.Chunk bs writer -> return (LTwo bs writer, True, total')
-            Just SFlush  -> return (LZero, True, total)
-            Just SFinish -> return (LZero, False, total)
+                    B.More  _ writer  -> return (LOne writer, Nothing, total')
+                    B.Chunk bs writer -> return (LTwo bs writer, Nothing, total')
+            Just SFlush  -> return (LZero, Nothing, total)
+            Just SFinish -> return (LZero, Just [], total)
 
 fillBufStream :: Buffer -> BufSize -> Leftover -> TBQueue Sequence -> TVar Sync -> Stream -> DynaNext
 fillBufStream buf0 siz0 leftover0 sq tvar strm lim0 = do
@@ -363,8 +364,8 @@ fillBufStream buf0 siz0 leftover0 sq tvar strm lim0 = do
         room0 = min (siz0 - frameHeaderLength) lim0
     case leftover0 of
         LZero -> do
-            (leftover, cont, len) <- runStreamBuilder payloadBuf room0 sq
-            getNext leftover cont len
+            (leftover, end, len) <- runStreamBuilder payloadBuf room0 sq
+            getNext leftover end len
         LOne writer -> write writer payloadBuf room0 0
         LTwo bs writer
           | BS.length bs <= room0 -> do
@@ -374,34 +375,34 @@ fillBufStream buf0 siz0 leftover0 sq tvar strm lim0 = do
           | otherwise -> do
               let (bs1,bs2) = BS.splitAt room0 bs
               void $ copy payloadBuf bs1
-              getNext (LTwo bs2 writer) True room0
+              getNext (LTwo bs2 writer) Nothing room0
   where
     getNext = nextForStream buf0 siz0 sq tvar strm
     write writer1 buf room sofar = do
         (len, signal) <- writer1 buf room
         case signal of
             B.Done -> do
-                (leftover, cont, extra) <- runStreamBuilder (buf `plusPtr` len) (room - len) sq
+                (leftover, end, extra) <- runStreamBuilder (buf `plusPtr` len) (room - len) sq
                 let !total = sofar + len + extra
-                getNext leftover cont total
+                getNext leftover end total
             B.More  _ writer -> do
                 let !total = sofar + len
-                getNext (LOne writer) True total
+                getNext (LOne writer) Nothing total
             B.Chunk bs writer -> do
                 let !total = sofar + len
-                getNext (LTwo bs writer) True total
+                getNext (LTwo bs writer) Nothing total
 
 nextForStream :: Buffer -> BufSize -> TBQueue Sequence -> TVar Sync -> Stream
-              -> Leftover -> Bool -> BytesFilled
+              -> Leftover -> Maybe Trailers -> BytesFilled
               -> IO Next
-nextForStream _  _ _  tvar _ _ False len = do
-    atomically $ writeTVar tvar $ SyncFinish []
-    return $ Next len CFinish
-nextForStream buf siz sq tvar strm LZero True len = do
+nextForStream _  _ _  tvar _ _ (Just trailers) len = do
+    atomically $ writeTVar tvar $ SyncFinish trailers
+    return $ Next len CNone
+nextForStream buf siz sq tvar strm LZero Nothing len = do
     let out = ONext strm (fillBufStream buf siz LZero sq tvar strm)
     atomically $ writeTVar tvar $ SyncNext out
     return $ Next len CNone
-nextForStream buf siz sq tvar strm leftover True len =
+nextForStream buf siz sq tvar strm leftover Nothing len =
     return $ Next len (CNext (fillBufStream buf siz leftover sq tvar strm))
 
 ----------------------------------------------------------------
