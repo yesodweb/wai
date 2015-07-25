@@ -101,7 +101,8 @@ frameSender ctx@Context{outputQ,connectionWindow}
                 endOfStream = case aux of
                     Persist{}  -> False
                     Oneshot hb -> not hb
-            len <- headerContinue sid rsp endOfStream
+            builder <- hpackEncodeHeader ctx ii settings rsp
+            len <- headerContinue sid builder endOfStream
             let total = len + frameHeaderLength
             case aux of
                 Oneshot True -> do -- hasBody
@@ -145,8 +146,9 @@ frameSender ctx@Context{outputQ,connectionWindow}
     flushN :: Int -> IO ()
     flushN n = bufferIO connWriteBuffer n connSendAll
 
-    headerContinue sid rsp endOfStream = do
-        builder <- hpackEncodeHeader ctx ii settings rsp
+    -- Write header and possibly continuation frames into the connection
+    -- buffer, using the given builder as their contents.
+    headerContinue sid builder endOfStream = do
         (len, signal) <- B.runBuilder builder bufHeaderPayload headerPayloadLim
         let flag0 = case signal of
                 B.Done -> setEndHeader defaultFlags
