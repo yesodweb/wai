@@ -86,7 +86,7 @@ data Sequence = SFinish
               | SBuilder Builder
 
 data Sync = SyncNone
-          | SyncFinish
+          | SyncFinish Trailers
           | SyncNext Output
 
 data Aux = Oneshot Bool

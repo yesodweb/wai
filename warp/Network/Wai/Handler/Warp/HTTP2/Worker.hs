@@ -64,7 +64,7 @@ response Context{outputQ} mgr tconf th strm req rsp = do
             -- Since we must not enqueue an empty queue to the priority
             -- queue, we spawn a thread to ensure that the designated
             -- queue is not empty.
-            void $ forkIO $ waiter tvar sq outputQ
+            void $ forkIO $ waiter tvar sq strm outputQ
             atomically $ writeTVar tvar (SyncNext out)
             let push b = do
                     atomically $ writeTBQueue sq (SBuilder b)
@@ -130,27 +130,27 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
                     Just e  -> S.settingsOnException set (Just req) e
                 clearStreamInfo sinfo
 
-waiter :: TVar Sync -> TBQueue Sequence -> PriorityTree Output -> IO ()
-waiter tvar sq outQ = do
+waiter :: TVar Sync -> TBQueue Sequence -> Stream -> PriorityTree Output -> IO ()
+waiter tvar sq strm outQ = do
     -- waiting for actions other than SyncNone
     mx <- atomically $ do
         mout <- readTVar tvar
         case mout of
-            SyncNone     -> retry
-            SyncNext out -> do
+            SyncNone            -> retry
+            SyncNext out        -> do
                 writeTVar tvar SyncNone
-                return $ Just out
-            SyncFinish   -> return Nothing
+                return $ Right out
+            SyncFinish trailers -> return $ Left trailers
     case mx of
-        Nothing -> return ()
-        Just out -> do
+        Left  trailers -> enqueueWhenWindowIsOpen outQ (OTrailers strm trailers)
+        Right out      -> do
             -- ensuring that the streaming queue is not empty.
             atomically $ do
                 isEmpty <- isEmptyTBQueue sq
                 when isEmpty retry
             -- ensuring that stream window is greater than 0.
             enqueueWhenWindowIsOpen outQ out
-            waiter tvar sq outQ
+            waiter tvar sq strm outQ
 
 ----------------------------------------------------------------
 

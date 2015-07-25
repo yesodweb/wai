@@ -140,13 +140,13 @@ frameSender ctx@Context{outputQ,connectionWindow}
             fillDataHeaderSend strm 0 datPayloadLen mnext
             maybeEnqueueNext strm mnext
         loop
-    switch (OTrailers strm []) _ = do
+    switch (OTrailers strm []) = do
         let flag = setEndStream defaultFlags
         fillFrameHeader FrameData 0 (streamNumber strm) flag connWriteBuffer
         closed ctx strm Finished
         flushN frameHeaderLength
         loop
-    switch (OTrailers strm trailers) _ = do
+    switch (OTrailers strm trailers) = do
         -- Trailers always indicate the end of a stream; send them in
         -- consecutive header+continuation frames and end the stream.
         builder <- hpackEncodeTrailers ctx trailers
@@ -395,7 +395,7 @@ nextForStream :: Buffer -> BufSize -> TBQueue Sequence -> TVar Sync -> Stream
               -> Leftover -> Bool -> BytesFilled
               -> IO Next
 nextForStream _  _ _  tvar _ _ False len = do
-    atomically $ writeTVar tvar SyncFinish
+    atomically $ writeTVar tvar $ SyncFinish []
     return $ Next len CFinish
 nextForStream buf siz sq tvar strm LZero True len = do
     let out = ONext strm (fillBufStream buf siz LZero sq tvar strm)
