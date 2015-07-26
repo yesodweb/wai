@@ -324,5 +324,7 @@ stream FramePriority header bs Context{outputQ} s Stream{streamNumber} = do
 
 -- this ordering is important
 stream _ _ _ _ (Open Continued{}) _ = E.throwIO $ ConnectionError ProtocolError "an illegal frame follows header/continuation frames"
+-- Ignore frames to streams we have just reset, per section 5.1.
+stream _ _ _ _ st@(Closed (ResetByMe _)) _ = return st
 stream FrameData FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError StreamClosed streamId
 stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError ProtocolError streamId
