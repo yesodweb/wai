@@ -154,8 +154,17 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
                            else
                              writeIORef currentStreamId streamId
                          cnt <- readIORef concurrency
-                         when (cnt >= recommendedConcurrency) $
-                             E.throwIO $ ConnectionError RefusedStream "over max concurrency"
+                         when (cnt >= recommendedConcurrency) $ do
+                             -- Record that the stream is closed, rather than
+                             -- idle, so that receiving frames on it is only a
+                             -- stream error.
+                             consume payloadLength
+                             strm <- newStream streamId 0
+                             writeIORef (streamState strm) $ Closed $
+                                 ResetByMe $ E.toException $
+                                     StreamError RefusedStream streamId
+                             insert streamTable streamId strm
+                             E.throwIO $ StreamError RefusedStream streamId
                      ws <- initialWindowSize <$> readIORef http2settings
                      newstrm <- newStream streamId (fromIntegral ws)
                      when (ftyp == FrameHeaders) $ opened ctx newstrm
