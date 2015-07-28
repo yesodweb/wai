@@ -1,14 +1,26 @@
-language: haskell
 
-ghc:
-    - 7.6
-    - 7.8
-    - "7.10"
+env:
+ - GHCVER=7.6.3 CABALVER=1.18
+ - GHCVER=7.8.4 CABALVER=1.18
+ - GHCVER=7.10.1 CABALVER=1.22
+ - GHCVER=head CABALVER=head
+
+matrix:
+  allow_failures:
+   - env: GHCVER=head CABALVER=head
+
+before_install:
+ - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
+ - travis_retry sudo apt-get update
+ - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER
+ - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/bin:$PATH
+ - cabal --version
 
 install:
     - ghc --version
     - cabal --version
     - sudo apt-get install libfcgi-dev
+    - travis_retry cabal update
     - cabal unpack wai-logger
     - mv wai-logger-* wai-logger
     - cabal install hspec doctest HTTP cabal-meta cabal-src
