@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.Middleware.MethodOverride
     ( methodOverride
     ) where

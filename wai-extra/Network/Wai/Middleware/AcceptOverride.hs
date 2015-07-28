@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Network.Wai.Middleware.AcceptOverride
     ( acceptOverride
     ) where

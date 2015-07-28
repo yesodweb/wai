@@ -1,5 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes, CPP #-}
 ---------------------------------------------------------
 -- |
 -- Module        : Network.Wai.Middleware.Jsonp
@@ -19,14 +18,15 @@ import Network.Wai
 import Network.Wai.Internal
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
-import Blaze.ByteString.Builder (Builder, copyByteString)
+import Blaze.ByteString.Builder (copyByteString)
 import Blaze.ByteString.Builder.Char8 (fromChar)
+#if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (mappend)
+#endif
 import Control.Monad (join)
 import Data.Maybe (fromMaybe)
 import qualified Data.ByteString as S
-import Data.CaseInsensitive (CI)
-import Network.HTTP.Types (Status)
+import Network.HTTP.Types (hAccept, hContentType)
 
 -- | Wrap json responses in a jsonp callback.
 --
@@ -37,7 +37,7 @@ import Network.HTTP.Types (Status)
 -- callback function.
 jsonp :: Middleware
 jsonp app env sendResponse = do
-    let accept = fromMaybe B8.empty $ lookup "Accept" $ requestHeaders env
+    let accept = fromMaybe B8.empty $ lookup hAccept $ requestHeaders env
     let callback :: Maybe B8.ByteString
         callback =
             if B8.pack "text/javascript" `B8.isInfixOf` accept
@@ -47,7 +47,7 @@ jsonp app env sendResponse = do
             case callback of
                 Nothing -> env
                 Just _ -> env
-                        { requestHeaders = changeVal "Accept"
+                        { requestHeaders = changeVal hAccept
                                            "application/json"
                                            $ requestHeaders env
                         }
@@ -72,17 +72,17 @@ jsonp app env sendResponse = do
         (s, hs, wb) = responseToStream r
 
     checkJSON hs =
-        case lookup "Content-Type" hs of
+        case lookup hContentType hs of
             Just x
                 | B8.pack "application/json" `S.isPrefixOf` x ->
                     Just $ fixHeaders hs
             _ -> Nothing
-    fixHeaders = changeVal "Content-Type" "text/javascript"
+    fixHeaders = changeVal hContentType "text/javascript"
 
     addCallback cb s hs wb =
         wb $ \body -> sendResponse $ responseStream s hs $ \sendChunk flush -> do
             sendChunk $ copyByteString cb `mappend` fromChar '('
-            body sendChunk flush
+            _ <- body sendChunk flush
             sendChunk $ fromChar ')'
 
 changeVal :: Eq a

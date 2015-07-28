@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 {- code adapted by Mathias Billman originaly from Chris Smith https://github.com/cdsmith/gloss-web -}
 
 {-|
@@ -11,7 +11,9 @@ module Network.Wai.EventSource.EventStream (
 
 import Blaze.ByteString.Builder
 import Blaze.ByteString.Builder.Char8
+#if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
+#endif
 
 {-|
     Type representing a communication over an event stream.  This can be an

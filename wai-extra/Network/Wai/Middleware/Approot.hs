@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE OverloadedStrings #-}
 -- | Middleware for establishing the root of the application.
 --
 -- Many application need the ability to create URLs referring back to the
@@ -29,13 +28,12 @@ module Network.Wai.Middleware.Approot
 
 import           Control.Exception     (Exception, throw)
 import           Data.ByteString       (ByteString)
-import qualified Data.ByteString       as S
 import qualified Data.ByteString.Char8 as S8
 import           Data.Maybe            (fromMaybe)
 import           Data.Typeable         (Typeable)
 import qualified Data.Vault.Lazy       as V
-import           Network.Wai (Request, vault, Middleware, requestHeaderHost)
-import           Network.Wai.Request   (appearsSecure, guessApproot)
+import           Network.Wai (Request, vault, Middleware)
+import           Network.Wai.Request   (guessApproot)
 import           System.Environment    (getEnvironment)
 import           System.IO.Unsafe      (unsafePerformIO)
 

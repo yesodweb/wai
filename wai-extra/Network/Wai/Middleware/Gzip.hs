@@ -1,6 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Rank2Types, ScopedTypeVariables #-}
 ---------------------------------------------------------
 -- |
 -- Module        : Network.Wai.Middleware.Gzip
@@ -29,9 +27,8 @@ import Data.Maybe (fromMaybe, isJust)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString as S
 import Data.Default.Class
-import Network.HTTP.Types (Status, Header)
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Resource (runResourceT)
+import Network.HTTP.Types ( Status, Header, hContentEncoding, hUserAgent
+                          , hContentType, hContentLength)
 import System.Directory (doesFileExist, createDirectoryIfMissing)
 import Blaze.ByteString.Builder (fromByteString)
 import Control.Exception (try, SomeException)
@@ -85,7 +82,7 @@ gzip set app env sendResponse = app env $ \res ->
                 then
                     case (res, gzipFiles set) of
                         (ResponseFile s hs file Nothing, GzipCacheFolder cache) ->
-                            case lookup "content-type" hs of
+                            case lookup hContentType hs of
                                 Just m
                                     | gzipCheckMime set m -> compressFile s hs file cache sendResponse
                                 _ -> sendResponse res
@@ -94,9 +91,9 @@ gzip set app env sendResponse = app env $ \res ->
   where
     enc = fromMaybe [] $ (splitCommas . S8.unpack)
                     `fmap` lookup "Accept-Encoding" (requestHeaders env)
-    ua = fromMaybe "" $ lookup "user-agent" $ requestHeaders env
+    ua = fromMaybe "" $ lookup hUserAgent $ requestHeaders env
     isMSIE6 = "MSIE 6" `S.isInfixOf` ua
-    isEncoded res = isJust $ lookup "Content-Encoding" $ responseHeaders res
+    isEncoded res = isJust $ lookup hContentEncoding $ responseHeaders res
 
 compressFile :: Status -> [Header] -> FilePath -> FilePath -> (Response -> IO a) -> IO a
 compressFile s hs file cache sendResponse = do
@@ -118,7 +115,7 @@ compressFile s hs file cache sendResponse = do
                                 Z.PRNext bs -> do
                                     S.hPut outH bs
                                     loop
-                                Z.PRError e -> throwIO e
+                                Z.PRError ex -> throwIO ex
                     fix $ \loop -> do
                         bs <- S.hGetSome inH defaultChunkSize
                         unless (S.null bs) $ do
@@ -145,11 +142,11 @@ compressE :: GzipSettings
           -> (Response -> IO a)
           -> IO a
 compressE set res sendResponse =
-    case lookup "content-type" hs of
+    case lookup hContentType hs of
         Just m | gzipCheckMime set m ->
             let hs' = fixHeaders hs
              in wb $ \body -> sendResponse $ responseStream s hs' $ \sendChunk flush -> do
-                    (blazeRecv, blazeFinish) <- B.newBlazeRecv B.defaultStrategy
+                    (blazeRecv, _) <- B.newBlazeRecv B.defaultStrategy
                     deflate <- Z.initDeflate 1 (Z.WindowBits 31)
                     let sendBuilder builder = do
                             popper <- blazeRecv builder
@@ -164,8 +161,8 @@ compressE set res sendResponse =
                             deflatePopper $ Z.flushDeflate deflate
                             flush
                         deflatePopper popper = fix $ \loop -> do
-                            res <- popper
-                            case res of
+                            result <- popper
+                            case result of
                                 Z.PRDone -> return ()
                                 Z.PRNext bs' -> do
                                     sendChunk $ fromByteString bs'
@@ -183,9 +180,9 @@ compressE set res sendResponse =
 -- different length after gzip compression.
 fixHeaders :: [Header] -> [Header]
 fixHeaders =
-    (("Content-Encoding", "gzip") :) . filter notLength
+    ((hContentEncoding, "gzip") :) . filter notLength
   where
-    notLength (x, _) = x /= "content-length"
+    notLength (x, _) = x /= hContentLength
 
 splitCommas :: String -> [String]
 splitCommas [] = []

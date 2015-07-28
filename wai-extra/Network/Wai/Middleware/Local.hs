@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, CPP #-}
+{-# LANGUAGE CPP #-}
 -- | Only allow local connections.
 --
 module Network.Wai.Middleware.Local

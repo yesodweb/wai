@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE RecordWildCards, TupleSections, CPP #-}
 -- | Implements HTTP Basic Authentication.
 --
 -- This module may add digest authentication in the future.
@@ -14,13 +14,14 @@ module Network.Wai.Middleware.HttpAuth
     , extractBasicAuth
     , extractBearerAuth
     ) where
-
+#if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
+#endif
 import Data.ByteString (ByteString)
 import Data.ByteString.Base64 (decodeLenient)
 import Data.String (IsString (..))
 import Data.Word8 (isSpace, _colon, toLower)
-import Network.HTTP.Types (status401)
+import Network.HTTP.Types (status401, hContentType, hAuthorization)
 import Network.Wai
 
 import qualified Data.ByteString as S
@@ -47,7 +48,7 @@ basicAuth checkCreds AuthSettings {..} app req sendResponse = do
         else authOnNoAuth authRealm req sendResponse
   where
     check =
-        case (lookup "Authorization" $ requestHeaders req)
+        case (lookup hAuthorization $ requestHeaders req)
              >>= extractBasicAuth of
             Nothing -> return False
             Just (username, password) -> checkCreds username password
@@ -84,7 +85,7 @@ instance IsString AuthSettings where
         { authRealm = fromString s
         , authOnNoAuth = \realm _req f -> f $ responseLBS
             status401
-            [ ("Content-Type", "text/plain")
+            [ (hContentType, "text/plain")
             , ("WWW-Authenticate", S.concat
                 [ "Basic realm=\""
                 , realm

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 -----------------------------------------------------------------
 -- | Module : Network.Wai.Middleware.MethodOverridePost
 --
@@ -9,8 +9,11 @@ module Network.Wai.Middleware.MethodOverridePost
   ) where
 
 import Network.Wai
-import Network.HTTP.Types           (parseQuery)
+import Network.HTTP.Types           (parseQuery, hContentType)
+
+#if __GLASGOW_HASKELL__ < 710
 import Data.Monoid                  (mconcat, mempty)
+#endif
 import Data.IORef
 import Data.ByteString.Lazy (toChunks)
 
@@ -27,7 +30,7 @@ import Data.ByteString.Lazy (toChunks)
 --
 methodOverridePost :: Middleware
 methodOverridePost app req send =
-    case (requestMethod req, lookup "Content-Type" (requestHeaders req)) of
+    case (requestMethod req, lookup hContentType (requestHeaders req)) of
       ("POST", Just "application/x-www-form-urlencoded") -> setPost req >>= flip app send
       _                                                  -> app req send
 
