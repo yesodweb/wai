@@ -69,7 +69,7 @@ getBuffer pool = do
 {-# INLINE getBuffer #-}
 
 putBuffer :: BufferPool -> ByteString -> IO ()
-putBuffer pool buffer = when (usefulBuffer buffer) $ writeIORef pool buffer
+putBuffer pool buffer = writeIORef pool buffer
 {-# INLINE putBuffer #-}
 
 withForeignBuffer :: ByteString -> ((Buffer, BufSize) -> IO Int) -> IO Int
