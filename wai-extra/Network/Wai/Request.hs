@@ -32,6 +32,7 @@ appearsSecure request = isSecure request || any (uncurry matchHeader)
     , ("HTTP_X_FORWARDED_SSL"   , (== "on"))
     , ("HTTP_X_FORWARDED_SCHEME", (== "https"))
     , ("HTTP_X_FORWARDED_PROTO" , ((== ["https"]) . take 1 . C.split ','))
+    , ("X-Forwarded-Proto"      , (== "https")) -- Used by Nginx and AWS ELB.
     ]
 
   where
