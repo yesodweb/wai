@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -45,6 +44,7 @@ import qualified Network.HTTP.Types as H
 import Control.Monad (when, unless)
 import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
 import Data.IORef
+import Network.HTTP.Types (hContentType)
 
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
@@ -140,7 +140,7 @@ data RequestBodyType = UrlEncoded | Multipart S.ByteString
 
 getRequestBodyType :: Request -> Maybe RequestBodyType
 getRequestBodyType req = do
-    ctype' <- lookup "Content-Type" $ requestHeaders req
+    ctype' <- lookup hContentType $ requestHeaders req
     let (ctype, attrs) = parseContentType ctype'
     case ctype of
         "application/x-www-form-urlencoded" -> return UrlEncoded

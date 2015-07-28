@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 module Network.Wai.Middleware.CleanPath
     ( cleanPath
     ) where
@@ -6,9 +6,11 @@ module Network.Wai.Middleware.CleanPath
 import Network.Wai
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as L
-import Network.HTTP.Types (status301)
+import Network.HTTP.Types (status301, hLocation)
 import Data.Text (Text)
+#if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (mconcat)
+#endif
 
 cleanPath :: ([Text] -> Either B.ByteString [Text])
           -> B.ByteString
@@ -19,7 +21,7 @@ cleanPath splitter prefix app env sendResponse =
         Right pieces -> app pieces env sendResponse
         Left p -> sendResponse
                 $ responseLBS status301
-                  [("Location", mconcat [prefix, p, suffix])]
+                  [(hLocation, mconcat [prefix, p, suffix])]
                 $ L.empty
     where
         -- include the query string if present

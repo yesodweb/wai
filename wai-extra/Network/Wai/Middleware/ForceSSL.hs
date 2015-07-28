@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
 -- | Redirect non-SSL requests to https
 --
 -- Since 3.0.7

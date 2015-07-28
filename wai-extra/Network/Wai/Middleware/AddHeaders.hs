@@ -5,7 +5,7 @@ module Network.Wai.Middleware.AddHeaders
     ( addHeaders
     ) where
 
-import Network.HTTP.Types   (ResponseHeaders, Header)
+import Network.HTTP.Types   (Header)
 import Network.Wai          (Middleware, modifyResponse, mapResponseHeaders)
 import Network.Wai.Internal (Response(..))
 import Data.ByteString      (ByteString)

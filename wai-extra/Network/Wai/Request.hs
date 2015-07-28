@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- | Some helpers for interrogating a WAI 'Request'.
 
 module Network.Wai.Request

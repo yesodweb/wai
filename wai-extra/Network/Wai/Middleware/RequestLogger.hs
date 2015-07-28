@@ -1,6 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-
 -- NOTE: Due to https://github.com/yesodweb/wai/issues/192, this module should
 -- not use CPP.
 module Network.Wai.Middleware.RequestLogger
@@ -30,17 +28,14 @@ import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe)
 import Data.Monoid (mconcat, (<>))
 import Data.Time (getCurrentTime, diffUTCTime)
-
-import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File, getRequestBodyType)
+import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File
+                         , getRequestBodyType)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as S8
-
 import System.Console.ANSI
 import Data.IORef.Lifted
 import System.IO.Unsafe
-import Control.Monad (unless)
 import Network.Wai.Internal (Response (ResponseRaw))
-
 import Data.Default.Class (Default (def))
 import Network.Wai.Logger
 import Network.Wai.Middleware.RequestLogger.Internal
@@ -103,7 +98,7 @@ mkRequestLogger RequestLoggerSettings{..} = do
 
 apacheMiddleware :: ApacheLoggerActions -> Middleware
 apacheMiddleware ala app req sendResponse = app req $ \res -> do
-    let msize = lookup "content-length" (responseHeaders res) >>= readInt'
+    let msize = lookup H.hContentLength (responseHeaders res) >>= readInt'
         readInt' bs =
             case S8.readInteger bs of
                 Just (i, "") -> Just i
@@ -193,7 +188,7 @@ detailedMiddleware' :: Callback
                     -> (BS.ByteString -> BS.ByteString -> [BS.ByteString])
                     -> Middleware
 detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse = do
-    let mlen = lookup "content-length" (requestHeaders req) >>= readInt
+    let mlen = lookup H.hContentLength (requestHeaders req) >>= readInt
     (req', body) <-
         case mlen of
             -- log the request body if it is small
@@ -231,7 +226,7 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
                 return $ collectPostParams postParams
 
     let getParams = map emptyGetParam $ queryString req
-        accept = fromMaybe "" $ lookup "Accept" $ requestHeaders req
+        accept = fromMaybe "" $ lookup H.hAccept $ requestHeaders req
         params = let par | not $ null postParams = [pack (show postParams)]
                          | not $ null getParams  = [pack (show getParams)]
                          | otherwise             = []

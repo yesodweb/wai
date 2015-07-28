@@ -9,7 +9,7 @@ import Test.Hspec
 import Network.Wai.Middleware.Routed
 import Network.Wai.Middleware.ForceSSL (forceSSL)
 
-import Network.HTTP.Types (methodPost, status200, status301, status307)
+import Network.HTTP.Types (hContentType, status200)
 import Network.Wai
 import Network.Wai.Test
 import Data.ByteString (ByteString)
@@ -39,7 +39,7 @@ spec = describe "forceSSL" $ do
 
 jsonApp :: Application
 jsonApp _req cps = cps $ responseLBS status200
-   [("Content-Type", "application/json")]
+   [(hContentType, "application/json")]
       "{\"foo\":\"bar\"}"
 
 testDPath :: ByteString -> Session SResponse

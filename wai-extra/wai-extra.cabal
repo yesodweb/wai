@@ -116,6 +116,8 @@ Library
   else
       build-depends: unix
 
+  extensions:        OverloadedStrings
+
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Handler.SCGI
                      Network.Wai.Middleware.AcceptOverride
