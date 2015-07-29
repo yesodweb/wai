@@ -1,5 +1,5 @@
 Name:                warp-tls
-Version:             3.1.0
+Version:             3.1.1
 Synopsis:            HTTP over TLS support for Warp via the TLS package
 License:             MIT
 License-file:        LICENSE
@@ -22,7 +22,7 @@ Library
                    , wai                           >= 3.0      && < 3.1
                    , warp                          >= 3.1      && < 3.2
                    , data-default-class            >= 0.0.1
-                   , tls                           >= 1.2.16
+                   , tls                           >= 1.3.2
                    , network                       >= 2.2.1
                    , cprng-aes                     >= 0.5.0
                    , streaming-commons
