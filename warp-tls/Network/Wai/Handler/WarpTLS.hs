@@ -140,6 +140,8 @@ defaultTlsSettings = TLSSettings {
 ciphers :: [TLS.Cipher]
 ciphers =
     [ TLSExtra.cipher_ECDHE_RSA_AES128GCM_SHA256
+    , TLSExtra.cipher_ECDHE_RSA_AES128CBC_SHA256
+    , TLSExtra.cipher_ECDHE_RSA_AES128CBC_SHA
     , TLSExtra.cipher_DHE_RSA_AES128GCM_SHA256
     , TLSExtra.cipher_DHE_RSA_AES256_SHA256
     , TLSExtra.cipher_DHE_RSA_AES128_SHA256
