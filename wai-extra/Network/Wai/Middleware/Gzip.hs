@@ -42,6 +42,7 @@ import Data.Function (fix)
 import Control.Exception (throwIO)
 import qualified System.IO as IO
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
+import Data.Word8 (_semicolon)
 
 data GzipSettings = GzipSettings
     { gzipFiles :: GzipFiles
@@ -58,7 +59,7 @@ defaultCheckMime :: S.ByteString -> Bool
 defaultCheckMime bs =
     S8.isPrefixOf "text/" bs || bs' `Set.member` toCompress
   where
-    bs' = fst $ S.breakByte 59 bs -- semicolon
+    bs' = fst $ S.break (== _semicolon) bs
     toCompress = Set.fromList
         [ "application/json"
         , "application/javascript"

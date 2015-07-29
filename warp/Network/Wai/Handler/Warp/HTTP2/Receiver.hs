@@ -142,7 +142,7 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
                  Just strm0 -> do
                      when (ftyp == FrameHeaders) $ do
                          st <- readIORef $ streamState strm0
-                         when (isHalfClosed st) $ E.throwIO $ ConnectionError ProtocolError "header must not be sent to half closed"
+                         when (isHalfClosed st) $ E.throwIO $ ConnectionError StreamClosed "header must not be sent to half closed"
                      return strm0
                  Nothing    -> do
                      when (ftyp `notElem` [FrameHeaders,FramePriority]) $
@@ -300,8 +300,6 @@ stream FrameContinuation FrameHeader{flags} frag ctx (Open (Continued rfrags siz
       else
         return $ Open $ Continued rfrags' siz' n' endOfStream pri
 
-stream FrameContinuation _ _ _ _ _ = E.throwIO $ ConnectionError ProtocolError "continue frame cannot come here"
-
 stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
     w <- (n +) <$> atomically (readTVar streamWindow)
@@ -323,6 +321,7 @@ stream FramePriority header bs Context{outputQ} s Stream{streamNumber} = do
     return s
 
 -- this ordering is important
+stream FrameContinuation _ _ _ _ _ = E.throwIO $ ConnectionError ProtocolError "continue frame cannot come here"
 stream _ _ _ _ (Open Continued{}) _ = E.throwIO $ ConnectionError ProtocolError "an illegal frame follows header/continuation frames"
 -- Ignore frames to streams we have just reset, per section 5.1.
 stream _ _ _ _ st@(Closed (ResetByMe _)) _ = return st

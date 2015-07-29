@@ -12,7 +12,6 @@ module Network.Wai.Handler.Warp.Buffer (
   , bufferIO
   ) where
 
-import Control.Monad (when)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..), memcpy)
 import Data.ByteString.Unsafe (unsafeTake, unsafeDrop)
