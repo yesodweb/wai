@@ -122,7 +122,8 @@ Test-Suite doctest
 
 Test-Suite spec
     Main-Is:         Spec.hs
-    Other-modules:   ConduitSpec
+    Other-modules:   BufferPoolSpec
+                     ConduitSpec
                      ExceptionSpec
                      FdCacheSpec
                      MultiMapSpec
