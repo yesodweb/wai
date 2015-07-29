@@ -109,7 +109,7 @@ extractBasicAuth bs =
   where
     extract encoded =
         let raw = decodeLenient encoded
-            (username, password') = S.breakByte _colon raw
+            (username, password') = S.break (== _colon) raw
         in ((username,) . snd) <$> S.uncons password'
 
 -- | Extract bearer authentication data from __Authorization__ header
