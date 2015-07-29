@@ -32,6 +32,7 @@ import qualified System.IO as IO
 #else
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.SendFile (positionRead)
+import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly))
 import System.Posix.Types
 #endif
 
@@ -230,8 +231,11 @@ fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
 #else
 fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
                         ii off lim (ResponseFile _ _ path mpart) = do
-    let Just fdcache = fdCacher ii
-    (fd, refresh) <- getFd fdcache path
+    (fd, refresh) <- case fdCacher ii of
+        Just fdcache -> getFd fdcache path
+        Nothing      -> do
+            fd' <- openFd path ReadOnly Nothing defaultFileFlags{nonBlock=True}
+            return (fd', return ())
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (start, bytes) <- fileStartEnd path mpart
