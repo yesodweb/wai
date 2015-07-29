@@ -142,7 +142,7 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
                  Just strm0 -> do
                      when (ftyp == FrameHeaders) $ do
                          st <- readIORef $ streamState strm0
-                         when (isHalfClosed st) $ E.throwIO $ ConnectionError ProtocolError "header must not be sent to half closed"
+                         when (isHalfClosed st) $ E.throwIO $ ConnectionError StreamClosed "header must not be sent to half closed"
                      return strm0
                  Nothing    -> do
                      when (ftyp `notElem` [FrameHeaders,FramePriority]) $
