@@ -41,7 +41,9 @@ module Network.Wai.Handler.Warp (
     run
   , runEnv
   , runSettings
+  , runHttp2Settings
   , runSettingsSocket
+  , runHttp2SettingsSocket
     -- * Settings
   , Settings
   , defaultSettings
@@ -83,6 +85,7 @@ module Network.Wai.Handler.Warp (
   , InvalidRequest (..)
     -- * Utilities
   , pauseTimeout
+  , promoteApplication
     -- * Internal
     -- | The following APIs will be removed in Warp 3.2.0. Please use ones exported from Network.Wai.Handler.Warp.Internal.
 
@@ -135,6 +138,7 @@ import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Date
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.Header
+import Network.Wai.Handler.Warp.HTTP2 (promoteApplication)
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Run
