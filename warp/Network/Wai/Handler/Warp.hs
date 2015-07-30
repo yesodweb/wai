@@ -38,11 +38,20 @@
 --
 module Network.Wai.Handler.Warp (
     -- * Run a Warp server
+    -- | All of these automatically serve the same 'Application' over HTTP\/1,
+    -- HTTP\/1.1, and HTTP\/2.
     run
   , runEnv
   , runSettings
-  , runHttp2Settings
   , runSettingsSocket
+    -- * Run an HTTP\/2-aware server
+    -- | Each of these takes an HTTP\/2-aware application as well as a backup
+    -- 'Application' to be used for HTTP\/1.1 and HTTP\/1 connections.  These
+    -- are only needed if your application needs access to HTTP\/2-specific
+    -- features such as trailers or pushed streams.
+  , runHttp2
+  , runHttp2Env
+  , runHttp2Settings
   , runHttp2SettingsSocket
     -- * Settings
   , Settings
