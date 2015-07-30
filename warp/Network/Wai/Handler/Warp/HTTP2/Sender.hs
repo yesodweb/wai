@@ -23,6 +23,7 @@ import Network.Wai.Handler.Warp.HTTP2.HPACK
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Settings as S
+import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal (Response(..))
 import qualified System.PosixCompat.Files as P
@@ -32,7 +33,7 @@ import qualified System.IO as IO
 #else
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.SendFile (positionRead)
-import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly))
+import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types
 #endif
 
@@ -235,7 +236,8 @@ fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
         Just fdcache -> getFd fdcache path
         Nothing      -> do
             fd' <- openFd path ReadOnly Nothing defaultFileFlags{nonBlock=True}
-            return (fd', return ())
+            th <- T.register (timeoutManager ii) (closeFd fd')
+            return (fd', T.tickle th)
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (start, bytes) <- fileStartEnd path mpart
