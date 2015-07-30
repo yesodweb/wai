@@ -10,7 +10,7 @@ import Control.Applicative
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
-import Control.Monad (void, unless)
+import Control.Monad (unless, void, when)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder.Extra as B
 import Foreign.Ptr
@@ -111,8 +111,10 @@ frameSender ctx@Context{outputQ,connectionWindow}
             case aux of
                 Oneshot True -> do -- hasBody
                     -- Data frame payload
-                    off <- sendHeadersIfNecessary total
-                    Next datPayloadLen mnext <- fillResponseBodyGetNext conn ii off lim rsp
+                    (off, _) <- sendHeadersIfNecessary total
+                    let payloadOff = off + frameHeaderLength
+                    Next datPayloadLen mnext <-
+                        fillResponseBodyGetNext conn ii payloadOff lim rsp
                     fillDataHeaderSend strm total datPayloadLen mnext pri
                 Oneshot False -> do
                     -- "closed" must be before "connSendAll". If not,
@@ -121,9 +123,19 @@ frameSender ctx@Context{outputQ,connectionWindow}
                     closed ctx strm Finished
                     bufferIO connWriteBuffer total connSendAll
                 Persist sq tvar -> do
-                    off <- sendHeadersIfNecessary total
-                    Next datPayloadLen mnext <- fillStreamBodyGetNext conn off lim sq tvar
-                    fillDataHeaderSend strm total datPayloadLen mnext pri
+                    (off, needSend) <- sendHeadersIfNecessary total
+                    let payloadOff = off + frameHeaderLength
+                    Next datPayloadLen mnext <-
+                        fillStreamBodyGetNext conn payloadOff lim sq tvar
+                    -- If no data was immediately available, avoid sending an
+                    -- empty data frame.
+                    if datPayloadLen > 0
+                        then fillDataHeaderSend strm total datPayloadLen mnext pri
+                        else when needSend $ do
+                            bufferIO connWriteBuffer off connSendAll
+                            case mnext of
+                                CNext next -> enqueue outputQ (ONext strm next) pri
+                                _ -> return ()
         loop
     switch out@(ONext strm curr) pri = unlessClosed ctx conn strm $ do
         checkWindowSize connectionWindow (streamWindow strm) outputQ out pri $ \lim -> do
@@ -164,13 +176,16 @@ frameSender ctx@Context{outputQ,connectionWindow}
           else
             continue sid len' (B.Chunk bs2 writer)
 
+    -- True if the connection buffer has room for a 1-byte data frame.
+    canFitDataFrame total = total + frameHeaderLength < connBufferSize
+
+    -- Send headers if there is not room for a 1-byte data frame, and return
+    -- the offset of the next frame's first header byte and whether the headers
+    -- still need to be sent.
     sendHeadersIfNecessary total = do
-        let datPayloadOff = total + frameHeaderLength
-        if datPayloadOff < connBufferSize then
-            return datPayloadOff
-          else do
-            bufferIO connWriteBuffer total connSendAll
-            return frameHeaderLength
+        if canFitDataFrame total
+            then return (total, True)
+            else bufferIO connWriteBuffer total connSendAll >> return (0, False)
 
     fillDataHeaderSend strm otherLen datPayloadLen mnext pri = do
         -- Data frame header
@@ -192,9 +207,8 @@ frameSender ctx@Context{outputQ,connectionWindow}
            modifyTVar' connectionWindow (subtract datPayloadLen)
            modifyTVar' (streamWindow strm) (subtract datPayloadLen)
         case mnext of
-            CFinish    -> return ()
             CNext next -> enqueue outputQ (ONext strm next) pri
-            CNone      -> return ()
+            _          -> return ()
 
     fillFrameHeader ftyp len sid flag buf = encodeFrameHeaderBuf ftyp hinfo buf
       where
