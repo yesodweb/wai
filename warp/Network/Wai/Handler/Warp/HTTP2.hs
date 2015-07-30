@@ -7,6 +7,7 @@ module Network.Wai.Handler.Warp.HTTP2
     , promoteApplication
     ) where
 
+import Control.Applicative ((<$))
 import Control.Concurrent (forkIO, killThread)
 import qualified Control.Exception as E
 import Control.Monad (when, unless, replicateM_)
@@ -17,6 +18,7 @@ import Network.Socket (SockAddr)
 
 import Network.Wai (Application)
 import Network.Wai.HTTP2 (Http2Application)
+import Network.Wai.Internal (ResponseReceived(..))
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Receiver
@@ -75,4 +77,5 @@ goaway Connection{..} etype debugmsg = connSendAll bytestream
 -- | Promote a normal WAI 'Application' to an 'Http2Application' by ignoring
 -- the HTTP/2-specific features.
 promoteApplication :: Application -> Http2Application
-promoteApplication app = app
+promoteApplication app req respond = [] <$ app req respond'
+  where respond' x = ResponseReceived <$ respond x

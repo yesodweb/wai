@@ -30,15 +30,15 @@ import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Response as R
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
-import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceived(..))
+import Network.Wai.Internal (Response(..))
 
 ----------------------------------------------------------------
 
--- | The wai definition is @type Http2Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived@.
---   This type implements the second argument @Response -> IO ResponseReceived@
+-- | The wai definition is @type Http2Application = Request -> (Response -> IO ()) -> IO Trailers@.
+--   This type implements the second argument @Response -> IO ()@
 --   with extra arguments.
 type Responder = ThreadContinue -> T.Handle -> Stream -> Request ->
-                 TBQueue Sequence -> Response -> IO ResponseReceived
+                 TBQueue Sequence -> Response -> IO ()
 
 -- | This function is passed to workers.
 --   They also pass 'Response's from 'Http2Application's to this function.
@@ -74,7 +74,6 @@ response Context{outputQ} mgr tconf th strm req sq rsp = do
                        && R.hasBody (responseStatus rsp)
                 out = OResponse strm rsp (Oneshot hasBody)
             enqueueOrSpawnTemporaryWaiter strm outputQ out
-    return ResponseReceived
 
 data Break = Break deriving (Show, Typeable)
 
@@ -102,8 +101,8 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
             T.tickle th
             app req $ responder tcont th strm req sq
         cont1 <- case ex of
-            Right ResponseReceived -> do
-                atomically $ writeTBQueue sq $ SFinish []
+            Right trailers -> do
+                atomically $ writeTBQueue sq $ SFinish trailers
                 return True
             Left  e@(SomeException _)
               | Just Break        <- E.fromException e -> do
