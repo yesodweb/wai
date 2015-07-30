@@ -1,7 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.Wai.Handler.Warp.HTTP2 (isHTTP2, http2) where
+module Network.Wai.Handler.Warp.HTTP2
+    ( isHTTP2
+    , http2
+    , promoteApplication
+    ) where
 
 import Control.Concurrent (forkIO, killThread)
 import qualified Control.Exception as E
@@ -11,6 +15,7 @@ import Data.ByteString (ByteString)
 import Network.HTTP2
 import Network.Socket (SockAddr)
 
+import Network.Wai (Application)
 import Network.Wai.HTTP2 (Http2Application)
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
@@ -66,3 +71,8 @@ goaway :: Connection -> ErrorCodeId -> ByteString -> IO ()
 goaway Connection{..} etype debugmsg = connSendAll bytestream
   where
     bytestream = goawayFrame 0 etype debugmsg
+
+-- | Promote a normal WAI 'Application' to an 'Http2Application' by ignoring
+-- the HTTP/2-specific features.
+promoteApplication :: Application -> Http2Application
+promoteApplication app = app

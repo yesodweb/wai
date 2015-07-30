@@ -25,7 +25,7 @@ import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Counter
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
-import Network.Wai.Handler.Warp.HTTP2
+import Network.Wai.Handler.Warp.HTTP2 (http2, isHTTP2, promoteApplication)
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Recv
@@ -311,7 +311,7 @@ serveConnection conn ii origAddr transport settings app = do
     if h2 then do
         recvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
         -- fixme: origAddr
-        http2 conn ii origAddr transport settings recvN app
+        http2 conn ii origAddr transport settings recvN $ promoteApplication app
       else do
         istatus <- newIORef False
         src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
