@@ -22,6 +22,7 @@ import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
 import Network.Wai
+import Network.Wai.HTTP2 (Http2Application)
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
@@ -33,14 +34,14 @@ import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceive
 
 ----------------------------------------------------------------
 
--- | The wai definition is 'type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived'.
---   This type implements the second argument (Response -> IO ResponseReceived)
+-- | The wai definition is @type Http2Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived@.
+--   This type implements the second argument @Response -> IO ResponseReceived@
 --   with extra arguments.
 type Responder = ThreadContinue -> T.Handle -> Stream -> Request ->
                  Response -> IO ResponseReceived
 
 -- | This function is passed to workers.
---   They also pass 'Response's from 'Application's to this function.
+--   They also pass 'Response's from 'Http2Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: Context -> Manager -> Responder
 response Context{outputQ} mgr tconf th strm req rsp = do
@@ -83,7 +84,8 @@ data Break = Break deriving (Show, Typeable)
 
 instance Exception Break
 
-worker :: Context -> S.Settings -> T.Manager -> Application -> Responder -> IO ()
+worker ::
+    Context -> S.Settings -> T.Manager -> Http2Application -> Responder -> IO ()
 worker ctx@Context{inputQ,outputQ} set tm app responder = do
     tid <- myThreadId
     sinfo <- newStreamInfo
