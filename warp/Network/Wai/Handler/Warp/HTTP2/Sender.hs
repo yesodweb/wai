@@ -115,13 +115,14 @@ frameSender ctx@Context{outputQ,connectionWindow}
                     let payloadOff = off + frameHeaderLength
                     Next datPayloadLen mnext <-
                         fillResponseBodyGetNext conn ii payloadOff lim rsp
-                    fillDataHeaderSend strm total datPayloadLen mnext pri
+                    fillDataHeaderSend strm total datPayloadLen mnext
+                    maybeEnqueueNext strm mnext pri
                 Oneshot False -> do
                     -- "closed" must be before "connSendAll". If not,
                     -- the context would be switched to the receiver,
                     -- resulting the inconsistency of concurrency.
                     closed ctx strm Finished
-                    bufferIO connWriteBuffer total connSendAll
+                    flushN total
                 Persist sq tvar -> do
                     (off, needSend) <- sendHeadersIfNecessary total
                     let payloadOff = off + frameHeaderLength
@@ -130,19 +131,22 @@ frameSender ctx@Context{outputQ,connectionWindow}
                     -- If no data was immediately available, avoid sending an
                     -- empty data frame.
                     if datPayloadLen > 0
-                        then fillDataHeaderSend strm total datPayloadLen mnext pri
-                        else when needSend $ do
-                            bufferIO connWriteBuffer off connSendAll
-                            case mnext of
-                                CNext next -> enqueue outputQ (ONext strm next) pri
-                                _ -> return ()
+                        then fillDataHeaderSend strm total datPayloadLen mnext
+                        else when needSend $ flushN off
+                    maybeEnqueueNext strm mnext pri
         loop
     switch out@(ONext strm curr) pri = unlessClosed ctx conn strm $ do
         checkWindowSize connectionWindow (streamWindow strm) outputQ out pri $ \lim -> do
             -- Data frame payload
             Next datPayloadLen mnext <- curr lim
-            fillDataHeaderSend strm 0 datPayloadLen mnext pri
+            fillDataHeaderSend strm 0 datPayloadLen mnext
+            maybeEnqueueNext strm mnext pri
         loop
+
+    -- Flush the connection buffer to the socket, where the first 'n' bytes of
+    -- the buffer are filled.
+    flushN :: Int -> IO ()
+    flushN n = bufferIO connWriteBuffer n connSendAll
 
     headerContinue sid rsp endOfStream = do
         builder <- hpackEncodeHeader ctx ii settings rsp
@@ -156,8 +160,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
 
     continue _   len B.Done = return len
     continue sid len (B.More _ writer) = do
-        let total = len + frameHeaderLength
-        bufferIO connWriteBuffer total connSendAll
+        flushN $ len + frameHeaderLength
         (len', signal') <- writer bufHeaderPayload headerPayloadLim
         let flag = case signal' of
                 B.Done -> setEndHeader defaultFlags
@@ -165,8 +168,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
         fillFrameHeader FrameContinuation len' sid flag connWriteBuffer
         continue sid len' signal'
     continue sid len (B.Chunk bs writer) = do
-        let total = len + frameHeaderLength
-        bufferIO connWriteBuffer total connSendAll
+        flushN $ len + frameHeaderLength
         let (bs1,bs2) = BS.splitAt headerPayloadLim bs
             len' = BS.length bs1
         void $ copy bufHeaderPayload bs1
@@ -179,6 +181,15 @@ frameSender ctx@Context{outputQ,connectionWindow}
     -- True if the connection buffer has room for a 1-byte data frame.
     canFitDataFrame total = total + frameHeaderLength < connBufferSize
 
+    -- Re-enqueue the stream in the output queue if more output is immediately
+    -- available; do nothing otherwise.  If the stream is not finished, it must
+    -- already have been written to the 'TVar' owned by 'waiter', which will
+    -- put it back into the queue when more output becomes available.
+    maybeEnqueueNext :: Stream -> Control DynaNext -> Priority -> IO ()
+    maybeEnqueueNext strm (CNext next) = enqueue outputQ (ONext strm next)
+    maybeEnqueueNext _    _            = const $ return ()
+
+
     -- Send headers if there is not room for a 1-byte data frame, and return
     -- the offset of the next frame's first header byte and whether the headers
     -- still need to be sent.
@@ -187,7 +198,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
             then return (total, True)
             else bufferIO connWriteBuffer total connSendAll >> return (0, False)
 
-    fillDataHeaderSend strm otherLen datPayloadLen mnext pri = do
+    fillDataHeaderSend strm otherLen datPayloadLen mnext = do
         -- Data frame header
         let sid = streamNumber strm
             buf = connWriteBuffer `plusPtr` otherLen
@@ -202,13 +213,10 @@ frameSender ctx@Context{outputQ,connectionWindow}
         case mnext of
             CFinish    -> closed ctx strm Finished
             _          -> return ()
-        bufferIO connWriteBuffer total connSendAll
+        flushN total
         atomically $ do
            modifyTVar' connectionWindow (subtract datPayloadLen)
            modifyTVar' (streamWindow strm) (subtract datPayloadLen)
-        case mnext of
-            CNext next -> enqueue outputQ (ONext strm next) pri
-            _          -> return ()
 
     fillFrameHeader ftyp len sid flag buf = encodeFrameHeaderBuf ftyp hinfo buf
       where
