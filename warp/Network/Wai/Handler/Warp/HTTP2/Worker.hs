@@ -38,13 +38,13 @@ import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceive
 --   This type implements the second argument @Response -> IO ResponseReceived@
 --   with extra arguments.
 type Responder = ThreadContinue -> T.Handle -> Stream -> Request ->
-                 Response -> IO ResponseReceived
+                 TBQueue Sequence -> Response -> IO ResponseReceived
 
 -- | This function is passed to workers.
 --   They also pass 'Response's from 'Http2Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: Context -> Manager -> Responder
-response Context{outputQ} mgr tconf th strm req rsp = do
+response Context{outputQ} mgr tconf th strm req sq rsp = do
     case rsp of
         ResponseStream _ _ strmbdy -> do
             -- We must not exit this WAI application.
@@ -56,9 +56,6 @@ response Context{outputQ} mgr tconf th strm req rsp = do
             -- After this work, this thread stops to decease
             -- the number of workers.
             setThreadContinue tconf False
-            -- Since 'StreamingBody' is loop, we cannot control it.
-            -- So, let's serialize 'Builder' with a designated queue.
-            sq <- newTBQueueIO 10 -- fixme: hard coding: 10
             tvar <- newTVarIO SyncNone
             let out = OResponse strm rsp (Persist sq tvar)
             -- Since we must not enqueue an empty queue to the priority
@@ -71,7 +68,6 @@ response Context{outputQ} mgr tconf th strm req rsp = do
                     T.tickle th
                 flush  = atomically $ writeTBQueue sq SFlush
             strmbdy push flush
-            atomically $ writeTBQueue sq $ SFinish []
         _ -> do
             setThreadContinue tconf True
             let hasBody = requestMethod req /= H.methodHead
@@ -95,15 +91,20 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
   where
     go sinfo tcont th = do
         setThreadContinue tcont True
+        -- Since 'StreamingBody' is loop, we cannot control it.
+        -- So, let's serialize 'Builder' with a designated queue.
+        sq <- newTBQueueIO 10 -- fixme: hard coding: 10
         ex <- E.try $ do
             T.pause th
             Input strm req <- atomically $ readTQueue inputQ
             setStreamInfo sinfo strm req
             T.resume th
             T.tickle th
-            app req $ responder tcont th strm req
+            app req $ responder tcont th strm req sq
         cont1 <- case ex of
-            Right ResponseReceived -> return True
+            Right ResponseReceived -> do
+                atomically $ writeTBQueue sq $ SFinish []
+                return True
             Left  e@(SomeException _)
               | Just Break        <- E.fromException e -> do
                   cleanup sinfo Nothing
