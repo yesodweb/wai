@@ -27,6 +27,7 @@ Library
                    , text                      >= 0.7
                    , vault                     >= 0.3      && < 0.4
   Exposed-modules:   Network.Wai
+                     Network.Wai.HTTP2
                      Network.Wai.Internal
   ghc-options:       -Wall
 
