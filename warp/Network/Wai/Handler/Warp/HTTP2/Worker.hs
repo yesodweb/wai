@@ -18,16 +18,14 @@ import Control.Exception (Exception, SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
 import Control.Monad (void, when)
 import Data.Typeable
-import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.Wai.HTTP2 (Http2Application, Response(..), responseStatus)
+import Network.Wai.HTTP2 (Http2Application, Response(..))
 import Network.Wai hiding (Response, responseStatus)
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
-import qualified Network.Wai.Handler.Warp.Response as R
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
 
@@ -36,16 +34,18 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 -- | The wai definition is @type Http2Application = Request -> (Response -> IO ()) -> IO Trailers@.
 --   This type implements the second argument @Response -> IO ()@
 --   with extra arguments.
-type Responder = ThreadContinue -> T.Handle -> Stream -> Request ->
+type Responder = ThreadContinue -> T.Handle -> Stream ->
                  TBQueue Sequence -> Response -> IO ()
 
 -- | This function is passed to workers.
 --   They also pass 'Response's from 'Http2Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: Context -> Manager -> Responder
-response Context{outputQ} mgr tconf th strm req sq rsp = do
+response Context{outputQ} mgr tconf th strm sq rsp = do
     case rsp of
         ResponseStream _ _ strmbdy -> do
+            -- TODO(awpr)r HEAD requests will still stream.
+            --
             -- We must not exit this WAI application.
             -- If the application exits, streaming would be also closed.
             -- So, this work occupies this thread.
@@ -67,12 +67,6 @@ response Context{outputQ} mgr tconf th strm req sq rsp = do
                     T.tickle th
                 flush  = atomically $ writeTBQueue sq SFlush
             strmbdy push flush
-        _ -> do
-            setThreadContinue tconf True
-            let hasBody = requestMethod req /= H.methodHead
-                       && R.hasBody (responseStatus rsp)
-                out = OResponse strm rsp (Oneshot hasBody)
-            enqueueOrSpawnTemporaryWaiter strm outputQ out
 
 data Break = Break deriving (Show, Typeable)
 
@@ -98,7 +92,7 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
             setStreamInfo sinfo strm req
             T.resume th
             T.tickle th
-            app req $ responder tcont th strm req sq
+            app req $ responder tcont th strm sq
         cont1 <- case ex of
             Right trailers -> do
                 atomically $ writeTBQueue sq $ SFinish trailers

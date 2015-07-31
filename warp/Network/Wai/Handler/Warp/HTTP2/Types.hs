@@ -89,8 +89,7 @@ data Sync = SyncNone
           | SyncFinish Trailers
           | SyncNext Output
 
-data Aux = Oneshot Bool
-         | Persist (TBQueue Sequence) (TVar Sync)
+data Aux = Persist (TBQueue Sequence) (TVar Sync)
 
 ----------------------------------------------------------------
 

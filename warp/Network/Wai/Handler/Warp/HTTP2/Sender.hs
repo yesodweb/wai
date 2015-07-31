@@ -15,26 +15,14 @@ import qualified Data.ByteString.Builder.Extra as B
 import Foreign.Ptr
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.Wai hiding (Response)
-import Network.Wai.HTTP2 (Trailers, Response(..))
+import Network.Wai.HTTP2 (Trailers)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.HPACK
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Settings as S
-import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import qualified System.PosixCompat.Files as P
-
-#ifdef WINDOWS
-import qualified System.IO as IO
-#else
-import Network.Wai.Handler.Warp.FdCache
-import Network.Wai.Handler.Warp.SendFile (positionRead)
-import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
-import System.Posix.Types
-#endif
 
 ----------------------------------------------------------------
 
@@ -98,27 +86,10 @@ frameSender ctx@Context{outputQ,connectionWindow}
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Header frame and Continuation frame
             let sid = streamNumber strm
-                endOfStream = case aux of
-                    Persist{}  -> False
-                    Oneshot hb -> not hb
             builder <- hpackEncodeHeader ctx ii settings rsp
-            len <- headerContinue sid builder endOfStream
+            len <- headerContinue sid builder False
             let total = len + frameHeaderLength
             case aux of
-                Oneshot True -> do -- hasBody
-                    -- Data frame payload
-                    (off, _) <- sendHeadersIfNecessary total
-                    let payloadOff = off + frameHeaderLength
-                    Next datPayloadLen mnext <-
-                        fillResponseBodyGetNext conn ii payloadOff lim rsp
-                    fillDataHeaderSend strm total datPayloadLen mnext
-                    maybeEnqueueNext strm mnext
-                Oneshot False -> do
-                    -- "closed" must be before "connSendAll". If not,
-                    -- the context would be switched to the receiver,
-                    -- resulting the inconsistency of concurrency.
-                    closed ctx strm Finished
-                    flushN total
                 Persist sq tvar -> do
                     (off, needSend) <- sendHeadersIfNecessary total
                     let payloadOff = off + frameHeaderLength
@@ -238,62 +209,6 @@ frameSender ctx@Context{outputQ,connectionWindow}
 
 ----------------------------------------------------------------
 
-{-
-ResponseFile Status ResponseHeaders FilePath (Maybe FilePart)
-ResponseBuilder Status ResponseHeaders Builder
-ResponseStream Status ResponseHeaders StreamingBody
-ResponseRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) Response
--}
-
-fillResponseBodyGetNext :: Connection -> InternalInfo -> Int -> WindowSize -> Response -> IO Next
-fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
-                        _ off lim (ResponseBuilder _ _ bb) = do
-    let datBuf = connWriteBuffer `plusPtr` off
-        room = min (connBufferSize - off) lim
-    (len, signal) <- B.runBuilder bb datBuf room
-    return $ nextForBuilder connWriteBuffer connBufferSize len signal
-
-#ifdef WINDOWS
-fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
-                        _ off lim (ResponseFile _ _ path mpart) = do
-    let datBuf = connWriteBuffer `plusPtr` off
-        room = min (connBufferSize - off) lim
-    (start, bytes) <- fileStartEnd path mpart
-    -- fixme: how to close Handle? GC does it at this moment.
-    h <- IO.openBinaryFile path IO.ReadMode
-    IO.hSeek h IO.AbsoluteSeek start
-    len <- IO.hGetBufSome h datBuf (mini room bytes)
-    let bytes' = bytes - fromIntegral len
-    return $ nextForFile len connWriteBuffer connBufferSize h bytes' (return ())
-#else
-fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
-                        ii off lim (ResponseFile _ _ path mpart) = do
-    (fd, refresh) <- case fdCacher ii of
-        Just fdcache -> getFd fdcache path
-        Nothing      -> do
-            fd' <- openFd path ReadOnly Nothing defaultFileFlags{nonBlock=True}
-            th <- T.register (timeoutManager ii) (closeFd fd')
-            return (fd', T.tickle th)
-    let datBuf = connWriteBuffer `plusPtr` off
-        room = min (connBufferSize - off) lim
-    (start, bytes) <- fileStartEnd path mpart
-    len <- positionRead fd datBuf (mini room bytes) start
-    refresh
-    let len' = fromIntegral len
-    return $ nextForFile len connWriteBuffer connBufferSize fd (start + len') (bytes - len') refresh
-#endif
-
-fillResponseBodyGetNext _ _ _ _ _ = error "fillResponseBodyGetNext"
-
-fileStartEnd :: FilePath -> Maybe FilePart -> IO (Integer, Integer)
-fileStartEnd path Nothing = do
-    end <- fromIntegral . P.fileSize <$> P.getFileStatus path
-    return (0, end)
-fileStartEnd _ (Just part) =
-    return (filePartOffset part, filePartByteCount part)
-
-----------------------------------------------------------------
-
 fillStreamBodyGetNext :: Connection -> Int -> WindowSize -> TBQueue Sequence -> TVar Sync -> Stream -> IO Next
 fillStreamBodyGetNext Connection{connWriteBuffer,connBufferSize}
                       off lim sq tvar strm = do
@@ -301,38 +216,6 @@ fillStreamBodyGetNext Connection{connWriteBuffer,connBufferSize}
         room = min (connBufferSize - off) lim
     (leftover, cont, len) <- runStreamBuilder datBuf room sq
     nextForStream connWriteBuffer connBufferSize sq tvar strm leftover cont len
-
-----------------------------------------------------------------
-
-fillBufBuilder :: Buffer -> BufSize -> Leftover -> DynaNext
-fillBufBuilder buf0 siz0 leftover lim = do
-    let payloadBuf = buf0 `plusPtr` frameHeaderLength
-        room = min (siz0 - frameHeaderLength) lim
-    case leftover of
-        LZero -> error "fillBufBuilder: LZero"
-        LOne writer -> do
-            (len, signal) <- writer payloadBuf room
-            getNext len signal
-        LTwo bs writer
-          | BS.length bs <= room -> do
-              buf1 <- copy payloadBuf bs
-              let len1 = BS.length bs
-              (len2, signal) <- writer buf1 (room - len1)
-              getNext (len1 + len2) signal
-          | otherwise -> do
-              let (bs1,bs2) = BS.splitAt room bs
-              void $ copy payloadBuf bs1
-              getNext room (B.Chunk bs2 writer)
-  where
-    getNext l s = return $ nextForBuilder buf0 siz0 l s
-
-nextForBuilder :: Buffer -> BufSize -> BytesFilled -> B.Next -> Next
-nextForBuilder _   _   len B.Done
-    = Next len CFinish
-nextForBuilder buf siz len (B.More _ writer)
-    = Next len (CNext (fillBufBuilder buf siz (LOne writer)))
-nextForBuilder buf siz len (B.Chunk bs writer)
-    = Next len (CNext (fillBufBuilder buf siz (LTwo bs writer)))
 
 ----------------------------------------------------------------
 
@@ -400,42 +283,3 @@ nextForStream buf siz sq tvar strm LZero Nothing len = do
     return $ Next len CNone
 nextForStream buf siz sq tvar strm leftover Nothing len =
     return $ Next len (CNext (fillBufStream buf siz leftover sq tvar strm))
-
-----------------------------------------------------------------
-
-#ifdef WINDOWS
-fillBufFile :: Buffer -> BufSize -> IO.Handle -> Integer -> IO () -> DynaNext
-fillBufFile buf siz h bytes refresh lim = do
-    let payloadBuf = buf `plusPtr` frameHeaderLength
-        room = min (siz - frameHeaderLength) lim
-    len <- IO.hGetBufSome h payloadBuf room
-    refresh
-    let bytes' = bytes - fromIntegral len
-    return $ nextForFile len buf siz h bytes' refresh
-
-nextForFile :: BytesFilled -> Buffer -> BufSize -> IO.Handle -> Integer -> IO () -> Next
-nextForFile 0   _   _   _  _    _       = Next 0 CFinish
-nextForFile len _   _   _  0    _       = Next len CFinish
-nextForFile len buf siz h bytes refresh =
-    Next len (CNext (fillBufFile buf siz h bytes refresh))
-#else
-fillBufFile :: Buffer -> BufSize -> Fd -> Integer -> Integer -> IO () -> DynaNext
-fillBufFile buf siz fd start bytes refresh lim = do
-    let payloadBuf = buf `plusPtr` frameHeaderLength
-        room = min (siz - frameHeaderLength) lim
-    len <- positionRead fd payloadBuf (mini room bytes) start
-    let len' = fromIntegral len
-    refresh
-    return $ nextForFile len buf siz fd (start + len') (bytes - len') refresh
-
-nextForFile :: BytesFilled -> Buffer -> BufSize -> Fd -> Integer -> Integer -> IO () -> Next
-nextForFile 0   _   _   _  _     _     _       = Next 0 CFinish
-nextForFile len _   _   _  _     0     _       = Next len CFinish
-nextForFile len buf siz fd start bytes refresh =
-    Next len (CNext (fillBufFile buf siz fd start bytes refresh))
-#endif
-
-mini :: Int -> Integer -> Int
-mini i n
-  | fromIntegral i < n = i
-  | otherwise          = fromIntegral n
