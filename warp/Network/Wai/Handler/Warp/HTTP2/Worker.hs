@@ -20,7 +20,7 @@ import Control.Monad (void, when)
 import Data.Typeable
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.Wai.HTTP2 (Http2Application, Response(..))
+import Network.Wai.HTTP2 (Http2Application, Response)
 import Network.Wai hiding (Response, responseStatus)
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
@@ -41,32 +41,30 @@ type Responder = ThreadContinue -> T.Handle -> Stream ->
 --   They also pass 'Response's from 'Http2Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: Context -> Manager -> Responder
-response Context{outputQ} mgr tconf th strm sq rsp = do
-    case rsp of
-        ResponseStream _ _ strmbdy -> do
-            -- TODO(awpr)r HEAD requests will still stream.
-            --
-            -- We must not exit this WAI application.
-            -- If the application exits, streaming would be also closed.
-            -- So, this work occupies this thread.
-            --
-            -- We need to increase the number of workers.
-            myThreadId >>= replaceWithAction mgr
-            -- After this work, this thread stops to decease
-            -- the number of workers.
-            setThreadContinue tconf False
-            tvar <- newTVarIO SyncNone
-            let out = OResponse strm rsp (Persist sq tvar)
-            -- Since we must not enqueue an empty queue to the priority
-            -- queue, we spawn a thread to ensure that the designated
-            -- queue is not empty.
-            void $ forkIO $ waiter tvar sq strm outputQ
-            atomically $ writeTVar tvar (SyncNext out)
-            let push b = do
-                    atomically $ writeTBQueue sq (SBuilder b)
-                    T.tickle th
-                flush  = atomically $ writeTBQueue sq SFlush
-            strmbdy push flush
+response Context{outputQ} mgr tconf th strm sq (s, h, strmbdy) = do
+    -- TODO(awpr)r HEAD requests will still stream.
+    --
+    -- We must not exit this WAI application.
+    -- If the application exits, streaming would be also closed.
+    -- So, this work occupies this thread.
+    --
+    -- We need to increase the number of workers.
+    myThreadId >>= replaceWithAction mgr
+    -- After this work, this thread stops to decease
+    -- the number of workers.
+    setThreadContinue tconf False
+    tvar <- newTVarIO SyncNone
+    let out = OResponse strm s h (Persist sq tvar)
+    -- Since we must not enqueue an empty queue to the priority
+    -- queue, we spawn a thread to ensure that the designated
+    -- queue is not empty.
+    void $ forkIO $ waiter tvar sq strm outputQ
+    atomically $ writeTVar tvar (SyncNext out)
+    let push b = do
+            atomically $ writeTBQueue sq (SBuilder b)
+            T.tickle th
+        flush  = atomically $ writeTBQueue sq SFlush
+    strmbdy push flush
 
 data Break = Break deriving (Show, Typeable)
 

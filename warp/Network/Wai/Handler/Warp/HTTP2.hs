@@ -17,7 +17,6 @@ import Network.HTTP2
 import Network.Socket (SockAddr)
 
 import Network.Wai (Application, responseToStream)
-import Network.Wai.HTTP2 (Response(..))
 import Network.Wai.HTTP2 (Http2Application)
 import Network.Wai.Internal (ResponseReceived(..))
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
@@ -80,5 +79,5 @@ goaway Connection{..} etype debugmsg = connSendAll bytestream
 promoteApplication :: Application -> Http2Application
 promoteApplication app req respond = [] <$ app req respond'
   where
-    respond' r = ResponseReceived <$ (withBody $ respond . ResponseStream s h)
+    respond' r = ResponseReceived <$ (withBody $ \b -> respond (s, h, b))
       where (s, h, withBody) = responseToStream r

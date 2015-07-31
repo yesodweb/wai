@@ -1,8 +1,9 @@
 module Network.Wai.HTTP2
     ( Http2Application
-    , Response(..)
+    , Response
     , Trailers
     , responseStatus
+    , responseStream
     , responseHeaders
     ) where
 
@@ -20,10 +21,13 @@ type Http2Application = Request -> (Response -> IO ()) -> IO Trailers
 
 type StreamingBody = (Builder -> IO ()) -> IO () -> IO ()
 
-data Response = ResponseStream H.Status H.ResponseHeaders StreamingBody
+type Response = (H.Status, H.ResponseHeaders, StreamingBody)
 
 responseStatus :: Response -> H.Status
-responseStatus (ResponseStream s _ _) = s
+responseStatus (s, _, _) = s
 
 responseHeaders :: Response -> H.ResponseHeaders
-responseHeaders (ResponseStream _ h _) = h
+responseHeaders (_, h, _) = h
+
+responseStream :: H.Status -> H.ResponseHeaders -> StreamingBody -> Response
+responseStream = (,,)

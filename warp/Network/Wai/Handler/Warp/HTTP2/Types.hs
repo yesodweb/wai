@@ -18,7 +18,7 @@ import Data.IntMap.Strict (IntMap, IntMap)
 import qualified Data.IntMap.Strict as M
 import qualified Network.HTTP.Types as H
 import Network.Wai (Request)
-import Network.Wai.HTTP2 (Trailers, Response)
+import Network.Wai.HTTP2 (Trailers)
 import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.Types
 
@@ -66,7 +66,7 @@ data Output = OFinish
             -- ^ Send a goaway frame and terminate the connection.
             | OFrame  ByteString
             -- ^ Send an entire pre-encoded frame.
-            | OResponse Stream Response Aux
+            | OResponse Stream H.Status H.ResponseHeaders Aux
             -- ^ Send the headers and as much of the response as is immediately
             -- available.
             | ONext Stream DynaNext
@@ -75,9 +75,9 @@ data Output = OFinish
             -- ^ Send a series of trailers in header and continuation frames.
 
 outputStream :: Output -> Stream
-outputStream (OResponse strm _ _) = strm
-outputStream (ONext strm _)       = strm
-outputStream _                    = error "outputStream"
+outputStream (OResponse strm _ _ _) = strm
+outputStream (ONext strm _)         = strm
+outputStream _                      = error "outputStream"
 
 ----------------------------------------------------------------
 

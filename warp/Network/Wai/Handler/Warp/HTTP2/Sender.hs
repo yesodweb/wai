@@ -81,12 +81,12 @@ frameSender ctx@Context{outputQ,connectionWindow}
     switch (OFrame frame)  = do
         connSendAll frame
         loop
-    switch (OResponse strm rsp aux) = do
+    switch (OResponse strm s h aux) = do
         unlessClosed ctx conn strm $ do
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Header frame and Continuation frame
             let sid = streamNumber strm
-            builder <- hpackEncodeHeader ctx ii settings rsp
+            builder <- hpackEncodeHeader ctx ii settings s h
             len <- headerContinue sid builder False
             let total = len + frameHeaderLength
             case aux of
