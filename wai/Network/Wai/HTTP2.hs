@@ -7,7 +7,6 @@ module Network.Wai.HTTP2
     ) where
 
 import           Blaze.ByteString.Builder     (Builder)
-import qualified Data.ByteString              as B
 import qualified Network.HTTP.Types as H
 
 import Network.Wai.Internal (Request, FilePart)
@@ -25,14 +24,14 @@ data Response
     = ResponseFile H.Status H.ResponseHeaders FilePath (Maybe FilePart)
     | ResponseBuilder H.Status H.ResponseHeaders Builder
     | ResponseStream H.Status H.ResponseHeaders StreamingBody
-    | ResponseRaw (IO B.ByteString -> (B.ByteString -> IO ()) -> IO ()) Response
 
 responseStatus :: Response -> H.Status
 responseStatus (ResponseFile s _ _ _) = s
 responseStatus (ResponseBuilder s _ _) = s
 responseStatus (ResponseStream s _ _) = s
-responseStatus (ResponseRaw _ res) = responseStatus res
 
 responseHeaders :: Response -> H.ResponseHeaders
-responseHeaders _ = []
+responseHeaders (ResponseFile _ h _ _) = h
+responseHeaders (ResponseBuilder _ h _) = h
+responseHeaders (ResponseStream _ h _) = h
 

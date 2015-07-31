@@ -85,4 +85,7 @@ promoteResponse :: Response -> H2.Response
 promoteResponse (ResponseFile a b c d) = H2.ResponseFile a b c d
 promoteResponse (ResponseBuilder a b c) = H2.ResponseBuilder a b c
 promoteResponse (ResponseStream a b c) = H2.ResponseStream a b c
-promoteResponse (ResponseRaw a b) = H2.ResponseRaw a (promoteResponse b)
+promoteResponse (ResponseRaw _ b) =
+    -- There is no way to take over an HTTP/2 connection, so always serve the
+    -- backup response.
+    promoteResponse b
