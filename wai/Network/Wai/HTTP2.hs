@@ -20,9 +20,9 @@ type Trailers = H.ResponseHeaders
 -- | The HTTP\/2-aware equivalent of 'Network.Wai.Application'.
 type Http2Application = Request -> (forall a. Response a -> IO a) -> IO Trailers
 
-type StreamingBody a = (Builder -> IO ()) -> IO () -> IO a
+type Body a = (Builder -> IO ()) -> IO () -> IO a
 
-type Response a = (H.Status, H.ResponseHeaders, StreamingBody a)
+type Response a = (H.Status, H.ResponseHeaders, Body a)
 
 responseStatus :: Response a -> H.Status
 responseStatus (s, _, _) = s
@@ -30,5 +30,5 @@ responseStatus (s, _, _) = s
 responseHeaders :: Response a -> H.ResponseHeaders
 responseHeaders (_, h, _) = h
 
-responseStream :: H.Status -> H.ResponseHeaders -> StreamingBody a -> Response a
+responseStream :: H.Status -> H.ResponseHeaders -> Body a -> Response a
 responseStream = (,,)

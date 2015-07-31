@@ -85,7 +85,7 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
   where
     go sinfo tcont th = do
         setThreadContinue tcont True
-        -- Since 'StreamingBody' is loop, we cannot control it.
+        -- Since 'Body' is loop, we cannot control it.
         -- So, let's serialize 'Builder' with a designated queue.
         sq <- newTBQueueIO 10 -- fixme: hard coding: 10
         ex <- E.try $ do
