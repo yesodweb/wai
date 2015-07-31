@@ -69,18 +69,23 @@ allowInterrupt :: IO ()
 allowInterrupt = unblock $ return ()
 #endif
 
--- Used to duplicate the 'app' argument for all of the non-HTTP2 variants.
-runWithPromotedApp :: (Http2Application -> Application -> a) -> Application -> a
-runWithPromotedApp f = flip f <*> promoteApplication
+-- Composition over two arguments at once; used for runHttp2\*.
+(.:) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
+f .: g = curry $ f . uncurry g
 
 -- | Run an 'Application' on the given port.
 -- This calls 'runSettings' with 'defaultSettings'.
 run :: Port -> Application -> IO ()
-run = runWithPromotedApp . runHttp2
+run port = runServe port . serveDefault
 
--- | The HTTP/2-aware eqivalent of 'run'.
+-- | Serve an 'Http2Application' and an 'Application' together on the given
+-- port.
 runHttp2 :: Port -> Http2Application -> Application -> IO ()
-runHttp2 p = runHttp2Settings defaultSettings { settingsPort = p }
+runHttp2 port = runServe port .: serveHttp2
+
+-- | The generalized form of 'run'.
+runServe :: Port -> ServeConnection -> IO ()
+runServe p = runServeSettings defaultSettings { settingsPort = p }
 
 -- | Run an 'Application' on the port present in the @PORT@
 -- environment variable. Uses the 'Port' given when the variable is unset.
@@ -88,36 +93,44 @@ runHttp2 p = runHttp2Settings defaultSettings { settingsPort = p }
 --
 -- Since 3.0.9
 runEnv :: Port -> Application -> IO ()
-runEnv = runWithPromotedApp . runHttp2Env
+runEnv port = runServeEnv port . serveDefault
 
--- | The HTTP/2-aware eqivalent of 'runEnv'.
+-- | The HTTP\/2-aware form of 'runEnv'.
 runHttp2Env :: Port -> Http2Application -> Application -> IO ()
-runHttp2Env p app2 app = do
+runHttp2Env port = runServeEnv port .: serveHttp2
+
+-- | The generalized form of 'runEnv'.
+runServeEnv :: Port -> ServeConnection -> IO ()
+runServeEnv p serveConn = do
     mp <- fmap (lookup "PORT") getEnvironment
 
-    maybe (run p app) runReadPort mp
+    maybe (runServe p serveConn) runReadPort mp
 
   where
     runReadPort :: String -> IO ()
     runReadPort sp = case reads sp of
-        ((p', _):_) -> runHttp2 p' app2 app
+        ((p', _):_) -> runServe p' serveConn
         _ -> fail $ "Invalid value in $PORT: " ++ sp
 
 -- | Run an 'Application' with the given 'Settings'.
 -- This opens a listen socket on the port defined in 'Settings' and
 -- calls 'runSettingsSocket'.
 runSettings :: Settings -> Application -> IO ()
-runSettings = runWithPromotedApp . runHttp2Settings
+runSettings set = runServeSettings set . serveDefault
 
--- | The HTTP/2-aware eqivalent of 'runSettings'.
+-- | The HTTP\/2-aware form of 'runSettings'.
 runHttp2Settings :: Settings -> Http2Application -> Application -> IO ()
-runHttp2Settings set app2 app = withSocketsDo $
+runHttp2Settings set = runServeSettings set .: serveHttp2
+
+-- | The generalized form of 'runSettings'.
+runServeSettings :: Settings -> ServeConnection -> IO ()
+runServeSettings set serveConn = withSocketsDo $
     bracket
         (bindPortTCP (settingsPort set) (settingsHost set))
         sClose
         (\socket -> do
             setSocketCloseOnExec socket
-            runHttp2SettingsSocket set socket app2 app)
+            runServeSettingsSocket set socket serveConn)
 
 -- | This installs a shutdown handler for the given socket and
 -- calls 'runSettingsConnection' with the default connection setup action
@@ -131,14 +144,22 @@ runHttp2Settings set app2 app = withSocketsDo $
 -- Note that the 'settingsPort' will still be passed to 'Application's via the
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
-runSettingsSocket set socket = runWithPromotedApp $
-    runHttp2SettingsSocket set socket
+runSettingsSocket set socket = runServeSettingsSocket set socket . serveDefault
 
--- | The HTTP/2-aware eqivalent of 'runSettingsSocket'.
-runHttp2SettingsSocket :: Settings -> Socket -> Http2Application -> Application -> IO ()
-runHttp2SettingsSocket set socket app2 app = do
+-- | The HTTP\/2-aware form of 'runSettingsSocket'.
+runHttp2SettingsSocket :: Settings
+                       -> Socket
+                       -> Http2Application
+                       -> Application
+                       -> IO ()
+runHttp2SettingsSocket set socket =
+    runServeSettingsSocket set socket .: serveHttp2
+
+-- | The generalized form of 'runSettingsSocket'.
+runServeSettingsSocket :: Settings -> Socket -> ServeConnection -> IO ()
+runServeSettingsSocket set socket serveConn = do
     settingsInstallShutdownHandler set closeListenSocket
-    runHttp2SettingsConnection set getConn app2 app
+    runServeSettingsConnection set getConn serveConn
   where
     getConn = do
 #if WINDOWS
@@ -162,13 +183,16 @@ runHttp2SettingsSocket set socket app2 app = do
 --
 -- Since 1.3.5
 runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
-runSettingsConnection set getConn = runWithPromotedApp $
-    runHttp2SettingsConnection set getConn
+runSettingsConnection set getConn =
+    runServeSettingsConnection set getConn . serveDefault
 
--- | The HTTP/2-aware eqivalent of 'runSettingsConnection'.
-runHttp2SettingsConnection :: Settings -> IO (Connection, SockAddr) -> Http2Application -> Application -> IO ()
-runHttp2SettingsConnection set getConn app2 app =
-    runHttp2SettingsConnectionMaker set getConnMaker app2 app
+-- | The generalized form of 'runSettingsConnection'.
+runServeSettingsConnection :: Settings
+                           -> IO (Connection, SockAddr)
+                           -> ServeConnection
+                           -> IO ()
+runServeSettingsConnection set getConn serveConn =
+    runServeSettingsConnectionMaker set getConnMaker serveConn
   where
     getConnMaker = do
       (conn, sa) <- getConn
@@ -177,13 +201,16 @@ runHttp2SettingsConnection set getConn app2 app =
 -- | This modifies the connection maker so that it returns 'TCP' for 'Transport'
 -- (i.e. plain HTTP) then calls 'runSettingsConnectionMakerSecure'.
 runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
-runSettingsConnectionMaker x y = runWithPromotedApp $
-    runHttp2SettingsConnectionMaker x y
+runSettingsConnectionMaker set getConnMaker =
+    runServeSettingsConnectionMaker set getConnMaker . serveDefault
 
--- | The HTTP/2-aware eqivalent of 'runSettingsConnectionMaker'.
-runHttp2SettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Http2Application -> Application -> IO ()
-runHttp2SettingsConnectionMaker x y =
-    runHttp2SettingsConnectionMakerSecure x (go y)
+-- | The generalized form of 'runSettingsConnectionMaker'.
+runServeSettingsConnectionMaker :: Settings
+                                -> IO (IO Connection, SockAddr)
+                                -> ServeConnection
+                                -> IO ()
+runServeSettingsConnectionMaker x y =
+    runServeSettingsConnectionMakerSecure x (go y)
   where
     go = fmap (first (fmap (, TCP)))
 
@@ -196,19 +223,22 @@ runHttp2SettingsConnectionMaker x y =
 --
 -- Since 2.1.4
 runSettingsConnectionMakerSecure :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
-runSettingsConnectionMakerSecure set getConnMaker = runWithPromotedApp $
-    runHttp2SettingsConnectionMakerSecure set getConnMaker
+runSettingsConnectionMakerSecure set getConnMaker =
+    runServeSettingsConnectionMakerSecure set getConnMaker . serveDefault
 
--- | The HTTP/2-aware eqivalent of 'runSettingsConnectionMakerSecure'.
-runHttp2SettingsConnectionMakerSecure :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Http2Application -> Application -> IO ()
-runHttp2SettingsConnectionMakerSecure set getConnMaker app2 app = do
+-- | The generalized form of 'runSettingsConnectionMakerSecure'.
+runServeSettingsConnectionMakerSecure :: Settings
+                                      -> IO (IO (Connection, Transport), SockAddr)
+                                      -> ServeConnection
+                                      -> IO ()
+runServeSettingsConnectionMakerSecure set getConnMaker serveConn = do
     settingsBeforeMainLoop set
     counter <- newCounter
 
     D.withDateCache $ \dc ->
         F.withFdCache fdCacheDurationInSeconds $ \fc ->
             withTimeoutManager $ \tm ->
-                acceptConnection set getConnMaker app2 app dc fc tm counter
+                acceptConnection set getConnMaker serveConn dc fc tm counter
   where
     fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
     withTimeoutManager f = case settingsManager set of
@@ -233,14 +263,13 @@ runHttp2SettingsConnectionMakerSecure set getConnMaker app2 app = do
 -- Our approach is explained in the comments below.
 acceptConnection :: Settings
                  -> IO (IO (Connection, Transport), SockAddr)
-                 -> Http2Application
-                 -> Application
+                 -> ServeConnection
                  -> D.DateCache
                  -> Maybe F.MutableFdCache
                  -> T.Manager
                  -> Counter
                  -> IO ()
-acceptConnection set getConnMaker app2 app dc fc tm counter = do
+acceptConnection set getConnMaker serveConn dc fc tm counter = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
@@ -262,7 +291,7 @@ acceptConnection set getConnMaker app2 app dc fc tm counter = do
         case mx of
             Nothing             -> return ()
             Just (mkConn, addr) -> do
-                fork set mkConn addr app2 app dc fc tm counter
+                fork set mkConn addr serveConn dc fc tm counter
                 acceptLoop
 
     acceptNewConnection = do
@@ -286,14 +315,13 @@ acceptConnection set getConnMaker app2 app dc fc tm counter = do
 fork :: Settings
      -> IO (Connection, Transport)
      -> SockAddr
-     -> Http2Application
-     -> Application
+     -> ServeConnection
      -> D.DateCache
      -> Maybe F.MutableFdCache
      -> T.Manager
      -> Counter
      -> IO ()
-fork set mkConn addr app2 app dc fc tm counter = settingsFork set $ \ unmask ->
+fork set mkConn addr serveConn dc fc tm counter = settingsFork set $ \ unmask ->
     -- Run the connection maker to get a new connection, and ensure
     -- that the connection is closed. If the mkConn call throws an
     -- exception, we will leak the connection. If the mkConn call is
@@ -324,22 +352,34 @@ fork set mkConn addr app2 app dc fc tm counter = settingsFork set $ \ unmask ->
 
        -- Actually serve this connection.
        -- bracket with closeConn above ensures the connection is closed.
-       when goingon $ serveConnection conn ii addr transport set app2 app
+       when goingon $ serveConn conn ii addr transport set
   where
     closeConn (conn, _transport) = connClose conn
 
     onOpen adr    = increase counter >> settingsOnOpen  set adr
     onClose adr _ = decrease counter >> settingsOnClose set adr
 
-serveConnection :: Connection
-                -> InternalInfo
-                -> SockAddr
-                -> Transport
-                -> Settings
-                -> Http2Application
-                -> Application
-                -> IO ()
-serveConnection conn ii origAddr transport settings app2 app = do
+-- The type of a function to serve a fully-prepared connection.
+type ServeConnection = Connection
+                    -> InternalInfo
+                    -> SockAddr
+                    -> Transport
+                    -> Settings
+                    -> IO ()
+
+-- Serve an HTTP\/2-aware application, rejecting clients that attempt to use an
+-- older protocol version.
+serveHttp2Only :: Http2Application -> ServeConnection
+serveHttp2Only = error "serveHttp2Only not implemented"
+
+-- Serve an HTTP\/2-unaware Application to a connection over any HTTP version.
+serveDefault :: Application -> ServeConnection
+serveDefault = flip serveHttp2 <*> promoteApplication
+
+-- Serve an HTTP\/2-aware application over HTTP\/2 or a backup 'Application'
+-- over HTTP\/1.1 or HTTP\/1.
+serveHttp2 :: Http2Application -> Application -> ServeConnection
+serveHttp2 app2 app conn ii origAddr transport settings = do
     -- fixme: Upgrading to HTTP/2 should be supported.
     (h2,bs) <- if isHTTP2 transport then
                    return (True, "")
