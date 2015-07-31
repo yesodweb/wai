@@ -17,8 +17,8 @@ import qualified Data.ByteString as BS
 import Data.IntMap.Strict (IntMap, IntMap)
 import qualified Data.IntMap.Strict as M
 import qualified Network.HTTP.Types as H
-import Network.Wai (Request, Response)
-import Network.Wai.HTTP2 (Trailers)
+import Network.Wai (Request)
+import Network.Wai.HTTP2 (Trailers, Response)
 import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.Types
 

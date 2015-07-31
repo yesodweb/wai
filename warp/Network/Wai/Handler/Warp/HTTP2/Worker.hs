@@ -21,8 +21,8 @@ import Data.Typeable
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.Wai
-import Network.Wai.HTTP2 (Http2Application)
+import Network.Wai.HTTP2 (Http2Application, Response(..), responseStatus)
+import Network.Wai hiding (Response, responseStatus)
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
@@ -30,7 +30,6 @@ import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Response as R
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
-import Network.Wai.Internal (Response(..))
 
 ----------------------------------------------------------------
 

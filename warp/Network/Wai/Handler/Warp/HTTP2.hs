@@ -16,9 +16,10 @@ import Data.ByteString (ByteString)
 import Network.HTTP2
 import Network.Socket (SockAddr)
 
-import Network.Wai (Application)
+import Network.Wai (Application, Response)
+import qualified Network.Wai.HTTP2 as H2 (Response(..))
 import Network.Wai.HTTP2 (Http2Application)
-import Network.Wai.Internal (ResponseReceived(..))
+import Network.Wai.Internal (ResponseReceived(..), Response(..))
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Receiver
@@ -78,4 +79,10 @@ goaway Connection{..} etype debugmsg = connSendAll bytestream
 -- the HTTP/2-specific features.
 promoteApplication :: Application -> Http2Application
 promoteApplication app req respond = [] <$ app req respond'
-  where respond' x = ResponseReceived <$ respond x
+  where respond' x = ResponseReceived <$ respond (promoteResponse x)
+
+promoteResponse :: Response -> H2.Response
+promoteResponse (ResponseFile a b c d) = H2.ResponseFile a b c d
+promoteResponse (ResponseBuilder a b c) = H2.ResponseBuilder a b c
+promoteResponse (ResponseStream a b c) = H2.ResponseStream a b c
+promoteResponse (ResponseRaw a b) = H2.ResponseRaw a (promoteResponse b)

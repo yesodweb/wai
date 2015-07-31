@@ -15,8 +15,8 @@ import qualified Data.ByteString.Builder.Extra as B
 import Foreign.Ptr
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.Wai
-import Network.Wai.HTTP2 (Trailers)
+import Network.Wai hiding (Response)
+import Network.Wai.HTTP2 (Trailers, Response(..))
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.HPACK
@@ -25,7 +25,6 @@ import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Internal (Response(..))
 import qualified System.PosixCompat.Files as P
 
 #ifdef WINDOWS

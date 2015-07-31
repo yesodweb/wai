@@ -13,8 +13,7 @@ import Data.IORef (readIORef, writeIORef)
 import Network.HPACK
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
-import Network.Wai
-import Network.Wai.HTTP2 (Trailers)
+import Network.Wai.HTTP2 (Trailers, Response, responseStatus, responseHeaders)
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Response
