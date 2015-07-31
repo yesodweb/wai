@@ -21,7 +21,7 @@ import Control.Monad (void, when)
 import Data.Typeable
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.Wai.HTTP2 (Http2Application, Response)
+import Network.Wai.HTTP2 (Http2Application, Response, absurd)
 import Network.Wai hiding (Response, responseStatus)
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
@@ -94,7 +94,7 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
             setStreamInfo sinfo strm req
             T.resume th
             T.tickle th
-            app req $ responder tcont th strm sq
+            app (req, flip (const absurd)) $ responder tcont th strm sq
         cont1 <- case ex of
             Right trailers -> do
                 atomically $ writeTBQueue sq $ SFinish trailers

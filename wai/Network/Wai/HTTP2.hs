@@ -1,8 +1,9 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE EmptyCase, EmptyDataDecls, RankNTypes #-}
 module Network.Wai.HTTP2
     ( Http2Application
     , Response
     , Trailers
+    , absurd
     , responseStatus
     , responseStream
     , responseHeaders
@@ -17,9 +18,19 @@ import qualified Network.Wai.Internal as H1 (Request)
 -- the HTTP\/1.1 spec (RFC 7230), and section 8.1 of the HTTP\/2 spec.
 type Trailers = H.ResponseHeaders
 
--- | The type of an HTTP\/2 request.
--- TODO(awpr): specialize this for HTTP\/2.
-type Request = H1.Request
+-- | The synthesized request and headers of a pushed stream.
+-- TODO(awpr): implement for real.
+data PushPromise
+
+-- 'PushPromise' is currently uninhabited, which proves the caller cannot use
+-- 'pushPromise'.  This discharges the obligation to implement any function
+-- taking a 'PushPromise'.
+absurd :: PushPromise -> a
+absurd p = case p of {}
+
+-- | The type of an HTTP\/2 request: a normal HTTP request and an action to
+-- push streams associated with this request.
+type Request = (H1.Request, PushPromise -> Responder -> IO ())
 
 -- | The HTTP\/2-aware equivalent of 'Network.Wai.Application'.
 type Http2Application = Request -> Responder
