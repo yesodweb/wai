@@ -130,9 +130,10 @@ frameSender ctx@Context{outputQ,connectionWindow}
                         fillStreamBodyGetNext conn payloadOff lim sq tvar
                     -- If no data was immediately available, avoid sending an
                     -- empty data frame.
-                    if datPayloadLen > 0
-                        then fillDataHeaderSend strm total datPayloadLen mnext
-                        else when needSend $ flushN off
+                    if datPayloadLen > 0 then
+                        fillDataHeaderSend strm total datPayloadLen mnext
+                      else
+                        when needSend $ flushN off
                     maybeEnqueueNext strm mnext pri
         loop
     switch out@(ONext strm curr) pri = unlessClosed ctx conn strm $ do
@@ -193,10 +194,11 @@ frameSender ctx@Context{outputQ,connectionWindow}
     -- Send headers if there is not room for a 1-byte data frame, and return
     -- the offset of the next frame's first header byte and whether the headers
     -- still need to be sent.
-    sendHeadersIfNecessary total = do
-        if canFitDataFrame total
-            then return (total, True)
-            else bufferIO connWriteBuffer total connSendAll >> return (0, False)
+    sendHeadersIfNecessary total
+      | canFitDataFrame total = return (total, True)
+      | otherwise             = do
+          flushN total
+          return (0, False)
 
     fillDataHeaderSend strm otherLen datPayloadLen mnext = do
         -- Data frame header
