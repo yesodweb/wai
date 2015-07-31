@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 module Network.Wai.HTTP2
     ( Http2Application
     , Response
@@ -17,17 +18,17 @@ import Network.Wai.Internal (Request)
 type Trailers = H.ResponseHeaders
 
 -- | The HTTP\/2-aware equivalent of 'Network.Wai.Application'.
-type Http2Application = Request -> (Response -> IO ()) -> IO Trailers
+type Http2Application = Request -> (forall a. Response a -> IO a) -> IO Trailers
 
-type StreamingBody = (Builder -> IO ()) -> IO () -> IO ()
+type StreamingBody a = (Builder -> IO ()) -> IO () -> IO a
 
-type Response = (H.Status, H.ResponseHeaders, StreamingBody)
+type Response a = (H.Status, H.ResponseHeaders, StreamingBody a)
 
-responseStatus :: Response -> H.Status
+responseStatus :: Response a -> H.Status
 responseStatus (s, _, _) = s
 
-responseHeaders :: Response -> H.ResponseHeaders
+responseHeaders :: Response a -> H.ResponseHeaders
 responseHeaders (_, h, _) = h
 
-responseStream :: H.Status -> H.ResponseHeaders -> StreamingBody -> Response
+responseStream :: H.Status -> H.ResponseHeaders -> StreamingBody a -> Response a
 responseStream = (,,)

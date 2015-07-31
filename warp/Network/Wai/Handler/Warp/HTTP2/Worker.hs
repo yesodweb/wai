@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE CPP #-}
@@ -31,11 +32,10 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 
 ----------------------------------------------------------------
 
--- | The wai definition is @type Http2Application = Request -> (Response -> IO ()) -> IO Trailers@.
---   This type implements the second argument @Response -> IO ()@
---   with extra arguments.
-type Responder = ThreadContinue -> T.Handle -> Stream ->
-                 TBQueue Sequence -> Response -> IO ()
+-- | An 'Http2Application' takes a @forall a. Response a -> IO a@; this type
+-- implements that with extra arguments.
+type Responder = forall a. ThreadContinue -> T.Handle -> Stream ->
+                 TBQueue Sequence -> Response a -> IO a
 
 -- | This function is passed to workers.
 --   They also pass 'Response's from 'Http2Application's to this function.
@@ -70,8 +70,12 @@ data Break = Break deriving (Show, Typeable)
 
 instance Exception Break
 
-worker ::
-    Context -> S.Settings -> T.Manager -> Http2Application -> Responder -> IO ()
+worker :: Context
+       -> S.Settings
+       -> T.Manager
+       -> Http2Application
+       -> Responder
+       -> IO ()
 worker ctx@Context{inputQ,outputQ} set tm app responder = do
     tid <- myThreadId
     sinfo <- newStreamInfo
