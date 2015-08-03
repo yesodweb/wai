@@ -33,8 +33,8 @@ hpackEncodeHeader ctx ii settings s h = do
     defServer = S.settingsServerName settings
     addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
 
-hpackEncodeTrailers :: Context -> Trailers -> IO Builder
-hpackEncodeTrailers ctx = hpackEncodeRawHeaders ctx . map (first foldedCase)
+hpackEncodeCIHeaders :: Context -> [H.Header] -> IO Builder
+hpackEncodeCIHeaders ctx = hpackEncodeRawHeaders ctx . map (first foldedCase)
 
 hpackEncodeRawHeaders :: Context -> [(B.ByteString, B.ByteString)] -> IO Builder
 hpackEncodeRawHeaders Context{encodeDynamicTable} hdr = do

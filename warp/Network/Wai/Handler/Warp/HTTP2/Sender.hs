@@ -120,7 +120,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
     switch (OTrailers strm trailers) = do
         -- Trailers always indicate the end of a stream; send them in
         -- consecutive header+continuation frames and end the stream.
-        builder <- hpackEncodeTrailers ctx trailers
+        builder <- hpackEncodeCIHeaders ctx trailers
         off <- headerContinue (streamNumber strm) builder True
         closed ctx strm Finished
         flushN $ off + frameHeaderLength
