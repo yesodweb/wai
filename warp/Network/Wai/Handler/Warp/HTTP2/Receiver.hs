@@ -56,7 +56,7 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
             cont <- processStreamGuardingError $ decodeFrameHeader hd
             when cont loop
 
-    processStreamGuardingError (_, FrameHeader{streamId})
+    processStreamGuardingError (FrameHeaders, FrameHeader{streamId})
       | isResponse streamId = E.throwIO $ ConnectionError ProtocolError "stream id should be odd"
     processStreamGuardingError (FrameUnknown _, FrameHeader{payloadLength}) = do
         mx <- readIORef continued
