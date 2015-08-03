@@ -22,7 +22,7 @@ import Data.Typeable
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.Wai.HTTP2 (Http2Application, Response, absurd)
+import Network.Wai.HTTP2 (Http2Application, Responder, Response, absurd)
 import Network.Wai hiding (Response, responseStatus)
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
@@ -75,6 +75,14 @@ runStream Context{outputQ} mkOutput tickle strm sq (s, h, strmbdy) = do
         flush  = atomically $ writeTBQueue sq SFlush
     strmbdy push flush
 
+runResponder :: Responder -> Respond -> IO () -> Stream -> IO ()
+runResponder responder respond tickle strm = do
+    -- Since 'Body' is loop, we cannot control it.
+    -- So, let's serialize 'Builder' with a designated queue.
+    sq <- newTBQueueIO 10 -- fixme: hard coding: 10
+    trailers <- responder $ respond tickle strm sq
+    atomically $ writeTBQueue sq $ SFinish trailers
+
 cleanupStream :: Context -> S.Settings -> Stream -> Maybe Request -> Maybe SomeException -> IO ()
 cleanupStream ctx@Context{outputQ} set strm req me = do
     closed ctx strm Killed
@@ -103,20 +111,17 @@ worker ctx@Context{inputQ} set tm app respond = do
   where
     go sinfo tcont th = do
         setThreadContinue tcont True
-        -- Since 'Body' is loop, we cannot control it.
-        -- So, let's serialize 'Builder' with a designated queue.
-        sq <- newTBQueueIO 10 -- fixme: hard coding: 10
+
         ex <- E.try $ do
             T.pause th
             Input strm req <- atomically $ readTQueue inputQ
             setStreamInfo sinfo strm req
             T.resume th
             T.tickle th
-            app (req, flip (const absurd)) $ respond tcont (T.tickle th) strm sq
+            let responder = app (req, flip (const absurd))
+            runResponder responder (respond tcont) (T.tickle th) strm
         cont1 <- case ex of
-            Right trailers -> do
-                atomically $ writeTBQueue sq $ SFinish trailers
-                return True
+            Right () -> return True
             Left  e@(SomeException _)
               | Just Break        <- E.fromException e -> do
                   cleanup sinfo Nothing

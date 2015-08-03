@@ -2,6 +2,7 @@
 module Network.Wai.HTTP2
     ( Http2Application
     , PushPromise
+    , Responder
     , Response
     , Trailers
     , absurd
