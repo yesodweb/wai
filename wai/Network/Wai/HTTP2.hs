@@ -16,7 +16,7 @@ import qualified Network.Wai.Internal as H1 (Request)
 
 -- | Headers sent after the end of a data stream, as defined by section 4.1.2 of
 -- the HTTP\/1.1 spec (RFC 7230), and section 8.1 of the HTTP\/2 spec.
-type Trailers = H.ResponseHeaders
+type Trailers = [H.Header]
 
 -- | The synthesized request and headers of a pushed stream.
 -- TODO(awpr): implement for real.
