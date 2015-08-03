@@ -104,6 +104,9 @@ data Context = Context {
   --   this requirement.
   , continued          :: IORef (Maybe StreamId)
   , currentStreamId    :: IORef StreamId
+  -- ^ Last client-initiated stream ID we've handled.
+  , nextPushStreamId   :: IORef StreamId
+  -- ^ Next available server-initiated stream ID.
   , inputQ             :: TQueue Input
   , outputQ            :: PriorityTree Output
   , encodeDynamicTable :: IORef DynamicTable
@@ -119,6 +122,7 @@ newContext = Context <$> newIORef defaultSettings
                      <*> newIORef 0
                      <*> newIORef Nothing
                      <*> newIORef 0
+                     <*> newIORef 2 -- first server push stream; 0 is reserved
                      <*> newTQueueIO
                      <*> newPriorityTree
                      <*> (newDynamicTableForEncoding defaultDynamicTableSize >>= newIORef)
