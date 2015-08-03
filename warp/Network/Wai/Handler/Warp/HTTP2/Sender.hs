@@ -13,6 +13,7 @@ import Control.Monad (unless, void, when)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder.Extra as B
 import Foreign.Ptr
+import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
 import Network.Wai.HTTP2 (Trailers)
@@ -81,27 +82,10 @@ frameSender ctx@Context{outputQ,connectionWindow}
     switch (OFrame frame)  = do
         connSendAll frame
         loop
-    switch (OResponse strm s h aux) = do
-        unlessClosed ctx conn strm $ do
-            lim <- getWindowSize connectionWindow (streamWindow strm)
-            -- Header frame and Continuation frame
-            let sid = streamNumber strm
-            builder <- hpackEncodeHeader ctx ii settings s h
-            len <- headerContinue sid builder False
-            let total = len + frameHeaderLength
-            case aux of
-                Persist sq tvar -> do
-                    (off, needSend) <- sendHeadersIfNecessary total
-                    let payloadOff = off + frameHeaderLength
-                    Next datPayloadLen mnext <-
-                        fillStreamBodyGetNext conn payloadOff lim sq tvar strm
-                    -- If no data was immediately available, avoid sending an
-                    -- empty data frame.
-                    if datPayloadLen > 0 then
-                        fillDataHeaderSend strm total datPayloadLen mnext
-                      else
-                        when needSend $ flushN off
-                    maybeEnqueueNext strm mnext
+    switch out@(OResponse strm s h aux) = do
+        unlessClosed ctx conn strm $
+            getWindowSize connectionWindow (streamWindow strm) >>=
+                sendResponse strm s h aux
         loop
     switch (ONext strm curr) = do
         unlessClosed ctx conn strm $ do
@@ -125,6 +109,28 @@ frameSender ctx@Context{outputQ,connectionWindow}
         closed ctx strm Finished
         flushN $ off + frameHeaderLength
         loop
+
+    -- Send the response headers and as much of the response as is immediately
+    -- available; shared by normal responses and pushed streams.
+    sendResponse :: Stream -> H.Status -> H.ResponseHeaders -> Aux -> WindowSize -> IO ()
+    sendResponse strm s h (Persist sq tvar) lim = do
+        -- Header frame and Continuation frame
+        let sid = streamNumber strm
+        builder <- hpackEncodeHeader ctx ii settings s h
+        len <- headerContinue sid builder False
+        let total = len + frameHeaderLength
+        (off, needSend) <- sendHeadersIfNecessary total
+        let payloadOff = off + frameHeaderLength
+        Next datPayloadLen mnext <-
+            fillStreamBodyGetNext conn payloadOff lim sq tvar strm
+        -- If no data was immediately available, avoid sending an
+        -- empty data frame.
+        if datPayloadLen > 0 then
+            fillDataHeaderSend strm total datPayloadLen mnext
+          else
+            when needSend $ flushN off
+        maybeEnqueueNext strm mnext
+
 
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
     -- the buffer are filled.
