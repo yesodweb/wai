@@ -137,13 +137,15 @@ frameSender ctx@Context{outputQ,connectionWindow}
     flushN :: Int -> IO ()
     flushN n = bufferIO connWriteBuffer n connSendAll
 
+    -- A flags value with the end-header flag set iff the argument is B.Done.
+    maybeEndHeaders B.Done = setEndHeader defaultFlags
+    maybeEndHeaders _      = defaultFlags
+
     -- Write header and possibly continuation frames into the connection
     -- buffer, using the given builder as their contents.
     headerContinue sid builder endOfStream = do
         (len, signal) <- B.runBuilder builder bufHeaderPayload headerPayloadLim
-        let flag0 = case signal of
-                B.Done -> setEndHeader defaultFlags
-                _      -> defaultFlags
+        let flag0 = maybeEndHeaders signal
             flag = if endOfStream then setEndStream flag0 else flag0
         fillFrameHeader FrameHeaders len sid flag connWriteBuffer
         continue sid len signal
@@ -152,9 +154,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
     continue sid len (B.More _ writer) = do
         flushN $ len + frameHeaderLength
         (len', signal') <- writer bufHeaderPayload headerPayloadLim
-        let flag = case signal' of
-                B.Done -> setEndHeader defaultFlags
-                _      -> defaultFlags
+        let flag = maybeEndHeaders signal'
         fillFrameHeader FrameContinuation len' sid flag connWriteBuffer
         continue sid len' signal'
     continue sid len (B.Chunk bs writer) = do
