@@ -18,7 +18,7 @@ import Foreign.Ptr
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.Wai.HTTP2 (Trailers, absurd)
+import Network.Wai.HTTP2 (Trailers, promiseHeaders)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.HPACK
@@ -101,12 +101,11 @@ frameSender ctx@Context{outputQ,connectionWindow}
         unlessClosed ctx conn oldStrm $ do
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Write and send the promise.
-            builder <- hpackEncodeCIHeaders ctx $ absurd push
+            builder <- hpackEncodeCIHeaders ctx $ promiseHeaders push
             off <- pushContinue (streamNumber oldStrm) (streamNumber strm) builder
             flushN $ off + frameHeaderLength
             -- TODO(awpr): refactor sendResponse to be able to handle non-zero
             -- initial offsets and use that to potentially avoid the extra syscall.
-
             sendResponse strm s h aux lim
         loop
     switch (OTrailers strm []) = do

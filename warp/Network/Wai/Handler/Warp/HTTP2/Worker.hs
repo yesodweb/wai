@@ -22,7 +22,7 @@ import Data.Typeable
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.Wai.HTTP2 (Http2Application, Responder, Response, absurd)
+import Network.Wai.HTTP2 (Http2Application, PushPromise, Responder, Response)
 import Network.Wai hiding (Response, responseStatus)
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
@@ -92,6 +92,29 @@ cleanupStream ctx@Context{outputQ} set strm req me = do
         Nothing -> return ()
         Just e -> S.settingsOnException set req e
 
+pushResponder :: Context -> S.Settings -> Stream -> PushPromise -> Responder -> IO ()
+pushResponder ctx set strm promise responder = do
+    let Context{ http2settings
+               , nextPushStreamId
+               , streamTable
+               } = ctx
+    -- Claim the next outgoing stream.
+    newSid <- atomicModifyIORef nextPushStreamId $ \sid -> (sid+2, sid)
+    ws <- initialWindowSize <$> readIORef http2settings
+
+    newStrm <- newStream newSid ws
+    opened ctx newStrm
+    insert streamTable newSid newStrm
+
+    let pri = Priority False (streamNumber strm) 16
+        mkOutput = OPush strm promise
+        tickle = return ()
+        respond = runStream ctx mkOutput
+
+    -- TODO(awpr): synthesize a Request for 'settingsOnException'?
+    runResponder responder respond tickle newStrm `E.catch`
+        (cleanupStream ctx set strm Nothing . Just)
+
 data Break = Break deriving (Show, Typeable)
 
 instance Exception Break
@@ -118,7 +141,7 @@ worker ctx@Context{inputQ} set tm app respond = do
             setStreamInfo sinfo strm req
             T.resume th
             T.tickle th
-            let responder = app (req, flip (const absurd))
+            let responder = app (req, pushResponder ctx set strm)
             runResponder responder (respond tcont) (T.tickle th) strm
         cont1 <- case ex of
             Right () -> return True

@@ -1,17 +1,20 @@
-{-# LANGUAGE EmptyCase, EmptyDataDecls, RankNTypes #-}
+{-# LANGUAGE OverloadedStrings, RankNTypes #-}
 module Network.Wai.HTTP2
     ( Http2Application
-    , PushPromise
+    , PushPromise(..)
     , Responder
     , Response
     , Trailers
-    , absurd
     , responseStatus
     , responseStream
     , responseHeaders
+    , promiseHeaders
     ) where
 
-import           Blaze.ByteString.Builder     (Builder)
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as L
+
+import           Data.ByteString.Builder (Builder)
 import qualified Network.HTTP.Types as H
 
 import qualified Network.Wai.Internal as H1 (Request)
@@ -21,14 +24,13 @@ import qualified Network.Wai.Internal as H1 (Request)
 type Trailers = [H.Header]
 
 -- | The synthesized request and headers of a pushed stream.
--- TODO(awpr): implement for real.
-data PushPromise
-
--- 'PushPromise' is currently uninhabited, which proves the caller cannot use
--- 'pushPromise'.  This discharges the obligation to implement any function
--- taking a 'PushPromise'.
-absurd :: PushPromise -> a
-absurd p = case p of {}
+data PushPromise = PushPromise
+    { promisedMethod :: H.Method
+    , promisedPath :: ByteString
+    , promisedAuthority :: ByteString
+    , promisedScheme :: ByteString
+    , promisedHeader :: H.RequestHeaders
+    }
 
 -- | The type of an HTTP\/2 request: a normal HTTP request and an action to
 -- push streams associated with this request.
@@ -51,3 +53,11 @@ responseHeaders (_, h, _) = h
 
 responseStream :: H.Status -> H.ResponseHeaders -> Body a -> Response a
 responseStream = (,,)
+
+promiseHeaders :: PushPromise -> H.RequestHeaders
+promiseHeaders p =
+  [ (":method", promisedMethod p)
+  , (":path", promisedPath p)
+  , (":authority", promisedAuthority p)
+  , (":scheme", promisedScheme p)
+  ] ++ promisedHeader p
