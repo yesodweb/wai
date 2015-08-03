@@ -66,6 +66,15 @@ response Context{outputQ} mgr tconf th strm sq (s, h, strmbdy) = do
         flush  = atomically $ writeTBQueue sq SFlush
     strmbdy push flush
 
+cleanupStream :: Context -> S.Settings -> Stream -> Maybe Request -> Maybe SomeException -> IO ()
+cleanupStream ctx@Context{outputQ} set strm req me = do
+    closed ctx strm Killed
+    let frame = resetFrame InternalError (streamNumber strm)
+    enqueue outputQ (OFrame frame) highestPriority
+    case me of
+        Nothing -> return ()
+        Just e -> S.settingsOnException set req e
+
 data Break = Break deriving (Show, Typeable)
 
 instance Exception Break
@@ -117,12 +126,7 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
         case m of
             Nothing -> return ()
             Just (strm,req) -> do
-                closed ctx strm Killed
-                let frame = resetFrame InternalError (streamNumber strm)
-                enqueue outputQ (OFrame frame) highestPriority
-                case me of
-                    Nothing -> return ()
-                    Just e  -> S.settingsOnException set (Just req) e
+                cleanupStream ctx set strm (Just req) me
                 clearStreamInfo sinfo
 
 waiter :: TVar Sync -> TBQueue Sequence -> Stream -> PriorityTree Output -> IO ()
