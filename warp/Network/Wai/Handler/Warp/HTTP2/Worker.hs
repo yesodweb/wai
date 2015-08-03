@@ -5,7 +5,7 @@
 {-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Worker (
-    Responder
+    Respond
   , response
   , worker
   ) where
@@ -19,6 +19,7 @@ import Control.Exception (Exception, SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
 import Control.Monad (void, when)
 import Data.Typeable
+import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
 import Network.Wai.HTTP2 (Http2Application, Response, absurd)
@@ -33,28 +34,36 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 ----------------------------------------------------------------
 
 -- | An 'Http2Application' takes a @forall a. Response a -> IO a@; this type
--- implements that with extra arguments.
-type Responder = forall a. ThreadContinue -> T.Handle -> Stream ->
-                 TBQueue Sequence -> Response a -> IO a
+--   implements that by currying some internal arguments.
+--
+--   This is the argument to a 'Responder'.
+type Respond = IO () -> Stream -> TBQueue Sequence ->
+               (forall a. Response a -> IO a)
 
 -- | This function is passed to workers.
 --   They also pass 'Response's from 'Http2Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
-response :: Context -> Manager -> Responder
-response Context{outputQ} mgr tconf th strm sq (s, h, strmbdy) = do
-    -- TODO(awpr)r HEAD requests will still stream.
-    --
+response :: Context -> Manager -> ThreadContinue -> Respond
+response ctx mgr tconf tickle strm sq rsp = do
+    -- TODO(awpr) HEAD requests will still stream.
+
     -- We must not exit this WAI application.
     -- If the application exits, streaming would be also closed.
     -- So, this work occupies this thread.
     --
     -- We need to increase the number of workers.
     myThreadId >>= replaceWithAction mgr
-    -- After this work, this thread stops to decease
-    -- the number of workers.
+    -- After this work, this thread stops to decrease the number of workers.
     setThreadContinue tconf False
+
+    runStream ctx OResponse tickle strm sq rsp
+
+runStream :: Context
+          -> (Stream -> H.Status -> H.ResponseHeaders -> Aux -> Output)
+          -> Respond
+runStream Context{outputQ} mkOutput tickle strm sq (s, h, strmbdy) = do
     tvar <- newTVarIO SyncNone
-    let out = OResponse strm s h (Persist sq tvar)
+    let out = mkOutput strm s h (Persist sq tvar)
     -- Since we must not enqueue an empty queue to the priority
     -- queue, we spawn a thread to ensure that the designated
     -- queue is not empty.
@@ -62,7 +71,7 @@ response Context{outputQ} mgr tconf th strm sq (s, h, strmbdy) = do
     atomically $ writeTVar tvar (SyncNext out)
     let push b = do
             atomically $ writeTBQueue sq (SBuilder b)
-            T.tickle th
+            tickle
         flush  = atomically $ writeTBQueue sq SFlush
     strmbdy push flush
 
@@ -83,9 +92,9 @@ worker :: Context
        -> S.Settings
        -> T.Manager
        -> Http2Application
-       -> Responder
+       -> (ThreadContinue -> Respond)
        -> IO ()
-worker ctx@Context{inputQ,outputQ} set tm app responder = do
+worker ctx@Context{inputQ} set tm app respond = do
     tid <- myThreadId
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
@@ -103,7 +112,7 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
             setStreamInfo sinfo strm req
             T.resume th
             T.tickle th
-            app (req, flip (const absurd)) $ responder tcont th strm sq
+            app (req, flip (const absurd)) $ respond tcont (T.tickle th) strm sq
         cont1 <- case ex of
             Right trailers -> do
                 atomically $ writeTBQueue sq $ SFinish trailers
@@ -156,7 +165,7 @@ waiter tvar sq strm outQ = do
 -- | It would nice if responders could return values to workers.
 --   Unfortunately, 'ResponseReceived' is already defined in WAI 2.0.
 --   It is not wise to change this type.
---   So, a reference is shared by a responder and its worker.
+--   So, a reference is shared by a 'Respond' and its worker.
 --   The reference refers a value of this type as a return value.
 --   If 'True', the worker continue to serve requests.
 --   Otherwise, the worker get finished.
