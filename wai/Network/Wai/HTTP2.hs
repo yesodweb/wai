@@ -1,6 +1,7 @@
 {-# LANGUAGE EmptyCase, EmptyDataDecls, RankNTypes #-}
 module Network.Wai.HTTP2
     ( Http2Application
+    , PushPromise
     , Response
     , Trailers
     , absurd

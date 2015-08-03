@@ -18,7 +18,7 @@ import Data.IntMap.Strict (IntMap, IntMap)
 import qualified Data.IntMap.Strict as M
 import qualified Network.HTTP.Types as H
 import Network.Wai (Request)
-import Network.Wai.HTTP2 (Trailers)
+import Network.Wai.HTTP2 (PushPromise, Trailers)
 import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.Types
 
@@ -69,6 +69,8 @@ data Output = OFinish
             | OResponse Stream H.Status H.ResponseHeaders Aux
             -- ^ Send the headers and as much of the response as is immediately
             -- available.
+            | OPush Stream PushPromise Stream H.Status H.ResponseHeaders Aux
+            -- ^ Send a PUSH_PROMISE frame, then act like OResponse.
             | ONext Stream DynaNext
             -- ^ Send a chunk of the response.
             | OTrailers Stream Trailers

@@ -11,12 +11,14 @@ import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (unless, void, when)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as B (int32BE)
 import qualified Data.ByteString.Builder.Extra as B
+import Data.Monoid ((<>))
 import Foreign.Ptr
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.Wai.HTTP2 (Trailers)
+import Network.Wai.HTTP2 (Trailers, absurd)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.HPACK
@@ -82,7 +84,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
     switch (OFrame frame)  = do
         connSendAll frame
         loop
-    switch out@(OResponse strm s h aux) = do
+    switch (OResponse strm s h aux) = do
         unlessClosed ctx conn strm $
             getWindowSize connectionWindow (streamWindow strm) >>=
                 sendResponse strm s h aux
@@ -94,6 +96,18 @@ frameSender ctx@Context{outputQ,connectionWindow}
             Next datPayloadLen mnext <- curr lim
             fillDataHeaderSend strm 0 datPayloadLen mnext
             maybeEnqueueNext strm mnext
+        loop
+    switch (OPush oldStrm push strm s h aux) = do
+        unlessClosed ctx conn oldStrm $ do
+            lim <- getWindowSize connectionWindow (streamWindow strm)
+            -- Write and send the promise.
+            builder <- hpackEncodeCIHeaders ctx $ absurd push
+            off <- pushContinue (streamNumber oldStrm) (streamNumber strm) builder
+            flushN $ off + frameHeaderLength
+            -- TODO(awpr): refactor sendResponse to be able to handle non-zero
+            -- initial offsets and use that to potentially avoid the extra syscall.
+
+            sendResponse strm s h aux lim
         loop
     switch (OTrailers strm []) = do
         let flag = setEndStream defaultFlags
@@ -141,8 +155,17 @@ frameSender ctx@Context{outputQ,connectionWindow}
     maybeEndHeaders B.Done = setEndHeader defaultFlags
     maybeEndHeaders _      = defaultFlags
 
-    -- Write header and possibly continuation frames into the connection
-    -- buffer, using the given builder as their contents.
+    -- Write PUSH_PROMISE and possibly CONTINUATION frames into the connection
+    -- buffer, using the given builder as their contents; flush them to the
+    -- socket as necessary.
+    pushContinue sid newSid builder = do
+        let builder' = B.int32BE (fromIntegral newSid) <> builder
+        (len, signal) <- B.runBuilder builder' bufHeaderPayload headerPayloadLim
+        let flag = maybeEndHeaders signal
+        fillFrameHeader FramePushPromise len sid flag connWriteBuffer
+        continue sid len signal
+
+    -- Write HEADER and possibly CONTINUATION frames.
     headerContinue sid builder endOfStream = do
         (len, signal) <- B.runBuilder builder bufHeaderPayload headerPayloadLim
         let flag0 = maybeEndHeaders signal
