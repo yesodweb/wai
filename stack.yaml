@@ -12,8 +12,8 @@ packages:
 - ./mime-types
 - ./auto-update
 - location:
-    git: git@github.com:aaronfriel/hs-tls
-    commit: d0f163cac4b1b908b759a7b1a878481699e3ad80
+    git: git@github.com:vincenthz/hs-tls
+    commit: 7baaef9657b2154c935565767a01c166f6f4c77d
   subdirs:
   - core
 extra-deps:
