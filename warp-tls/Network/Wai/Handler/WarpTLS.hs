@@ -276,6 +276,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
         , (TLS.HashSHA1,   TLS.SignatureDSS)
         ]
       , TLS.supportedSecureRenegotiation = True
+      , TLS.supportedClientInitiatedRenegotiation = False
       , TLS.supportedSession             = True
       }
 
