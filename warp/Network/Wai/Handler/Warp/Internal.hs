@@ -45,8 +45,8 @@ module Network.Wai.Handler.Warp.Internal (
     --
     -- * When all request headers are read, the timeout is tickled.
     --
-    -- * Every time at least 2048 bytes of the request body are read, the timeout
-    --   is tickled.
+    -- * Every time at least the slowloris size settings number of bytes of the request
+    --   body are read, the timeout is tickled.
     --
     -- * The timeout is paused while executing user code. This will apply to both
     --   the application itself, and a ResponseSource response. The timeout is

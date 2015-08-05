@@ -64,6 +64,7 @@ module Network.Wai.Handler.Warp (
   , setProxyProtocolNone
   , setProxyProtocolRequired
   , setProxyProtocolOptional
+  , setSlowlorisSize
     -- ** Getters
   , getPort
   , getHost
@@ -337,6 +338,12 @@ setProxyProtocolRequired y = y { settingsProxyProtocol = ProxyProtocolRequired }
 -- Since 3.0.5
 setProxyProtocolOptional :: Settings -> Settings
 setProxyProtocolOptional y = y { settingsProxyProtocol = ProxyProtocolOptional }
+
+-- | Size in bytes read to prevent Slowloris protection. Default value: 2048
+--
+-- Since 3.1.2
+setSlowlorisSize :: Int -> Settings -> Settings
+setSlowlorisSize x y = y { settingsSlowlorisSize = x }
 
 -- | Explicitly pause the slowloris timeout.
 --
