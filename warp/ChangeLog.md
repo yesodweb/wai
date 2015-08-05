@@ -1,3 +1,7 @@
+## 3.1.2
+
+* Configurable Slowloris size [#418](https://github.com/yesodweb/wai/pull/418)
+
 ## 3.1.0
 
 * Supporting HTTP/2 [#399](https://github.com/yesodweb/wai/pull/399)
