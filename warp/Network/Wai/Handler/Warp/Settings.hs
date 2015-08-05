@@ -89,6 +89,10 @@ data Settings = Settings
       -- ^ Specify usage of the PROXY protocol.
       --
       -- Since 3.0.5.
+    , settingsSlowlorisSize :: Int
+      -- ^ Size of bytes read to prevent Slowloris protection. Default value: 2048
+      --
+      -- Since 3.1.2.
     }
 
 -- | Specify usage of the PROXY protocol.
@@ -119,6 +123,7 @@ defaultSettings = Settings
     , settingsServerName = S8.pack $ "Warp/" ++ showVersion Paths_warp.version
     , settingsMaximumBodyFlush = Just 8192
     , settingsProxyProtocol = ProxyProtocolNone
+    , settingsSlowlorisSize = 2048
     }
 
 -- | Apply the logic provided by 'defaultOnException' to determine if an

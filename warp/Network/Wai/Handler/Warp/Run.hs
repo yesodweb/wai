@@ -314,7 +314,7 @@ serveConnection conn ii origAddr transport settings app = do
         http2 conn ii origAddr transport settings recvN app
       else do
         istatus <- newIORef False
-        src <- mkSource (wrappedRecv conn th istatus)
+        src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
         writeIORef istatus True
         leftoverSource src bs
         addr <- getProxyProtocolAddr src
@@ -470,12 +470,12 @@ flushBody src =
                 | toRead' >= 0 -> loop toRead'
                 | otherwise -> return False
 
-wrappedRecv :: Connection -> T.Handle -> IORef Bool -> IO ByteString
-wrappedRecv Connection { connRecv = recv } th istatus = do
+wrappedRecv :: Connection -> T.Handle -> IORef Bool -> Int -> IO ByteString
+wrappedRecv Connection { connRecv = recv } th istatus slowlorisSize = do
     bs <- recv
     unless (S.null bs) $ do
         writeIORef istatus True
-        when (S.length bs >= 2048) $ T.tickle th
+        when (S.length bs >= slowlorisSize) $ T.tickle th
     return bs
 
 -- Copied from: https://github.com/mzero/plush/blob/master/src/Plush/Server/Warp.hs
