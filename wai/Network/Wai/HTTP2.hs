@@ -34,7 +34,7 @@ data PushPromise = PushPromise
 
 -- | The type of an HTTP\/2 request: a normal HTTP request and an action to
 -- push streams associated with this request.
-type Request = (H1.Request, PushPromise -> Responder -> IO ())
+type Request = (H1.Request, PushPromise -> Responder -> IO Bool)
 
 -- | The HTTP\/2-aware equivalent of 'Network.Wai.Application'.
 type Http2Application = Request -> Responder

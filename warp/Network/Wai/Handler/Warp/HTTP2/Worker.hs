@@ -92,28 +92,32 @@ cleanupStream ctx@Context{outputQ} set strm req me = do
         Nothing -> return ()
         Just e -> S.settingsOnException set req e
 
-pushResponder :: Context -> S.Settings -> Stream -> PushPromise -> Responder -> IO ()
+pushResponder :: Context -> S.Settings -> Stream -> PushPromise -> Responder -> IO Bool
 pushResponder ctx set strm promise responder = do
     let Context{ http2settings
                , nextPushStreamId
                , streamTable
                } = ctx
-    -- Claim the next outgoing stream.
-    newSid <- atomicModifyIORef nextPushStreamId $ \sid -> (sid+2, sid)
-    ws <- initialWindowSize <$> readIORef http2settings
+    enabled <- enablePush <$> readIORef http2settings
+    when enabled $ do
+        -- Claim the next outgoing stream.
+        newSid <- atomicModifyIORef nextPushStreamId $ \sid -> (sid+2, sid)
+        ws <- initialWindowSize <$> readIORef http2settings
 
-    newStrm <- newStream newSid ws
-    opened ctx newStrm
-    insert streamTable newSid newStrm
+        newStrm <- newStream newSid ws
+        writeIORef (streamPriority newStrm) $
+            Priority False (streamNumber strm) 16
+        opened ctx newStrm
+        insert streamTable newSid newStrm
 
-    let pri = Priority False (streamNumber strm) 16
-        mkOutput = OPush strm promise
-        tickle = return ()
-        respond = runStream ctx mkOutput
+        let mkOutput = OPush strm promise
+            tickle = return ()
+            respond = runStream ctx mkOutput
 
-    -- TODO(awpr): synthesize a Request for 'settingsOnException'?
-    runResponder responder respond tickle newStrm `E.catch`
-        (cleanupStream ctx set strm Nothing . Just)
+        -- TODO(awpr): synthesize a Request for 'settingsOnException'?
+        runResponder responder respond tickle newStrm `E.catch`
+            (cleanupStream ctx set strm Nothing . Just)
+    return enabled
 
 data Break = Break deriving (Show, Typeable)
 
