@@ -2,12 +2,9 @@
 module Network.Wai.HTTP2
     ( Http2Application
     , PushPromise(..)
+    , RespondFunc
     , Responder
-    , Response
     , Trailers
-    , responseStatus
-    , responseStream
-    , responseHeaders
     , promiseHeaders
     ) where
 
@@ -41,18 +38,9 @@ type Http2Application = Request -> Responder
 
 type Body a = (Builder -> IO ()) -> IO () -> IO a
 
-type Response a = (H.Status, H.ResponseHeaders, Body a)
+type RespondFunc = forall a. H.Status -> H.ResponseHeaders -> Body a -> IO a
 
-type Responder = (forall a. Response a -> IO a) -> IO Trailers
-
-responseStatus :: Response a -> H.Status
-responseStatus (s, _, _) = s
-
-responseHeaders :: Response a -> H.ResponseHeaders
-responseHeaders (_, h, _) = h
-
-responseStream :: H.Status -> H.ResponseHeaders -> Body a -> Response a
-responseStream = (,,)
+type Responder = RespondFunc -> IO Trailers
 
 promiseHeaders :: PushPromise -> H.RequestHeaders
 promiseHeaders p =

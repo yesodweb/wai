@@ -79,5 +79,5 @@ goaway Connection{..} etype debugmsg = connSendAll bytestream
 promoteApplication :: Application -> Http2Application
 promoteApplication app (req, _) respond = [] <$ app req respond'
   where
-    respond' r = ResponseReceived <$ (withBody $ \b -> respond (s, h, b))
+    respond' r = ResponseReceived <$ (withBody $ respond s h)
       where (s, h, withBody) = responseToStream r
