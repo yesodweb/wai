@@ -2,6 +2,11 @@
 
 * Configurable Slowloris size [#418](https://github.com/yesodweb/wai/pull/418)
 
+## 3.1.1
+
+* Fixing a bug of HTTP/2 when no FD cache is used [#411](https://github.com/yesodweb/wai/pull/411)
+* Fixing a buffer-pool bug [#406](https://github.com/yesodweb/wai/pull/406) [#407](https://github.com/yesodweb/wai/pull/407)
+
 ## 3.1.0
 
 * Supporting HTTP/2 [#399](https://github.com/yesodweb/wai/pull/399)
