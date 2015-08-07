@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RankNTypes #-}
 module Network.Wai.HTTP2
-    ( Http2Application
+    ( HTTP2Application
     , PushPromise(..)
     , RespondFunc
     , Responder
@@ -30,7 +30,7 @@ data PushPromise = PushPromise
     }
 
 -- | The HTTP\/2-aware equivalent of 'Network.Wai.Application'.
-type Http2Application = Request -> PushFunc -> Responder
+type HTTP2Application = Request -> PushFunc -> Responder
 
 type Body a = (Builder -> IO ()) -> IO () -> IO a
 

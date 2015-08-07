@@ -19,7 +19,7 @@ module Network.Wai.Handler.Warp.Internal (
     -- * ServeConnection
   , ServeConnection
   , serveDefault
-  , serveHttp2
+  , serveHTTP2
     -- * Connection
   , Connection (..)
   , socketConnection

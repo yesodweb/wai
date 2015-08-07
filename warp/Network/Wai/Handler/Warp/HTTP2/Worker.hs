@@ -27,20 +27,20 @@ import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
-import Network.Wai.HTTP2 (Http2Application, PushPromise, Responder, RespondFunc)
+import Network.Wai.HTTP2 (HTTP2Application, PushPromise, Responder, RespondFunc)
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
 
 ----------------------------------------------------------------
 
--- | An 'Http2Application' takes a 'RespondFunc'; this type implements that by
+-- | An 'HTTP2Application' takes a 'RespondFunc'; this type implements that by
 --   currying some internal arguments.
 --
 --   This is the argument to a 'Responder'.
 type Respond = IO () -> Stream -> TBQueue Sequence -> RespondFunc
 
 -- | This function is passed to workers.
---   They also pass responses from 'Http2Application's to this function.
+--   They also pass responses from 'HTTP2Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: Context -> Manager -> ThreadContinue -> Respond
 response ctx mgr tconf tickle strm sq s h strmbdy = do
@@ -125,7 +125,7 @@ instance Exception Break
 worker :: Context
        -> S.Settings
        -> T.Manager
-       -> Http2Application
+       -> HTTP2Application
        -> (ThreadContinue -> Respond)
        -> IO ()
 worker ctx@Context{inputQ} set tm app respond = do

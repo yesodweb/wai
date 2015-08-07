@@ -21,7 +21,7 @@ import Network (sClose, Socket)
 import Network.Socket (accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6))
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
-import Network.Wai.HTTP2 (Http2Application)
+import Network.Wai.HTTP2 (HTTP2Application)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Counter
 import qualified Network.Wai.Handler.Warp.Date as D
@@ -69,7 +69,7 @@ allowInterrupt :: IO ()
 allowInterrupt = unblock $ return ()
 #endif
 
--- Composition over two arguments at once; used for runHttp2\*.
+-- Composition over two arguments at once; used for runHTTP2\*.
 (.:) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
 f .: g = curry $ f . uncurry g
 
@@ -78,10 +78,10 @@ f .: g = curry $ f . uncurry g
 run :: Port -> Application -> IO ()
 run port = runServe port . serveDefault
 
--- | Serve an 'Http2Application' and an 'Application' together on the given
+-- | Serve an 'HTTP2Application' and an 'Application' together on the given
 -- port.
-runHttp2 :: Port -> Http2Application -> Application -> IO ()
-runHttp2 port = runServe port .: serveHttp2
+runHTTP2 :: Port -> HTTP2Application -> Application -> IO ()
+runHTTP2 port = runServe port .: serveHTTP2
 
 -- | The generalized form of 'run'.
 runServe :: Port -> ServeConnection -> IO ()
@@ -96,8 +96,8 @@ runEnv :: Port -> Application -> IO ()
 runEnv port = runServeEnv port . serveDefault
 
 -- | The HTTP\/2-aware form of 'runEnv'.
-runHttp2Env :: Port -> Http2Application -> Application -> IO ()
-runHttp2Env port = runServeEnv port .: serveHttp2
+runHTTP2Env :: Port -> HTTP2Application -> Application -> IO ()
+runHTTP2Env port = runServeEnv port .: serveHTTP2
 
 -- | The generalized form of 'runEnv'.
 runServeEnv :: Port -> ServeConnection -> IO ()
@@ -119,8 +119,8 @@ runSettings :: Settings -> Application -> IO ()
 runSettings set = runServeSettings set . serveDefault
 
 -- | The HTTP\/2-aware form of 'runSettings'.
-runHttp2Settings :: Settings -> Http2Application -> Application -> IO ()
-runHttp2Settings set = runServeSettings set .: serveHttp2
+runHTTP2Settings :: Settings -> HTTP2Application -> Application -> IO ()
+runHTTP2Settings set = runServeSettings set .: serveHTTP2
 
 -- | The generalized form of 'runSettings'.
 runServeSettings :: Settings -> ServeConnection -> IO ()
@@ -147,13 +147,13 @@ runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket set socket = runServeSettingsSocket set socket . serveDefault
 
 -- | The HTTP\/2-aware form of 'runSettingsSocket'.
-runHttp2SettingsSocket :: Settings
+runHTTP2SettingsSocket :: Settings
                        -> Socket
-                       -> Http2Application
+                       -> HTTP2Application
                        -> Application
                        -> IO ()
-runHttp2SettingsSocket set socket =
-    runServeSettingsSocket set socket .: serveHttp2
+runHTTP2SettingsSocket set socket =
+    runServeSettingsSocket set socket .: serveHTTP2
 
 -- | The generalized form of 'runSettingsSocket'.
 runServeSettingsSocket :: Settings -> Socket -> ServeConnection -> IO ()
@@ -369,17 +369,17 @@ type ServeConnection = Connection
 
 -- Serve an HTTP\/2-aware application, rejecting clients that attempt to use an
 -- older protocol version.
-serveHttp2Only :: Http2Application -> ServeConnection
-serveHttp2Only = error "serveHttp2Only not implemented"
+serveHTTP2Only :: HTTP2Application -> ServeConnection
+serveHTTP2Only = error "serveHTTP2Only not implemented"
 
 -- Serve an HTTP\/2-unaware Application to a connection over any HTTP version.
 serveDefault :: Application -> ServeConnection
-serveDefault = flip serveHttp2 <*> promoteApplication
+serveDefault = flip serveHTTP2 <*> promoteApplication
 
 -- Serve an HTTP\/2-aware application over HTTP\/2 or a backup 'Application'
 -- over HTTP\/1.1 or HTTP\/1.
-serveHttp2 :: Http2Application -> Application -> ServeConnection
-serveHttp2 app2 app conn ii origAddr transport settings = do
+serveHTTP2 :: HTTP2Application -> Application -> ServeConnection
+serveHTTP2 app2 app conn ii origAddr transport settings = do
     -- fixme: Upgrading to HTTP/2 should be supported.
     (h2,bs) <- if isHTTP2 transport then
                    return (True, "")

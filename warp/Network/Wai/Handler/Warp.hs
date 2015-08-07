@@ -49,10 +49,10 @@ module Network.Wai.Handler.Warp (
     -- 'Application' to be used for HTTP\/1.1 and HTTP\/1 connections.  These
     -- are only needed if your application needs access to HTTP\/2-specific
     -- features such as trailers or pushed streams.
-  , runHttp2
-  , runHttp2Env
-  , runHttp2Settings
-  , runHttp2SettingsSocket
+  , runHTTP2
+  , runHTTP2Env
+  , runHTTP2Settings
+  , runHTTP2SettingsSocket
     -- * Settings
   , Settings
   , defaultSettings

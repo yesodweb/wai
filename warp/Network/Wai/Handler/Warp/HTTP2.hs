@@ -17,7 +17,7 @@ import Network.HTTP2
 import Network.Socket (SockAddr)
 
 import Network.Wai (Application, responseToStream)
-import Network.Wai.HTTP2 (Http2Application)
+import Network.Wai.HTTP2 (HTTP2Application)
 import Network.Wai.Internal (ResponseReceived(..))
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
@@ -31,7 +31,7 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-http2 :: Connection -> InternalInfo -> SockAddr -> Transport -> S.Settings -> (BufSize -> IO ByteString) -> Http2Application -> IO ()
+http2 :: Connection -> InternalInfo -> SockAddr -> Transport -> S.Settings -> (BufSize -> IO ByteString) -> HTTP2Application -> IO ()
 http2 conn ii addr transport settings readN app = do
     checkTLS
     ok <- checkPreface
@@ -74,9 +74,9 @@ goaway Connection{..} etype debugmsg = connSendAll bytestream
   where
     bytestream = goawayFrame 0 etype debugmsg
 
--- | Promote a normal WAI 'Application' to an 'Http2Application' by ignoring
+-- | Promote a normal WAI 'Application' to an 'HTTP2Application' by ignoring
 -- the HTTP/2-specific features.
-promoteApplication :: Application -> Http2Application
+promoteApplication :: Application -> HTTP2Application
 promoteApplication app req _ respond = [] <$ app req respond'
   where
     respond' r = ResponseReceived <$ (withBody $ respond s h)
