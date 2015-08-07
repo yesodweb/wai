@@ -77,7 +77,7 @@ goaway Connection{..} etype debugmsg = connSendAll bytestream
 -- | Promote a normal WAI 'Application' to an 'Http2Application' by ignoring
 -- the HTTP/2-specific features.
 promoteApplication :: Application -> Http2Application
-promoteApplication app (req, _) respond = [] <$ app req respond'
+promoteApplication app req _ respond = [] <$ app req respond'
   where
     respond' r = ResponseReceived <$ (withBody $ respond s h)
       where (s, h, withBody) = responseToStream r

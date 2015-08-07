@@ -144,7 +144,7 @@ worker ctx@Context{inputQ} set tm app respond = do
             setStreamInfo sinfo strm req
             T.resume th
             T.tickle th
-            let responder = app (req, pushResponder ctx set strm)
+            let responder = app req $ pushResponder ctx set strm
             runResponder responder (respond tcont) (T.tickle th) strm
         cont1 <- case ex of
             Right () -> return True
