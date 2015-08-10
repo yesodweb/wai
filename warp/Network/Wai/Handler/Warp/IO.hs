@@ -47,7 +47,7 @@ toBufIOWith buf !size io (Builder build) = loop firstStep
     firstStep = build (buildStep finalStep)
     finalStep (BufRange p _) = return $ Done p ()
     bufRange = BufRange buf (buf `plusPtr` size)
-    runIO ptr = toBS buf (ptr `minusPtr` buf) >>= io
+    runIO ptr = bufferIO buf (ptr `minusPtr` buf) io
     loop step = do
         signal <- runBuildStep step bufRange
         case signal of
