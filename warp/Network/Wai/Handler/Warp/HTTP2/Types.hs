@@ -3,7 +3,7 @@
 
 module Network.Wai.Handler.Warp.HTTP2.Types where
 
-import Blaze.ByteString.Builder (Builder)
+import Data.ByteString.Builder (Builder)
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>),(<*>))
 #endif

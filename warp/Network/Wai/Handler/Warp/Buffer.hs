@@ -7,7 +7,7 @@ module Network.Wai.Handler.Warp.Buffer (
   , mallocBS
   , newBufferPool
   , withBufferPool
-  , toBlazeBuffer
+  , toBuilderBuffer
   , copy
   , bufferIO
   ) where
@@ -88,8 +88,8 @@ withBufferPool pool f = do
 -- Utilities
 --
 
-toBlazeBuffer :: Buffer -> BufSize -> IO B.Buffer
-toBlazeBuffer ptr size = do
+toBuilderBuffer :: Buffer -> BufSize -> IO B.Buffer
+toBuilderBuffer ptr size = do
     fptr <- newForeignPtr_ ptr
     return $ B.Buffer fptr ptr ptr (ptr `plusPtr` size)
 
