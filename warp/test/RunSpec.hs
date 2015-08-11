@@ -5,29 +5,29 @@
 module RunSpec (main, spec, withApp) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
+import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
+import qualified Control.Exception as E
+import Control.Exception.Lifted (bracket, try, IOException, onException)
 import Control.Monad (forM_, replicateM_, unless)
-import System.Timeout (timeout)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString, hPutStr, hGetSome)
-import qualified Control.Exception as E
 import qualified Data.ByteString as S
+import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
+import Data.Streaming.Network (bindPortTCP, getSocketTCP, safeRecv)
 import Network (connectTo, PortID (PortNumber))
+import qualified Network.HTTP as HTTP
 import Network.HTTP.Types
+import Network.Socket (sClose)
+import Network.Socket.ByteString (sendAll)
 import Network.Wai
 import Network.Wai.Handler.Warp
 import System.IO (hFlush, hClose)
 import System.IO.Unsafe (unsafePerformIO)
+import System.Timeout (timeout)
 import Test.Hspec
-import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
-import Control.Exception.Lifted (bracket, try, IOException, onException)
-import Data.Streaming.Network (bindPortTCP, getSocketTCP, safeRecv)
-import Network.Socket (sClose)
-import qualified Network.HTTP as HTTP
-import Blaze.ByteString.Builder (fromByteString)
-import Network.Socket.ByteString (sendAll)
 
 main :: IO ()
 main = hspec spec
@@ -360,7 +360,7 @@ spec = do
             let loop = do
                     bs <- requestBody req
                     unless (S.null bs) $ do
-                        write $ fromByteString bs
+                        write $ byteString bs
                         loop
             loop
         withApp defaultSettings app $ \port -> do
@@ -373,7 +373,7 @@ spec = do
 
     it "streaming response with length" $ do
         let app _ f = f $ responseStream status200 [("content-length", "20")] $ \write _ -> do
-                replicateM_ 4 $ write $ fromByteString "Hello"
+                replicateM_ 4 $ write $ byteString "Hello"
         withApp defaultSettings app $ \port -> do
             Right res <- HTTP.simpleHTTP (HTTP.getRequest $ "http://127.0.0.1:" ++ show port)
             HTTP.rspBody res `shouldBe` "HelloHelloHelloHello"

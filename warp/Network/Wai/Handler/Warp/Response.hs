@@ -18,17 +18,17 @@ module Network.Wai.Handler.Warp.Response (
 #define MIN_VERSION_base(x,y,z) 1
 #endif
 
-import Blaze.ByteString.Builder (fromByteString, Builder, flush)
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
 import Control.Exception
+import Control.Monad (unless, when)
 import Data.Array ((!))
 import Data.ByteString (ByteString)
-import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy)
 import qualified Data.ByteString as S
-import Control.Monad (unless, when)
+import Data.ByteString.Builder (byteString, Builder)
+import Data.ByteString.Builder.Extra (flush)
 import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
@@ -42,10 +42,11 @@ import Data.Monoid ((<>))
 #else
 import Data.Monoid (mappend, mempty)
 #endif
+import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy)
 import Data.Version (showVersion)
 import qualified Network.HTTP.Types as H
 import Network.Wai
-import Network.Wai.Handler.Warp.Buffer (toBlazeBuffer)
+import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import Network.Wai.Handler.Warp.Header
@@ -268,7 +269,7 @@ sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
     hs = addAcceptRanges hs0
     s2 = H.status404
     hs2 =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
-    body = fromByteString "File not found"
+    body = byteString "File not found"
 
 ----------------------------------------------------------------
 
@@ -287,7 +288,7 @@ sendRsp conn _ ver s hs (RspBuilder body needsChunked) = do
 sendRsp conn _ ver s hs (RspStream streamingBody needsChunked th) = do
     header <- composeHeaderBuilder ver s hs needsChunked
     (recv, finish) <- newBlazeRecv $ reuseBufferStrategy
-                    $ toBlazeBuffer (connWriteBuffer conn) (connBufferSize conn)
+                    $ toBuilderBuffer (connWriteBuffer conn) (connBufferSize conn)
     let send builder = do
             popper <- recv builder
             let loop = do
@@ -448,6 +449,6 @@ replaceHeader k v hdrs = (k,v) : deleteBy ((==) `on` fst) (k,v) hdrs
 
 composeHeaderBuilder :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> IO Builder
 composeHeaderBuilder ver s hs True =
-    fromByteString <$> composeHeader ver s (addTransferEncoding hs)
+    byteString <$> composeHeader ver s (addTransferEncoding hs)
 composeHeaderBuilder ver s hs False =
-    fromByteString <$> composeHeader ver s hs
+    byteString <$> composeHeader ver s hs

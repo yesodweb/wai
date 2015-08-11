@@ -4,13 +4,12 @@
 
 module Network.Wai.Handler.Warp.Settings where
 
-import Blaze.ByteString.Builder (copyByteString)
-import Blaze.ByteString.Builder.Char.Utf8 (fromShow)
 import Control.Concurrent (forkIOWithUnmask)
 import Control.Exception
 import Control.Monad (when, void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
+import Data.ByteString.Builder (byteString)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mappend)
 #endif
@@ -162,5 +161,7 @@ defaultOnExceptionResponse e
 --
 -- Since: 2.0.3.2
 exceptionResponseForDebug :: SomeException -> Response
-exceptionResponseForDebug e = responseBuilder H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")]
-    $ copyByteString "Exception: " `mappend` fromShow e
+exceptionResponseForDebug e =
+    responseBuilder H.internalServerError500
+                    [(H.hContentType, "text/plain; charset=utf-8")]
+                    $ byteString . S8.pack $ "Exception: " ++ show e
