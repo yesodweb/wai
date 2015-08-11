@@ -59,24 +59,29 @@ response Context{outputQ} mgr tconf th strm req rsp = do
             -- So, let's serialize 'Builder' with a designated queue.
             sq <- newTBQueueIO 10 -- fixme: hard coding: 10
             tvar <- newTVarIO SyncNone
-            pri <- readIORef $ streamPriority strm
-            enqueue outputQ (OResponse strm rsp (Persist sq tvar)) pri
+            let out = OResponse strm rsp (Persist sq tvar)
+            -- Since we must not enqueue an empty queue to the priority
+            -- queue, we spawn a thread to ensure that the designated
+            -- queue is not empty.
+            void $ forkIO $ waiter tvar sq outputQ
+            atomically $ writeTVar tvar (SyncNext out)
             let push b = do
                     atomically $ writeTBQueue sq (SBuilder b)
                     T.tickle th
                 flush  = atomically $ writeTBQueue sq SFlush
-            -- Since we must not enqueue an empty queue to the priority
-            -- queue, we spawn a thread to ensure that the designated
-            -- queue is not empty.
-            void $ forkIO $ waiter tvar sq (enqueue outputQ) strm
             strmbdy push flush
             atomically $ writeTBQueue sq SFinish
         _ -> do
             setThreadContinue tconf True
             let hasBody = requestMethod req /= H.methodHead
                        && R.hasBody (responseStatus rsp)
-            pri <- readIORef $ streamPriority strm
-            enqueue outputQ (OResponse strm rsp (Oneshot hasBody)) pri
+                out = OResponse strm rsp (Oneshot hasBody)
+            sw <- atomically $ readTVar $ streamWindow strm
+            if sw == 0 then
+                void $ forkIO $ enqueueWhenWindowIsOpen outputQ out
+              else do
+                pri <- readIORef $ streamPriority strm
+                enqueue outputQ out pri
     return ResponseReceived
 
 data Break = Break deriving (Show, Typeable)
@@ -128,27 +133,27 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
                     Just e  -> S.settingsOnException set (Just req) e
                 clearStreamInfo sinfo
 
-waiter :: TVar Sync -> TBQueue Sequence
-       -> (Output -> Priority -> IO ()) -> Stream
-       -> IO ()
-waiter tvar sq enq strm = do
+waiter :: TVar Sync -> TBQueue Sequence -> PriorityTree Output -> IO ()
+waiter tvar sq outQ = do
+    -- waiting for actions other than SyncNone
     mx <- atomically $ do
         mout <- readTVar tvar
         case mout of
             SyncNone     -> retry
-            SyncNext nxt -> do
+            SyncNext out -> do
                 writeTVar tvar SyncNone
-                return $ Just nxt
+                return $ Just out
             SyncFinish   -> return Nothing
     case mx of
         Nothing -> return ()
-        Just next -> do
+        Just out -> do
+            -- ensuring that the streaming queue is not empty.
             atomically $ do
                 isEmpty <- isEmptyTBQueue sq
                 when isEmpty retry
-            pri <- readIORef $ streamPriority strm
-            enq (ONext strm next) pri
-            waiter tvar sq enq strm
+            -- ensuring that stream window is greater than 0.
+            enqueueWhenWindowIsOpen outQ out
+            waiter tvar sq outQ
 
 ----------------------------------------------------------------
 

@@ -64,6 +64,11 @@ data Output = OFinish
             | OResponse Stream Response Aux
             | ONext Stream DynaNext
 
+outputStream :: Output -> Stream
+outputStream (OResponse strm _ _) = strm
+outputStream (ONext strm _)       = strm
+outputStream _                    = error "outputStream"
+
 ----------------------------------------------------------------
 
 data Sequence = SFinish
@@ -72,7 +77,7 @@ data Sequence = SFinish
 
 data Sync = SyncNone
           | SyncFinish
-          | SyncNext DynaNext
+          | SyncNext Output
 
 data Aux = Oneshot Bool
          | Persist (TBQueue Sequence) (TVar Sync)
@@ -229,3 +234,14 @@ insert strmtbl k v = reaperAdd strmtbl (k,v)
 
 search :: StreamTable -> M.Key -> IO (Maybe Stream)
 search strmtbl k = M.lookup k <$> reaperRead strmtbl
+
+
+-- INVARIANT: streams in the output queue have non-zero window size.
+enqueueWhenWindowIsOpen :: PriorityTree Output -> Output -> IO ()
+enqueueWhenWindowIsOpen outQ out = do
+    let strm = outputStream out
+    atomically $ do
+        x <- readTVar $ streamWindow strm
+        check (x > 0)
+    pri <- readIORef $ streamPriority strm
+    enqueue outQ out pri

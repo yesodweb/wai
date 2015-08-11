@@ -58,22 +58,15 @@ unlessClosed ctx
         let rst = resetFrame InternalError streamNumber
         connSendAll rst
 
-checkWindowSize :: TVar WindowSize -> TVar WindowSize -> PriorityTree Output -> Output -> Priority -> (WindowSize -> IO ()) -> IO ()
-checkWindowSize connWindow strmWindow outQ out pri body = do
+checkWindowSize :: TVar WindowSize -> TVar WindowSize -> (WindowSize -> IO ()) -> IO ()
+checkWindowSize connWindow strmWindow body = do
    cw <- atomically $ do
        w <- readTVar connWindow
        check (w > 0)
        return w
+   -- sw is greater than 0
    sw <- atomically $ readTVar strmWindow
-   if sw == 0 then
-       void $ forkIO $ do
-           -- checkme: if connection is closed? GC throws dead lock error?
-           atomically $ do
-               x <- readTVar strmWindow
-               check (x > 0)
-           enqueue outQ out pri
-     else
-       body (min cw sw)
+   body (min cw sw)
 
 frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> IO ()
 frameSender ctx@Context{outputQ,connectionWindow}
@@ -100,9 +93,8 @@ frameSender ctx@Context{outputQ,connectionWindow}
     switch (OFrame frame)  = do
         connSendAll frame
         loop
-    switch out@(OResponse strm rsp aux) = unlessClosed ctx conn strm $ do
-        pri <- readIORef $ streamPriority strm
-        checkWindowSize connectionWindow (streamWindow strm) outputQ out pri $ \lim -> do
+    switch (OResponse strm rsp aux) = unlessClosed ctx conn strm $ do
+        checkWindowSize connectionWindow (streamWindow strm) $ \lim -> do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
                 endOfStream = case aux of
@@ -118,7 +110,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
                     Next datPayloadLen mnext <-
                         fillResponseBodyGetNext conn ii payloadOff lim rsp
                     fillDataHeaderSend strm total datPayloadLen mnext
-                    maybeEnqueueNext strm mnext pri
+                    maybeEnqueueNext strm mnext
                 Oneshot False -> do
                     -- "closed" must be before "connSendAll". If not,
                     -- the context would be switched to the receiver,
@@ -129,22 +121,21 @@ frameSender ctx@Context{outputQ,connectionWindow}
                     (off, needSend) <- sendHeadersIfNecessary total
                     let payloadOff = off + frameHeaderLength
                     Next datPayloadLen mnext <-
-                        fillStreamBodyGetNext conn payloadOff lim sq tvar
+                        fillStreamBodyGetNext conn payloadOff lim sq tvar strm
                     -- If no data was immediately available, avoid sending an
                     -- empty data frame.
                     if datPayloadLen > 0 then
                         fillDataHeaderSend strm total datPayloadLen mnext
                       else
                         when needSend $ flushN off
-                    maybeEnqueueNext strm mnext pri
+                    maybeEnqueueNext strm mnext
         loop
-    switch out@(ONext strm curr) = unlessClosed ctx conn strm $ do
-        pri <- readIORef $ streamPriority strm
-        checkWindowSize connectionWindow (streamWindow strm) outputQ out pri $ \lim -> do
+    switch (ONext strm curr) = unlessClosed ctx conn strm $ do
+        checkWindowSize connectionWindow (streamWindow strm) $ \lim -> do
             -- Data frame payload
             Next datPayloadLen mnext <- curr lim
             fillDataHeaderSend strm 0 datPayloadLen mnext
-            maybeEnqueueNext strm mnext pri
+            maybeEnqueueNext strm mnext
         loop
 
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
@@ -189,9 +180,16 @@ frameSender ctx@Context{outputQ,connectionWindow}
     -- available; do nothing otherwise.  If the stream is not finished, it must
     -- already have been written to the 'TVar' owned by 'waiter', which will
     -- put it back into the queue when more output becomes available.
-    maybeEnqueueNext :: Stream -> Control DynaNext -> Priority -> IO ()
-    maybeEnqueueNext strm (CNext next) = enqueue outputQ (ONext strm next)
-    maybeEnqueueNext _    _            = const $ return ()
+    maybeEnqueueNext :: Stream -> Control DynaNext -> IO ()
+    maybeEnqueueNext strm (CNext next) = do
+        let out = ONext strm next
+        sw <- atomically $ readTVar $ streamWindow strm
+        if sw == 0 then
+            void $ forkIO $ enqueueWhenWindowIsOpen outputQ out
+          else do
+            pri <- readIORef $ streamPriority strm
+            enqueue outputQ out pri
+    maybeEnqueueNext _    _            = return ()
 
 
     -- Send headers if there is not room for a 1-byte data frame, and return
@@ -285,13 +283,13 @@ fileStartEnd _ (Just part) =
 
 ----------------------------------------------------------------
 
-fillStreamBodyGetNext :: Connection -> Int -> WindowSize -> TBQueue Sequence -> TVar Sync -> IO Next
+fillStreamBodyGetNext :: Connection -> Int -> WindowSize -> TBQueue Sequence -> TVar Sync -> Stream -> IO Next
 fillStreamBodyGetNext Connection{connWriteBuffer,connBufferSize}
-                      off lim sq tvar = do
+                      off lim sq tvar strm = do
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (leftover, cont, len) <- runStreamBuilder datBuf room sq
-    nextForStream connWriteBuffer connBufferSize sq tvar leftover cont len
+    nextForStream connWriteBuffer connBufferSize sq tvar strm leftover cont len
 
 ----------------------------------------------------------------
 
@@ -345,8 +343,8 @@ runStreamBuilder buf0 room0 sq = loop buf0 room0 0
             Just SFlush  -> return (LZero, True, total)
             Just SFinish -> return (LZero, False, total)
 
-fillBufStream :: Buffer -> BufSize -> Leftover -> TBQueue Sequence -> TVar Sync -> DynaNext
-fillBufStream buf0 siz0 leftover0 sq tvar lim0 = do
+fillBufStream :: Buffer -> BufSize -> Leftover -> TBQueue Sequence -> TVar Sync -> Stream -> DynaNext
+fillBufStream buf0 siz0 leftover0 sq tvar strm lim0 = do
     let payloadBuf = buf0 `plusPtr` frameHeaderLength
         room0 = min (siz0 - frameHeaderLength) lim0
     case leftover0 of
@@ -364,7 +362,7 @@ fillBufStream buf0 siz0 leftover0 sq tvar lim0 = do
               void $ copy payloadBuf bs1
               getNext (LTwo bs2 writer) True room0
   where
-    getNext = nextForStream buf0 siz0 sq tvar
+    getNext = nextForStream buf0 siz0 sq tvar strm
     write writer1 buf room sofar = do
         (len, signal) <- writer1 buf room
         case signal of
@@ -379,17 +377,18 @@ fillBufStream buf0 siz0 leftover0 sq tvar lim0 = do
                 let !total = sofar + len
                 getNext (LTwo bs writer) True total
 
-nextForStream :: Buffer -> BufSize -> TBQueue Sequence -> TVar Sync
+nextForStream :: Buffer -> BufSize -> TBQueue Sequence -> TVar Sync -> Stream
               -> Leftover -> Bool -> BytesFilled
               -> IO Next
-nextForStream _  _ _  tvar _ False len = do
+nextForStream _  _ _  tvar _ _ False len = do
     atomically $ writeTVar tvar SyncFinish
     return $ Next len CFinish
-nextForStream buf siz sq tvar LZero True len = do
-    atomically $ writeTVar tvar $ SyncNext (fillBufStream buf siz LZero sq tvar)
+nextForStream buf siz sq tvar strm LZero True len = do
+    let out = ONext strm (fillBufStream buf siz LZero sq tvar strm)
+    atomically $ writeTVar tvar $ SyncNext out
     return $ Next len CNone
-nextForStream buf siz sq tvar leftover True len =
-    return $ Next len (CNext (fillBufStream buf siz leftover sq tvar))
+nextForStream buf siz sq tvar strm leftover True len =
+    return $ Next len (CNext (fillBufStream buf siz leftover sq tvar strm))
 
 ----------------------------------------------------------------
 
