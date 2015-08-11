@@ -36,14 +36,14 @@ import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceive
 -- | The wai definition is 'type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived'.
 --   This type implements the second argument (Response -> IO ResponseReceived)
 --   with extra arguments.
-type Responder = ThreadContinue -> T.Handle -> Stream -> Priority -> Request ->
+type Responder = ThreadContinue -> T.Handle -> Stream -> Request ->
                  Response -> IO ResponseReceived
 
 -- | This function is passed to workers.
 --   They also pass 'Response's from 'Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: Context -> Manager -> Responder
-response Context{outputQ} mgr tconf th strm pri req rsp = do
+response Context{outputQ} mgr tconf th strm req rsp = do
     case rsp of
         ResponseStream _ _ strmbdy -> do
             -- We must not exit this WAI application.
@@ -59,6 +59,7 @@ response Context{outputQ} mgr tconf th strm pri req rsp = do
             -- So, let's serialize 'Builder' with a designated queue.
             sq <- newTBQueueIO 10 -- fixme: hard coding: 10
             tvar <- newTVarIO SyncNone
+            pri <- readIORef $ streamPriority strm
             enqueue outputQ (OResponse strm rsp (Persist sq tvar)) pri
             let push b = do
                     atomically $ writeTBQueue sq (SBuilder b)
@@ -67,13 +68,14 @@ response Context{outputQ} mgr tconf th strm pri req rsp = do
             -- Since we must not enqueue an empty queue to the priority
             -- queue, we spawn a thread to ensure that the designated
             -- queue is not empty.
-            void $ forkIO $ waiter tvar sq (enqueue outputQ) strm pri
+            void $ forkIO $ waiter tvar sq (enqueue outputQ) strm
             strmbdy push flush
             atomically $ writeTBQueue sq SFinish
         _ -> do
             setThreadContinue tconf True
             let hasBody = requestMethod req /= H.methodHead
                        && R.hasBody (responseStatus rsp)
+            pri <- readIORef $ streamPriority strm
             enqueue outputQ (OResponse strm rsp (Oneshot hasBody)) pri
     return ResponseReceived
 
@@ -93,11 +95,11 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
         setThreadContinue tcont True
         ex <- E.try $ do
             T.pause th
-            Input strm req pri <- atomically $ readTQueue inputQ
+            Input strm req <- atomically $ readTQueue inputQ
             setStreamInfo sinfo strm req
             T.resume th
             T.tickle th
-            app req $ responder tcont th strm pri req
+            app req $ responder tcont th strm req
         cont1 <- case ex of
             Right ResponseReceived -> return True
             Left  e@(SomeException _)
@@ -127,9 +129,9 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
                 clearStreamInfo sinfo
 
 waiter :: TVar Sync -> TBQueue Sequence
-       -> (Output -> Priority -> IO ()) -> Stream -> Priority
+       -> (Output -> Priority -> IO ()) -> Stream
        -> IO ()
-waiter tvar sq enq strm pri = do
+waiter tvar sq enq strm = do
     mx <- atomically $ do
         mout <- readTVar tvar
         case mout of
@@ -144,8 +146,9 @@ waiter tvar sq enq strm pri = do
             atomically $ do
                 isEmpty <- isEmptyTBQueue sq
                 when isEmpty retry
+            pri <- readIORef $ streamPriority strm
             enq (ONext strm next) pri
-            waiter tvar sq enq strm pri
+            waiter tvar sq enq strm
 
 ----------------------------------------------------------------
 

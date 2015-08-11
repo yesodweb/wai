@@ -39,7 +39,7 @@ isHTTP2 tls = useHTTP2
 
 ----------------------------------------------------------------
 
-data Input = Input Stream Request Priority
+data Input = Input Stream Request
 
 ----------------------------------------------------------------
 
@@ -170,6 +170,7 @@ data Stream = Stream {
   , streamContentLength :: IORef (Maybe Int)
   , streamBodyLength    :: IORef Int
   , streamWindow        :: TVar WindowSize
+  , streamPriority      :: IORef Priority
   }
 
 instance Show Stream where
@@ -180,6 +181,7 @@ newStream sid win = Stream sid <$> newIORef Idle
                                <*> newIORef Nothing
                                <*> newIORef 0
                                <*> newTVarIO win
+                               <*> newIORef defaultPriority
 
 ----------------------------------------------------------------
 

@@ -89,17 +89,19 @@ frameSender ctx@Context{outputQ,connectionWindow}
         connSendAll initialFrame
         loop
 
-    loop = dequeue outputQ >>= \(out, pri) -> switch out pri
+    -- ignoring the old priority because the value might be changed.
+    loop = dequeue outputQ >>= \(out, _) -> switch out
 
     ignore :: E.SomeException -> IO ()
     ignore _ = return ()
 
-    switch OFinish         _ = return ()
-    switch (OGoaway frame) _ = connSendAll frame
-    switch (OFrame frame)  _ = do
+    switch OFinish         = return ()
+    switch (OGoaway frame) = connSendAll frame
+    switch (OFrame frame)  = do
         connSendAll frame
         loop
-    switch out@(OResponse strm rsp aux) pri = unlessClosed ctx conn strm $ do
+    switch out@(OResponse strm rsp aux) = unlessClosed ctx conn strm $ do
+        pri <- readIORef $ streamPriority strm
         checkWindowSize connectionWindow (streamWindow strm) outputQ out pri $ \lim -> do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
@@ -136,7 +138,8 @@ frameSender ctx@Context{outputQ,connectionWindow}
                         when needSend $ flushN off
                     maybeEnqueueNext strm mnext pri
         loop
-    switch out@(ONext strm curr) pri = unlessClosed ctx conn strm $ do
+    switch out@(ONext strm curr) = unlessClosed ctx conn strm $ do
+        pri <- readIORef $ streamPriority strm
         checkWindowSize connectionWindow (streamWindow strm) outputQ out pri $ \lim -> do
             -- Data frame payload
             Next datPayloadLen mnext <- curr lim
