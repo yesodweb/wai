@@ -319,6 +319,7 @@ stream FrameRSTStream header bs ctx _ strm = do
 stream FramePriority header bs Context{outputQ} s Stream{streamNumber} = do
     PriorityFrame p <- guardIt $ decodePriorityFrame header bs
     checkPriority p streamNumber
+    -- fixme: the case where priority is changed.
     prepare outputQ streamNumber p
     return s
 
