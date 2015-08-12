@@ -316,11 +316,12 @@ stream FrameRSTStream header bs ctx _ strm = do
     closed ctx strm cc
     return $ Closed cc -- will be written to streamState again
 
-stream FramePriority header bs Context{outputQ} s Stream{streamNumber} = do
+stream FramePriority header bs Context{outputQ} s Stream{streamNumber,streamPriority} = do
     PriorityFrame p <- guardIt $ decodePriorityFrame header bs
     checkPriority p streamNumber
-    -- fixme: the case where priority is changed.
-    prepare outputQ streamNumber p
+    -- checkme: this should be tested
+    writeIORef streamPriority p
+    when (isIdle s) $ prepare outputQ streamNumber p
     return s
 
 -- this ordering is important
