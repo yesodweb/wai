@@ -320,7 +320,13 @@ stream FramePriority header bs Context{outputQ} s Stream{streamNumber,streamPrio
     PriorityFrame p <- guardIt $ decodePriorityFrame header bs
     checkPriority p streamNumber
     -- checkme: this should be tested
+    -- fixme: This works well when the priority gets lower because
+    -- the old higher priority value comes out from the queue quickly
+    -- and the new lower priority is used when enqueuing again.
+    -- But when the priority get higher, it takes time to use the new
+    -- priority.
     writeIORef streamPriority p
+    -- checkme: this should be tested
     when (isIdle s) $ prepare outputQ streamNumber p
     return s
 
