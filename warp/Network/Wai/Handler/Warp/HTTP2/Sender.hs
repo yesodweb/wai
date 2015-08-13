@@ -178,9 +178,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
     canFitDataFrame total = total + frameHeaderLength < connBufferSize
 
     -- Re-enqueue the stream in the output queue if more output is immediately
-    -- available; do nothing otherwise.  If the stream is not finished, it must
-    -- already have been written to the 'TVar' owned by 'waiter', which will
-    -- put it back into the queue when more output becomes available.
+    -- available; do nothing otherwise.
     maybeEnqueueNext :: Stream -> Control DynaNext -> IO ()
     maybeEnqueueNext strm (CNext next) = do
         let out = ONext strm next
@@ -190,6 +188,9 @@ frameSender ctx@Context{outputQ,connectionWindow}
           else do
             pri <- readIORef $ streamPriority strm
             enqueue outputQ out pri
+    -- If the streaming is not finished, it must already have been
+    -- written to the 'TVar' owned by 'waiter', which will
+    -- put it back into the queue when more output becomes available.
     maybeEnqueueNext _    _            = return ()
 
 
