@@ -7,7 +7,6 @@ module Network.Wai.Handler.Warp.HTTP2.Sender (frameSender) where
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
-import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (unless, void, when)
@@ -182,12 +181,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
     maybeEnqueueNext :: Stream -> Control DynaNext -> IO ()
     maybeEnqueueNext strm (CNext next) = do
         let out = ONext strm next
-        sw <- atomically $ readTVar $ streamWindow strm
-        if sw == 0 then
-            void $ forkIO $ enqueueWhenWindowIsOpen outputQ out
-          else do
-            pri <- readIORef $ streamPriority strm
-            enqueue outputQ out pri
+        enqueueOrSpawnTemporaryWaiter strm outputQ out
     -- If the streaming is not finished, it must already have been
     -- written to the 'TVar' owned by 'waiter', which will
     -- put it back into the queue when more output becomes available.

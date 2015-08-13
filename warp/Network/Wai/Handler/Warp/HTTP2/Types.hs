@@ -7,6 +7,7 @@ import Data.ByteString.Builder (Builder)
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>),(<*>))
 #endif
+import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Exception (SomeException)
 import Control.Monad (void)
@@ -245,3 +246,13 @@ enqueueWhenWindowIsOpen outQ out = do
         check (x > 0)
     pri <- readIORef $ streamPriority strm
     enqueue outQ out pri
+
+enqueueOrSpawnTemporaryWaiter :: Stream -> PriorityTree Output -> Output -> IO ()
+enqueueOrSpawnTemporaryWaiter strm outQ out = do
+    sw <- atomically $ readTVar $ streamWindow strm
+    if sw == 0 then
+        -- This waiter waits only for the stream window.
+        void $ forkIO $ enqueueWhenWindowIsOpen outQ out
+      else do
+        pri <- readIORef $ streamPriority strm
+        enqueue outQ out pri

@@ -76,12 +76,7 @@ response Context{outputQ} mgr tconf th strm req rsp = do
             let hasBody = requestMethod req /= H.methodHead
                        && R.hasBody (responseStatus rsp)
                 out = OResponse strm rsp (Oneshot hasBody)
-            sw <- atomically $ readTVar $ streamWindow strm
-            if sw == 0 then
-                void $ forkIO $ enqueueWhenWindowIsOpen outputQ out
-              else do
-                pri <- readIORef $ streamPriority strm
-                enqueue outputQ out pri
+            enqueueOrSpawnTemporaryWaiter strm outputQ out
     return ResponseReceived
 
 data Break = Break deriving (Show, Typeable)
