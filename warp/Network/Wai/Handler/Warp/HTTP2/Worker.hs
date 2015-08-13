@@ -36,14 +36,14 @@ import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceive
 -- | The wai definition is 'type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived'.
 --   This type implements the second argument (Response -> IO ResponseReceived)
 --   with extra arguments.
-type Responder = ThreadContinue -> T.Handle -> Stream -> Priority -> Request ->
+type Responder = ThreadContinue -> T.Handle -> Stream -> Request ->
                  Response -> IO ResponseReceived
 
 -- | This function is passed to workers.
 --   They also pass 'Response's from 'Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: Context -> Manager -> Responder
-response Context{outputQ} mgr tconf th strm pri req rsp = do
+response Context{outputQ} mgr tconf th strm req rsp = do
     case rsp of
         ResponseStream _ _ strmbdy -> do
             -- We must not exit this WAI application.
@@ -59,22 +59,24 @@ response Context{outputQ} mgr tconf th strm pri req rsp = do
             -- So, let's serialize 'Builder' with a designated queue.
             sq <- newTBQueueIO 10 -- fixme: hard coding: 10
             tvar <- newTVarIO SyncNone
-            enqueue outputQ (OResponse strm rsp (Persist sq tvar)) pri
+            let out = OResponse strm rsp (Persist sq tvar)
+            -- Since we must not enqueue an empty queue to the priority
+            -- queue, we spawn a thread to ensure that the designated
+            -- queue is not empty.
+            void $ forkIO $ waiter tvar sq outputQ
+            atomically $ writeTVar tvar (SyncNext out)
             let push b = do
                     atomically $ writeTBQueue sq (SBuilder b)
                     T.tickle th
                 flush  = atomically $ writeTBQueue sq SFlush
-            -- Since we must not enqueue an empty queue to the priority
-            -- queue, we spawn a thread to ensure that the designated
-            -- queue is not empty.
-            void $ forkIO $ waiter tvar sq (enqueue outputQ) strm pri
             strmbdy push flush
             atomically $ writeTBQueue sq SFinish
         _ -> do
             setThreadContinue tconf True
             let hasBody = requestMethod req /= H.methodHead
                        && R.hasBody (responseStatus rsp)
-            enqueue outputQ (OResponse strm rsp (Oneshot hasBody)) pri
+                out = OResponse strm rsp (Oneshot hasBody)
+            enqueueOrSpawnTemporaryWaiter strm outputQ out
     return ResponseReceived
 
 data Break = Break deriving (Show, Typeable)
@@ -93,11 +95,11 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
         setThreadContinue tcont True
         ex <- E.try $ do
             T.pause th
-            Input strm req pri <- atomically $ readTQueue inputQ
+            Input strm req <- atomically $ readTQueue inputQ
             setStreamInfo sinfo strm req
             T.resume th
             T.tickle th
-            app req $ responder tcont th strm pri req
+            app req $ responder tcont th strm req
         cont1 <- case ex of
             Right ResponseReceived -> return True
             Left  e@(SomeException _)
@@ -126,26 +128,27 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
                     Just e  -> S.settingsOnException set (Just req) e
                 clearStreamInfo sinfo
 
-waiter :: TVar Sync -> TBQueue Sequence
-       -> (Output -> Priority -> IO ()) -> Stream -> Priority
-       -> IO ()
-waiter tvar sq enq strm pri = do
+waiter :: TVar Sync -> TBQueue Sequence -> PriorityTree Output -> IO ()
+waiter tvar sq outQ = do
+    -- waiting for actions other than SyncNone
     mx <- atomically $ do
         mout <- readTVar tvar
         case mout of
             SyncNone     -> retry
-            SyncNext nxt -> do
+            SyncNext out -> do
                 writeTVar tvar SyncNone
-                return $ Just nxt
+                return $ Just out
             SyncFinish   -> return Nothing
     case mx of
         Nothing -> return ()
-        Just next -> do
+        Just out -> do
+            -- ensuring that the streaming queue is not empty.
             atomically $ do
                 isEmpty <- isEmptyTBQueue sq
                 when isEmpty retry
-            enq (ONext strm next) pri
-            waiter tvar sq enq strm pri
+            -- ensuring that stream window is greater than 0.
+            enqueueWhenWindowIsOpen outQ out
+            waiter tvar sq outQ
 
 ----------------------------------------------------------------
 

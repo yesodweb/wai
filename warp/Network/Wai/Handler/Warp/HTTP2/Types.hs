@@ -7,6 +7,7 @@ import Data.ByteString.Builder (Builder)
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>),(<*>))
 #endif
+import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Exception (SomeException)
 import Control.Monad (void)
@@ -39,7 +40,7 @@ isHTTP2 tls = useHTTP2
 
 ----------------------------------------------------------------
 
-data Input = Input Stream Request Priority
+data Input = Input Stream Request
 
 ----------------------------------------------------------------
 
@@ -64,6 +65,11 @@ data Output = OFinish
             | OResponse Stream Response Aux
             | ONext Stream DynaNext
 
+outputStream :: Output -> Stream
+outputStream (OResponse strm _ _) = strm
+outputStream (ONext strm _)       = strm
+outputStream _                    = error "outputStream"
+
 ----------------------------------------------------------------
 
 data Sequence = SFinish
@@ -72,7 +78,7 @@ data Sequence = SFinish
 
 data Sync = SyncNone
           | SyncFinish
-          | SyncNext DynaNext
+          | SyncNext Output
 
 data Aux = Oneshot Bool
          | Persist (TBQueue Sequence) (TVar Sync)
@@ -170,6 +176,7 @@ data Stream = Stream {
   , streamContentLength :: IORef (Maybe Int)
   , streamBodyLength    :: IORef Int
   , streamWindow        :: TVar WindowSize
+  , streamPriority      :: IORef Priority
   }
 
 instance Show Stream where
@@ -180,6 +187,7 @@ newStream sid win = Stream sid <$> newIORef Idle
                                <*> newIORef Nothing
                                <*> newIORef 0
                                <*> newTVarIO win
+                               <*> newIORef defaultPriority
 
 ----------------------------------------------------------------
 
@@ -227,3 +235,24 @@ insert strmtbl k v = reaperAdd strmtbl (k,v)
 
 search :: StreamTable -> M.Key -> IO (Maybe Stream)
 search strmtbl k = M.lookup k <$> reaperRead strmtbl
+
+
+-- INVARIANT: streams in the output queue have non-zero window size.
+enqueueWhenWindowIsOpen :: PriorityTree Output -> Output -> IO ()
+enqueueWhenWindowIsOpen outQ out = do
+    let strm = outputStream out
+    atomically $ do
+        x <- readTVar $ streamWindow strm
+        check (x > 0)
+    pri <- readIORef $ streamPriority strm
+    enqueue outQ out pri
+
+enqueueOrSpawnTemporaryWaiter :: Stream -> PriorityTree Output -> Output -> IO ()
+enqueueOrSpawnTemporaryWaiter strm outQ out = do
+    sw <- atomically $ readTVar $ streamWindow strm
+    if sw == 0 then
+        -- This waiter waits only for the stream window.
+        void $ forkIO $ enqueueWhenWindowIsOpen outQ out
+      else do
+        pri <- readIORef $ streamPriority strm
+        enqueue outQ out pri

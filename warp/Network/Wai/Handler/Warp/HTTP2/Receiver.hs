@@ -92,7 +92,7 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
           control ftyp header pl ctx
       | otherwise = do
           checkContinued
-          strm@Stream{streamState,streamContentLength} <- getStream
+          strm@Stream{streamState,streamContentLength,streamPriority} <- getStream
           pl <- recvN payloadLength
           state <- readIORef streamState
           state' <- stream ftyp header pl ctx state strm
@@ -103,21 +103,23 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
                       Just vh -> do
                           when (isJust (vhCL vh) && vhCL vh /= Just 0) $
                               E.throwIO $ StreamError ProtocolError streamId
+                          writeIORef streamPriority pri
                           writeIORef streamState HalfClosed
                           let req = mkreq vh (return "")
-                          atomically $ writeTQueue inputQ $ Input strm req pri
+                          atomically $ writeTQueue inputQ $ Input strm req
                       Nothing -> E.throwIO $ StreamError ProtocolError streamId
               Open (HasBody hdr pri) -> do
                   resetContinued
                   case validateHeaders hdr of
                       Just vh -> do
                           q <- newTQueueIO
+                          writeIORef streamPriority pri
                           writeIORef streamState (Open (Body q))
                           writeIORef streamContentLength $ vhCL vh
                           readQ <- newReadBody q
                           bodySource <- mkSource readQ
                           let req = mkreq vh (readSource bodySource)
-                          atomically $ writeTQueue inputQ $ Input strm req pri
+                          atomically $ writeTQueue inputQ $ Input strm req
                       Nothing -> E.throwIO $ StreamError ProtocolError streamId
               s@(Open Continued{}) -> do
                   setContinued
@@ -314,10 +316,18 @@ stream FrameRSTStream header bs ctx _ strm = do
     closed ctx strm cc
     return $ Closed cc -- will be written to streamState again
 
-stream FramePriority header bs Context{outputQ} s Stream{streamNumber} = do
+stream FramePriority header bs Context{outputQ} s Stream{streamNumber,streamPriority} = do
     PriorityFrame p <- guardIt $ decodePriorityFrame header bs
     checkPriority p streamNumber
-    prepare outputQ streamNumber p
+    -- checkme: this should be tested
+    -- fixme: This works well when the priority gets lower because
+    -- the old higher priority value comes out from the queue quickly
+    -- and the new lower priority is used when enqueuing again.
+    -- But when the priority get higher, it takes time to use the new
+    -- priority.
+    writeIORef streamPriority p
+    -- checkme: this should be tested
+    when (isIdle s) $ prepare outputQ streamNumber p
     return s
 
 -- this ordering is important
