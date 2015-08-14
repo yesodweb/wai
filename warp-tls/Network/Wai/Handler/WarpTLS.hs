@@ -42,7 +42,8 @@ module Network.Wai.Handler.WarpTLS (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException)
+import Control.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException, SomeException(..))
+import qualified Control.Exception as E
 import Control.Monad (void)
 import qualified Crypto.Random.AESCtr
 import qualified Data.ByteString as S
@@ -321,9 +322,11 @@ httpOverTls TLSSettings{..} s bs0 params = do
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
       , TLS.backendClose = sClose s
-      , TLS.backendSend  = sendAll s
+      , TLS.backendSend  = sendAll' s
       , TLS.backendRecv  = recvN
       }
+    sendAll' sock bs = sendAll sock bs `E.catch` \(SomeException _) ->
+        throwIO ConnectionClosedByPeer
     conn ctx writeBuf ref = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
