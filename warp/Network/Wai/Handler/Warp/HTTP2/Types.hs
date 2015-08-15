@@ -79,6 +79,8 @@ data Output = OFinish
 outputStream :: Output -> Stream
 outputStream (OResponse strm _ _ _) = strm
 outputStream (ONext strm _)         = strm
+outputStream (OPush strm _ _ _ _ _) = strm
+outputStream (OTrailers strm _)     = strm
 outputStream _                      = error "outputStream"
 
 ----------------------------------------------------------------
