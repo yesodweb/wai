@@ -108,18 +108,22 @@ frameSender ctx@Context{outputQ,connectionWindow}
             sendResponse strm s h aux lim
         loop
     switch (OTrailers strm []) = do
-        let flag = setEndStream defaultFlags
-        fillFrameHeader FrameData 0 (streamNumber strm) flag connWriteBuffer
-        closed strm Finished
-        flushN frameHeaderLength
+        unlessClosed conn strm $ do
+            -- An empty data frame should be used to end the stream instead
+            -- when there are no trailers.
+            let flag = setEndStream defaultFlags
+            fillFrameHeader FrameData 0 (streamNumber strm) flag connWriteBuffer
+            closed strm Finished
+            flushN frameHeaderLength
         loop
     switch (OTrailers strm trailers) = do
-        -- Trailers always indicate the end of a stream; send them in
-        -- consecutive header+continuation frames and end the stream.
-        builder <- hpackEncodeCIHeaders ctx trailers
-        off <- headerContinue (streamNumber strm) builder True
-        closed strm Finished
-        flushN $ off + frameHeaderLength
+        unlessClosed conn strm $ do
+            -- Trailers always indicate the end of a stream; send them in
+            -- consecutive header+continuation frames and end the stream.
+            builder <- hpackEncodeCIHeaders ctx trailers
+            off <- headerContinue (streamNumber strm) builder True
+            closed strm Finished
+            flushN $ off + frameHeaderLength
         loop
 
     -- Send the response headers and as much of the response as is immediately
