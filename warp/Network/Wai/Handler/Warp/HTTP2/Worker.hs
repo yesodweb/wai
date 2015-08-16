@@ -83,8 +83,8 @@ runResponder responder respond tickle strm = do
     atomically $ writeTBQueue sq $ SFinish trailers
 
 cleanupStream :: Context -> S.Settings -> Stream -> Maybe Request -> Maybe SomeException -> IO ()
-cleanupStream ctx@Context{outputQ} set strm req me = do
-    closed ctx strm Killed
+cleanupStream Context{outputQ} set strm req me = do
+    closed strm Killed
     let frame = resetFrame InternalError (streamNumber strm)
     enqueue outputQ (OFrame frame) highestPriority
     case me of
@@ -95,18 +95,23 @@ pushResponder :: Context -> S.Settings -> Stream -> PushPromise -> Responder -> 
 pushResponder ctx set strm promise responder = do
     let Context{ http2settings
                , nextPushStreamId
+               , pushConcurrency
                , streamTable
                } = ctx
-    enabled <- enablePush <$> readIORef http2settings
-    when enabled $ do
+    cnt <- readIORef pushConcurrency
+    settings <- readIORef http2settings
+    let enabled = enablePush settings
+        fits = maybe True (cnt <) $ maxConcurrentStreams settings
+        canPush = fits && enabled
+    when canPush $ do
         -- Claim the next outgoing stream.
         newSid <- atomicModifyIORef nextPushStreamId $ \sid -> (sid+2, sid)
         ws <- initialWindowSize <$> readIORef http2settings
 
-        newStrm <- newStream newSid ws
+        newStrm <- newStream pushConcurrency newSid ws
         writeIORef (streamPriority newStrm) $
             Priority False (streamNumber strm) 16
-        opened ctx newStrm
+        opened newStrm
         insert streamTable newSid newStrm
 
         let mkOutput = OPush strm promise
@@ -116,7 +121,7 @@ pushResponder ctx set strm promise responder = do
         -- TODO(awpr): synthesize a Request for 'settingsOnException'?
         runResponder responder respond tickle newStrm `E.catch`
             (cleanupStream ctx set strm Nothing . Just)
-    return enabled
+    return canPush
 
 data Break = Break deriving (Show, Typeable)
 

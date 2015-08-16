@@ -35,16 +35,15 @@ data Leftover = LZero
 
 ----------------------------------------------------------------
 
-unlessClosed :: Context -> Connection -> Stream -> IO () -> IO ()
-unlessClosed ctx
-             Connection{connSendAll}
+unlessClosed :: Connection -> Stream -> IO () -> IO ()
+unlessClosed Connection{connSendAll}
              strm@Stream{streamState,streamNumber}
              body = E.handle resetStream $ do
     state <- readIORef streamState
     unless (isClosed state) body
   where
     resetStream e = do
-        closed ctx strm (ResetByMe e)
+        closed strm (ResetByMe e)
         let rst = resetFrame InternalError streamNumber
         connSendAll rst
 
@@ -85,12 +84,12 @@ frameSender ctx@Context{outputQ,connectionWindow}
         connSendAll frame
         loop
     switch (OResponse strm s h aux) = do
-        unlessClosed ctx conn strm $
+        unlessClosed conn strm $
             getWindowSize connectionWindow (streamWindow strm) >>=
                 sendResponse strm s h aux
         loop
     switch (ONext strm curr) = do
-        unlessClosed ctx conn strm $ do
+        unlessClosed conn strm $ do
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Data frame payload
             Next datPayloadLen mnext <- curr lim
@@ -98,7 +97,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
             maybeEnqueueNext strm mnext
         loop
     switch (OPush oldStrm push strm s h aux) = do
-        unlessClosed ctx conn oldStrm $ do
+        unlessClosed conn oldStrm $ do
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Write and send the promise.
             builder <- hpackEncodeCIHeaders ctx $ promiseHeaders push
@@ -111,7 +110,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
     switch (OTrailers strm []) = do
         let flag = setEndStream defaultFlags
         fillFrameHeader FrameData 0 (streamNumber strm) flag connWriteBuffer
-        closed ctx strm Finished
+        closed strm Finished
         flushN frameHeaderLength
         loop
     switch (OTrailers strm trailers) = do
@@ -119,7 +118,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
         -- consecutive header+continuation frames and end the stream.
         builder <- hpackEncodeCIHeaders ctx trailers
         off <- headerContinue (streamNumber strm) builder True
-        closed ctx strm Finished
+        closed strm Finished
         flushN $ off + frameHeaderLength
         loop
 
@@ -224,7 +223,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
         -- the context would be switched to the receiver,
         -- resulting the inconsistency of concurrency.
         case mnext of
-            CFinish    -> closed ctx strm Finished
+            CFinish    -> closed strm Finished
             _          -> return ()
         flushN total
         atomically $ do

@@ -101,7 +101,12 @@ data Aux = Persist (TBQueue Sequence) (TVar Sync)
 data Context = Context {
     http2settings      :: IORef Settings
   , streamTable        :: StreamTable
+  -- | Number of active streams initiated by the client; for enforcing our own
+  -- max concurrency setting.
   , concurrency        :: IORef Int
+  -- | Number of active streams initiated by the server; for respecting the
+  -- client's max concurrency setting.
+  , pushConcurrency    :: IORef Int
   -- | RFC 7540 says "Other frames (from any stream) MUST NOT
   --   occur between the HEADERS frame and any CONTINUATION
   --   frames that might follow". This field is used to implement
@@ -123,6 +128,7 @@ data Context = Context {
 newContext :: IO Context
 newContext = Context <$> newIORef defaultSettings
                      <*> initialize 10 -- fixme: hard coding: 10
+                     <*> newIORef 0
                      <*> newIORef 0
                      <*> newIORef Nothing
                      <*> newIORef 0
@@ -193,28 +199,35 @@ data Stream = Stream {
   , streamBodyLength    :: IORef Int
   , streamWindow        :: TVar WindowSize
   , streamPriority      :: IORef Priority
+  -- | The concurrency IORef in which this stream has been counted.  The client
+  -- and server each have separate concurrency values to respect, so pushed
+  -- streams need to decrement a different count when they're closed.  This
+  -- should be either @concurrency ctx@ or @pushConcurrency ctx@.
+  , concurrencyRef      :: IORef Int
   }
 
 instance Show Stream where
   show s = show (streamNumber s)
 
-newStream :: StreamId -> WindowSize -> IO Stream
-newStream sid win = Stream sid <$> newIORef Idle
-                               <*> newIORef Nothing
-                               <*> newIORef 0
-                               <*> newTVarIO win
-                               <*> newIORef defaultPriority
+newStream :: IORef Int -> StreamId -> WindowSize -> IO Stream
+newStream ref sid win =
+    Stream sid <$> newIORef Idle
+               <*> newIORef Nothing
+               <*> newIORef 0
+               <*> newTVarIO win
+               <*> newIORef defaultPriority
+               <*> pure ref
 
 ----------------------------------------------------------------
 
-opened :: Context -> Stream -> IO ()
-opened Context{concurrency} Stream{streamState} = do
-    atomicModifyIORef' concurrency (\x -> (x+1,()))
+opened :: Stream -> IO ()
+opened Stream{concurrencyRef,streamState} = do
+    atomicModifyIORef' concurrencyRef (\x -> (x+1,()))
     writeIORef streamState (Open JustOpened)
 
-closed :: Context -> Stream -> ClosedCode -> IO ()
-closed Context{concurrency} Stream{streamState} cc = do
-    atomicModifyIORef' concurrency (\x -> (x-1,()))
+closed :: Stream -> ClosedCode -> IO ()
+closed Stream{concurrencyRef,streamState} cc = do
+    atomicModifyIORef' concurrencyRef (\x -> (x-1,()))
     writeIORef streamState (Closed cc)
 
 ----------------------------------------------------------------
