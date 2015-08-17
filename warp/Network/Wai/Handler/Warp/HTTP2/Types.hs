@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, CPP #-}
-{-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Types where
 
@@ -193,12 +193,12 @@ newStream sid win = Stream sid <$> newIORef Idle
 
 opened :: Context -> Stream -> IO ()
 opened Context{concurrency} Stream{streamState} = do
-    atomicModifyIORef' concurrency (\x -> ((x+1),()))
+    atomicModifyIORef' concurrency (\x -> (x+1,()))
     writeIORef streamState (Open JustOpened)
 
 closed :: Context -> Stream -> ClosedCode -> IO ()
 closed Context{concurrency} Stream{streamState} cc = do
-    atomicModifyIORef' concurrency (\x -> ((x-1),()))
+    atomicModifyIORef' concurrency (\x -> (x-1,()))
     writeIORef streamState (Closed cc)
 
 ----------------------------------------------------------------

@@ -51,7 +51,7 @@ start = do
       where
         next = do
             action <- readIORef ref
-            newtid <- forkIO $ action
+            newtid <- forkIO action
             add tset newtid
             go q tset ref
 

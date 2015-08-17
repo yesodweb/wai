@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
-{-# LANGUAGE PatternGuards, BangPatterns #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Worker (
