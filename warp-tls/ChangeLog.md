@@ -1,3 +1,7 @@
+## 3.1.1
+
+* Converting "send: resource vanished (Broken pipe)" to ConnectionClosedByPeer. [#421](https://github.com/yesodweb/wai/issues/421)
+
 ## 3.1.0
 
 * Supporting HTTP/2 [#399](https://github.com/yesodweb/wai/pull/399)
