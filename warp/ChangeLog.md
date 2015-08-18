@@ -1,3 +1,8 @@
+## 3.1.3
+
+* Warp now supports blaze-builder v0.4 or later only.
+* HTTP/2 code was improved: dynamic priority change, efficient queuing and sender loop continuation. [#423](https://github.com/yesodweb/wai/pull/423) [#424](https://github.com/yesodweb/wai/pull/424)
+
 ## 3.1.2
 
 * Configurable Slowloris size [#418](https://github.com/yesodweb/wai/pull/418)
