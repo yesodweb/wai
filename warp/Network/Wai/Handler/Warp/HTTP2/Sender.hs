@@ -318,7 +318,7 @@ readOpenFile :: OpenFile -> Buffer -> BufSize -> Integer -> IO Int
 #ifdef WINDOWS
 runStreamFile ii buf room path mpart = do
     (start, bytes) <- fileStartEnd path mpart
-    -- fixme: how to close Handle?  GC does it at this moment.
+    -- fixme: how to close Handle? GC does it at this moment.
     h <- IO.openBinaryFile path IO.ReadMode
     IO.hSeek h IO.AbsoluteSeek start
     fillBufFile buf room h start bytes (return ())
