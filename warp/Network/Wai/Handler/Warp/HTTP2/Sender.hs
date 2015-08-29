@@ -134,27 +134,6 @@ frameSender ctx@Context{outputQ,connectionWindow}
             sendResponse strm s h aux lim
         putMVar mvar pushed
         loop
-    switch (OTrailers strm trailers) = do
-        _ <- unlessClosed conn strm $ do
-            -- Trailers always indicate the end of a stream; send them in
-            -- consecutive header+continuation frames and end the stream.  Some
-            -- clients dislike empty headers frames, so end the stream with an
-            -- empty data frame instead, as recommended by the spec.
-            toFlush <- case trailers of
-                [] -> frameHeaderLength <$ fillFrameHeader FrameData 0
-                        (streamNumber strm)
-                        (setEndStream defaultFlags)
-                        connWriteBuffer
-                _ -> do
-                    builder <- hpackEncodeCIHeaders ctx trailers
-                    off <- headerContinue (streamNumber strm) builder True
-                    return (off + frameHeaderLength)
-            -- 'closed' must be before 'flushN'. If not, the context would be
-            -- switched to the receiver, resulting in the inconsistency of
-            -- concurrency.
-            closed strm Finished
-            flushN toFlush
-        loop
 
     -- Send the response headers and as much of the response as is immediately
     -- available; shared by normal responses and pushed streams.
@@ -177,6 +156,27 @@ frameSender ctx@Context{outputQ,connectionWindow}
             when needSend $ flushN off
         dispatchNext strm mnext
 
+    -- Send the stream's trailers and close the stream.
+    sendTrailers :: Stream -> Trailers -> IO ()
+    sendTrailers strm trailers = do
+        -- Trailers always indicate the end of a stream; send them in
+        -- consecutive header+continuation frames and end the stream.  Some
+        -- clients dislike empty headers frames, so end the stream with an
+        -- empty data frame instead, as recommended by the spec.
+        toFlush <- case trailers of
+            [] -> frameHeaderLength <$ fillFrameHeader FrameData 0
+                    (streamNumber strm)
+                    (setEndStream defaultFlags)
+                    connWriteBuffer
+            _ -> do
+                builder <- hpackEncodeCIHeaders ctx trailers
+                off <- headerContinue (streamNumber strm) builder True
+                return (off + frameHeaderLength)
+        -- 'closed' must be before 'flushN'. If not, the context would be
+        -- switched to the receiver, resulting in the inconsistency of
+        -- concurrency.
+        closed strm Finished
+        flushN toFlush
 
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
     -- the buffer are filled.
@@ -237,14 +237,11 @@ frameSender ctx@Context{outputQ,connectionWindow}
     -- This is done after sending any part of the stream body, so it's shared
     -- by 'sendResponse' and @switch (ONext ...)@.
     dispatchNext :: Stream -> Control DynaNext -> IO ()
-    dispatchNext strm (CNext next) = do
+    dispatchNext _    CNone              = return ()
+    dispatchNext strm (CFinish trailers) = sendTrailers strm trailers
+    dispatchNext strm (CNext next)       = do
         let out = ONext strm next
         enqueueOrSpawnTemporaryWaiter strm outputQ out
-    dispatchNext strm (CFinish trailers) = do
-        let out = OTrailers strm trailers
-        pri <- readIORef $ streamPriority strm
-        enqueue outputQ out pri
-    dispatchNext _    _            = return ()
 
 
     -- Send headers if there is not room for a 1-byte data frame, and return
