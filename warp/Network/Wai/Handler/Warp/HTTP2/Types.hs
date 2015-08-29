@@ -46,14 +46,21 @@ data Input = Input Stream Request
 
 ----------------------------------------------------------------
 
-data Control a = CFinish
+-- | The result of writing data from a stream's queue into the buffer.
+data Control a = CFinish Trailers
+               -- ^ The stream has ended, and the trailers should be sent.
                | CNext a
+               -- ^ The stream has more data immediately available, and we
+               -- should re-enqueue it when the stream window becomes open.
                | CNone
+               -- ^ The stream queue has been drained and we've handed it off
+               -- to its dedicated waiter thread, which will re-enqueue it when
+               -- more data is available.
 
 instance Show (Control a) where
-    show CFinish   = "CFinish"
-    show (CNext _) = "CNext"
-    show CNone     = "CNone"
+    show (CFinish _) = "CFinish"
+    show (CNext _)   = "CNext"
+    show CNone       = "CNone"
 
 type DynaNext = WindowSize -> IO Next
 
@@ -102,8 +109,8 @@ data Sequence = SFinish Trailers
 -- | A message from the sender to a stream's dedicated waiter thread.
 data Sync = SyncNone
           -- ^ Nothing interesting has happened.  Go back to sleep.
-          | SyncFinish Trailers
-          -- ^ The stream has ended; enqueue 'OTrailers' and quit.
+          | SyncFinish
+          -- ^ The stream has ended.
           | SyncNext Output
           -- ^ The stream's queue has been drained; wait for more to be
           -- available and re-enqueue the given 'Output'.

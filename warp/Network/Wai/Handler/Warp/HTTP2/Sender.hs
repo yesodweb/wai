@@ -119,8 +119,8 @@ frameSender ctx@Context{outputQ,connectionWindow}
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Data frame payload
             Next datPayloadLen mnext <- curr lim
-            fillDataHeaderSend strm 0 datPayloadLen mnext
-            maybeEnqueueNext strm mnext
+            fillDataHeaderSend strm 0 datPayloadLen
+            dispatchNext strm mnext
         loop
     switch (OPush oldStrm push mvar strm s h aux) = do
         pushed <- unlessClosed conn oldStrm $ do
@@ -134,23 +134,26 @@ frameSender ctx@Context{outputQ,connectionWindow}
             sendResponse strm s h aux lim
         putMVar mvar pushed
         loop
-    switch (OTrailers strm []) = do
-        _ <- unlessClosed conn strm $ do
-            -- An empty data frame should be used to end the stream instead
-            -- when there are no trailers.
-            let flag = setEndStream defaultFlags
-            fillFrameHeader FrameData 0 (streamNumber strm) flag connWriteBuffer
-            closed strm Finished
-            flushN frameHeaderLength
-        loop
     switch (OTrailers strm trailers) = do
         _ <- unlessClosed conn strm $ do
             -- Trailers always indicate the end of a stream; send them in
-            -- consecutive header+continuation frames and end the stream.
-            builder <- hpackEncodeCIHeaders ctx trailers
-            off <- headerContinue (streamNumber strm) builder True
+            -- consecutive header+continuation frames and end the stream.  Some
+            -- clients dislike empty headers frames, so end the stream with an
+            -- empty data frame instead, as recommended by the spec.
+            toFlush <- case trailers of
+                [] -> frameHeaderLength <$ fillFrameHeader FrameData 0
+                        (streamNumber strm)
+                        (setEndStream defaultFlags)
+                        connWriteBuffer
+                _ -> do
+                    builder <- hpackEncodeCIHeaders ctx trailers
+                    off <- headerContinue (streamNumber strm) builder True
+                    return (off + frameHeaderLength)
+            -- 'closed' must be before 'flushN'. If not, the context would be
+            -- switched to the receiver, resulting in the inconsistency of
+            -- concurrency.
             closed strm Finished
-            flushN $ off + frameHeaderLength
+            flushN toFlush
         loop
 
     -- Send the response headers and as much of the response as is immediately
@@ -169,10 +172,10 @@ frameSender ctx@Context{outputQ,connectionWindow}
         -- If no data was immediately available, avoid sending an
         -- empty data frame.
         if datPayloadLen > 0 then
-            fillDataHeaderSend strm total datPayloadLen mnext
+            fillDataHeaderSend strm total datPayloadLen
           else
             when needSend $ flushN off
-        maybeEnqueueNext strm mnext
+        dispatchNext strm mnext
 
 
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
@@ -223,16 +226,25 @@ frameSender ctx@Context{outputQ,connectionWindow}
     -- True if the connection buffer has room for a 1-byte data frame.
     canFitDataFrame total = total + frameHeaderLength < connBufferSize
 
-    -- Re-enqueue the stream in the output queue if more output is immediately
-    -- available; do nothing otherwise.
-    maybeEnqueueNext :: Stream -> Control DynaNext -> IO ()
-    maybeEnqueueNext strm (CNext next) = do
+    -- Take the appropriate action based on the given 'Control':
+    -- - If more output is immediately available, re-enqueue the stream in the
+    -- output queue.
+    -- - If the output is over and trailers are available, send them now and
+    -- end the stream.
+    -- - If we've drained the queue and handed the stream back to its waiter,
+    -- do nothing.
+    --
+    -- This is done after sending any part of the stream body, so it's shared
+    -- by 'sendResponse' and @switch (ONext ...)@.
+    dispatchNext :: Stream -> Control DynaNext -> IO ()
+    dispatchNext strm (CNext next) = do
         let out = ONext strm next
         enqueueOrSpawnTemporaryWaiter strm outputQ out
-    -- If the streaming is not finished, it must already have been
-    -- written to the 'TVar' owned by 'waiter', which will
-    -- put it back into the queue when more output becomes available.
-    maybeEnqueueNext _    _            = return ()
+    dispatchNext strm (CFinish trailers) = do
+        let out = OTrailers strm trailers
+        pri <- readIORef $ streamPriority strm
+        enqueue outputQ out pri
+    dispatchNext _    _            = return ()
 
 
     -- Send headers if there is not room for a 1-byte data frame, and return
@@ -244,18 +256,12 @@ frameSender ctx@Context{outputQ,connectionWindow}
           flushN total
           return (0, False)
 
-    fillDataHeaderSend strm otherLen datPayloadLen mnext = do
+    fillDataHeaderSend strm otherLen datPayloadLen = do
         -- Data frame header
         let sid = streamNumber strm
             buf = connWriteBuffer `plusPtr` otherLen
             total = otherLen + frameHeaderLength + datPayloadLen
         fillFrameHeader FrameData datPayloadLen sid defaultFlags buf
-        -- "closed" must be before "connSendAll". If not,
-        -- the context would be switched to the receiver,
-        -- resulting the inconsistency of concurrency.
-        case mnext of
-            CFinish    -> closed strm Finished
-            _          -> return ()
         flushN total
         atomically $ do
            modifyTVar' connectionWindow (subtract datPayloadLen)
@@ -406,8 +412,8 @@ nextForStream :: InternalInfo -> Buffer -> BufSize -> TBQueue Sequence
               -> TVar Sync -> Stream -> Leftover -> Maybe Trailers
               -> BytesFilled -> IO Next
 nextForStream _ _  _ _  tvar _ _ (Just trailers) len = do
-    atomically $ writeTVar tvar $ SyncFinish trailers
-    return $ Next len CNone
+    atomically $ writeTVar tvar $ SyncFinish
+    return $ Next len $ CFinish trailers
 nextForStream ii buf siz sq tvar strm LZero Nothing len = do
     let out = ONext strm (fillBufStream ii buf siz LZero sq tvar strm)
     atomically $ writeTVar tvar $ SyncNext out

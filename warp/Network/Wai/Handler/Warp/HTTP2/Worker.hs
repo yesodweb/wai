@@ -217,14 +217,14 @@ waiter tvar sq strm outQ = do
     mx <- atomically $ do
         mout <- readTVar tvar
         case mout of
-            SyncNone            -> retry
-            SyncNext out        -> do
+            SyncNone     -> retry
+            SyncNext out -> do
                 writeTVar tvar SyncNone
-                return $ Right out
-            SyncFinish trailers -> return $ Left trailers
+                return $ Just out
+            SyncFinish   -> return Nothing
     case mx of
-        Left  trailers -> enqueueWhenWindowIsOpen outQ (OTrailers strm trailers)
-        Right out      -> do
+        Nothing  -> return ()
+        Just out -> do
             -- ensuring that the streaming queue is not empty.
             atomically $ do
                 isEmpty <- isEmptyTBQueue sq
