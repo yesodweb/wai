@@ -27,7 +27,7 @@ import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
-import Network.Wai.HTTP2 (HTTP2Application, PushPromise, Responder, RespondFunc)
+import Network.Wai.HTTP2 (Chunk(..), HTTP2Application, PushPromise, Responder, RespondFunc)
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
 
@@ -68,8 +68,10 @@ runStream Context{outputQ} mkOutput tickle strm sq s h strmbdy = do
     -- queue is not empty.
     void $ forkIO $ waiter tvar sq strm outputQ
     atomically $ writeTVar tvar (SyncNext out)
-    let push b = do
-            atomically $ writeTBQueue sq (SBuilder b)
+    let push chunk = do
+            atomically $ writeTBQueue sq $ case chunk of
+                BuilderChunk b -> SBuilder b
+                FileChunk path part -> SFile path part
             tickle
         flush  = atomically $ writeTBQueue sq SFlush
     strmbdy push flush

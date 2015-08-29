@@ -17,7 +17,7 @@ import Network.HTTP2
 import Network.Socket (SockAddr)
 
 import Network.Wai (Application, responseToStream)
-import Network.Wai.HTTP2 (HTTP2Application)
+import Network.Wai.HTTP2 (HTTP2Application, Chunk(BuilderChunk))
 import Network.Wai.Internal (ResponseReceived(..))
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
@@ -79,5 +79,6 @@ goaway Connection{..} etype debugmsg = connSendAll bytestream
 promoteApplication :: Application -> HTTP2Application
 promoteApplication app req _ respond = [] <$ app req respond'
   where
-    respond' r = ResponseReceived <$ (withBody $ respond s h)
+    respond' r = ResponseReceived <$ (withBody $ respond s h . convBody)
       where (s, h, withBody) = responseToStream r
+    convBody b = \send flush -> b (send . BuilderChunk) flush

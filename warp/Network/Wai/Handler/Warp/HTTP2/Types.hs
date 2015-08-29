@@ -17,7 +17,7 @@ import qualified Data.ByteString as BS
 import Data.IntMap.Strict (IntMap, IntMap)
 import qualified Data.IntMap.Strict as M
 import qualified Network.HTTP.Types as H
-import Network.Wai (Request)
+import Network.Wai (Request, FilePart)
 import Network.Wai.HTTP2 (PushPromise, Trailers)
 import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.Types
@@ -88,6 +88,7 @@ outputStream _                      = error "outputStream"
 data Sequence = SFinish Trailers
               | SFlush
               | SBuilder Builder
+              | SFile FilePath (Maybe FilePart)
 
 data Sync = SyncNone
           | SyncFinish Trailers
