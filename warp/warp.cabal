@@ -94,7 +94,6 @@ Library
       Cpp-Options:   -DWARP_DEBUG
   if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
       Cpp-Options:   -DSENDFILEFD
-      Build-Depends: hashable
       Other-modules: Network.Wai.Handler.Warp.MultiMap
   if os(windows)
       Cpp-Options:   -DWINDOWS
@@ -103,6 +102,7 @@ Library
   else
       Build-Depends: unix
                    , http-date
+                   , hashable
 
 Test-Suite doctest
   Type:                 exitcode-stdio-1.0
