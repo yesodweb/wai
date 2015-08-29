@@ -7,8 +7,8 @@ module Network.Wai.HTTP2
     , Responder
     , Trailers
     , promiseHeaders
-    , sendBuilder
-    , sendFilePart
+    , writeBuilder
+    , writeFilePart
     ) where
 
 import           Data.ByteString (ByteString)
@@ -38,15 +38,14 @@ type HTTP2Application = Request -> PushFunc -> Responder
 -- | Part of a streaming response -- either a 'Builder' or a range of a file.
 data Chunk = FileChunk FilePath (Maybe FilePart) | BuilderChunk Builder
 
--- TODO send -> write
 -- | Given the write function of a stream body, write the given 'Builder'.
-sendBuilder :: (Chunk -> IO ()) -> Builder -> IO ()
-sendBuilder = (. BuilderChunk)
+writeBuilder :: (Chunk -> IO ()) -> Builder -> IO ()
+writeBuilder = (. BuilderChunk)
 
 -- | Given the write function of a stream body, write part or all of the given
 -- file.
-sendFilePart :: (Chunk -> IO ()) -> FilePath -> Maybe FilePart -> IO ()
-sendFilePart = (.: FileChunk)
+writeFilePart :: (Chunk -> IO ()) -> FilePath -> Maybe FilePart -> IO ()
+writeFilePart = (.: FileChunk)
   where f .: g = curry $ f . uncurry g
 
 -- | The streaming body of a response.  Equivalent to
