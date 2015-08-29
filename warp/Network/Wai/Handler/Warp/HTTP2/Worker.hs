@@ -93,37 +93,60 @@ cleanupStream Context{outputQ} set strm req me = do
         Nothing -> return ()
         Just e -> S.settingsOnException set req e
 
+-- | Push the given 'Responder' to the client if the settings allow it
+-- (specifically 'enablePush' and 'maxConcurrentStreams').  Returns 'True' if
+-- the stream was actually pushed.
+--
+-- This is the push function given to an 'HTTP2Application'.
 pushResponder :: Context -> S.Settings -> Stream -> PushPromise -> Responder -> IO Bool
 pushResponder ctx set strm promise responder = do
     let Context{ http2settings
-               , nextPushStreamId
                , pushConcurrency
-               , streamTable
                } = ctx
     cnt <- readIORef pushConcurrency
     settings <- readIORef http2settings
     let enabled = enablePush settings
         fits = maybe True (cnt <) $ maxConcurrentStreams settings
         canPush = fits && enabled
-    when canPush $ do
-        -- Claim the next outgoing stream.
-        newSid <- atomicModifyIORef nextPushStreamId $ \sid -> (sid+2, sid)
-        ws <- initialWindowSize <$> readIORef http2settings
+    if canPush then
+        actuallyPushResponder ctx set strm promise responder
+      else
+        return False
 
-        newStrm <- newStream pushConcurrency newSid ws
-        writeIORef (streamPriority newStrm) $
-            Priority False (streamNumber strm) 16
-        opened newStrm
-        insert streamTable newSid newStrm
+-- | Set up a pushed stream and run the 'Responder' in its own thread.  Waits
+-- for the sender thread to handle the push request.  This can fail to push the
+-- stream and return 'False' if the sender dequeued the push request after the
+-- associated stream was closed.
+actuallyPushResponder :: Context -> S.Settings -> Stream -> PushPromise -> Responder -> IO Bool
+actuallyPushResponder ctx set strm promise responder = do
+    let Context{ http2settings
+               , nextPushStreamId
+               , pushConcurrency
+               , streamTable
+               } = ctx
+    -- Claim the next outgoing stream.
+    newSid <- atomicModifyIORef nextPushStreamId $ \sid -> (sid+2, sid)
+    ws <- initialWindowSize <$> readIORef http2settings
 
-        let mkOutput = OPush strm promise
-            tickle = return ()
-            respond = runStream ctx mkOutput
+    newStrm <- newStream pushConcurrency newSid ws
+    writeIORef (streamPriority newStrm) $
+        Priority False (streamNumber strm) 16
+    opened newStrm
+    insert streamTable newSid newStrm
 
-        -- TODO(awpr): synthesize a Request for 'settingsOnException'?
-        runResponder responder respond tickle newStrm `E.catch`
-            (cleanupStream ctx set strm Nothing . Just)
-    return canPush
+    -- Set up a channel for the sender to report back whether it pushed the
+    -- stream.
+    mvar <- newEmptyMVar
+
+    let mkOutput = OPush strm promise mvar
+        tickle = return ()
+        respond = runStream ctx mkOutput
+
+    -- TODO(awpr): synthesize a Request for 'settingsOnException'?
+    _ <- forkIO $ runResponder responder respond tickle newStrm `E.catch`
+        (cleanupStream ctx set strm Nothing . Just)
+
+    takeMVar mvar
 
 data Break = Break deriving (Show, Typeable)
 

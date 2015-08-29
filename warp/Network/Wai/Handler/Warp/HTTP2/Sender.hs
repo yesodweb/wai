@@ -7,9 +7,10 @@ module Network.Wai.Handler.Warp.HTTP2.Sender (frameSender) where
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
+import Control.Concurrent.MVar (putMVar)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
-import Control.Monad (unless, void, when)
+import Control.Monad (void, when)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as B (int32BE)
 import qualified Data.ByteString.Builder.Extra as B
@@ -49,17 +50,18 @@ type OpenFile = Fd
 
 ----------------------------------------------------------------
 
-unlessClosed :: Connection -> Stream -> IO () -> IO ()
+unlessClosed :: Connection -> Stream -> IO () -> IO Bool
 unlessClosed Connection{connSendAll}
              strm@Stream{streamState,streamNumber}
              body = E.handle resetStream $ do
     state <- readIORef streamState
-    unless (isClosed state) body
+    if (isClosed state) then return False else body >> return True
   where
     resetStream e = do
         closed strm (ResetByMe e)
         let rst = resetFrame InternalError streamNumber
         connSendAll rst
+        return False
 
 getWindowSize :: TVar WindowSize -> TVar WindowSize -> IO WindowSize
 getWindowSize connWindow strmWindow = do
@@ -98,20 +100,20 @@ frameSender ctx@Context{outputQ,connectionWindow}
         connSendAll frame
         loop
     switch (OResponse strm s h aux) = do
-        unlessClosed conn strm $
+        _ <- unlessClosed conn strm $
             getWindowSize connectionWindow (streamWindow strm) >>=
                 sendResponse strm s h aux
         loop
     switch (ONext strm curr) = do
-        unlessClosed conn strm $ do
+        _ <- unlessClosed conn strm $ do
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Data frame payload
             Next datPayloadLen mnext <- curr lim
             fillDataHeaderSend strm 0 datPayloadLen mnext
             maybeEnqueueNext strm mnext
         loop
-    switch (OPush oldStrm push strm s h aux) = do
-        unlessClosed conn oldStrm $ do
+    switch (OPush oldStrm push mvar strm s h aux) = do
+        pushed <- unlessClosed conn oldStrm $ do
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Write and send the promise.
             builder <- hpackEncodeCIHeaders ctx $ promiseHeaders push
@@ -120,9 +122,10 @@ frameSender ctx@Context{outputQ,connectionWindow}
             -- TODO(awpr): refactor sendResponse to be able to handle non-zero
             -- initial offsets and use that to potentially avoid the extra syscall.
             sendResponse strm s h aux lim
+        putMVar mvar pushed
         loop
     switch (OTrailers strm []) = do
-        unlessClosed conn strm $ do
+        _ <- unlessClosed conn strm $ do
             -- An empty data frame should be used to end the stream instead
             -- when there are no trailers.
             let flag = setEndStream defaultFlags
@@ -131,7 +134,7 @@ frameSender ctx@Context{outputQ,connectionWindow}
             flushN frameHeaderLength
         loop
     switch (OTrailers strm trailers) = do
-        unlessClosed conn strm $ do
+        _ <- unlessClosed conn strm $ do
             -- Trailers always indicate the end of a stream; send them in
             -- consecutive header+continuation frames and end the stream.
             builder <- hpackEncodeCIHeaders ctx trailers

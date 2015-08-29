@@ -8,6 +8,7 @@ import Data.ByteString.Builder (Builder)
 import Control.Applicative ((<$>),(<*>))
 #endif
 import Control.Concurrent (forkIO)
+import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM
 import Control.Exception (SomeException)
 import Control.Monad (void)
@@ -69,19 +70,20 @@ data Output = OFinish
             | OResponse Stream H.Status H.ResponseHeaders Aux
             -- ^ Send the headers and as much of the response as is immediately
             -- available.
-            | OPush Stream PushPromise Stream H.Status H.ResponseHeaders Aux
-            -- ^ Send a PUSH_PROMISE frame, then act like OResponse.
+            | OPush Stream PushPromise (MVar Bool) Stream H.Status H.ResponseHeaders Aux
+            -- ^ Send a PUSH_PROMISE frame, then act like OResponse; signal the
+            -- MVar whether the promise has been sent.
             | ONext Stream DynaNext
             -- ^ Send a chunk of the response.
             | OTrailers Stream Trailers
             -- ^ Send a series of trailers in header and continuation frames.
 
 outputStream :: Output -> Stream
-outputStream (OResponse strm _ _ _) = strm
-outputStream (ONext strm _)         = strm
-outputStream (OPush strm _ _ _ _ _) = strm
-outputStream (OTrailers strm _)     = strm
-outputStream _                      = error "outputStream"
+outputStream (OResponse strm _ _ _)   = strm
+outputStream (ONext strm _)           = strm
+outputStream (OPush strm _ _ _ _ _ _) = strm
+outputStream (OTrailers strm _)       = strm
+outputStream _                        = error "outputStream"
 
 ----------------------------------------------------------------
 
