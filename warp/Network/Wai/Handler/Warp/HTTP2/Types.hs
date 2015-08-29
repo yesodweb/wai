@@ -87,15 +87,29 @@ outputStream _                        = error "outputStream"
 
 ----------------------------------------------------------------
 
+-- | An element on the queue between a running stream and the sender; the order
+-- should consist of any number of 'SFile', 'SBuilder', and 'SFlush', followed
+-- by a single 'SFinish'.
 data Sequence = SFinish Trailers
+              -- ^ The stream is over; its trailers are provided.
               | SFlush
+              -- ^ Any buffered data should be sent immediately.
               | SBuilder Builder
+              -- ^ Append a chunk of data to the stream.
               | SFile FilePath (Maybe FilePart)
+              -- ^ Append a chunk of a file's contents to the stream.
 
+-- | A message from the sender to a stream's dedicated waiter thread.
 data Sync = SyncNone
+          -- ^ Nothing interesting has happened.  Go back to sleep.
           | SyncFinish Trailers
+          -- ^ The stream has ended; enqueue 'OTrailers' and quit.
           | SyncNext Output
+          -- ^ The stream's queue has been drained; wait for more to be
+          -- available and re-enqueue the given 'Output'.
 
+-- | Auxiliary information needed to communicate with a running stream: a queue
+-- of stream elements ('Sequence') and a 'TVar' connected to its waiter thread.
 data Aux = Persist (TBQueue Sequence) (TVar Sync)
 
 ----------------------------------------------------------------

@@ -57,6 +57,8 @@ response ctx mgr tconf tickle strm sq s h strmbdy = do
 
     runStream ctx OResponse tickle strm sq s h strmbdy
 
+-- | Set up a waiter thread and run the stream body with functions to enqueue
+-- 'Sequence's on the stream's queue.
 runStream :: Context
           -> (Stream -> H.Status -> H.ResponseHeaders -> Aux -> Output)
           -> Respond
@@ -68,14 +70,17 @@ runStream Context{outputQ} mkOutput tickle strm sq s h strmbdy = do
     -- queue is not empty.
     void $ forkIO $ waiter tvar sq strm outputQ
     atomically $ writeTVar tvar (SyncNext out)
-    let push chunk = do
+    let write chunk = do
             atomically $ writeTBQueue sq $ case chunk of
                 BuilderChunk b -> SBuilder b
                 FileChunk path part -> SFile path part
             tickle
         flush  = atomically $ writeTBQueue sq SFlush
-    strmbdy push flush
+    strmbdy write flush
 
+-- | Set up a queue for the stream and use the given 'Respond' to actually run
+-- it.  This will be 'response' for client-initiated streams and just plain
+-- 'runStream' for pushed streams.
 runResponder :: Responder -> Respond -> IO () -> Stream -> IO ()
 runResponder responder respond tickle strm = do
     -- Since 'Body' is loop, we cannot control it.
@@ -84,6 +89,8 @@ runResponder responder respond tickle strm = do
     trailers <- responder $ respond tickle strm sq
     atomically $ writeTBQueue sq $ SFinish trailers
 
+-- | Handle abnormal termination of a stream: mark it as closed, send a reset
+-- frame, and call the user's 'settingsOnException' handler if applicable.
 cleanupStream :: Context -> S.Settings -> Stream -> Maybe Request -> Maybe SomeException -> IO ()
 cleanupStream Context{outputQ} set strm req me = do
     closed strm Killed
@@ -199,6 +206,11 @@ worker ctx@Context{inputQ} set tm app respond = do
                 cleanupStream ctx set strm (Just req) me
                 clearStreamInfo sinfo
 
+-- | A dedicated waiter thread to re-enqueue the stream in the priority tree
+-- whenever output becomes available.  When the sender drains the queue and
+-- moves on to another stream, it drops a message in the 'TVar', and this
+-- thread wakes up, waits for more output to become available, and re-enqueues
+-- the stream.
 waiter :: TVar Sync -> TBQueue Sequence -> Stream -> PriorityTree Output -> IO ()
 waiter tvar sq strm outQ = do
     -- waiting for actions other than SyncNone

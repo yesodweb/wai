@@ -22,8 +22,6 @@ import Network.HTTP2.Priority
 import Network.Wai (FilePart(..))
 import Network.Wai.HTTP2 (Trailers, promiseHeaders)
 import Network.Wai.Handler.Warp.Buffer
-import Network.Wai.Handler.Warp.FdCache (getFd)
-import Network.Wai.Handler.Warp.SendFile (positionRead)
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.HPACK
 import Network.Wai.Handler.Warp.HTTP2.Types
@@ -31,25 +29,37 @@ import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
+import qualified System.PosixCompat.Files as P
+
+#ifdef WINDOWS
+import qualified System.IO as IO
+#else
+import Network.Wai.Handler.Warp.FdCache (getFd)
+import Network.Wai.Handler.Warp.SendFile (positionRead)
 import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types (Fd)
-import qualified System.PosixCompat.Files as P
+#endif
 
 ----------------------------------------------------------------
 
-data Leftover = LZero
-              | LOne B.BufferWriter
-              | LTwo BS.ByteString B.BufferWriter
-              | LFile OpenFile Integer Integer (IO ())
-
+-- | The platform-specific type of an open file to stream from.  On Windows we
+-- don't have pread, so this is just a Handle; on Unix platforms with pread,
+-- this is a file descriptor supplied by the fd cache.
 #ifdef WINDOWS
 type OpenFile = IO.Handle
 #else
 type OpenFile = Fd
 #endif
 
+data Leftover = LZero
+              | LOne B.BufferWriter
+              | LTwo BS.ByteString B.BufferWriter
+              | LFile OpenFile Integer Integer (IO ())
+
 ----------------------------------------------------------------
 
+-- | Run the given action if the stream is not closed; handle any exceptions by
+-- resetting the stream.
 unlessClosed :: Connection -> Stream -> IO () -> IO Bool
 unlessClosed Connection{connSendAll}
              strm@Stream{streamState,streamNumber}
