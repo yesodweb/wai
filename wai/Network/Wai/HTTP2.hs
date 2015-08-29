@@ -7,17 +7,20 @@ module Network.Wai.HTTP2
     , Responder
     , Trailers
     , promiseHeaders
-    , writeBuilder
-    , writeFilePart
+    , promoteApplication
+    , responder
+    , streamFilePart
+    , streamBuilder
+    , streamSimple
     ) where
 
 import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as L
 
 import           Data.ByteString.Builder (Builder)
 import qualified Network.HTTP.Types as H
 
-import Network.Wai.Internal (FilePart, Request)
+import Network.Wai (Application)
+import Network.Wai.Internal (FilePart, Request, Response(..), ResponseReceived(..))
 
 -- | Headers sent after the end of a data stream, as defined by section 4.1.2 of
 -- the HTTP\/1.1 spec (RFC 7230), and section 8.1 of the HTTP\/2 spec.
@@ -38,20 +41,14 @@ type HTTP2Application = Request -> PushFunc -> Responder
 -- | Part of a streaming response -- either a 'Builder' or a range of a file.
 data Chunk = FileChunk FilePath (Maybe FilePart) | BuilderChunk Builder
 
--- | Given the write function of a stream body, write the given 'Builder'.
-writeBuilder :: (Chunk -> IO ()) -> Builder -> IO ()
-writeBuilder = (. BuilderChunk)
-
--- | Given the write function of a stream body, write part or all of the given
--- file.
-writeFilePart :: (Chunk -> IO ()) -> FilePath -> Maybe FilePart -> IO ()
-writeFilePart = (.: FileChunk)
-  where f .: g = curry $ f . uncurry g
-
 -- | The streaming body of a response.  Equivalent to
 -- 'Network.Wai.StreamingBody' except that it can also write file ranges and
 -- return a result of type @a@.
-type Body a = (Chunk -> IO ()) -> IO () -> IO a
+type Body a = BodyOf Chunk a
+
+-- | Generalization of 'Body' to arbitrary chunk types; this unifies with
+-- 'Network.Wai.StreamingBody' with @c ~ Builder@ and @a ~ ()@.
+type BodyOf c a = (c -> IO ()) -> IO () -> IO a
 
 -- | A function given to an 'HTTP2Application' used to send the response.  This
 -- is similar to the respond function in 'Network.Wai.Application', but the
@@ -77,3 +74,35 @@ promiseHeaders p =
   , (":authority", promisedAuthority p)
   , (":scheme", promisedScheme p)
   ] ++ promisedHeader p
+
+-- | Create a response body consisting of a single range of a file.
+streamFilePart :: FilePath -> Maybe FilePart -> Body ()
+streamFilePart path part write _ = write $ FileChunk path part
+
+-- | Create a response body consisting of a single builder.
+streamBuilder :: Builder -> Body ()
+streamBuilder builder write _ = write $ BuilderChunk builder
+
+-- | Equivalent to 'Body' but only streaming 'Builder's.
+--
+-- @'Network.Wai.StreamingBody' ~ SimpleBody ()@.
+type SimpleBody a = BodyOf Builder a
+
+-- | Create a response body of a stream of 'Builder's.
+streamSimple :: SimpleBody a -> Body a
+streamSimple body write flush = body (write . BuilderChunk) flush
+
+-- | Use a normal WAI 'Response' to send the response.  Useful if you're
+-- sharing code between HTTP\/2 applications and HTTP\/1 applications.
+responder :: Response -> Responder
+responder response respond = case response of
+    (ResponseFile s h path part) -> [] <$ respond s h (streamFilePart path part)
+    (ResponseBuilder s h b)      -> [] <$ respond s h (streamBuilder b)
+    (ResponseStream s h body)    -> [] <$ respond s h (streamSimple body)
+    (ResponseRaw _ fallback)     -> responder fallback respond
+
+-- | Promote a normal WAI 'Application' to an 'HTTP2Application' by ignoring
+-- the HTTP/2-specific features.
+promoteApplication :: Application -> HTTP2Application
+promoteApplication app req _ respond = [] <$ app req respond'
+  where respond' r = ResponseReceived <$ responder r respond

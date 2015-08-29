@@ -21,12 +21,12 @@ import Network (sClose, Socket)
 import Network.Socket (accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6))
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
-import Network.Wai.HTTP2 (HTTP2Application)
+import Network.Wai.HTTP2 (HTTP2Application, promoteApplication)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Counter
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
-import Network.Wai.Handler.Warp.HTTP2 (http2, isHTTP2, promoteApplication)
+import Network.Wai.Handler.Warp.HTTP2 (http2, isHTTP2)
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Recv

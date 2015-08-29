@@ -1,13 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.Wai.Handler.Warp.HTTP2
-    ( isHTTP2
-    , http2
-    , promoteApplication
-    ) where
+module Network.Wai.Handler.Warp.HTTP2 (isHTTP2, http2) where
 
-import Control.Applicative ((<$))
 import Control.Concurrent (forkIO, killThread)
 import qualified Control.Exception as E
 import Control.Monad (when, unless, replicateM_)
@@ -16,9 +11,7 @@ import Data.ByteString (ByteString)
 import Network.HTTP2
 import Network.Socket (SockAddr)
 
-import Network.Wai (Application, responseToStream)
-import Network.Wai.HTTP2 (HTTP2Application, Chunk(BuilderChunk))
-import Network.Wai.Internal (ResponseReceived(..))
+import Network.Wai.HTTP2 (HTTP2Application)
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Receiver
@@ -73,12 +66,3 @@ goaway :: Connection -> ErrorCodeId -> ByteString -> IO ()
 goaway Connection{..} etype debugmsg = connSendAll bytestream
   where
     bytestream = goawayFrame 0 etype debugmsg
-
--- | Promote a normal WAI 'Application' to an 'HTTP2Application' by ignoring
--- the HTTP/2-specific features.
-promoteApplication :: Application -> HTTP2Application
-promoteApplication app req _ respond = [] <$ app req respond'
-  where
-    respond' r = ResponseReceived <$ (withBody $ respond s h . convBody)
-      where (s, h, withBody) = responseToStream r
-    convBody b = \send flush -> b (send . BuilderChunk) flush
