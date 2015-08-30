@@ -14,13 +14,17 @@ module Network.Wai.HTTP2
     , streamSimple
     ) where
 
+import           Blaze.ByteString.Builder (Builder)
 import           Data.ByteString (ByteString)
-
-import           Data.ByteString.Builder (Builder)
 import qualified Network.HTTP.Types as H
 
-import Network.Wai (Application)
-import Network.Wai.Internal (FilePart, Request, Response(..), ResponseReceived(..))
+import           Network.Wai (Application)
+import           Network.Wai.Internal
+    ( FilePart
+    , Request
+    , Response(..)
+    , ResponseReceived(..)
+    )
 
 -- | Headers sent after the end of a data stream, as defined by section 4.1.2 of
 -- the HTTP\/1.1 spec (RFC 7230), and section 8.1 of the HTTP\/2 spec.
