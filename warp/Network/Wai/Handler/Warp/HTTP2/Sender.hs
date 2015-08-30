@@ -27,7 +27,6 @@ import Network.Wai.Handler.Warp.HTTP2.HPACK
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Settings as S
-import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import qualified System.PosixCompat.Files as P
 
@@ -36,6 +35,7 @@ import qualified System.IO as IO
 #else
 import Network.Wai.Handler.Warp.FdCache (getFd)
 import Network.Wai.Handler.Warp.SendFile (positionRead)
+import qualified Network.Wai.Handler.Warp.Timeout as T
 import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types (Fd)
 #endif
@@ -316,7 +316,7 @@ runStreamFile :: InternalInfo -> Buffer -> BufSize -> FilePath -> Maybe FilePart
 readOpenFile :: OpenFile -> Buffer -> BufSize -> Integer -> IO Int
 
 #ifdef WINDOWS
-runStreamFile ii buf room path mpart = do
+runStreamFile _ buf room path mpart = do
     (start, bytes) <- fileStartEnd path mpart
     -- fixme: how to close Handle? GC does it at this moment.
     h <- IO.openBinaryFile path IO.ReadMode
