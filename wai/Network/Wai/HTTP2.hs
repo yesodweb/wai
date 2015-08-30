@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, RankNTypes #-}
+{-# LANGUAGE CPP #-}
 module Network.Wai.HTTP2
     ( Chunk(..)
     , HTTP2Application
@@ -14,6 +15,9 @@ module Network.Wai.HTTP2
     , streamSimple
     ) where
 
+#if __GLASGOW_HASKELL__ < 710
+import           Data.Functor ((<$))
+#endif
 import           Blaze.ByteString.Builder (Builder)
 import           Data.ByteString (ByteString)
 import qualified Network.HTTP.Types as H
