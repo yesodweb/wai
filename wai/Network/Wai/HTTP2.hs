@@ -1,13 +1,20 @@
 {-# LANGUAGE OverloadedStrings, RankNTypes #-}
 {-# LANGUAGE CPP #-}
 module Network.Wai.HTTP2
-    ( Chunk(..)
-    , HTTP2Application
-    , PushPromise(..)
-    , RespondFunc
+    (
+    -- * Applications
+      HTTP2Application
     , Responder
+    , Body
+    , Chunk(..)
+    , BodyOf
+    , PushFunc
     , Trailers
+    -- * Server push
+    , PushPromise(..)
     , promiseHeaders
+    -- * Conveniences
+    , SimpleBody
     , promoteApplication
     , responder
     , streamFilePart
@@ -58,15 +65,16 @@ type Body a = BodyOf Chunk a
 -- 'Network.Wai.StreamingBody' with @c ~ Builder@ and @a ~ ()@.
 type BodyOf c a = (c -> IO ()) -> IO () -> IO a
 
--- | A function given to an 'HTTP2Application' used to send the response.  This
--- is similar to the respond function in 'Network.Wai.Application', but the
--- status and headers are curried, and it passes on any result value from the
--- stream body.
-type RespondFunc = forall a. H.Status -> H.ResponseHeaders -> Body a -> IO a
-
--- | A continuation-passing style function that provides a response by calling
--- the 'RespondFunc', then returns the request's 'Trailers'.
-type Responder = RespondFunc -> IO Trailers
+-- | The result of an 'HTTP2Application'; or, alternately, an application
+-- that's independent of the request.  This is a continuation-passing style
+-- function that first provides a response by calling the given respond
+-- function, then returns the request's 'Trailers'.
+--
+-- The respond function is similar to the one in 'Network.Wai.Application', but
+-- it only takes a streaming body, the status and headers are curried, and it
+-- passes on any result value from the stream body.
+type Responder = (forall a. H.Status -> H.ResponseHeaders -> Body a -> IO a)
+              -> IO Trailers
 
 -- | A function given to an 'HTTP2Application' to initiate a server-pushed
 -- stream.  Its argument is the same as the result of an 'HTTP2Application', so

@@ -27,17 +27,18 @@ import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
-import Network.Wai.HTTP2 (Chunk(..), HTTP2Application, PushPromise, Responder, RespondFunc)
+import Network.Wai.HTTP2 (Chunk(..), HTTP2Application, PushPromise, Responder)
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
 
 ----------------------------------------------------------------
 
--- | An 'HTTP2Application' takes a 'RespondFunc'; this type implements that by
---   currying some internal arguments.
+-- | An 'HTTP2Application' takes a function of status, headers, and body; this
+--   type implements that by currying some internal arguments.
 --
 --   This is the argument to a 'Responder'.
-type Respond = IO () -> Stream -> TBQueue Sequence -> RespondFunc
+type Respond = forall a. IO () -> Stream -> TBQueue Sequence
+            -> H.Status -> H.ResponseHeaders -> Body a -> IO a
 
 -- | This function is passed to workers.
 --   They also pass responses from 'HTTP2Application's to this function.
