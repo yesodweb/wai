@@ -5,7 +5,7 @@ module Network.Wai.Handler.Warp.HTTP2.Types where
 
 import Data.ByteString.Builder (Builder)
 #if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>),(<*>))
+import Control.Applicative ((<$>), (<*>), pure)
 #endif
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar)
