@@ -228,6 +228,7 @@ f .: g = curry $ f . uncurry g
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
 runTLS tset set = runServeTLS tset set . serveDefault
 
+-- | Run an HTTP\/2-aware server with 'TLSSettings' and 'Settings'.
 runHTTP2TLS :: TLSSettings -> Settings -> HTTP2Application -> Application -> IO ()
 runHTTP2TLS tset set = runServeTLS tset set .: serveHTTP2
 
@@ -245,7 +246,7 @@ runServeTLS tset set serve = withSocketsDo $
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket tset set sock = runServeTLSSocket tset set sock . serveDefault
 
--- | Run an HTTP/2-aware server with 'TLSSettings' and 'Settings' using
+-- | Run an HTTP\/2-aware server with 'TLSSettings' and 'Settings' using
 --   specified 'Socket'.
 runHTTP2TLSSocket :: TLSSettings -> Settings -> Socket -> HTTP2Application -> Application -> IO ()
 runHTTP2TLSSocket tset set sock = runServeTLSSocket tset set sock .: serveHTTP2
