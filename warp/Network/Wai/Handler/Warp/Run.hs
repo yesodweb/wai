@@ -6,6 +6,9 @@
 
 module Network.Wai.Handler.Warp.Run where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<*>))
+#endif
 import Control.Arrow (first)
 import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent as Conc (yield)
