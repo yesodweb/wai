@@ -4,22 +4,23 @@ module Network.Wai.HTTP2
     (
     -- * Applications
       HTTP2Application
-    , Responder
-    , Body
-    , Chunk(..)
-    , BodyOf
     , PushFunc
-    , Trailers
-    -- * Server push
+    , promoteApplication
+    -- * Push promise
     , PushPromise(..)
     , promiseHeaders
-    -- * Conveniences
-    , SimpleBody
-    , promoteApplication
+    -- * Responder
+    , Responder
+    , Body
+    , BodyOf
+    , Chunk(..)
+    , Trailers
     , responder
+    -- * Streamings
     , streamFilePart
     , streamBuilder
     , streamSimple
+    , SimpleBody
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
