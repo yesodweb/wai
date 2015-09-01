@@ -4,23 +4,24 @@ module Network.Wai.HTTP2
     (
     -- * Applications
       HTTP2Application
+    -- * Responder
     , Responder
     , Body
-    , Chunk(..)
     , BodyOf
-    , PushFunc
+    , Chunk(..)
     , Trailers
     -- * Server push
+    , PushFunc
     , PushPromise(..)
     , promiseHeaders
     -- * Conveniences
     , promoteApplication
-    -- ** 'Responder's
+    -- ** Responders
     , responder
     , respondFile
     , respondFilePart
     , respondNotFound
-    -- ** 'Body's
+    -- ** Stream Bodies
     , SimpleBody
     , streamFilePart
     , streamBuilder
@@ -91,6 +92,9 @@ type Responder = (forall a. H.Status -> H.ResponseHeaders -> Body a -> IO a)
 type PushFunc = PushPromise -> Responder -> IO Bool
 
 -- | Create the 'H.RequestHeaders' corresponding to the given 'PushPromise'.
+--
+-- This is primarily useful for Wai handlers like Warp, and application
+-- implementers are unlikely to need it.
 promiseHeaders :: PushPromise -> H.RequestHeaders
 promiseHeaders p =
   [ (":method", promisedMethod p)
