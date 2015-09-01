@@ -1,5 +1,27 @@
 {-# LANGUAGE OverloadedStrings, RankNTypes #-}
 {-# LANGUAGE CPP #-}
+
+-- | An HTTP\/2-aware variant of the 'Network.Wai.Application' type.  Compared
+-- to the original, this exposes the new functionality of server push and
+-- trailers, allows stream fragments to be sent in the form of file ranges, and
+-- allows the stream body to produce a value to be used in constructing the
+-- trailers.  Existing @Applications@ can be faithfully upgraded to HTTP\/2
+-- with 'promoteApplication' or served transparently over both protocols with
+-- the normal Warp 'Network.Wai.Handler.Warp.run' family of functions.
+--
+-- An 'HTTP2Application' takes a 'Request' and a 'PushFunc' and produces a
+-- 'Responder' that will push any associated resources and send the response
+-- body.  The response is always a stream of 'Builder's and file chunks.
+-- Equivalents of the 'Network.Wai.responseBuilder' family of functions are
+-- provided for creating 'Responder's conveniently.
+--
+-- Pushed streams are handled by an IO action that triggers a server push.  It
+-- returns @True@ if the @PUSH_PROMISE@ frame was sent, @False@ if not.  Note
+-- this means it will still return @True@ if the client reset or ignored the
+-- stream.  This gives handlers the freedom to implement their own heuristics
+-- for whether to actually push a resource, while also allowing middleware and
+-- frameworks to trigger server pushes automatically.
+
 module Network.Wai.HTTP2
     (
     -- * Applications
