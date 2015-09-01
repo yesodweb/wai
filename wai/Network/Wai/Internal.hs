@@ -14,6 +14,9 @@ import qualified Data.ByteString              as B hiding (pack)
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Char8        as B (pack, readInteger)
 import qualified Data.ByteString.Lazy as L
+#if __GLASGOW_HASKELL__ < 709
+import           Data.Functor                 ((<$>))
+#endif
 import           Data.Maybe                   (listToMaybe)
 import           Data.Text                    (Text)
 import           Data.Typeable                (Typeable)
