@@ -27,7 +27,7 @@ import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
-import Network.Wai.HTTP2 (Chunk(..), HTTP2Application, PushPromise, Responder)
+import Network.Wai.HTTP2 (Chunk(..), HTTP2Application, PushPromise, Responder, Body)
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
 
