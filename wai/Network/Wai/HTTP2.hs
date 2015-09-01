@@ -14,9 +14,14 @@ module Network.Wai.HTTP2
     , PushPromise(..)
     , promiseHeaders
     -- * Conveniences
-    , SimpleBody
     , promoteApplication
+    -- ** 'Responder's
     , responder
+    , respondFile
+    , respondFilePart
+    , respondNotFound
+    -- ** 'Body's
+    , SimpleBody
     , streamFilePart
     , streamBuilder
     , streamSimple
@@ -31,10 +36,13 @@ import qualified Network.HTTP.Types as H
 
 import           Network.Wai (Application)
 import           Network.Wai.Internal
-    ( FilePart
-    , Request
+    ( FilePart(..)
+    , Request(requestHeaders)
     , Response(..)
     , ResponseReceived(..)
+    , adjustForFilePart
+    , chooseFilePart
+    , tryGetFileSize
     )
 
 -- | Headers sent after the end of a data stream, as defined by section 4.1.2 of
@@ -54,7 +62,7 @@ data PushPromise = PushPromise
 type HTTP2Application = Request -> PushFunc -> Responder
 
 -- | Part of a streaming response -- either a 'Builder' or a range of a file.
-data Chunk = FileChunk FilePath (Maybe FilePart) | BuilderChunk Builder
+data Chunk = FileChunk FilePath FilePart | BuilderChunk Builder
 
 -- | The streaming body of a response.  Equivalent to
 -- 'Network.Wai.StreamingBody' except that it can also write file ranges and
@@ -91,9 +99,49 @@ promiseHeaders p =
   , (":scheme", promisedScheme p)
   ] ++ promisedHeader p
 
--- | Create a response body consisting of a single range of a file.
-streamFilePart :: FilePath -> Maybe FilePart -> Body ()
+-- | Create a response body consisting of a single range of a file.  Does not
+-- set Content-Length or Content-Range headers.  For that, use
+-- 'respondFilePart' or 'respondFile'.
+streamFilePart :: FilePath -> FilePart -> Body ()
 streamFilePart path part write _ = write $ FileChunk path part
+
+-- | Respond with a single range of a file, adding the Content-Length and
+-- Content-Range headers and changing the status to 206 as appropriate.
+--
+-- If you want the range to be inferred automatically from the Range header,
+-- use 'respondFile' instead.
+respondFilePart :: H.Status -> H.ResponseHeaders -> FilePath -> FilePart -> Responder
+respondFilePart s h path part respond = do
+    let (s', h') = adjustForFilePart s h part
+    respond s' h' $ streamFilePart path part
+    return []
+
+-- | Serve the requested range of the specified file (based on the Range
+-- header), using the given 'H.Status' and 'H.ResponseHeaders' as a base.  If
+-- the file is not accessible, the status will be replaced with 404 and a
+-- default not-found message will be served.  If a partial file is requested,
+-- the status will be replaced with 206 and the Content-Range header will be
+-- added.  The Content-Length header will always be added.
+respondFile :: H.Status -> H.ResponseHeaders -> FilePath -> H.RequestHeaders -> Responder
+respondFile s h path req respond = do
+    fileSize <- tryGetFileSize path
+    case fileSize of
+        Left _ -> respondNotFound h respond
+        Right size -> respondFileExists s h path size req respond
+
+-- As 'respondFile', but with prior knowledge of the file's existence and size.
+respondFileExists :: H.Status -> H.ResponseHeaders -> FilePath -> Integer -> H.RequestHeaders -> Responder
+respondFileExists s h path size reqHdrs =
+    respondFilePart s h path $ chooseFilePart size $ lookup H.hRange reqHdrs
+
+-- | Respond with a minimal 404 page with the given headers.
+respondNotFound :: H.ResponseHeaders -> Responder
+respondNotFound h respond = do
+    respond H.notFound404 h' $ streamBuilder "File not found."
+    return []
+  where
+    contentType = (H.hContentType, "text/plain; charset=utf-8")
+    h' = contentType:filter ((/=H.hContentType) . fst) h
 
 -- | Create a response body consisting of a single builder.
 streamBuilder :: Builder -> Body ()
@@ -110,15 +158,25 @@ streamSimple body write flush = body (write . BuilderChunk) flush
 
 -- | Use a normal WAI 'Response' to send the response.  Useful if you're
 -- sharing code between HTTP\/2 applications and HTTP\/1 applications.
-responder :: Response -> Responder
-responder response respond = case response of
-    (ResponseFile s h path part) -> [] <$ respond s h (streamFilePart path part)
+--
+-- The 'Request' is used to determine the right file range to serve for
+-- 'ResponseFile'.
+responder :: Request -> Response -> Responder
+responder req response respond = case response of
     (ResponseBuilder s h b)      -> [] <$ respond s h (streamBuilder b)
     (ResponseStream s h body)    -> [] <$ respond s h (streamSimple body)
-    (ResponseRaw _ fallback)     -> responder fallback respond
+    (ResponseRaw _ fallback)     -> responder req fallback respond
+    (ResponseFile s h path mpart) -> go respond
+      where
+        -- Hooray, forcing things to be universally quantified.
+        go :: Responder
+        go = maybe
+            (respondFile s h path $ requestHeaders req)
+            (respondFilePart s h path)
+            mpart
 
 -- | Promote a normal WAI 'Application' to an 'HTTP2Application' by ignoring
 -- the HTTP/2-specific features.
 promoteApplication :: Application -> HTTP2Application
 promoteApplication app req _ respond = [] <$ app req respond'
-  where respond' r = ResponseReceived <$ responder r respond
+  where respond' r = ResponseReceived <$ responder req r respond

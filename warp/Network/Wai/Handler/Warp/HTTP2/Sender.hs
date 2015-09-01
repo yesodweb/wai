@@ -28,7 +28,6 @@ import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Settings as S
 import Network.Wai.Handler.Warp.Types
-import qualified System.PosixCompat.Files as P
 
 #ifdef WINDOWS
 import qualified System.IO as IO
@@ -296,17 +295,16 @@ runStreamBuilder ii buf0 room0 sq = loop buf0 room0 0
                     B.Done -> loop (buf `plusPtr` len) (room - len) total'
                     B.More  _ writer  -> return (LOne writer, Nothing, total')
                     B.Chunk bs writer -> return (LTwo bs writer, Nothing, total')
-            Just (SFile path mpart) -> do
-                (leftover, len) <- runStreamFile ii buf room path mpart
+            Just (SFile path part) -> do
+                (leftover, len) <- runStreamFile ii buf room path part
                 let !total' = total + len
                 return (leftover, Nothing, total')
                 -- TODO if file part is done, go back to loop
             Just SFlush  -> return (LZero, Nothing, total)
             Just (SFinish trailers) -> return (LZero, Just trailers, total)
 
--- | Open the file, determine the range we should send, and start reading into
--- the send buffer.
-runStreamFile :: InternalInfo -> Buffer -> BufSize -> FilePath -> Maybe FilePart
+-- | Open the file and start reading into the send buffer.
+runStreamFile :: InternalInfo -> Buffer -> BufSize -> FilePath -> FilePart
               -> IO (Leftover, BytesFilled)
 
 -- | Read the given (OS-specific) file representation into the buffer.  On
@@ -316,8 +314,9 @@ runStreamFile :: InternalInfo -> Buffer -> BufSize -> FilePath -> Maybe FilePart
 readOpenFile :: OpenFile -> Buffer -> BufSize -> Integer -> IO Int
 
 #ifdef WINDOWS
-runStreamFile _ buf room path mpart = do
-    (start, bytes) <- fileStartEnd path mpart
+runStreamFile _ buf room path part = do
+    let start = filePartOffset part
+        bytes = filePartByteCount part
     -- fixme: how to close Handle? GC does it at this moment.
     h <- IO.openBinaryFile path IO.ReadMode
     IO.hSeek h IO.AbsoluteSeek start
@@ -325,8 +324,9 @@ runStreamFile _ buf room path mpart = do
 
 readOpenFile h buf room _ = IO.hGetBufSome h buf room
 #else
-runStreamFile ii buf room path mpart = do
-    (start, bytes) <- fileStartEnd path mpart
+runStreamFile ii buf room path part = do
+    let start = filePartOffset part
+        bytes = filePartByteCount part
     (fd, refresh) <- case fdCacher ii of
         Just fdcache -> getFd fdcache path
         Nothing      -> do
@@ -354,13 +354,6 @@ fillBufFile buf room f start bytes refresh = do
           else
             LZero
     return (leftover, len)
-
-fileStartEnd :: FilePath -> Maybe FilePart -> IO (Integer, Integer)
-fileStartEnd path Nothing = do
-    end <- fromIntegral . P.fileSize <$> P.getFileStatus path
-    return (0, end)
-fileStartEnd _ (Just part) =
-    return (filePartOffset part, filePartByteCount part)
 
 mini :: Int -> Integer -> Int
 mini i n

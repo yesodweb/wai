@@ -100,7 +100,7 @@ data Sequence = SFinish Trailers
               -- ^ Any buffered data should be sent immediately.
               | SBuilder Builder
               -- ^ Append a chunk of data to the stream.
-              | SFile FilePath (Maybe FilePart)
+              | SFile FilePath FilePart
               -- ^ Append a chunk of a file's contents to the stream.
 
 -- | A message from the sender to a stream's dedicated waiter thread.

@@ -21,10 +21,12 @@ Source-repository head
 Library
   Build-Depends:     base                      >= 4        && < 5
                    , bytestring                >= 0.9.1.4
+                   , bytestring-builder        >= 0.10.4.0 && < 10.7
                    , blaze-builder             >= 0.2.1.4  && < 0.5
                    , network                   >= 2.2.1.5
                    , http-types                >= 0.7
                    , text                      >= 0.7
+                   , unix-compat               >= 0.2
                    , vault                     >= 0.3      && < 0.4
   Exposed-modules:   Network.Wai
                      Network.Wai.HTTP2
