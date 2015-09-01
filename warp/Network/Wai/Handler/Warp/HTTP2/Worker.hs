@@ -33,24 +33,30 @@ import Network.Wai.HTTP2
     , HTTP2Application
     , PushPromise
     , Responder
+    , RespondFunc
     )
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
 
 ----------------------------------------------------------------
 
--- | An 'HTTP2Application' takes a function of status, headers, and body; this
---   type implements that by currying some internal arguments.
+-- | An 'HTTP2Application' takes a function of status, headers, trailers, and
+-- body; this type implements that by currying some internal arguments.
 --
---   This is the argument to a 'Responder'.
-type Respond = forall a. IO () -> Stream -> TBQueue Sequence
-            -> H.Status -> H.ResponseHeaders -> Body a -> IO a
+-- The token type of the RespondFunc is set to be ().  This is a bit
+-- anti-climactic, but the real benefit of the token type is that the
+-- application is forced to call the responder, and making it a boring type
+-- doesn't break that property.
+--
+-- This is the argument to a 'Responder'.
+type Respond = IO () -> Stream -> TBQueue Sequence
+            -> (forall a. RespondFunc () a)
 
--- | This function is passed to workers.
---   They also pass responses from 'HTTP2Application's to this function.
---   This function enqueues commands for the HTTP/2 sender.
+-- | This function is passed to workers.  They also pass responses from
+-- 'HTTP2Application's to this function.  This function enqueues commands for
+-- the HTTP/2 sender.
 response :: Context -> Manager -> ThreadContinue -> Respond
-response ctx mgr tconf tickle strm sq s h strmbdy = do
+response ctx mgr tconf tickle strm sq s h trailers strmbdy = do
     -- TODO(awpr) HEAD requests will still stream.
 
     -- We must not exit this WAI application.
@@ -62,14 +68,14 @@ response ctx mgr tconf tickle strm sq s h strmbdy = do
     -- After this work, this thread stops to decrease the number of workers.
     setThreadContinue tconf False
 
-    runStream ctx OResponse tickle strm sq s h strmbdy
+    runStream ctx OResponse tickle strm sq s h trailers strmbdy
 
 -- | Set up a waiter thread and run the stream body with functions to enqueue
 -- 'Sequence's on the stream's queue.
 runStream :: Context
           -> (Stream -> H.Status -> H.ResponseHeaders -> Aux -> Output)
           -> Respond
-runStream Context{outputQ} mkOutput tickle strm sq s h strmbdy = do
+runStream Context{outputQ} mkOutput tickle strm sq s h trailers strmbdy = do
     tvar <- newTVarIO SyncNone
     let out = mkOutput strm s h (Persist sq tvar)
     -- Since we must not enqueue an empty queue to the priority
@@ -83,7 +89,11 @@ runStream Context{outputQ} mkOutput tickle strm sq s h strmbdy = do
                 FileChunk path part -> SFile path part
             tickle
         flush  = atomically $ writeTBQueue sq SFlush
-    strmbdy write flush
+    -- Run the stream body, use its result to construct the trailers, and
+    -- re-raise any Exception so it will still be handled later.
+    x <- E.try $ strmbdy write flush
+    atomically $ writeTBQueue sq $ SFinish $ trailers x
+    either throwIO (void . return) x
 
 -- | Set up a queue for the stream and use the given 'Respond' to actually run
 -- it.  This will be 'response' for client-initiated streams and just plain
@@ -93,8 +103,7 @@ runResponder responder respond tickle strm = do
     -- Since 'Body' is loop, we cannot control it.
     -- So, let's serialize 'Builder' with a designated queue.
     sq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    trailers <- responder $ respond tickle strm sq
-    atomically $ writeTBQueue sq $ SFinish trailers
+    responder $ respond tickle strm sq
 
 -- | Handle abnormal termination of a stream: mark it as closed, send a reset
 -- frame, and call the user's 'settingsOnException' handler if applicable.

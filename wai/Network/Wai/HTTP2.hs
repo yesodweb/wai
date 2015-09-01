@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RankNTypes #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 -- | An HTTP\/2-aware variant of the 'Network.Wai.Application' type.  Compared
 -- to the original, this exposes the new functionality of server push and
@@ -28,6 +29,7 @@ module Network.Wai.HTTP2
       HTTP2Application
     -- * Responder
     , Responder
+    , RespondFunc
     , Body
     , BodyOf
     , Chunk(..)
@@ -50,11 +52,12 @@ module Network.Wai.HTTP2
     , streamSimple
     ) where
 
-#if __GLASGOW_HASKELL__ < 710
-import           Data.Functor ((<$))
-#endif
 import           Blaze.ByteString.Builder (Builder)
+import           Control.Exception (Exception, SomeException, throwIO)
 import           Data.ByteString (ByteString)
+import           Data.IORef (newIORef, readIORef, writeIORef)
+import           Data.Monoid (mempty)
+import           Data.Typeable (Typeable)
 import qualified Network.HTTP.Types as H
 
 import           Network.Wai (Application)
@@ -97,6 +100,14 @@ type Body a = BodyOf Chunk a
 -- 'Network.Wai.StreamingBody' is identical to @BodyOf Builder ()@.
 type BodyOf c a = (c -> IO ()) -> IO () -> IO a
 
+-- | Create trailers based on the result of a stream body.
+type TrailerFunc a = Either SomeException a -> Trailers  -- TODO IO?
+
+-- | Given to 'Responders'; provide a status, headers, a stream body, and a way
+-- to produce trailers, and we'll give you a token proving you called the
+-- 'RespondFunc'.
+type RespondFunc s a = H.Status -> H.ResponseHeaders -> TrailerFunc a -> Body a -> IO s
+
 -- | The result of an 'HTTP2Application'; or, alternately, an application
 -- that's independent of the request.  This is a continuation-passing style
 -- function that first provides a response by calling the given respond
@@ -105,8 +116,7 @@ type BodyOf c a = (c -> IO ()) -> IO () -> IO a
 -- The respond function is similar to the one in 'Network.Wai.Application', but
 -- it only takes a streaming body, the status and headers are curried, and it
 -- passes on any result value from the stream body.
-type Responder = (forall a. H.Status -> H.ResponseHeaders -> Body a -> IO a)
-              -> IO Trailers
+type Responder = forall s. (forall a. RespondFunc s a) -> IO s
 
 -- | A function given to an 'HTTP2Application' to initiate a server-pushed
 -- stream.  Its argument is the same as the result of an 'HTTP2Application', so
@@ -140,8 +150,7 @@ streamFilePart path part write _ = write $ FileChunk path part
 respondFilePart :: H.Status -> H.ResponseHeaders -> FilePath -> FilePart -> Responder
 respondFilePart s h path part respond = do
     let (s', h') = adjustForFilePart s h part
-    respond s' h' $ streamFilePart path part
-    return []
+    respond s' h' mempty $ streamFilePart path part
 
 -- | Serve the requested range of the specified file (based on the Range
 -- header), using the given 'H.Status' and 'H.ResponseHeaders' as a base.  If
@@ -150,11 +159,11 @@ respondFilePart s h path part respond = do
 -- the status will be replaced with 206 and the Content-Range header will be
 -- added.  The Content-Length header will always be added.
 respondFile :: H.Status -> H.ResponseHeaders -> FilePath -> H.RequestHeaders -> Responder
-respondFile s h path req respond = do
+respondFile s h path reqHdrs respond = do
     fileSize <- tryGetFileSize path
     case fileSize of
         Left _ -> respondNotFound h respond
-        Right size -> respondFileExists s h path size req respond
+        Right size -> respondFileExists s h path size reqHdrs respond
 
 -- As 'respondFile', but with prior knowledge of the file's existence and size.
 respondFileExists :: H.Status -> H.ResponseHeaders -> FilePath -> Integer -> H.RequestHeaders -> Responder
@@ -163,9 +172,8 @@ respondFileExists s h path size reqHdrs =
 
 -- | Respond with a minimal 404 page with the given headers.
 respondNotFound :: H.ResponseHeaders -> Responder
-respondNotFound h respond = do
-    respond H.notFound404 h' $ streamBuilder "File not found."
-    return []
+respondNotFound h respond = respond H.notFound404 h' mempty $
+    streamBuilder "File not found."
   where
     contentType = (H.hContentType, "text/plain; charset=utf-8")
     h' = contentType:filter ((/=H.hContentType) . fst) h
@@ -190,8 +198,8 @@ streamSimple body write flush = body (write . BuilderChunk) flush
 -- 'ResponseFile'.
 responder :: Request -> Response -> Responder
 responder req response respond = case response of
-    (ResponseBuilder s h b)      -> [] <$ respond s h (streamBuilder b)
-    (ResponseStream s h body)    -> [] <$ respond s h (streamSimple body)
+    (ResponseBuilder s h b)      -> respond s h mempty (streamBuilder b)
+    (ResponseStream s h body)    -> respond s h mempty (streamSimple body)
     (ResponseRaw _ fallback)     -> responder req fallback respond
     (ResponseFile s h path mpart) -> go respond
       where
@@ -202,8 +210,25 @@ responder req response respond = case response of
             (respondFilePart s h path)
             mpart
 
+-- | An 'Network.Wai.Application' we tried to promote neither called its
+-- respond action nor raised; this is only possible if it imported the
+-- 'ResponseReceived' and used it to lie about having called the action.
+data RespondNeverCalled = RespondNeverCalled deriving (Show, Typeable)
+
+instance Exception RespondNeverCalled
+
 -- | Promote a normal WAI 'Application' to an 'HTTP2Application' by ignoring
 -- the HTTP/2-specific features.
 promoteApplication :: Application -> HTTP2Application
-promoteApplication app req _ respond = [] <$ app req respond'
-  where respond' r = ResponseReceived <$ responder req r respond
+promoteApplication app req _ respond = do
+    -- In HTTP2Applications, the Responder is required to ferry a value of
+    -- arbitrary type from the RespondFunc back to the caller of the
+    -- application, but in Application the type is fixed to ResponseReceived.
+    -- To add this extra power to an Application, we have to squirrel it away
+    -- in an IORef as a hack.
+    ref <- newIORef Nothing
+    let respond' r = do
+        writeIORef ref . Just =<< responder req r respond
+        return ResponseReceived
+    ResponseReceived <- app req respond'
+    readIORef ref >>= maybe (throwIO RespondNeverCalled) return
