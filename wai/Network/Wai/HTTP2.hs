@@ -56,7 +56,9 @@ import           Blaze.ByteString.Builder (Builder)
 import           Control.Exception (Exception, SomeException, throwIO)
 import           Data.ByteString (ByteString)
 import           Data.IORef (newIORef, readIORef, writeIORef)
+#if __GLASGOW_HASKELL__ < 709
 import           Data.Monoid (mempty)
+#endif
 import           Data.Typeable (Typeable)
 import qualified Network.HTTP.Types as H
 
@@ -127,7 +129,7 @@ type PushFunc = PushPromise -> Responder -> IO Bool
 -- | Create the 'H.RequestHeaders' corresponding to the given 'PushPromise'.
 --
 -- This is primarily useful for Wai handlers like Warp, and application
--- implementers are unlikely to need it.
+-- implementers are unlikely to use it directly.
 promiseHeaders :: PushPromise -> H.RequestHeaders
 promiseHeaders p =
   [ (":method", promisedMethod p)
@@ -198,21 +200,20 @@ streamSimple body write flush = body (write . BuilderChunk) flush
 -- 'ResponseFile'.
 responder :: Request -> Response -> Responder
 responder req response respond = case response of
-    (ResponseBuilder s h b)      -> respond s h mempty (streamBuilder b)
-    (ResponseStream s h body)    -> respond s h mempty (streamSimple body)
-    (ResponseRaw _ fallback)     -> responder req fallback respond
-    (ResponseFile s h path mpart) -> go respond
-      where
-        -- Hooray, forcing things to be universally quantified.
-        go :: Responder
-        go = maybe
-            (respondFile s h path $ requestHeaders req)
-            (respondFilePart s h path)
-            mpart
+    (ResponseBuilder s h b)       -> respond s h mempty (streamBuilder b)
+    (ResponseStream s h body)     -> respond s h mempty (streamSimple body)
+    (ResponseRaw _ fallback)      -> responder req fallback respond
+    (ResponseFile s h path mpart) -> case mpart of
+        -- We can't use 'maybe' because the type checker can't instantiate the
+        -- type variable at 'Responder', which is a universally quantified
+        -- type.
+        Nothing   -> respondFile s h path (requestHeaders req) respond
+        Just part -> respondFilePart s h path part respond
 
 -- | An 'Network.Wai.Application' we tried to promote neither called its
 -- respond action nor raised; this is only possible if it imported the
--- 'ResponseReceived' and used it to lie about having called the action.
+-- 'ResponseReceived' constructor and used it to lie about having called the
+-- action.
 data RespondNeverCalled = RespondNeverCalled deriving (Show, Typeable)
 
 instance Exception RespondNeverCalled

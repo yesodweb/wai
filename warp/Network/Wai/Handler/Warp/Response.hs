@@ -83,18 +83,10 @@ fileRangeSized :: H.Status -> H.ResponseHeaders
                -> (H.Status, H.ResponseHeaders, Integer, Integer)
 fileRangeSized s0 hs0 mPart mRange fileSize = (s, hs, beg, len)
   where
-    (beg, _end, len, _entire) = checkPartRange fileSize mPart mRange
-    (s, hs) = adjustForFilePart s0 hs0 $ FilePart beg len fileSize
-
-checkPartRange :: Integer -> Maybe FilePart -> Maybe HeaderValue
-               -> (Integer, Integer, Integer, Bool)
-checkPartRange fileSize mpart mrange = (beg, end, len, isEntire)
-  where
-    part = fromMaybe (chooseFilePart fileSize mrange) mpart
+    part = fromMaybe (chooseFilePart fileSize mRange) mPart
     beg = filePartOffset part
     len = filePartByteCount part
-    end = beg + len - 1
-    isEntire = beg == 0 && len == fileSize
+    (s, hs) = adjustForFilePart s0 hs0 $ FilePart beg len fileSize
 
 ----------------------------------------------------------------
 

@@ -15,7 +15,7 @@ import Control.Applicative
 #endif
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Exception (Exception, SomeException(..), AsyncException(..))
+import Control.Exception (Exception, SomeException(..), AsyncException(..), throwIO)
 import qualified Control.Exception as E
 import Control.Monad (void, when)
 import Data.Typeable
@@ -28,8 +28,7 @@ import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
 import Network.Wai.HTTP2
-    ( Body
-    , Chunk(..)
+    ( Chunk(..)
     , HTTP2Application
     , PushPromise
     , Responder
