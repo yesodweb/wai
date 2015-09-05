@@ -28,7 +28,7 @@ module Network.Wai.HTTP2
     -- * Applications
       HTTP2Application
     -- * Responder
-    , Responder
+    , Responder(..)
     , RespondFunc
     , Body
     , BodyOf
@@ -41,10 +41,13 @@ module Network.Wai.HTTP2
     -- * Conveniences
     , promoteApplication
     -- ** Responders
-    , responder
+    , respond
+    , respondCont
+    , respondIO
     , respondFile
     , respondFilePart
     , respondNotFound
+    , respondWith
     -- ** Stream Bodies
     , SimpleBody
     , streamFilePart
@@ -54,6 +57,7 @@ module Network.Wai.HTTP2
 
 import           Blaze.ByteString.Builder (Builder)
 import           Control.Exception (Exception, SomeException, throwIO)
+import           Control.Monad.Trans.Cont (ContT(..))
 import           Data.ByteString (ByteString)
 import           Data.IORef (newIORef, readIORef, writeIORef)
 #if __GLASGOW_HASKELL__ < 709
@@ -118,7 +122,8 @@ type RespondFunc s a = H.Status -> H.ResponseHeaders -> TrailerFunc a -> Body a 
 -- The respond function is similar to the one in 'Network.Wai.Application', but
 -- it only takes a streaming body, the status and headers are curried, and it
 -- passes on any result value from the stream body.
-type Responder = forall s. (forall a. RespondFunc s a) -> IO s
+newtype Responder = Responder
+    { runResponder :: forall s. (forall a. RespondFunc s a) -> IO s }
 
 -- | A function given to an 'HTTP2Application' to initiate a server-pushed
 -- stream.  Its argument is the same as the result of an 'HTTP2Application', so
@@ -150,9 +155,9 @@ streamFilePart path part write _ = write $ FileChunk path part
 -- If you want the range to be inferred automatically from the Range header,
 -- use 'respondFile' instead.
 respondFilePart :: H.Status -> H.ResponseHeaders -> FilePath -> FilePart -> Responder
-respondFilePart s h path part respond = do
+respondFilePart s h path part = Responder $ \k -> do
     let (s', h') = adjustForFilePart s h part
-    respond s' h' mempty $ streamFilePart path part
+    k s' h' mempty $ streamFilePart path part
 
 -- | Serve the requested range of the specified file (based on the Range
 -- header), using the given 'H.Status' and 'H.ResponseHeaders' as a base.  If
@@ -161,11 +166,11 @@ respondFilePart s h path part respond = do
 -- the status will be replaced with 206 and the Content-Range header will be
 -- added.  The Content-Length header will always be added.
 respondFile :: H.Status -> H.ResponseHeaders -> FilePath -> H.RequestHeaders -> Responder
-respondFile s h path reqHdrs respond = do
+respondFile s h path reqHdrs = Responder $ \k -> do
     fileSize <- tryGetFileSize path
     case fileSize of
-        Left _ -> respondNotFound h respond
-        Right size -> respondFileExists s h path size reqHdrs respond
+        Left _ -> runResponder (respondNotFound h) k
+        Right size -> runResponder (respondFileExists s h path size reqHdrs) k
 
 -- As 'respondFile', but with prior knowledge of the file's existence and size.
 respondFileExists :: H.Status -> H.ResponseHeaders -> FilePath -> Integer -> H.RequestHeaders -> Responder
@@ -174,11 +179,41 @@ respondFileExists s h path size reqHdrs =
 
 -- | Respond with a minimal 404 page with the given headers.
 respondNotFound :: H.ResponseHeaders -> Responder
-respondNotFound h respond = respond H.notFound404 h' mempty $
+respondNotFound h = Responder $ \k -> k H.notFound404 h' mempty $
     streamBuilder "File not found."
   where
     contentType = (H.hContentType, "text/plain; charset=utf-8")
     h' = contentType:filter ((/=H.hContentType) . fst) h
+
+-- | Construct a 'Responder' that will just call the 'RespondFunc' with the
+-- given arguments.
+respond :: H.Status -> H.ResponseHeaders -> TrailerFunc a -> Body a -> Responder
+respond s h t b = Responder $ \k -> k s h t b
+
+-- | Fold the given bracketing action into a 'Responder'.  Note the first
+-- argument is isomorphic to @Codensity IO a@ or @forall s. ContT s IO a@, and
+-- is the type of a partially-applied 'Control.Exception.bracket' or
+-- @with@-style function.
+--
+-- > respondWith (bracket acquire release) $
+-- >     \x -> respondNotFound [("x", show x)]
+--
+-- is equivalent to
+--
+-- > Responder $ \k -> bracket acquire release $
+-- >     \x -> runResponder (respondNotFound [("x", show x)] k
+--
+-- This is morally equivalent to ('>>=') on 'Codensity' 'IO'.
+respondWith :: (forall s. (a -> IO s) -> IO s) -> (a -> Responder) -> Responder
+respondWith with f = respondCont $ f <$> ContT with
+
+-- | Fold the 'ContT' into the contained 'Responder'.
+respondCont :: (forall r. ContT r IO Responder) -> Responder
+respondCont cont = Responder $ \k -> runContT cont $ \r -> runResponder r k
+
+-- | Fold the 'IO' into the contained 'Responder'.
+respondIO :: IO Responder -> Responder
+respondIO io = Responder $ \k -> io >>= \r -> runResponder r k
 
 -- | Create a response body consisting of a single builder.
 streamBuilder :: Builder -> Body ()
@@ -198,17 +233,17 @@ streamSimple body write flush = body (write . BuilderChunk) flush
 --
 -- The 'Request' is used to determine the right file range to serve for
 -- 'ResponseFile'.
-responder :: Request -> Response -> Responder
-responder req response respond = case response of
-    (ResponseBuilder s h b)       -> respond s h mempty (streamBuilder b)
-    (ResponseStream s h body)     -> respond s h mempty (streamSimple body)
-    (ResponseRaw _ fallback)      -> responder req fallback respond
-    (ResponseFile s h path mpart) -> case mpart of
-        -- We can't use 'maybe' because the type checker can't instantiate the
-        -- type variable at 'Responder', which is a universally quantified
-        -- type.
-        Nothing   -> respondFile s h path (requestHeaders req) respond
-        Just part -> respondFilePart s h path part respond
+promoteResponse :: Request -> Response -> Responder
+promoteResponse req response = case response of
+    (ResponseBuilder s h b)       ->
+        Responder $ \k -> k s h mempty (streamBuilder b)
+    (ResponseStream s h body)     ->
+        Responder $ \k -> k s h mempty (streamSimple body)
+    (ResponseRaw _ fallback)      -> promoteResponse req fallback
+    (ResponseFile s h path mpart) -> maybe
+        (respondFile s h path $ requestHeaders req)
+        (respondFilePart s h path)
+        mpart
 
 -- | An 'Network.Wai.Application' we tried to promote neither called its
 -- respond action nor raised; this is only possible if it imported the
@@ -221,15 +256,15 @@ instance Exception RespondNeverCalled
 -- | Promote a normal WAI 'Application' to an 'HTTP2Application' by ignoring
 -- the HTTP/2-specific features.
 promoteApplication :: Application -> HTTP2Application
-promoteApplication app req _ respond = do
+promoteApplication app req _ = Responder $ \k -> do
     -- In HTTP2Applications, the Responder is required to ferry a value of
     -- arbitrary type from the RespondFunc back to the caller of the
     -- application, but in Application the type is fixed to ResponseReceived.
     -- To add this extra power to an Application, we have to squirrel it away
     -- in an IORef as a hack.
     ref <- newIORef Nothing
-    let respond' r = do
-        writeIORef ref . Just =<< responder req r respond
+    let k' r = do
+        writeIORef ref . Just =<< runResponder (promoteResponse req r) k
         return ResponseReceived
-    ResponseReceived <- app req respond'
+    ResponseReceived <- app req k'
     readIORef ref >>= maybe (throwIO RespondNeverCalled) return

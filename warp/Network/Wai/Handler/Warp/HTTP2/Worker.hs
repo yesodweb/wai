@@ -31,7 +31,7 @@ import Network.Wai.HTTP2
     ( Chunk(..)
     , HTTP2Application
     , PushPromise
-    , Responder
+    , Responder(runResponder)
     , RespondFunc
     )
 import qualified Network.Wai.Handler.Warp.Settings as S
@@ -48,14 +48,13 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 -- doesn't break that property.
 --
 -- This is the argument to a 'Responder'.
-type Respond = IO () -> Stream -> TBQueue Sequence
-            -> (forall a. RespondFunc () a)
+type Respond = IO () -> Stream -> (forall a. RespondFunc () a)
 
 -- | This function is passed to workers.  They also pass responses from
 -- 'HTTP2Application's to this function.  This function enqueues commands for
 -- the HTTP/2 sender.
 response :: Context -> Manager -> ThreadContinue -> Respond
-response ctx mgr tconf tickle strm sq s h trailers strmbdy = do
+response ctx mgr tconf tickle strm s h trailers strmbdy = do
     -- TODO(awpr) HEAD requests will still stream.
 
     -- We must not exit this WAI application.
@@ -67,14 +66,17 @@ response ctx mgr tconf tickle strm sq s h trailers strmbdy = do
     -- After this work, this thread stops to decrease the number of workers.
     setThreadContinue tconf False
 
-    runStream ctx OResponse tickle strm sq s h trailers strmbdy
+    runStream ctx OResponse tickle strm s h trailers strmbdy
 
 -- | Set up a waiter thread and run the stream body with functions to enqueue
 -- 'Sequence's on the stream's queue.
 runStream :: Context
           -> (Stream -> H.Status -> H.ResponseHeaders -> Aux -> Output)
           -> Respond
-runStream Context{outputQ} mkOutput tickle strm sq s h trailers strmbdy = do
+runStream Context{outputQ} mkOutput tickle strm s h trailers strmbdy = do
+    -- Since 'Body' is loop, we cannot control it.
+    -- So, let's serialize 'Builder' with a designated queue.
+    sq <- newTBQueueIO 10 -- fixme: hard coding: 10
     tvar <- newTVarIO SyncNone
     let out = mkOutput strm s h (Persist sq tvar)
     -- Since we must not enqueue an empty queue to the priority
@@ -93,16 +95,6 @@ runStream Context{outputQ} mkOutput tickle strm sq s h trailers strmbdy = do
     x <- E.try $ strmbdy write flush
     atomically $ writeTBQueue sq $ SFinish $ trailers x
     either throwIO (void . return) x
-
--- | Set up a queue for the stream and use the given 'Respond' to actually run
--- it.  This will be 'response' for client-initiated streams and just plain
--- 'runStream' for pushed streams.
-runResponder :: Responder -> Respond -> IO () -> Stream -> IO ()
-runResponder responder respond tickle strm = do
-    -- Since 'Body' is loop, we cannot control it.
-    -- So, let's serialize 'Builder' with a designated queue.
-    sq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    responder $ respond tickle strm sq
 
 -- | Handle abnormal termination of a stream: mark it as closed, send a reset
 -- frame, and call the user's 'settingsOnException' handler if applicable.
@@ -165,7 +157,7 @@ actuallyPushResponder ctx set strm promise responder = do
         respond = runStream ctx mkOutput
 
     -- TODO(awpr): synthesize a Request for 'settingsOnException'?
-    _ <- forkIO $ runResponder responder respond tickle newStrm `E.catch`
+    _ <- forkIO $ runResponder responder (respond tickle newStrm) `E.catch`
         (cleanupStream ctx set strm Nothing . Just)
 
     takeMVar mvar
@@ -197,7 +189,7 @@ worker ctx@Context{inputQ} set tm app respond = do
             T.resume th
             T.tickle th
             let responder = app req $ pushResponder ctx set strm
-            runResponder responder (respond tcont) (T.tickle th) strm
+            runResponder responder $ respond tcont (T.tickle th) strm
         cont1 <- case ex of
             Right () -> return True
             Left  e@(SomeException _)
