@@ -1,3 +1,11 @@
+## 3.1.3
+
+* Removing SHA 512 and SHA 384 from supportedCiphers to rescue Safari and golang. [#429](https://github.com/yesodweb/wai/issues/429)
+
+## 3.1.2
+
+* [Getting Rating A from the SSL Server Test](http://www.yesodweb.com/blog/2015/08/ssl-server-test)
+
 ## 3.1.1
 
 * Converting "send: resource vanished (Broken pipe)" to ConnectionClosedByPeer. [#421](https://github.com/yesodweb/wai/issues/421)
