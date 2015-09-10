@@ -268,9 +268,9 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
       , TLS.supportedCiphers        = tlsCiphers
       , TLS.supportedCompressions   = [TLS.nullCompression]
       , TLS.supportedHashSignatures = [
-          (TLS.HashSHA512, TLS.SignatureRSA)
-        , (TLS.HashSHA384, TLS.SignatureRSA)
-        , (TLS.HashSHA256, TLS.SignatureRSA)
+          -- Safari 8 and go tls have bugs on SHA 512 and SHA 384.
+          -- So, we don't specify them here at this moment.
+          (TLS.HashSHA256, TLS.SignatureRSA)
         , (TLS.HashSHA224, TLS.SignatureRSA)
         , (TLS.HashSHA1,   TLS.SignatureRSA)
         , (TLS.HashSHA1,   TLS.SignatureDSS)
