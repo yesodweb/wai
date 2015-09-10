@@ -18,6 +18,7 @@ import Control.Concurrent.STM
 import Control.Exception (Exception, SomeException(..), AsyncException(..), throwIO)
 import qualified Control.Exception as E
 import Control.Monad (void, when)
+import Data.Maybe (fromMaybe)
 import Data.Typeable
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
@@ -93,8 +94,9 @@ runStream Context{outputQ} mkOutput tickle strm s h trailers strmbdy = do
     -- Run the stream body, use its result to construct the trailers, and
     -- re-raise any Exception so it will still be handled later.
     x <- E.try $ strmbdy write flush
-    atomically $ writeTBQueue sq $ SFinish $ trailers x
-    either throwIO (void . return) x
+    case (x, trailers x) of
+        (Left exc, Nothing) -> throwIO exc
+        (_, mts) -> atomically $ writeTBQueue sq $ SFinish $ fromMaybe [] mts
 
 -- | Handle abnormal termination of a stream: mark it as closed, send a reset
 -- frame, and call the user's 'settingsOnException' handler if applicable.

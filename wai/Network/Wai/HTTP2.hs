@@ -107,7 +107,7 @@ type Body a = BodyOf Chunk a
 type BodyOf c a = (c -> IO ()) -> IO () -> IO a
 
 -- | Create trailers based on the result of a stream body.
-type TrailerFunc a = Either SomeException a -> Trailers  -- TODO IO?
+type TrailerFunc a = Either SomeException a -> Maybe Trailers  -- TODO IO?
 
 -- | Given to 'Responders'; provide a status, headers, a stream body, and a way
 -- to produce trailers, and we'll give you a token proving you called the
