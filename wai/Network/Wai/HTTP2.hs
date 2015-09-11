@@ -92,8 +92,9 @@ data Chunk = FileChunk FilePath FilePart | BuilderChunk Builder
 -- return a result of type @a@.
 type Body a = BodyOf Chunk a
 
--- | Generalization of 'Body' to arbitrary chunk types; this unifies with
--- 'Network.Wai.StreamingBody' with @c ~ Builder@ and @a ~ ()@.
+-- | Generalization of 'Body' to arbitrary chunk types.
+--
+-- 'Network.Wai.StreamingBody' is identical to @BodyOf Builder ()@.
 type BodyOf c a = (c -> IO ()) -> IO () -> IO a
 
 -- | The result of an 'HTTP2Application'; or, alternately, an application
@@ -175,7 +176,7 @@ streamBuilder builder write _ = write $ BuilderChunk builder
 
 -- | Equivalent to 'Body' but only streaming 'Builder's.
 --
--- @'Network.Wai.StreamingBody' ~ SimpleBody ()@.
+-- 'Network.Wai.StreamingBody' is identical to @SimpleBody ()@.
 type SimpleBody a = BodyOf Builder a
 
 -- | Create a response body of a stream of 'Builder's.
