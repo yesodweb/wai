@@ -59,6 +59,9 @@ import           Blaze.ByteString.Builder (Builder)
 import           Control.Exception (Exception, SomeException, throwIO)
 import           Control.Monad.Trans.Cont (ContT(..))
 import           Data.ByteString (ByteString)
+#if __GLASGOW_HASKELL__ < 709
+import           Data.Functor ((<$>))
+#endif
 import           Data.IORef (newIORef, readIORef, writeIORef)
 #if __GLASGOW_HASKELL__ < 709
 import           Data.Monoid (mempty)
