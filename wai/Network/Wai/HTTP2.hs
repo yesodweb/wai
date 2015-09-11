@@ -116,7 +116,7 @@ type PushFunc = PushPromise -> Responder -> IO Bool
 
 -- | Create the 'H.RequestHeaders' corresponding to the given 'PushPromise'.
 --
--- This is primarily useful for Wai handlers like Warp, and application
+-- This is primarily useful for WAI handlers like Warp, and application
 -- implementers are unlikely to need it.
 promiseHeaders :: PushPromise -> H.RequestHeaders
 promiseHeaders p =
