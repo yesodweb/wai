@@ -59,6 +59,9 @@ import           Blaze.ByteString.Builder (Builder)
 import           Control.Exception (Exception, SomeException, throwIO)
 import           Control.Monad.Trans.Cont (ContT(..))
 import           Data.ByteString (ByteString)
+#if __GLASGOW_HASKELL__ < 709
+import           Data.Functor ((<$>))
+#endif
 import           Data.IORef (newIORef, readIORef, writeIORef)
 #if __GLASGOW_HASKELL__ < 709
 import           Data.Monoid (mempty)
@@ -133,7 +136,7 @@ type PushFunc = PushPromise -> Responder -> IO Bool
 
 -- | Create the 'H.RequestHeaders' corresponding to the given 'PushPromise'.
 --
--- This is primarily useful for Wai handlers like Warp, and application
+-- This is primarily useful for WAI handlers like Warp, and application
 -- implementers are unlikely to use it directly.
 promiseHeaders :: PushPromise -> H.RequestHeaders
 promiseHeaders p =
