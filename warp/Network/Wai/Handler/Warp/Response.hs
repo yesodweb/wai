@@ -196,19 +196,19 @@ sendRsp :: Connection
         -> Rsp
         -> IO ()
 sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
-    ex <- fileRange s0 hs path mPart mRange
+    ex <- fileRange s0 hs0 path mPart mRange
     case ex of
         Left _ex ->
 #ifdef WARP_DEBUG
           print _ex >>
 #endif
           sendRsp conn mfdc ver s2 hs2 (RspBuilder body True)
-        Right (s, hs1, beg, len)
+        Right (s, hs, beg, len)
           | len >= 0 ->
             if isHead then
-                sendRsp conn mfdc ver s hs1 (RspBuilder mempty False)
+                sendRsp conn mfdc ver s hs (RspBuilder mempty False)
               else do
-                lheader <- composeHeader ver s hs1
+                lheader <- composeHeader ver s hs
 #ifdef WINDOWS
                 let fid = FileId path Nothing
                     hook' = hook
@@ -224,10 +224,9 @@ sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
                 connSendFile conn fid beg len hook' [lheader]
           | otherwise ->
             sendRsp conn mfdc ver H.status416
-                (filter (\(k, _) -> k /= "content-length") hs1)
+                (filter (\(k, _) -> k /= "content-length") hs)
                 (RspBuilder mempty True)
   where
-    hs = addAcceptRanges hs0
     s2 = H.status404
     hs2 =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
     body = byteString "File not found"
@@ -350,9 +349,6 @@ hasBody s = sc /= 204
     sc = H.statusCode s
 
 ----------------------------------------------------------------
-
-addAcceptRanges :: H.ResponseHeaders -> H.ResponseHeaders
-addAcceptRanges hdrs = (hAcceptRanges, "bytes") : hdrs
 
 addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
 addTransferEncoding hdrs = (hTransferEncoding, "chunked") : hdrs

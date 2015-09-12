@@ -149,11 +149,14 @@ promiseHeaders p =
 streamFilePart :: FilePath -> FilePart -> Body ()
 streamFilePart path part write _ = write $ FileChunk path part
 
--- | Respond with a single range of a file, adding the Content-Length and
--- Content-Range headers and changing the status to 206 as appropriate.
+-- | Respond with a single range of a file, adding the Accept-Ranges,
+-- Content-Length and Content-Range headers and changing the status to 206 as
+-- appropriate.
 --
 -- If you want the range to be inferred automatically from the Range header,
--- use 'respondFile' instead.
+-- use 'respondFile' instead.  On the other hand, if you want to avoid the
+-- automatic header and status adjustments, use 'respond' and 'streamFilePart'
+-- directly.
 respondFilePart :: H.Status -> H.ResponseHeaders -> FilePath -> FilePart -> Responder
 respondFilePart s h path part = Responder $ \k -> do
     let (s', h') = adjustForFilePart s h part
