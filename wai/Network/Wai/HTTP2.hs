@@ -134,7 +134,15 @@ newtype Responder = Responder
 -- you can either implement the response inline, or call your own application
 -- to create the response.
 --
--- TBD: explaining what 'Bool' means.
+-- The result is 'True' if the @PUSH_PROMISE@ frame will be sent, or 'False' if
+-- it will not.  This can happen if server push is disabled, the concurrency
+-- limit of server-initiated streams is reached, or the associated stream has
+-- already been closed.
+--
+-- This function shall ensure that stream data provided after it returns will
+-- be sent after the @PUSH_PROMISE@ frame, so that servers can implement the
+-- requirement that any pushed stream for a resource be initiated before
+-- sending DATA frames that reference it.
 type PushFunc = PushPromise -> Responder -> IO Bool
 
 -- | Create the 'H.RequestHeaders' corresponding to the given 'PushPromise'.
