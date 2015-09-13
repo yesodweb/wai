@@ -145,8 +145,11 @@ actuallyPushResponder ctx set strm promise responder = do
     ws <- initialWindowSize <$> readIORef http2settings
 
     newStrm <- newStream pushConcurrency newSid ws
+    -- Section 5.3.5 of RFC 7540 defines the weight of push promise is 16.
+    -- But we need not to follow the spec. So, this value would change
+    -- if necessary.
     writeIORef (streamPriority newStrm) $
-        Priority False (streamNumber strm) 16
+        defaultPriority { streamDependency = streamNumber strm }
     opened newStrm
     insert streamTable newSid newStrm
 
