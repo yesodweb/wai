@@ -33,6 +33,7 @@ module Network.Wai.HTTP2
     , Body
     , BodyOf
     , Chunk(..)
+    , TrailerFunc
     , Trailers
     -- * Server push
     , PushFunc
