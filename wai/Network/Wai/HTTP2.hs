@@ -133,6 +133,8 @@ newtype Responder = Responder
 -- stream.  Its argument is the same as the result of an 'HTTP2Application', so
 -- you can either implement the response inline, or call your own application
 -- to create the response.
+--
+-- TBD: explaining what 'Bool' means.
 type PushFunc = PushPromise -> Responder -> IO Bool
 
 -- | Create the 'H.RequestHeaders' corresponding to the given 'PushPromise'.
