@@ -15,10 +15,9 @@ import Control.Applicative
 #endif
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Exception (Exception, SomeException(..), AsyncException(..), throwIO)
+import Control.Exception (Exception, SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
 import Control.Monad (void, when)
-import Data.Maybe (fromMaybe)
 import Data.Typeable
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
@@ -49,13 +48,13 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 -- doesn't break that property.
 --
 -- This is the argument to a 'Responder'.
-type Respond = IO () -> Stream -> (forall a. RespondFunc () a)
+type Respond = IO () -> Stream -> RespondFunc ()
 
 -- | This function is passed to workers.  They also pass responses from
 -- 'HTTP2Application's to this function.  This function enqueues commands for
 -- the HTTP/2 sender.
 response :: Context -> Manager -> ThreadContinue -> Respond
-response ctx mgr tconf tickle strm s h trailers strmbdy = do
+response ctx mgr tconf tickle strm s h strmbdy = do
     -- TODO(awpr) HEAD requests will still stream.
 
     -- We must not exit this WAI application.
@@ -67,14 +66,14 @@ response ctx mgr tconf tickle strm s h trailers strmbdy = do
     -- After this work, this thread stops to decrease the number of workers.
     setThreadContinue tconf False
 
-    runStream ctx OResponse tickle strm s h trailers strmbdy
+    runStream ctx OResponse tickle strm s h strmbdy
 
 -- | Set up a waiter thread and run the stream body with functions to enqueue
 -- 'Sequence's on the stream's queue.
 runStream :: Context
           -> (Stream -> H.Status -> H.ResponseHeaders -> Aux -> Output)
           -> Respond
-runStream Context{outputQ} mkOutput tickle strm s h trailers strmbdy = do
+runStream Context{outputQ} mkOutput tickle strm s h strmbdy = do
     -- Since 'Body' is loop, we cannot control it.
     -- So, let's serialize 'Builder' with a designated queue.
     sq <- newTBQueueIO 10 -- fixme: hard coding: 10
@@ -91,12 +90,8 @@ runStream Context{outputQ} mkOutput tickle strm s h trailers strmbdy = do
                 FileChunk path part -> SFile path part
             tickle
         flush  = atomically $ writeTBQueue sq SFlush
-    -- Run the stream body, use its result to construct the trailers, and
-    -- re-raise any Exception so it will still be handled later.
-    x <- E.try $ strmbdy write flush
-    case (x, trailers x) of
-        (Left exc, Nothing) -> throwIO exc
-        (_, mts) -> atomically $ writeTBQueue sq $ SFinish $ fromMaybe [] mts
+    trailers <- strmbdy write flush
+    atomically $ writeTBQueue sq $ SFinish trailers
 
 -- | Handle abnormal termination of a stream: mark it as closed, send a reset
 -- frame, and call the user's 'settingsOnException' handler if applicable.
