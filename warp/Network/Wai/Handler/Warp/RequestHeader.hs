@@ -9,7 +9,7 @@ module Network.Wai.Handler.Warp.RequestHeader (
 import Control.Exception (throwIO)
 import Control.Monad (when)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as B (unpack, readInteger)
+import qualified Data.ByteString.Char8 as B (unpack)
 import Data.ByteString.Internal (ByteString(..), memchr)
 import qualified Data.CaseInsensitive as CI
 import Data.Word (Word8)
@@ -18,7 +18,7 @@ import Foreign.Ptr (Ptr, plusPtr, minusPtr, nullPtr)
 import Foreign.Storable (peek)
 import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.Types
-import qualified Network.HTTP.Types.Header as HH
+import Network.Wai.Internal (parseByteRanges)
 -- $setup
 -- >>> :set -XOverloadedStrings
 
@@ -133,29 +133,3 @@ parseHeader s =
     let (k, rest) = S.break (== 58) s -- ':'
         rest' = S.dropWhile (\c -> c == 32 || c == 9) $ S.drop 1 rest
      in (CI.mk k, rest')
-
-parseByteRanges :: S.ByteString -> Maybe HH.ByteRanges
-parseByteRanges bs1 = do
-    bs2 <- stripPrefix "bytes=" bs1
-    (r, bs3) <- range bs2
-    ranges (r:) bs3
-  where
-    range bs2 = do
-        (i, bs3) <- B.readInteger bs2
-        if i < 0 -- has prefix "-" ("-0" is not valid, but here treated as "0-")
-            then Just (HH.ByteRangeSuffix (negate i), bs3)
-            else do
-                bs4 <- stripPrefix "-" bs3
-                case B.readInteger bs4 of
-                    Just (j, bs5) | j >= i -> Just (HH.ByteRangeFromTo i j, bs5)
-                    _ -> Just (HH.ByteRangeFrom i, bs4)
-    ranges front bs3
-        | S.null bs3 = Just (front [])
-        | otherwise = do
-            bs4 <- stripPrefix "," bs3
-            (r, bs5) <- range bs4
-            ranges (front . (r:)) bs5
-
-    stripPrefix x y
-        | x `S.isPrefixOf` y = Just (S.drop (S.length x) y)
-        | otherwise = Nothing

@@ -1,10 +1,11 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Worker (
-    Responder
+    Respond
   , response
   , worker
   ) where
@@ -26,65 +27,152 @@ import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
-import qualified Network.Wai.Handler.Warp.Response as R
+import Network.Wai.HTTP2
+    ( Body
+    , Chunk(..)
+    , HTTP2Application
+    , PushPromise
+    , Responder
+    )
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
-import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceived(..))
 
 ----------------------------------------------------------------
 
--- | The wai definition is 'type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived'.
---   This type implements the second argument (Response -> IO ResponseReceived)
---   with extra arguments.
-type Responder = ThreadContinue -> T.Handle -> Stream -> Request ->
-                 Response -> IO ResponseReceived
+-- | An 'HTTP2Application' takes a function of status, headers, and body; this
+--   type implements that by currying some internal arguments.
+--
+--   This is the argument to a 'Responder'.
+type Respond = forall a. IO () -> Stream -> TBQueue Sequence
+            -> H.Status -> H.ResponseHeaders -> Body a -> IO a
 
 -- | This function is passed to workers.
---   They also pass 'Response's from 'Application's to this function.
+--   They also pass responses from 'HTTP2Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
-response :: Context -> Manager -> Responder
-response Context{outputQ} mgr tconf th strm req rsp = do
-    case rsp of
-        ResponseStream _ _ strmbdy -> do
-            -- We must not exit this WAI application.
-            -- If the application exits, streaming would be also closed.
-            -- So, this work occupies this thread.
-            --
-            -- We need to increase the number of workers.
-            myThreadId >>= replaceWithAction mgr
-            -- After this work, this thread stops to decease
-            -- the number of workers.
-            setThreadContinue tconf False
-            -- Since 'StreamingBody' is loop, we cannot control it.
-            -- So, let's serialize 'Builder' with a designated queue.
-            sq <- newTBQueueIO 10 -- fixme: hard coding: 10
-            tvar <- newTVarIO SyncNone
-            let out = OResponse strm rsp (Persist sq tvar)
-            -- Since we must not enqueue an empty queue to the priority
-            -- queue, we spawn a thread to ensure that the designated
-            -- queue is not empty.
-            void $ forkIO $ waiter tvar sq outputQ
-            atomically $ writeTVar tvar (SyncNext out)
-            let push b = do
-                    atomically $ writeTBQueue sq (SBuilder b)
-                    T.tickle th
-                flush  = atomically $ writeTBQueue sq SFlush
-            strmbdy push flush
-            atomically $ writeTBQueue sq SFinish
-        _ -> do
-            setThreadContinue tconf True
-            let hasBody = requestMethod req /= H.methodHead
-                       && R.hasBody (responseStatus rsp)
-                out = OResponse strm rsp (Oneshot hasBody)
-            enqueueOrSpawnTemporaryWaiter strm outputQ out
-    return ResponseReceived
+response :: Context -> Manager -> ThreadContinue -> Respond
+response ctx mgr tconf tickle strm sq s h strmbdy = do
+    -- TODO(awpr) HEAD requests will still stream.
+
+    -- We must not exit this WAI application.
+    -- If the application exits, streaming would be also closed.
+    -- So, this work occupies this thread.
+    --
+    -- We need to increase the number of workers.
+    myThreadId >>= replaceWithAction mgr
+    -- After this work, this thread stops to decrease the number of workers.
+    setThreadContinue tconf False
+
+    runStream ctx OResponse tickle strm sq s h strmbdy
+
+-- | Set up a waiter thread and run the stream body with functions to enqueue
+-- 'Sequence's on the stream's queue.
+runStream :: Context
+          -> (Stream -> H.Status -> H.ResponseHeaders -> Aux -> Output)
+          -> Respond
+runStream Context{outputQ} mkOutput tickle strm sq s h strmbdy = do
+    tvar <- newTVarIO SyncNone
+    let out = mkOutput strm s h (Persist sq tvar)
+    -- Since we must not enqueue an empty queue to the priority
+    -- queue, we spawn a thread to ensure that the designated
+    -- queue is not empty.
+    void $ forkIO $ waiter tvar sq strm outputQ
+    atomically $ writeTVar tvar (SyncNext out)
+    let write chunk = do
+            atomically $ writeTBQueue sq $ case chunk of
+                BuilderChunk b -> SBuilder b
+                FileChunk path part -> SFile path part
+            tickle
+        flush  = atomically $ writeTBQueue sq SFlush
+    strmbdy write flush
+
+-- | Set up a queue for the stream and use the given 'Respond' to actually run
+-- it.  This will be 'response' for client-initiated streams and just plain
+-- 'runStream' for pushed streams.
+runResponder :: Responder -> Respond -> IO () -> Stream -> IO ()
+runResponder responder respond tickle strm = do
+    -- Since 'Body' is loop, we cannot control it.
+    -- So, let's serialize 'Builder' with a designated queue.
+    sq <- newTBQueueIO 10 -- fixme: hard coding: 10
+    trailers <- responder $ respond tickle strm sq
+    atomically $ writeTBQueue sq $ SFinish trailers
+
+-- | Handle abnormal termination of a stream: mark it as closed, send a reset
+-- frame, and call the user's 'settingsOnException' handler if applicable.
+cleanupStream :: Context -> S.Settings -> Stream -> Maybe Request -> Maybe SomeException -> IO ()
+cleanupStream Context{outputQ} set strm req me = do
+    closed strm Killed
+    let frame = resetFrame InternalError (streamNumber strm)
+    enqueue outputQ (OFrame frame) highestPriority
+    case me of
+        Nothing -> return ()
+        Just e -> S.settingsOnException set req e
+
+-- | Push the given 'Responder' to the client if the settings allow it
+-- (specifically 'enablePush' and 'maxConcurrentStreams').  Returns 'True' if
+-- the stream was actually pushed.
+--
+-- This is the push function given to an 'HTTP2Application'.
+pushResponder :: Context -> S.Settings -> Stream -> PushPromise -> Responder -> IO Bool
+pushResponder ctx set strm promise responder = do
+    let Context{ http2settings
+               , pushConcurrency
+               } = ctx
+    cnt <- readIORef pushConcurrency
+    settings <- readIORef http2settings
+    let enabled = enablePush settings
+        fits = maybe True (cnt <) $ maxConcurrentStreams settings
+        canPush = fits && enabled
+    if canPush then
+        actuallyPushResponder ctx set strm promise responder
+      else
+        return False
+
+-- | Set up a pushed stream and run the 'Responder' in its own thread.  Waits
+-- for the sender thread to handle the push request.  This can fail to push the
+-- stream and return 'False' if the sender dequeued the push request after the
+-- associated stream was closed.
+actuallyPushResponder :: Context -> S.Settings -> Stream -> PushPromise -> Responder -> IO Bool
+actuallyPushResponder ctx set strm promise responder = do
+    let Context{ http2settings
+               , nextPushStreamId
+               , pushConcurrency
+               , streamTable
+               } = ctx
+    -- Claim the next outgoing stream.
+    newSid <- atomicModifyIORef nextPushStreamId $ \sid -> (sid+2, sid)
+    ws <- initialWindowSize <$> readIORef http2settings
+
+    newStrm <- newStream pushConcurrency newSid ws
+    writeIORef (streamPriority newStrm) $
+        Priority False (streamNumber strm) 16
+    opened newStrm
+    insert streamTable newSid newStrm
+
+    -- Set up a channel for the sender to report back whether it pushed the
+    -- stream.
+    mvar <- newEmptyMVar
+
+    let mkOutput = OPush strm promise mvar
+        tickle = return ()
+        respond = runStream ctx mkOutput
+
+    -- TODO(awpr): synthesize a Request for 'settingsOnException'?
+    _ <- forkIO $ runResponder responder respond tickle newStrm `E.catch`
+        (cleanupStream ctx set strm Nothing . Just)
+
+    takeMVar mvar
 
 data Break = Break deriving (Show, Typeable)
 
 instance Exception Break
 
-worker :: Context -> S.Settings -> T.Manager -> Application -> Responder -> IO ()
-worker ctx@Context{inputQ,outputQ} set tm app responder = do
+worker :: Context
+       -> S.Settings
+       -> T.Manager
+       -> HTTP2Application
+       -> (ThreadContinue -> Respond)
+       -> IO ()
+worker ctx@Context{inputQ} set tm app respond = do
     tid <- myThreadId
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
@@ -93,15 +181,17 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
   where
     go sinfo tcont th = do
         setThreadContinue tcont True
+
         ex <- E.try $ do
             T.pause th
             Input strm req <- atomically $ readTQueue inputQ
             setStreamInfo sinfo strm req
             T.resume th
             T.tickle th
-            app req $ responder tcont th strm req
+            let responder = app req $ pushResponder ctx set strm
+            runResponder responder (respond tcont) (T.tickle th) strm
         cont1 <- case ex of
-            Right ResponseReceived -> return True
+            Right () -> return True
             Left  e@(SomeException _)
               | Just Break        <- E.fromException e -> do
                   cleanup sinfo Nothing
@@ -120,16 +210,16 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
         case m of
             Nothing -> return ()
             Just (strm,req) -> do
-                closed ctx strm Killed
-                let frame = resetFrame InternalError (streamNumber strm)
-                enqueue outputQ (OFrame frame) highestPriority
-                case me of
-                    Nothing -> return ()
-                    Just e  -> S.settingsOnException set (Just req) e
+                cleanupStream ctx set strm (Just req) me
                 clearStreamInfo sinfo
 
-waiter :: TVar Sync -> TBQueue Sequence -> PriorityTree Output -> IO ()
-waiter tvar sq outQ = do
+-- | A dedicated waiter thread to re-enqueue the stream in the priority tree
+-- whenever output becomes available.  When the sender drains the queue and
+-- moves on to another stream, it drops a message in the 'TVar', and this
+-- thread wakes up, waits for more output to become available, and re-enqueues
+-- the stream.
+waiter :: TVar Sync -> TBQueue Sequence -> Stream -> PriorityTree Output -> IO ()
+waiter tvar sq strm outQ = do
     -- waiting for actions other than SyncNone
     mx <- atomically $ do
         mout <- readTVar tvar
@@ -140,7 +230,7 @@ waiter tvar sq outQ = do
                 return $ Just out
             SyncFinish   -> return Nothing
     case mx of
-        Nothing -> return ()
+        Nothing  -> return ()
         Just out -> do
             -- ensuring that the streaming queue is not empty.
             atomically $ do
@@ -148,14 +238,14 @@ waiter tvar sq outQ = do
                 when isEmpty retry
             -- ensuring that stream window is greater than 0.
             enqueueWhenWindowIsOpen outQ out
-            waiter tvar sq outQ
+            waiter tvar sq strm outQ
 
 ----------------------------------------------------------------
 
 -- | It would nice if responders could return values to workers.
 --   Unfortunately, 'ResponseReceived' is already defined in WAI 2.0.
 --   It is not wise to change this type.
---   So, a reference is shared by a responder and its worker.
+--   So, a reference is shared by a 'Respond' and its worker.
 --   The reference refers a value of this type as a return value.
 --   If 'True', the worker continue to serve requests.
 --   Otherwise, the worker get finished.

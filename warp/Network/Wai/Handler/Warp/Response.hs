@@ -33,7 +33,7 @@ import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
 import Data.List (deleteBy)
-import Data.Maybe (isJust, listToMaybe)
+import Data.Maybe (isJust, fromMaybe)
 #if MIN_VERSION_base(4,5,0)
 # if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mempty)
@@ -51,14 +51,11 @@ import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.IO (toBufIOWith)
-import Network.Wai.Handler.Warp.RequestHeader (parseByteRanges)
 import Network.Wai.Handler.Warp.ResponseHeader
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
-import Numeric (showInt)
 import qualified Paths_warp
-import qualified System.PosixCompat.Files as P
 
 #if !MIN_VERSION_base(4,5,0)
 (<>) :: Monoid m => m -> m -> m
@@ -68,11 +65,6 @@ import qualified System.PosixCompat.Files as P
 -- $setup
 -- >>> :set -XOverloadedStrings
 
-mapRight :: (b -> c) -> Either a b -> Either a c
-mapRight f eith = case eith of
-    Right x -> Right (f x)
-    Left l -> Left l
-
 ----------------------------------------------------------------
 
 fileRange :: H.Status -> H.ResponseHeaders -> FilePath
@@ -80,8 +72,7 @@ fileRange :: H.Status -> H.ResponseHeaders -> FilePath
           -> IO (Either IOException
                         (H.Status, H.ResponseHeaders, Integer, Integer))
 fileRange s0 hs0 path Nothing mRange =
-    mapRight (fileRangeSized s0 hs0 Nothing mRange . fromIntegral . P.fileSize) <$>
-    try (P.getFileStatus path)
+    fmap (fileRangeSized s0 hs0 Nothing mRange) <$> tryGetFileSize path
 fileRange s0 hs0 _ mPart@(Just part) mRange =
     return . Right $ fileRangeSized s0 hs0 mPart mRange size
   where
@@ -92,40 +83,18 @@ fileRangeSized :: H.Status -> H.ResponseHeaders
                -> (H.Status, H.ResponseHeaders, Integer, Integer)
 fileRangeSized s0 hs0 mPart mRange fileSize = (s, hs, beg, len)
   where
-    (beg, end, len, isEntire) = checkPartRange fileSize mPart mRange
-    hs1 = addContentLength len hs0
-    hs | isEntire  = hs1
-       | otherwise = addContentRange beg end fileSize hs1
-    s  | isEntire  = s0
-       | otherwise = H.status206
+    (beg, _end, len, _entire) = checkPartRange fileSize mPart mRange
+    (s, hs) = adjustForFilePart s0 hs0 $ FilePart beg len fileSize
 
 checkPartRange :: Integer -> Maybe FilePart -> Maybe HeaderValue
                -> (Integer, Integer, Integer, Bool)
-checkPartRange fileSize = checkPart
+checkPartRange fileSize mpart mrange = (beg, end, len, isEntire)
   where
-    checkPart Nothing Nothing = (0, fileSize - 1, fileSize, True)
-    checkPart Nothing (Just range) = case parseByteRanges range >>= listToMaybe of
-        -- Range is broken
-        Nothing              -> (0, fileSize - 1, fileSize, True)
-        Just hrange          -> checkRange hrange
-    -- Ignore Range if FilePart is specified.
-    -- We assume that an application handled Range and specified
-    -- FilePart.
-    checkPart (Just part) _   = (beg, end, len, isEntire)
-      where
-        beg = filePartOffset part
-        len = filePartByteCount part
-        end = beg + len - 1
-        isEntire = beg == 0 && len == fileSize
-
-    checkRange (H.ByteRangeFrom   beg)     = fromRange beg (fileSize - 1)
-    checkRange (H.ByteRangeFromTo beg end) = fromRange beg (min (fileSize - 1) end)
-    checkRange (H.ByteRangeSuffix count)   = fromRange (max 0 (fileSize - count)) (fileSize - 1)
-
-    fromRange beg end = (beg, end, len, isEntire)
-      where
-        len = end - beg + 1
-        isEntire = beg == 0 && len == fileSize
+    part = fromMaybe (chooseFilePart fileSize mrange) mpart
+    beg = filePartOffset part
+    len = filePartByteCount part
+    end = beg + len - 1
+    isEntire = beg == 0 && len == fileSize
 
 ----------------------------------------------------------------
 
@@ -395,25 +364,6 @@ addAcceptRanges hdrs = (hAcceptRanges, "bytes") : hdrs
 
 addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
 addTransferEncoding hdrs = (hTransferEncoding, "chunked") : hdrs
-
-addContentLength :: Integer -> H.ResponseHeaders -> H.ResponseHeaders
-addContentLength cl hdrs = (H.hContentLength, len) : hdrs
-  where
-    len = B.pack $ show cl
-
-addContentRange :: Integer -> Integer -> Integer
-                -> H.ResponseHeaders -> H.ResponseHeaders
-addContentRange beg end total hdrs = (hContentRange, range) : hdrs
-  where
-    range = B.pack
-      -- building with ShowS
-      $ 'b' : 'y': 't' : 'e' : 's' : ' '
-      : (if beg > end then ('*':) else
-          showInt beg
-          . ('-' :)
-          . showInt end)
-      ( '/'
-      : showInt total "")
 
 addDate :: D.DateCache -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
 addDate dc rspidxhdr hdrs = case rspidxhdr ! idxDate of
