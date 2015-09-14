@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RankNTypes #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 -- | An HTTP\/2-aware variant of the 'Network.Wai.Application' type.  Compared
 -- to the original, this exposes the new functionality of server push and
@@ -27,9 +28,9 @@ module Network.Wai.HTTP2
     -- * Applications
       HTTP2Application
     -- * Responder
-    , Responder
+    , Responder(..)
+    , RespondFunc
     , Body
-    , BodyOf
     , Chunk(..)
     , Trailers
     -- * Server push
@@ -39,22 +40,31 @@ module Network.Wai.HTTP2
     -- * Conveniences
     , promoteApplication
     -- ** Responders
-    , responder
+    , respond
+    , respondCont
+    , respondIO
     , respondFile
     , respondFilePart
     , respondNotFound
+    , respondWith
     -- ** Stream Bodies
-    , SimpleBody
     , streamFilePart
     , streamBuilder
     , streamSimple
     ) where
 
-#if __GLASGOW_HASKELL__ < 710
-import           Data.Functor ((<$))
-#endif
 import           Blaze.ByteString.Builder (Builder)
+import           Control.Exception (Exception, throwIO)
+import           Control.Monad.Trans.Cont (ContT(..))
 import           Data.ByteString (ByteString)
+#if __GLASGOW_HASKELL__ < 709
+import           Data.Functor ((<$>))
+#endif
+import           Data.IORef (newIORef, readIORef, writeIORef)
+#if __GLASGOW_HASKELL__ < 709
+import           Data.Monoid (mempty)
+#endif
+import           Data.Typeable (Typeable)
 import qualified Network.HTTP.Types as H
 
 import           Network.Wai (Application)
@@ -63,6 +73,7 @@ import           Network.Wai.Internal
     , Request(requestHeaders)
     , Response(..)
     , ResponseReceived(..)
+    , StreamingBody
     , adjustForFilePart
     , chooseFilePart
     , tryGetFileSize
@@ -89,13 +100,12 @@ data Chunk = FileChunk FilePath FilePart | BuilderChunk Builder
 
 -- | The streaming body of a response.  Equivalent to
 -- 'Network.Wai.StreamingBody' except that it can also write file ranges and
--- return a result of type @a@.
-type Body a = BodyOf Chunk a
+-- return the stream's trailers.
+type Body = (Chunk -> IO ()) -> IO () -> IO Trailers
 
--- | Generalization of 'Body' to arbitrary chunk types.
---
--- 'Network.Wai.StreamingBody' is identical to @BodyOf Builder ()@.
-type BodyOf c a = (c -> IO ()) -> IO () -> IO a
+-- | Given to 'Responders'; provide a status, headers, and a stream body, and
+-- we'll give you a token proving you called the 'RespondFunc'.
+type RespondFunc s = H.Status -> H.ResponseHeaders -> Body -> IO s
 
 -- | The result of an 'HTTP2Application'; or, alternately, an application
 -- that's independent of the request.  This is a continuation-passing style
@@ -104,20 +114,30 @@ type BodyOf c a = (c -> IO ()) -> IO () -> IO a
 --
 -- The respond function is similar to the one in 'Network.Wai.Application', but
 -- it only takes a streaming body, the status and headers are curried, and it
--- passes on any result value from the stream body.
-type Responder = (forall a. H.Status -> H.ResponseHeaders -> Body a -> IO a)
-              -> IO Trailers
+-- also produces trailers for the stream.
+newtype Responder = Responder
+    { runResponder :: forall s. RespondFunc s -> IO s }
 
 -- | A function given to an 'HTTP2Application' to initiate a server-pushed
 -- stream.  Its argument is the same as the result of an 'HTTP2Application', so
 -- you can either implement the response inline, or call your own application
 -- to create the response.
+--
+-- The result is 'True' if the @PUSH_PROMISE@ frame will be sent, or 'False' if
+-- it will not.  This can happen if server push is disabled, the concurrency
+-- limit of server-initiated streams is reached, or the associated stream has
+-- already been closed.
+--
+-- This function shall ensure that stream data provided after it returns will
+-- be sent after the @PUSH_PROMISE@ frame, so that servers can implement the
+-- requirement that any pushed stream for a resource be initiated before
+-- sending DATA frames that reference it.
 type PushFunc = PushPromise -> Responder -> IO Bool
 
 -- | Create the 'H.RequestHeaders' corresponding to the given 'PushPromise'.
 --
--- This is primarily useful for Wai handlers like Warp, and application
--- implementers are unlikely to need it.
+-- This is primarily useful for WAI handlers like Warp, and application
+-- implementers are unlikely to use it directly.
 promiseHeaders :: PushPromise -> H.RequestHeaders
 promiseHeaders p =
   [ (":method", promisedMethod p)
@@ -129,19 +149,21 @@ promiseHeaders p =
 -- | Create a response body consisting of a single range of a file.  Does not
 -- set Content-Length or Content-Range headers.  For that, use
 -- 'respondFilePart' or 'respondFile'.
-streamFilePart :: FilePath -> FilePart -> Body ()
-streamFilePart path part write _ = write $ FileChunk path part
+streamFilePart :: FilePath -> FilePart -> Body
+streamFilePart path part write _ = write (FileChunk path part) >> return []
 
--- | Respond with a single range of a file, adding the Content-Length and
--- Content-Range headers and changing the status to 206 as appropriate.
+-- | Respond with a single range of a file, adding the Accept-Ranges,
+-- Content-Length and Content-Range headers and changing the status to 206 as
+-- appropriate.
 --
 -- If you want the range to be inferred automatically from the Range header,
--- use 'respondFile' instead.
+-- use 'respondFile' instead.  On the other hand, if you want to avoid the
+-- automatic header and status adjustments, use 'respond' and 'streamFilePart'
+-- directly.
 respondFilePart :: H.Status -> H.ResponseHeaders -> FilePath -> FilePart -> Responder
-respondFilePart s h path part respond = do
+respondFilePart s h path part = Responder $ \k -> do
     let (s', h') = adjustForFilePart s h part
-    respond s' h' $ streamFilePart path part
-    return []
+    k s' h' $ streamFilePart path part
 
 -- | Serve the requested range of the specified file (based on the Range
 -- header), using the given 'H.Status' and 'H.ResponseHeaders' as a base.  If
@@ -150,11 +172,11 @@ respondFilePart s h path part respond = do
 -- the status will be replaced with 206 and the Content-Range header will be
 -- added.  The Content-Length header will always be added.
 respondFile :: H.Status -> H.ResponseHeaders -> FilePath -> H.RequestHeaders -> Responder
-respondFile s h path req respond = do
+respondFile s h path reqHdrs = Responder $ \k -> do
     fileSize <- tryGetFileSize path
     case fileSize of
-        Left _ -> respondNotFound h respond
-        Right size -> respondFileExists s h path size req respond
+        Left _ -> runResponder (respondNotFound h) k
+        Right size -> runResponder (respondFileExists s h path size reqHdrs) k
 
 -- As 'respondFile', but with prior knowledge of the file's existence and size.
 respondFileExists :: H.Status -> H.ResponseHeaders -> FilePath -> Integer -> H.RequestHeaders -> Responder
@@ -163,47 +185,87 @@ respondFileExists s h path size reqHdrs =
 
 -- | Respond with a minimal 404 page with the given headers.
 respondNotFound :: H.ResponseHeaders -> Responder
-respondNotFound h respond = do
-    respond H.notFound404 h' $ streamBuilder "File not found."
-    return []
+respondNotFound h = Responder $ \k -> k H.notFound404 h' $
+    streamBuilder "File not found."
   where
     contentType = (H.hContentType, "text/plain; charset=utf-8")
     h' = contentType:filter ((/=H.hContentType) . fst) h
 
--- | Create a response body consisting of a single builder.
-streamBuilder :: Builder -> Body ()
-streamBuilder builder write _ = write $ BuilderChunk builder
+-- | Construct a 'Responder' that will just call the 'RespondFunc' with the
+-- given arguments.
+respond :: H.Status -> H.ResponseHeaders -> Body -> Responder
+respond s h b = Responder $ \k -> k s h b
 
--- | Equivalent to 'Body' but only streaming 'Builder's.
+-- | Fold the given bracketing action into a 'Responder'.  Note the first
+-- argument is isomorphic to @Codensity IO a@ or @forall s. ContT s IO a@, and
+-- is the type of a partially-applied 'Control.Exception.bracket' or
+-- @with@-style function.
 --
--- 'Network.Wai.StreamingBody' is identical to @SimpleBody ()@.
-type SimpleBody a = BodyOf Builder a
+-- > respondWith (bracket acquire release) $
+-- >     \x -> respondNotFound [("x", show x)]
+--
+-- is equivalent to
+--
+-- > Responder $ \k -> bracket acquire release $
+-- >     \x -> runResponder (respondNotFound [("x", show x)] k
+--
+-- This is morally equivalent to ('>>=') on 'Codensity' 'IO'.
+respondWith :: (forall s. (a -> IO s) -> IO s) -> (a -> Responder) -> Responder
+respondWith with f = respondCont $ f <$> ContT with
+
+-- | Fold the 'ContT' into the contained 'Responder'.
+respondCont :: (forall r. ContT r IO Responder) -> Responder
+respondCont cont = Responder $ \k -> runContT cont $ \r -> runResponder r k
+
+-- | Fold the 'IO' into the contained 'Responder'.
+respondIO :: IO Responder -> Responder
+respondIO io = Responder $ \k -> io >>= \r -> runResponder r k
+
+-- | Create a response body consisting of a single builder.
+streamBuilder :: Builder -> Body
+streamBuilder builder write _ = write (BuilderChunk builder) >> return []
 
 -- | Create a response body of a stream of 'Builder's.
-streamSimple :: SimpleBody a -> Body a
-streamSimple body write flush = body (write . BuilderChunk) flush
+streamSimple :: StreamingBody -> Body
+streamSimple body write flush = body (write . BuilderChunk) flush >> return []
 
 -- | Use a normal WAI 'Response' to send the response.  Useful if you're
 -- sharing code between HTTP\/2 applications and HTTP\/1 applications.
 --
 -- The 'Request' is used to determine the right file range to serve for
 -- 'ResponseFile'.
-responder :: Request -> Response -> Responder
-responder req response respond = case response of
-    (ResponseBuilder s h b)      -> [] <$ respond s h (streamBuilder b)
-    (ResponseStream s h body)    -> [] <$ respond s h (streamSimple body)
-    (ResponseRaw _ fallback)     -> responder req fallback respond
-    (ResponseFile s h path mpart) -> go respond
-      where
-        -- Hooray, forcing things to be universally quantified.
-        go :: Responder
-        go = maybe
-            (respondFile s h path $ requestHeaders req)
-            (respondFilePart s h path)
-            mpart
+promoteResponse :: Request -> Response -> Responder
+promoteResponse req response = case response of
+    (ResponseBuilder s h b)       ->
+        Responder $ \k -> k s h (streamBuilder b)
+    (ResponseStream s h body)     ->
+        Responder $ \k -> k s h (streamSimple body)
+    (ResponseRaw _ fallback)      -> promoteResponse req fallback
+    (ResponseFile s h path mpart) -> maybe
+        (respondFile s h path $ requestHeaders req)
+        (respondFilePart s h path)
+        mpart
+
+-- | An 'Network.Wai.Application' we tried to promote neither called its
+-- respond action nor raised; this is only possible if it imported the
+-- 'ResponseReceived' constructor and used it to lie about having called the
+-- action.
+data RespondNeverCalled = RespondNeverCalled deriving (Show, Typeable)
+
+instance Exception RespondNeverCalled
 
 -- | Promote a normal WAI 'Application' to an 'HTTP2Application' by ignoring
 -- the HTTP/2-specific features.
 promoteApplication :: Application -> HTTP2Application
-promoteApplication app req _ respond = [] <$ app req respond'
-  where respond' r = ResponseReceived <$ responder req r respond
+promoteApplication app req _ = Responder $ \k -> do
+    -- In HTTP2Applications, the Responder is required to ferry a value of
+    -- arbitrary type from the RespondFunc back to the caller of the
+    -- application, but in Application the type is fixed to ResponseReceived.
+    -- To add this extra power to an Application, we have to squirrel it away
+    -- in an IORef as a hack.
+    ref <- newIORef Nothing
+    let k' r = do
+        writeIORef ref . Just =<< runResponder (promoteResponse req r) k
+        return ResponseReceived
+    ResponseReceived <- app req k'
+    readIORef ref >>= maybe (throwIO RespondNeverCalled) return

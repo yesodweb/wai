@@ -6,9 +6,6 @@
 
 module Network.Wai.Handler.Warp.Run where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<*>))
-#endif
 import Control.Arrow (first)
 import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent as Conc (yield)
@@ -377,7 +374,7 @@ serveHTTP2Only = error "serveHTTP2Only not implemented"
 
 -- Serve an HTTP\/2-unaware Application to a connection over any HTTP version.
 serveDefault :: Application -> ServeConnection
-serveDefault = flip serveHTTP2 <*> promoteApplication
+serveDefault app = serveHTTP2 (promoteApplication app) app
 
 -- Serve an HTTP\/2-aware application over HTTP\/2 or a backup 'Application'
 -- over HTTP\/1.1 or HTTP\/1.

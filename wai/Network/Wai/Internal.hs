@@ -167,6 +167,10 @@ tryGetFileSize path =
 hContentRange :: H.HeaderName
 hContentRange = "Content-Range"
 
+-- | \"Accept-Ranges\".
+hAcceptRanges :: H.HeaderName
+hAcceptRanges = "Accept-Ranges"
+
 -- | @contentRangeHeader beg end total@ constructs a Content-Range 'H.Header'
 -- for the range specified.
 contentRangeHeader :: Integer -> Integer -> Integer -> H.Header
@@ -200,8 +204,8 @@ chooseFilePart size (Just range) = case parseByteRanges range >>= listToMaybe of
 
 -- | Adjust the given 'H.Status' and 'H.ResponseHeaders' based on the given
 -- 'FilePart'.  This means replacing the status with 206 if the response is
--- partial, and adding the Content-Length (always) and Content-Range (if
--- appropriate) headers.
+-- partial, and adding the Content-Length and Accept-Ranges (always) and
+-- Content-Range (if appropriate) headers.
 adjustForFilePart :: H.Status -> H.ResponseHeaders -> FilePart -> (H.Status, H.ResponseHeaders)
 adjustForFilePart s h part = (s', h'')
   where
@@ -212,7 +216,7 @@ adjustForFilePart s h part = (s', h'')
     contentRange = contentRangeHeader off (off + len - 1) size
     lengthBS = L.toStrict $ B.toLazyByteString $ B.integerDec len
     s' = if filePartByteCount part /= size then H.partialContent206 else s
-    h' = (H.hContentLength, lengthBS):h
+    h' = (H.hContentLength, lengthBS):(hAcceptRanges, "bytes"):h
     h'' = (if len == size then id else (contentRange:)) h'
 
 -- | Parse the value of a Range header into a 'HH.ByteRanges'.
