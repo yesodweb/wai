@@ -143,7 +143,26 @@ sendResponse :: ByteString -- ^ default server value
              -> IO ByteString -- ^ source from client, for raw response
              -> Response -- ^ HTTP response including status code and response header.
              -> IO Bool -- ^ Returing True if the connection is persistent.
-sendResponse defServer conn ii req reqidxhdr src response = do
+sendResponse defServer conn ii req reqidxhdr src response =
+    sendResponse' defServer conn ii req reqidxhdr src response'
+  where
+    doesContainCRLF :: [ByteString] -> Bool
+    doesContainCRLF = or . map (S.any (\w -> w == 10 || w == 13))
+    hsv = map snd $ responseHeaders response
+    response'
+      | doesContainCRLF hsv = response400
+      | otherwise           = response
+    response400 = responseLBS H.badRequest400  [(H.hContentType, "text/plain; charset=utf-8")] "Bad Request"
+
+sendResponse' :: ByteString -- ^ default server value
+              -> Connection
+              -> InternalInfo
+              -> Request -- ^ HTTP request.
+              -> IndexedHeader -- ^ Indexed header of HTTP request.
+              -> IO ByteString -- ^ source from client, for raw response
+              -> Response -- ^ HTTP response including status code and response header.
+              -> IO Bool -- ^ Returing True if the connection is persistent.
+sendResponse' defServer conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s then do
         -- HEAD comes here even if it does not have body.

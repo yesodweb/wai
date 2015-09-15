@@ -14,6 +14,8 @@ import RunSpec (withApp)
 import System.IO (hClose, hFlush)
 import Test.Hspec
 
+import HTTP
+
 main :: IO ()
 main = hspec spec
 
@@ -82,6 +84,13 @@ testFileRange desc s rsphdr file mPart mRange ans = it desc $ do
 
 spec :: Spec
 spec = do
+    describe "preventing response splitting attack" $ do
+        it "returns 400 if reponse headers contain illegal characters" $ do
+            let app _ f = f $ responseLBS status200 [("content-length", "20"),("foo", "foo\r\n\r\nbar\r\n")] "Hello"
+            withApp defaultSettings app $ \port -> do
+                res <- sendGET $ "http://127.0.0.1:" ++ show port
+                rspCode res `shouldBe` (4,0,0)
+
     describe "range requests" $ do
         testRange "2-3" "23" $ Just "2-3/16"
         testRange "5-" "56789abcdef" $ Just "5-15/16"
