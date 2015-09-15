@@ -85,7 +85,7 @@ testFileRange desc s rsphdr file mPart mRange ans = it desc $ do
 spec :: Spec
 spec = do
     describe "preventing response splitting attack" $ do
-        it "returns 400 if reponse headers contain illegal characters" $ do
+        it "returns 400 if response headers contain illegal characters" $ do
             let app _ f = f $ responseLBS status200 [("content-length", "20"),("foo", "foo\r\n\r\nbar\r\n")] "Hello"
             withApp defaultSettings app $ \port -> do
                 res <- sendGET $ "http://127.0.0.1:" ++ show port
