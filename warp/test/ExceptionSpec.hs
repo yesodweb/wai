@@ -6,8 +6,6 @@ module ExceptionSpec (main, spec) where
 import Control.Applicative
 #endif
 import Control.Monad
-import Network.HTTP
-import Network.Stream
 import Network.HTTP.Types hiding (Header)
 import Network.Wai hiding (Response)
 import Network.Wai.Internal (Request(..))
@@ -17,6 +15,8 @@ import Control.Exception
 import qualified Data.Streaming.Network as N
 import Control.Concurrent.Async (withAsync)
 import Network.Socket (sClose)
+
+import HTTP
 
 main :: IO ()
 main = hspec spec
@@ -62,20 +62,5 @@ spec = describe "responds even if there is an exception" $ do
             sc `shouldBe` (5,0,0)
         -}
         it "ioException" $ withTestServer $ \prt -> do
-            sc <- rspCode <$> sendGET (concat $ ["http://127.0.0.1:", show prt, "/ioException"])
+            sc <- rspCode <$> sendGET ("http://127.0.0.1:" ++ show prt ++ "/ioException")
             sc `shouldBe` (5,0,0)
-
-----------------------------------------------------------------
-
-sendGET :: String -> IO (Response String)
-sendGET url = sendGETwH url []
-
-sendGETwH :: String -> [Header] -> IO (Response String)
-sendGETwH url hdr = unResult $ simpleHTTP $ (getRequest url) { rqHeaders = hdr }
-
-unResult :: IO (Result (Response String)) -> IO (Response String)
-unResult action = do
-    res <- action
-    case res of
-        Right rsp -> return rsp
-        Left _ -> error "Connection error"

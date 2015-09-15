@@ -18,7 +18,6 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, getSocketTCP, safeRecv)
 import Network (connectTo, PortID (PortNumber))
-import qualified Network.HTTP as HTTP
 import Network.HTTP.Types
 import Network.Socket (sClose)
 import Network.Socket.ByteString (sendAll)
@@ -28,6 +27,8 @@ import System.IO (hFlush, hClose)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Timeout (timeout)
 import Test.Hspec
+
+import HTTP
 
 main :: IO ()
 main = hspec spec
@@ -349,11 +350,9 @@ spec = do
                 , ("date", "date")
                 ] ""
         withApp defaultSettings app $ \port -> do
-            Right res <- HTTP.simpleHTTP (HTTP.getRequest $ "http://127.0.0.1:" ++ show port)
-            map HTTP.hdrValue (HTTP.retrieveHeaders HTTP.HdrServer res)
-                `shouldBe` ["server"]
-            map HTTP.hdrValue (HTTP.retrieveHeaders HTTP.HdrDate res)
-                `shouldBe` ["date"]
+            res <- sendGET $ "http://127.0.0.1:" ++ show port
+            getHeaderValue HdrServer res `shouldBe` Just "server"
+            getHeaderValue HdrDate res `shouldBe` Just "date"
 
     it "streaming echo #249" $ do
         let app req f = f $ responseStream status200 [] $ \write _ -> do
@@ -375,8 +374,8 @@ spec = do
         let app _ f = f $ responseStream status200 [("content-length", "20")] $ \write _ -> do
                 replicateM_ 4 $ write $ byteString "Hello"
         withApp defaultSettings app $ \port -> do
-            Right res <- HTTP.simpleHTTP (HTTP.getRequest $ "http://127.0.0.1:" ++ show port)
-            HTTP.rspBody res `shouldBe` "HelloHelloHelloHello"
+            res <- sendGET $ "http://127.0.0.1:" ++ show port
+            rspBody res `shouldBe` "HelloHelloHelloHello"
 
 consumeBody :: IO ByteString -> IO [ByteString]
 consumeBody body =

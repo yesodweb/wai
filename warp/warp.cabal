@@ -125,6 +125,7 @@ Test-Suite spec
                      ResponseSpec
                      RunSpec
                      SendFileSpec
+                     HTTP
     Hs-Source-Dirs:  test, .
     Type:            exitcode-stdio-1.0
 
