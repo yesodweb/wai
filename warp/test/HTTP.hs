@@ -1,8 +1,11 @@
+{-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module HTTP (
     sendGET
   , sendGETwH
   , rspBody
   , rspCode
+  , rspHeaders
   , getHeaderValue
   , HeaderName(..)
   ) where
@@ -27,3 +30,5 @@ getHeaderValue :: HasHeaders a => HeaderName -> a -> Maybe String
 getHeaderValue key r = case retrieveHeaders key r of
     []  -> Nothing
     x:_ -> Just $ hdrValue x
+
+deriving instance Eq Header
