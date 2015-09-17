@@ -34,7 +34,6 @@ import Data.ByteString.Builder (byteString, Builder)
 import Data.ByteString.Builder.Extra (flush)
 import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
-import Data.Char
 import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Maybe
@@ -48,7 +47,7 @@ import Data.Monoid (mappend, mempty)
 #endif
 import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy)
 import Data.Version (showVersion)
-import Data.Word
+import Data.Word8 (_cr, _lf)
 import qualified Network.HTTP.Types as H
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
@@ -189,23 +188,17 @@ sanitizeHeaders = mapResponseHeaders (map (fmap sanitizeHeaderValue))
 
 sanitizeHeaderValue :: ByteString -> ByteString
 sanitizeHeaderValue v
-    | containsNewlines v = case S8.lines $ S.filter (/= cr) v of
+    | containsNewlines v = case S8.lines $ S.filter (/= _cr) v of
         x : xs -> S.intercalate "\r\n" (x : mapMaybe addSpaceIfMissing xs)
         [] -> ""
     | otherwise = v
   where
-    containsNewlines = S.any (\w -> w == cr || w == lf)
+    containsNewlines = S.any (\w -> w == _cr || w == _lf)
     addSpaceIfMissing line = case S8.uncons line of
         Nothing -> Nothing
         Just (first, _) -> Just $ if first == ' ' || first == '\t'
             then line
             else " " <> line
-
-cr :: Word8
-cr = fromIntegral (ord '\r')
-
-lf :: Word8
-lf = fromIntegral (ord '\n')
 
 data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) Bool (IO ())
          | RspBuilder Builder Bool
