@@ -6,6 +6,9 @@
 
 module Network.Wai.Handler.Warp.Run where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<$>))
+#endif
 import Control.Arrow (first)
 import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent as Conc (yield)
@@ -102,7 +105,7 @@ runHTTP2Env port = runServeEnv port .: serveHTTP2
 -- | The generalized form of 'runEnv'.
 runServeEnv :: Port -> ServeConnection -> IO ()
 runServeEnv p serveConn = do
-    mp <- fmap (lookup "PORT") getEnvironment
+    mp <- lookup "PORT" <$> getEnvironment
 
     maybe (runServe p serveConn) runReadPort mp
 
@@ -210,9 +213,9 @@ runServeSettingsConnectionMaker :: Settings
                                 -> ServeConnection
                                 -> IO ()
 runServeSettingsConnectionMaker x y =
-    runServeSettingsConnectionMakerSecure x (go y)
+    runServeSettingsConnectionMakerSecure x (toTCP <$> y)
   where
-    go = fmap (first (fmap (, TCP)))
+    toTCP = first ((, TCP) <$>)
 
 ----------------------------------------------------------------
 

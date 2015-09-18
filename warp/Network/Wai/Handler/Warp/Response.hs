@@ -184,7 +184,7 @@ sendResponse defServer conn ii req reqidxhdr src (sanitizeHeaders -> response) =
         ResponseRaw     {} -> False
 
 sanitizeHeaders :: Response -> Response
-sanitizeHeaders = mapResponseHeaders (map (fmap sanitizeHeaderValue))
+sanitizeHeaders = mapResponseHeaders (map (sanitizeHeaderValue <$>))
 
 sanitizeHeaderValue :: ByteString -> ByteString
 sanitizeHeaderValue v
