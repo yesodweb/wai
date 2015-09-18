@@ -3,7 +3,6 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Network.Wai.Handler.Warp.Response (
     sendResponse
@@ -147,7 +146,7 @@ sendResponse :: ByteString -- ^ default server value
              -> IO ByteString -- ^ source from client, for raw response
              -> Response -- ^ HTTP response including status code and response header.
              -> IO Bool -- ^ Returing True if the connection is persistent.
-sendResponse defServer conn ii req reqidxhdr src (sanitizeHeaders -> response) = do
+sendResponse defServer conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s then do
         -- HEAD comes here even if it does not have body.
@@ -161,7 +160,7 @@ sendResponse defServer conn ii req reqidxhdr src (sanitizeHeaders -> response) =
   where
     ver = httpVersion req
     s = responseStatus response
-    hs0 = responseHeaders response
+    hs0 = sanitizeHeaders $ responseHeaders response
     rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
     dc = dateCacher ii
@@ -183,22 +182,32 @@ sendResponse defServer conn ii req reqidxhdr src (sanitizeHeaders -> response) =
         ResponseStream  {} -> isKeepAlive
         ResponseRaw     {} -> False
 
-sanitizeHeaders :: Response -> Response
-sanitizeHeaders = mapResponseHeaders (map (sanitizeHeaderValue <$>))
+----------------------------------------------------------------
 
-sanitizeHeaderValue :: ByteString -> ByteString
-sanitizeHeaderValue v
-    | containsNewlines v = case S8.lines $ S.filter (/= _cr) v of
-        x : xs -> S.intercalate "\r\n" (x : mapMaybe addSpaceIfMissing xs)
-        [] -> ""
-    | otherwise = v
+sanitizeHeaders :: H.ResponseHeaders -> H.ResponseHeaders
+sanitizeHeaders = map (sanitize <$>)
   where
-    containsNewlines = S.any (\w -> w == _cr || w == _lf)
+    sanitize v
+      | containsNewlines v = sanitizeHeaderValue v -- slow path
+      | otherwise          = v                     -- fast path
+
+{-# INLINE containsNewlines #-}
+containsNewlines :: ByteString -> Bool
+containsNewlines = S.any (\w -> w == _cr || w == _lf)
+
+{-# INLINE sanitizeHeaderValue #-}
+sanitizeHeaderValue :: ByteString -> ByteString
+sanitizeHeaderValue v = case S8.lines $ S.filter (/= _cr) v of
+    []     -> ""
+    x : xs -> S8.intercalate "\r\n" (x : mapMaybe addSpaceIfMissing xs)
+  where
     addSpaceIfMissing line = case S8.uncons line of
-        Nothing -> Nothing
-        Just (first, _) -> Just $ if first == ' ' || first == '\t'
-            then line
-            else " " <> line
+        Nothing                           -> Nothing
+        Just (first, _)
+          | first == ' ' || first == '\t' -> Just line
+          | otherwise                     -> Just $ " " <> line
+
+----------------------------------------------------------------
 
 data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) Bool (IO ())
          | RspBuilder Builder Bool
