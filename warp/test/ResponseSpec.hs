@@ -85,11 +85,32 @@ testFileRange desc s rsphdr file mPart mRange ans = it desc $ do
 spec :: Spec
 spec = do
     describe "preventing response splitting attack" $ do
-        it "returns 400 if response headers contain illegal characters" $ do
-            let app _ f = f $ responseLBS status200 [("content-length", "20"),("foo", "foo\r\n\r\nbar\r\n")] "Hello"
+        it "sanitizes header values" $ do
+            let app _ respond = respond $ responseLBS status200 [("foo", "foo\r\nbar")] "Hello"
             withApp defaultSettings app $ \port -> do
                 res <- sendGET $ "http://127.0.0.1:" ++ show port
-                rspCode res `shouldBe` (4,0,0)
+                getHeaderValue (HdrCustom "foo") res `shouldBe`
+                  Just "foo   bar" -- HTTP inserts two spaces for \r\n.
+
+    describe "sanitizeHeaderValue" $ do
+        it "doesn't alter valid multiline header values" $ do
+            sanitizeHeaderValue "foo\r\n bar" `shouldBe` "foo\r\n bar"
+
+        it "adds missing spaces after \r\n" $ do
+            sanitizeHeaderValue "foo\r\nbar" `shouldBe` "foo\r\n bar"
+
+        it "discards empty lines" $ do
+            sanitizeHeaderValue "foo\r\n\r\nbar" `shouldBe` "foo\r\n bar"
+
+        context "when sanitizing single occurences of \n" $ do
+            it "replaces \n with \r\n" $ do
+                sanitizeHeaderValue "foo\n bar" `shouldBe` "foo\r\n bar"
+
+            it "adds missing spaces after \n" $ do
+                sanitizeHeaderValue "foo\nbar" `shouldBe` "foo\r\n bar"
+
+        it "discards single occurrences of \r" $ do
+            sanitizeHeaderValue "foo\rbar" `shouldBe` "foobar"
 
     describe "range requests" $ do
         testRange "2-3" "23" $ Just "2-3/16"

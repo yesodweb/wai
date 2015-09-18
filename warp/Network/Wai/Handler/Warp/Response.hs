@@ -3,9 +3,11 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Network.Wai.Handler.Warp.Response (
     sendResponse
+  , sanitizeHeaderValue -- for testing
   , fileRange -- for testing
   , warpVersion
   , defaultServerValue
@@ -27,13 +29,14 @@ import Control.Monad (unless, when)
 import Data.Array ((!))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Builder (byteString, Builder)
 import Data.ByteString.Builder.Extra (flush)
 import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
 import Data.List (deleteBy)
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe
 #if MIN_VERSION_base(4,5,0)
 # if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mempty)
@@ -44,6 +47,7 @@ import Data.Monoid (mappend, mempty)
 #endif
 import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy)
 import Data.Version (showVersion)
+import Data.Word8 (_cr, _lf)
 import qualified Network.HTTP.Types as H
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
@@ -143,26 +147,7 @@ sendResponse :: ByteString -- ^ default server value
              -> IO ByteString -- ^ source from client, for raw response
              -> Response -- ^ HTTP response including status code and response header.
              -> IO Bool -- ^ Returing True if the connection is persistent.
-sendResponse defServer conn ii req reqidxhdr src response =
-    sendResponse' defServer conn ii req reqidxhdr src response'
-  where
-    doesContainCRLF :: [ByteString] -> Bool
-    doesContainCRLF = or . map (S.any (\w -> w == 10 || w == 13))
-    hsv = map snd $ responseHeaders response
-    response'
-      | doesContainCRLF hsv = response400
-      | otherwise           = response
-    response400 = responseLBS H.badRequest400  [(H.hContentType, "text/plain; charset=utf-8")] "Bad Request"
-
-sendResponse' :: ByteString -- ^ default server value
-              -> Connection
-              -> InternalInfo
-              -> Request -- ^ HTTP request.
-              -> IndexedHeader -- ^ Indexed header of HTTP request.
-              -> IO ByteString -- ^ source from client, for raw response
-              -> Response -- ^ HTTP response including status code and response header.
-              -> IO Bool -- ^ Returing True if the connection is persistent.
-sendResponse' defServer conn ii req reqidxhdr src response = do
+sendResponse defServer conn ii req reqidxhdr src (sanitizeHeaders -> response) = do
     hs <- addServerAndDate hs0
     if hasBody s then do
         -- HEAD comes here even if it does not have body.
@@ -198,7 +183,22 @@ sendResponse' defServer conn ii req reqidxhdr src response = do
         ResponseStream  {} -> isKeepAlive
         ResponseRaw     {} -> False
 
-----------------------------------------------------------------
+sanitizeHeaders :: Response -> Response
+sanitizeHeaders = mapResponseHeaders (map (fmap sanitizeHeaderValue))
+
+sanitizeHeaderValue :: ByteString -> ByteString
+sanitizeHeaderValue v
+    | containsNewlines v = case S8.lines $ S.filter (/= _cr) v of
+        x : xs -> S.intercalate "\r\n" (x : mapMaybe addSpaceIfMissing xs)
+        [] -> ""
+    | otherwise = v
+  where
+    containsNewlines = S.any (\w -> w == _cr || w == _lf)
+    addSpaceIfMissing line = case S8.uncons line of
+        Nothing -> Nothing
+        Just (first, _) -> Just $ if first == ' ' || first == '\t'
+            then line
+            else " " <> line
 
 data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) Bool (IO ())
          | RspBuilder Builder Bool
