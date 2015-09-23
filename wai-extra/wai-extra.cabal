@@ -110,6 +110,9 @@ Library
                    , unix-compat
                    , cookie
                    , vault
+                   , zlib
+                   , aeson
+                   , iproute
 
   if os(windows)
       cpp-options:   -DWINDOWS
@@ -127,6 +130,7 @@ Library
                      Network.Wai.Middleware.CleanPath
                      Network.Wai.Middleware.Local
                      Network.Wai.Middleware.RequestLogger
+                     Network.Wai.Middleware.RequestLogger.JSON
                      Network.Wai.Middleware.Gzip
                      Network.Wai.Middleware.Jsonp
                      Network.Wai.Middleware.MethodOverride
