@@ -13,12 +13,14 @@ module Network.Wai.Middleware.RequestLogger
     , destination
     , OutputFormat (..)
     , OutputFormatter
+    , OutputFormatterWithDetails
     , Destination (..)
     , Callback
     , IPAddrSource (..)
     ) where
 
 import System.IO (Handle, stdout)
+import qualified Blaze.ByteString.Builder as B
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack, unpack)
 import Control.Monad.IO.Class (liftIO)
@@ -27,7 +29,7 @@ import System.Log.FastLogger
 import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe)
 import Data.Monoid (mconcat, (<>))
-import Data.Time (getCurrentTime, diffUTCTime)
+import Data.Time (getCurrentTime, diffUTCTime, NominalDiffTime)
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File
                          , getRequestBodyType)
 import qualified Data.ByteString.Lazy as LBS
@@ -35,7 +37,7 @@ import qualified Data.ByteString.Char8 as S8
 import System.Console.ANSI
 import Data.IORef.Lifted
 import System.IO.Unsafe
-import Network.Wai.Internal (Response (ResponseRaw))
+import Network.Wai.Internal (Response (..))
 import Data.Default.Class (Default (def))
 import Network.Wai.Logger
 import Network.Wai.Middleware.RequestLogger.Internal
@@ -44,8 +46,11 @@ import Data.Text.Encoding (decodeUtf8')
 data OutputFormat = Apache IPAddrSource
                   | Detailed Bool -- ^ use colors?
                   | CustomOutputFormat OutputFormatter
+                  | CustomOutputFormatWithDetails OutputFormatterWithDetails
 
 type OutputFormatter = ZonedDate -> Request -> Status -> Maybe Integer -> LogStr
+type OutputFormatterWithDetails =
+  ZonedDate -> Request -> Status -> Maybe Integer -> NominalDiffTime -> [S8.ByteString] -> B.Builder -> LogStr
 
 data Destination = Handle Handle
                  | Logger LoggerSet
@@ -93,8 +98,11 @@ mkRequestLogger RequestLoggerSettings{..} = do
                                   (\str -> callback str >> flusher)
                                   useColors
         CustomOutputFormat formatter -> do
+            getDate <- getDateGetter flusher
+            return $ customMiddleware callback getDate formatter
+        CustomOutputFormatWithDetails formatter -> do
             getdate <- getDateGetter flusher
-            return $ customMiddleware callback getdate formatter
+            return $ customMiddlewareWithDetails callback getdate formatter
 
 apacheMiddleware :: ApacheLoggerActions -> Middleware
 apacheMiddleware ala app req sendResponse = app req $ \res -> do
@@ -112,6 +120,22 @@ customMiddleware cb getdate formatter app req sendResponse = app req $ \res -> d
     -- We use Nothing for the response size since we generally don't know it
     liftIO $ cb $ formatter date req (responseStatus res) Nothing
     sendResponse res
+
+customMiddlewareWithDetails :: Callback -> IO ZonedDate -> OutputFormatterWithDetails -> Middleware
+customMiddlewareWithDetails cb getdate formatter app req sendResponse = do
+  (req', reqBody) <- getRequestBody req
+  t0 <- getCurrentTime
+  app req' $ \res -> do
+    t1 <- getCurrentTime
+    date <- liftIO getdate
+    -- We use Nothing for the response size since we generally don't know it
+    builderIO <- newIORef ""
+    res' <- recordChunks builderIO res
+    rspRcv <- sendResponse res'
+    _ <- liftIO . cb .
+      formatter date req' (responseStatus res') Nothing (t1 `diffUTCTime` t0) reqBody =<<
+      readIORef builderIO
+    return rspRcv
 
 -- | Production request logger middleware.
 {-# NOINLINE logStdout #-}
@@ -182,6 +206,40 @@ ansiStatusCode' c t = case S8.take 1 c of
     "5"     -> ansiColor' Magenta t
     _       -> ansiColor' Blue t
 
+recordChunks :: IORef B.Builder -> Response -> IO Response
+recordChunks i (ResponseStream s h sb) =
+  return . ResponseStream s h $ (\send flush -> sb (\b -> modifyIORef i (<> b) >> send b) flush)
+recordChunks i (ResponseBuilder s h b) =
+  modifyIORef i (<> b) >> (return $ ResponseBuilder s h b)
+recordChunks _ r =
+  return r
+
+getRequestBody :: Request -> IO (Request, [S8.ByteString])
+getRequestBody req = do
+  let loop front = do
+         bs <- requestBody req
+         if S8.null bs
+             then return $ front []
+             else loop $ front . (bs:)
+  body <- loop id
+  -- logging the body here consumes it, so fill it back up
+  -- obviously not efficient, but this is the development logger
+  --
+  -- Note: previously, we simply used CL.sourceList. However,
+  -- that meant that you could read the request body in twice.
+  -- While that in itself is not a problem, the issue is that,
+  -- in production, you wouldn't be able to do this, and
+  -- therefore some bugs wouldn't show up during testing. This
+  -- implementation ensures that each chunk is only returned
+  -- once.
+  ichunks <- newIORef body
+  let rbody = atomicModifyIORef ichunks $ \chunks ->
+         case chunks of
+             [] -> ([], S8.empty)
+             x:y -> (y, x)
+  let req' = req { requestBody = rbody }
+  return (req', body)
+
 detailedMiddleware' :: Callback
                     -> (Color -> BS.ByteString -> [BS.ByteString])
                     -> (BS.ByteString -> [BS.ByteString])
@@ -192,30 +250,7 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
     (req', body) <-
         case mlen of
             -- log the request body if it is small
-            Just len | len <= 2048 -> do
-                 let loop front = do
-                        bs <- requestBody req
-                        if S8.null bs
-                            then return $ front []
-                            else loop $ front . (bs:)
-                 body <- loop id
-                 -- logging the body here consumes it, so fill it back up
-                 -- obviously not efficient, but this is the development logger
-                 --
-                 -- Note: previously, we simply used CL.sourceList. However,
-                 -- that meant that you could read the request body in twice.
-                 -- While that in itself is not a problem, the issue is that,
-                 -- in production, you wouldn't be able to do this, and
-                 -- therefore some bugs wouldn't show up during testing. This
-                 -- implementation ensures that each chunk is only returned
-                 -- once.
-                 ichunks <- newIORef body
-                 let rbody = atomicModifyIORef ichunks $ \chunks ->
-                        case chunks of
-                            [] -> ([], S8.empty)
-                            x:y -> (y, x)
-                 let req' = req { requestBody = rbody }
-                 return (req', body)
+            Just len | len <= 2048 -> getRequestBody req
             _ -> return (req, [])
 
     let reqbodylog _ = if null body then [""] else ansiColor White "  Request Body: " <> body <> ["\n"]
