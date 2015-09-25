@@ -60,10 +60,12 @@ hpackDecodeHeader hdrblk Context{decodeDynamicTable} = do
 
 -- |
 --
+-- >>> concatCookie [("foo","bar")]
+-- [("foo","bar")]
 -- >>> concatCookie [("cookie","a=b"),("foo","bar"),("cookie","c=d"),("cookie","e=f")]
 -- [("cookie","a=b; c=d; e=f"),("foo","bar")]
 concatCookie :: HeaderList -> HeaderList
-concatCookie hdr = ("cookie",cookieValue) : others
-  where
-    (cookies,others) = L.partition (\x -> fst x == "cookie") hdr
-    cookieValue = B.intercalate "; " (map snd cookies)
+concatCookie hdr = case L.partition (\x -> fst x == "cookie") hdr of
+    ([],_)           -> hdr
+    (cookies,others) -> let cookieValue = B.intercalate "; " (map snd cookies)
+                        in ("cookie",cookieValue) : others
