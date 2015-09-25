@@ -17,6 +17,7 @@ import qualified Data.ByteString.Builder.Extra as B
 import Data.Monoid ((<>))
 import Foreign.Ptr
 import qualified Network.HTTP.Types as H
+import Network.HPACK (setLimitForEncoding)
 import Network.HTTP2
 import Network.HTTP2.Priority
 import Network.Wai (FilePart(..))
@@ -84,7 +85,7 @@ getWindowSize connWindow strmWindow = do
    return $ min cw sw
 
 frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> IO ()
-frameSender ctx@Context{outputQ,connectionWindow}
+frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
             conn@Connection{connWriteBuffer,connBufferSize,connSendAll}
             ii settings = go `E.catch` ignore
   where
@@ -105,6 +106,14 @@ frameSender ctx@Context{outputQ,connectionWindow}
 
     switch OFinish         = return ()
     switch (OGoaway frame) = connSendAll frame
+    switch (OSettings frame alist) = do
+        connSendAll frame
+        case lookup SettingsHeaderTableSize alist of
+            Nothing  -> return ()
+            Just siz -> do
+                dyntbl <- readIORef encodeDynamicTable
+                setLimitForEncoding siz dyntbl
+        loop
     switch (OFrame frame)  = do
         connSendAll frame
         loop

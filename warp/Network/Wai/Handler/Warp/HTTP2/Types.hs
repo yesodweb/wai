@@ -72,6 +72,8 @@ data Output = OFinish
             -- ^ Terminate the connection.
             | OGoaway ByteString
             -- ^ Send a goaway frame and terminate the connection.
+            | OSettings ByteString SettingsList
+            -- ^ Update settings and send an ack settings frame.
             | OFrame  ByteString
             -- ^ Send an entire pre-encoded frame.
             | OResponse Stream H.Status H.ResponseHeaders Aux
