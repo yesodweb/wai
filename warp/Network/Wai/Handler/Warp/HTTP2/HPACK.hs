@@ -23,6 +23,7 @@ import Network.Wai.Handler.Warp.Types
 -- $setup
 -- >>> :set -XOverloadedStrings
 
+-- fixme: should we split "Set-Cookie:" headers?
 hpackEncodeHeader :: Context -> InternalInfo -> S.Settings -> H.Status
                   -> H.ResponseHeaders -> IO Builder
 hpackEncodeHeader ctx ii settings s h = do
