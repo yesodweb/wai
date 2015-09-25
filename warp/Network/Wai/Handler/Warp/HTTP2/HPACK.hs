@@ -10,6 +10,7 @@ import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Char8 as B8
 import Data.CaseInsensitive (foldedCase)
 import Data.IORef (readIORef, writeIORef)
+import qualified Data.List as L
 import Network.HPACK
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
@@ -18,6 +19,9 @@ import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Response
 import qualified Network.Wai.Handler.Warp.Settings as S
 import Network.Wai.Handler.Warp.Types
+
+-- $setup
+-- >>> :set -XOverloadedStrings
 
 hpackEncodeHeader :: Context -> InternalInfo -> S.Settings -> H.Status
                   -> H.ResponseHeaders -> IO Builder
@@ -49,6 +53,16 @@ hpackDecodeHeader hdrblk Context{decodeDynamicTable} = do
     hdrtbl <- readIORef decodeDynamicTable
     (hdrtbl', hdr) <- decodeHeader hdrtbl hdrblk `E.onException` cleanup
     writeIORef decodeDynamicTable hdrtbl'
-    return hdr
+    return $ concatCookie hdr
   where
     cleanup = E.throwIO $ ConnectionError CompressionError "cannot decompress the header"
+
+-- |
+--
+-- >>> concatCookie [("cookie","a=b"),("foo","bar"),("cookie","c=d"),("cookie","e=f")]
+-- [("cookie","a=b; c=d; e=f"),("foo","bar")]
+concatCookie :: HeaderList -> HeaderList
+concatCookie hdr = ("cookie",cookieValue) : others
+  where
+    (cookies,others) = L.partition (\x -> fst x == "cookie") hdr
+    cookieValue = B.intercalate "; " (map snd cookies)
