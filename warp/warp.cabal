@@ -45,7 +45,7 @@ Library
                    , http2                     >= 1.1
                    , simple-sendfile           >= 0.2.7    && < 0.3
                    , unix-compat               >= 0.2
-                   , wai                       >= 3.0      && < 3.1
+                   , wai                       >= 3.0.4    && < 3.1
                    , text
                    , streaming-commons         >= 0.1.10
                    , vault                     >= 0.3
@@ -145,7 +145,7 @@ Test-Suite spec
                    , simple-sendfile           >= 0.2.4    && < 0.3
                    , transformers              >= 0.2.2
                    , unix-compat               >= 0.2
-                   , wai
+                   , wai                       >= 3.0.4    && < 3.1
                    , network
                    , HUnit
                    , QuickCheck
