@@ -114,7 +114,7 @@ receiveBuf sock buf0 siz0 = loop buf0 siz0
 receiveloop :: CInt -> Ptr Word8 -> CSize -> IO CInt
 receiveloop sock ptr size = do
 #ifdef mingw32_HOST_OS
-    bytes <- windowsThreadBlockHack . fromIntegral <$> readRawBufferPtr "recv" (FD sock 1) (castPtr ptr) 0 size
+    bytes <- windowsThreadBlockHack $ fromIntegral <$> readRawBufferPtr "recv" (FD sock 1) (castPtr ptr) 0 size
 #else
     bytes <- c_recv sock (castPtr ptr) size 0
 #endif
