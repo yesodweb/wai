@@ -3,6 +3,7 @@
 * Using newer http2 library to prevent change table size attacks.
 * API for HTTP/2 server push and trailers. [#426](https://github.com/yesodweb/wai/pull/426)
 * Preventing response splitting attacks. [#435](https://github.com/yesodweb/wai/pull/435)
+* Concatenating multiple Cookie: headers in HTTP/2.
 
 ## 3.1.3
 
