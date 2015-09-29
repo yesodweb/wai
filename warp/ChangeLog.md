@@ -1,3 +1,9 @@
+## 3.1.4
+
+* Using newer http2 library to prevent change table size attacks.
+* API for HTTP/2 server push and trailers. [#426](https://github.com/yesodweb/wai/pull/426)
+* Preventing response splitting attacks. [#435](https://github.com/yesodweb/wai/pull/435)
+
 ## 3.1.3
 
 * Warp now supports blaze-builder v0.4 or later only.
