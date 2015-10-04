@@ -55,7 +55,7 @@ import Network.Wai.Handler.Warp.RequestHeader (parseByteRanges)
 import Network.Wai.Handler.Warp.ResponseHeader
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Internal
+import Network.Wai.Internal (Response (ResponseBuilder, ResponseStream, ResponseFile, ResponseRaw))
 import Numeric (showInt)
 import qualified Paths_warp
 import qualified System.PosixCompat.Files as P
