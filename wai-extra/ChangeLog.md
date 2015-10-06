@@ -1,3 +1,8 @@
+## 3.0.11
+
+* Add constructor for more detailed custom output formats for RequestLogger
+* Add JSON output formatter for RequestLogger
+
 ## 3.0.10
 
 * Adding Request Body to RequestLogger [#401](https://github.com/yesodweb/wai/pull/401)
