@@ -54,6 +54,7 @@ module Network.Wai.HTTP2
     ) where
 
 import           Blaze.ByteString.Builder (Builder)
+import           Blaze.ByteString.Builder.ByteString (fromByteString)
 import           Control.Exception (Exception, throwIO)
 import           Control.Monad.Trans.Cont (ContT(..))
 import           Data.ByteString (ByteString)
@@ -186,7 +187,7 @@ respondFileExists s h path size reqHdrs =
 -- | Respond with a minimal 404 page with the given headers.
 respondNotFound :: H.ResponseHeaders -> Responder
 respondNotFound h = Responder $ \k -> k H.notFound404 h' $
-    streamBuilder "File not found."
+    streamBuilder $ fromByteString "File not found."
   where
     contentType = (H.hContentType, "text/plain; charset=utf-8")
     h' = contentType:filter ((/=H.hContentType) . fst) h
