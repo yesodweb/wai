@@ -1,5 +1,6 @@
 module MultiMapSpec where
 
+import Data.List (foldl')
 import Network.Wai.Handler.Warp.MultiMap
 import Test.Hspec
 import Test.QuickCheck (property)
@@ -14,9 +15,6 @@ spec = do
     describe "toSortedList" $ do
         it "generated a sorted list" $ property $ \xs ->
             ordered $ toSortedList $ fromList (xs :: Alist)
-    describe "search" $ do
-        it "acts as the list model" $ property $ \x xs ->
-            search x (fromList xs) == lookup x (xs :: Alist)
     describe "fromSortedList" $ do
         it "generates a valid tree" $ property $ \xs ->
             valid . fromSortedList . toSortedList . fromList $ (xs :: Alist)
@@ -24,6 +22,9 @@ spec = do
             let t1 = fromList (xs :: Alist)
                 t2 = fromSortedList $ toSortedList t1
             in t1 == t2
+
+fromList :: Ord k => [(k,v)] -> MMap k v
+fromList = foldl' (\t (k,v) -> insert k v t) empty
 
 ordered :: Ord a => [(a, b)] -> Bool
 ordered (x:y:xys) = fst x <= fst y && ordered (y:xys)

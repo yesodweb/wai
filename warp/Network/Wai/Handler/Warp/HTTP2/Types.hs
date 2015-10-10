@@ -194,10 +194,6 @@ isIdle :: StreamState -> Bool
 isIdle Idle = True
 isIdle _    = False
 
-isOpen :: StreamState -> Bool
-isOpen Open{} = True
-isOpen _      = False
-
 isHalfClosed :: StreamState -> Bool
 isHalfClosed HalfClosed = True
 isHalfClosed _          = False

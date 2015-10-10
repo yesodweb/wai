@@ -94,6 +94,9 @@ spec = do
     tooMany = headerLinesList $ repeat "f\n"
     tooLarge = headerLinesList $ repeat "f"
 
+readLeftoverSource :: Source -> IO S.ByteString
+readLeftoverSource (Source ref _) = readIORef ref
+
 headerLinesList :: [S8.ByteString] -> IO (S8.ByteString, [S8.ByteString])
 headerLinesList orig = do
     (res, src) <- headerLinesList' orig

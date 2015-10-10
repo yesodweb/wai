@@ -370,11 +370,6 @@ type ServeConnection = Connection
                     -> Settings
                     -> IO ()
 
--- Serve an HTTP\/2-aware application, rejecting clients that attempt to use an
--- older protocol version.
-serveHTTP2Only :: HTTP2Application -> ServeConnection
-serveHTTP2Only = error "serveHTTP2Only not implemented"
-
 -- Serve an HTTP\/2-unaware Application to a connection over any HTTP version.
 serveDefault :: Application -> ServeConnection
 serveDefault app = serveHTTP2 (promoteApplication app) app
