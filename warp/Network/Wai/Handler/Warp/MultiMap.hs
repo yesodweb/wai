@@ -4,14 +4,11 @@ module Network.Wai.Handler.Warp.MultiMap (
     MMap
   , Some(..)
   , empty
-  , singleton
   , insert
-  , search
   , searchWith
   , isEmpty
   , valid
   , pruneWith
-  , fromList
   , toList
   , fromSortedList
   , toSortedList
@@ -35,10 +32,6 @@ snoc :: Some a -> a -> Some a
 snoc (One x) y    = Tom x (One y)
 snoc (Tom x xs) y = Tom x (snoc xs y)
 
-top :: Some a -> a
-top (One x)   = x
-top (Tom x _) = x
-
 ----------------------------------------------------------------
 
 -- | Red black tree as multimap.
@@ -58,14 +51,6 @@ instance (Eq k, Eq v) => Eq (MMap k v) where
 ----------------------------------------------------------------
 
 -- | O(log N)
-search :: Ord k => k -> MMap k v -> Maybe v
-search _ Leaf = Nothing
-search xk (Node _ l k v r) = case compare xk k of
-    LT -> search xk l
-    GT -> search xk r
-    EQ -> Just $ top v
-
--- | O(log N)
 searchWith :: Ord k => k -> (Some v -> Maybe v) -> MMap k v -> Maybe v
 searchWith _ _ Leaf = Nothing
 searchWith xk f (Node _ l k v r) = case compare xk k of
@@ -83,12 +68,6 @@ isEmpty _    = False
 -- | O(1)
 empty :: MMap k v
 empty = Leaf
-
-----------------------------------------------------------------
-
--- | O(1)
-singleton :: Ord k => k -> v -> MMap k v
-singleton k v = Node B Leaf k (One v) Leaf
 
 ----------------------------------------------------------------
 
@@ -126,10 +105,6 @@ turnB Leaf             = error "turnB"
 turnB (Node _ l k v r) = Node B l k v r
 
 ----------------------------------------------------------------
-
--- | O(N log N)
-fromList :: Ord k => [(k,v)] -> MMap k v
-fromList = foldl' (\t (k,v) -> insert k v t) empty
 
 -- | O(N)
 toList :: MMap k v -> [(k,v)]

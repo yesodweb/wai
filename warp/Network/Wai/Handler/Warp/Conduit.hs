@@ -64,11 +64,6 @@ readISource (ISource src ref) = do
                     assert (count' == 0) $ I.writeIORef ref count'
                     return x
 
--- | Extract the underlying @Source@ from an @IsolatedBSSource@, which will not
--- perform any more isolation.
-isourceDone :: ISource -> Source
-isourceDone (ISource src _) = src
-
 ----------------------------------------------------------------
 
 data CSource = CSource !Source !(I.IORef ChunkState)

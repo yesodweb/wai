@@ -33,12 +33,6 @@ type HeaderValue = ByteString
 hTransferEncoding :: HeaderName
 hTransferEncoding = "Transfer-Encoding"
 
-hContentRange :: HeaderName
-hContentRange = "Content-Range"
-
-hAcceptRanges :: HeaderName
-hAcceptRanges = "Accept-Ranges"
-
 hServer :: HeaderName
 hServer = "Server"
 
@@ -159,9 +153,6 @@ readSource' (Source _ func) = func
 
 leftoverSource :: Source -> ByteString -> IO ()
 leftoverSource (Source ref _) bs = writeIORef ref bs
-
-readLeftoverSource :: Source -> IO ByteString
-readLeftoverSource (Source ref _) = readIORef ref
 
 ----------------------------------------------------------------
 
