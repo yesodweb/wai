@@ -11,7 +11,6 @@ import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 import Data.Typeable (Typeable)
 import Data.Word (Word16, Word8)
 import Foreign.Ptr (Ptr)
-import Network.HTTP.Types.Header
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.Timeout as T
@@ -29,18 +28,6 @@ type Port = Int
 
 -- | The type for header value used with 'HeaderName'.
 type HeaderValue = ByteString
-
-hTransferEncoding :: HeaderName
-hTransferEncoding = "Transfer-Encoding"
-
-hContentRange :: HeaderName
-hContentRange = "Content-Range"
-
-hAcceptRanges :: HeaderName
-hAcceptRanges = "Accept-Ranges"
-
-hServer :: HeaderName
-hServer = "Server"
 
 ----------------------------------------------------------------
 
