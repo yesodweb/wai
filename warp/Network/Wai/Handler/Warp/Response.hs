@@ -9,7 +9,6 @@ module Network.Wai.Handler.Warp.Response (
   , sanitizeHeaderValue -- for testing
   , fileRange -- for testing
   , warpVersion
-  , defaultServerValue
   , addDate
   , addServer
   , hasBody
@@ -31,7 +30,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Builder (byteString, Builder)
 import Data.ByteString.Builder.Extra (flush)
-import qualified Data.ByteString.Char8 as B (pack)
 import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
 import Data.List (deleteBy)
@@ -395,12 +393,9 @@ addDate dc rspidxhdr hdrs = case rspidxhdr ! idxDate of
 warpVersion :: String
 warpVersion = showVersion Paths_warp.version
 
-defaultServerValue :: HeaderValue
-defaultServerValue = B.pack $ "Warp/" ++ warpVersion
-
 addServer :: HeaderValue -> IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
-addServer defaultServerValue' rspidxhdr hdrs = case rspidxhdr ! idxServer of
-    Nothing -> (H.hServer, defaultServerValue') : hdrs
+addServer serverName rspidxhdr hdrs = case rspidxhdr ! idxServer of
+    Nothing -> (H.hServer, serverName) : hdrs
     _       -> hdrs
 
 ----------------------------------------------------------------
