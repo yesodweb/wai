@@ -1,3 +1,9 @@
+## 3.1.5
+
+* Using	http-types v0.9.
+* Fixing build on OpenBSD. [#428](https://github.com/yesodweb/wai/pull/428) [#440](https://github.com/yesodweb/wai/pull/440)
+* Fixing build on Windows. [#438](https://github.com/yesodweb/wai/pull/438)
+
 ## 3.1.4
 
 * Using newer http2 library to prevent change table size attacks.
