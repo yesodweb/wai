@@ -46,7 +46,6 @@ import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy)
 import Data.Version (showVersion)
 import Data.Word8 (_cr, _lf)
 import qualified Network.HTTP.Types as H
-import qualified Network.HTTP.Types.Header as H
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
@@ -378,7 +377,7 @@ hasBody s = sc /= 204
 ----------------------------------------------------------------
 
 addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
-addTransferEncoding hdrs = (H.hTransferEncoding, "chunked") : hdrs
+addTransferEncoding hdrs = ("transfer-encoding", "chunked") : hdrs
 
 addDate :: D.DateCache -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
 addDate dc rspidxhdr hdrs = case rspidxhdr ! idxDate of
