@@ -18,6 +18,10 @@ module Network.Wai.Handler.Warp.Response (
 #define MIN_VERSION_base(x,y,z) 1
 #endif
 
+#ifndef MIN_VERSION_http_types
+#define MIN_VERSION_http_types(x,y,z) 1
+#endif
+
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
@@ -46,7 +50,9 @@ import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy)
 import Data.Version (showVersion)
 import Data.Word8 (_cr, _lf)
 import qualified Network.HTTP.Types as H
+#if MIN_VERSION_http_types(0,9,0)
 import qualified Network.HTTP.Types.Header as H
+#endif
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
@@ -378,7 +384,11 @@ hasBody s = sc /= 204
 ----------------------------------------------------------------
 
 addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
+#if MIN_VERSION_http_types(0,9,0)
 addTransferEncoding hdrs = (H.hTransferEncoding, "chunked") : hdrs
+#else
+addTransferEncoding hdrs = ("transfer-encoding", "chunked") : hdrs
+#endif
 
 addDate :: D.DateCache -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
 addDate dc rspidxhdr hdrs = case rspidxhdr ! idxDate of
