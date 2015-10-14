@@ -1,3 +1,7 @@
+## 3.1.6
+
+* Adding back http-types 0.8 support [#449](https://github.com/yesodweb/wai/pull/449)
+
 ## 3.1.5
 
 * Using	http-types v0.9.
