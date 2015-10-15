@@ -33,6 +33,7 @@ import System.Directory (doesFileExist, createDirectoryIfMissing)
 import Blaze.ByteString.Builder (fromByteString)
 import Control.Exception (try, SomeException)
 import qualified Data.Set as Set
+import Network.Wai.Header
 import Network.Wai.Internal
 import qualified Data.Streaming.Blaze as B
 import qualified Data.Streaming.Zlib as Z
@@ -79,7 +80,7 @@ gzip set app env sendResponse = app env $ \res ->
     case res of
         ResponseRaw{} -> sendResponse res
         ResponseFile{} | gzipFiles set == GzipIgnore -> sendResponse res
-        _ -> if "gzip" `elem` enc && not isMSIE6 && not (isEncoded res)
+        _ -> if "gzip" `elem` enc && not isMSIE6 && not (isEncoded res) && (bigEnough res)
                 then
                     case (res, gzipFiles set) of
                         (ResponseFile s hs file Nothing, GzipCacheFolder cache) ->
@@ -95,6 +96,16 @@ gzip set app env sendResponse = app env $ \res ->
     ua = fromMaybe "" $ lookup hUserAgent $ requestHeaders env
     isMSIE6 = "MSIE 6" `S.isInfixOf` ua
     isEncoded res = isJust $ lookup hContentEncoding $ responseHeaders res
+
+    bigEnough rsp = case contentLength (responseHeaders rsp) of
+      Nothing -> True -- This could be a streaming case
+      Just len -> len >= minimumLength
+
+    -- For a small enough response, gzipping will actually increase the size
+    -- Potentially for anything less than 860 bytes gzipping could be a net loss
+    -- The actual number is application specific though and may need to be adjusted
+    -- http://webmasters.stackexchange.com/questions/31750/what-is-recommended-minimum-object-size-for-gzip-performance-benefits
+    minimumLength = 860
 
 compressFile :: Status -> [Header] -> FilePath -> FilePath -> (Response -> IO a) -> IO a
 compressFile s hs file cache sendResponse = do
