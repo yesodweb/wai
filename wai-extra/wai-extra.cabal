@@ -123,6 +123,7 @@ Library
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Handler.SCGI
+                     Network.Wai.Header
                      Network.Wai.Middleware.AcceptOverride
                      Network.Wai.Middleware.AddHeaders
                      Network.Wai.Middleware.Approot
