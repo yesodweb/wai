@@ -1,6 +1,7 @@
 ## 3.0.12
 
 * Add Network.Wai.Header.contentLength to read the Content-Length header
+* The gzip middleware no longer zips responses smaller than 860 bytes
 
 ## 3.0.11
 
