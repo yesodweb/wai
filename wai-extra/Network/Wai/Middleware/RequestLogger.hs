@@ -248,9 +248,11 @@ detailedMiddleware' :: Callback
                     -> Middleware
 detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse = do
     (req', body) <-
-        case requestBodyLength req of
+        -- second tuple item should not be necessary, but a test runner might mess it up
+        case (requestBodyLength req, contentLength (requestHeaders req)) of
             -- log the request body if it is small
-            KnownLength len | len <= 2048 -> getRequestBody req
+            (KnownLength len, _) | len <= 2048 -> getRequestBody req
+            (_, Just len)        | len <= 2048 -> getRequestBody req
             _ -> return (req, [])
 
     let reqbodylog _ = if null body then [""] else ansiColor White "  Request Body: " <> body <> ["\n"]

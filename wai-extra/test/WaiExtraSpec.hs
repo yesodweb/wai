@@ -341,10 +341,8 @@ caseDebugRequestBody = do
                 }
   where
     params = [("foo", "bar"), ("baz", "bin")]
-    -- FIXME change back once we include post parameter output in logging
-    -- postOutput = T.pack $ "POST \nAccept: \n  Params: " ++ (show params)
     -- the time cannot be known, so match around it
-    postOutput = ("POST /\n  Accept: \n  Status: 200 OK 0", "s\n")
+    postOutput = (T.pack $ "POST /\n  Params: " ++ (show params), "s\n")
     getOutput params' = ("GET /location\n  Params: " <> T.pack (show params') <> "\n  Accept: \n  Status: 200 OK 0", "s\n")
 
     debugApp (beginning, ending) req send = do
