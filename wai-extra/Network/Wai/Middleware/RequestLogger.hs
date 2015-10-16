@@ -24,7 +24,11 @@ import qualified Blaze.ByteString.Builder as B
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack, unpack)
 import Control.Monad.IO.Class (liftIO)
-import Network.Wai (Request(..), Middleware, responseStatus, Response, responseHeaders)
+import Network.Wai
+  ( Request(..), requestBodyLength, RequestBodyLength(..)
+  , Middleware
+  , Response, responseStatus, responseHeaders
+  )
 import System.Log.FastLogger
 import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe)
@@ -41,6 +45,7 @@ import Network.Wai.Internal (Response (..))
 import Data.Default.Class (Default (def))
 import Network.Wai.Logger
 import Network.Wai.Middleware.RequestLogger.Internal
+import Network.Wai.Header (contentLength)
 import Data.Text.Encoding (decodeUtf8')
 
 data OutputFormat = Apache IPAddrSource
@@ -106,11 +111,7 @@ mkRequestLogger RequestLoggerSettings{..} = do
 
 apacheMiddleware :: ApacheLoggerActions -> Middleware
 apacheMiddleware ala app req sendResponse = app req $ \res -> do
-    let msize = lookup H.hContentLength (responseHeaders res) >>= readInt'
-        readInt' bs =
-            case S8.readInteger bs of
-                Just (i, "") -> Just i
-                _ -> Nothing
+    let msize = contentLength (responseHeaders res)
     apacheLogger ala req (responseStatus res) msize
     sendResponse res
 
@@ -246,11 +247,10 @@ detailedMiddleware' :: Callback
                     -> (BS.ByteString -> BS.ByteString -> [BS.ByteString])
                     -> Middleware
 detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse = do
-    let mlen = lookup H.hContentLength (requestHeaders req) >>= readInt
     (req', body) <-
-        case mlen of
+        case requestBodyLength req of
             -- log the request body if it is small
-            Just len | len <= 2048 -> getRequestBody req
+            KnownLength len | len <= 2048 -> getRequestBody req
             _ -> return (req, [])
 
     let reqbodylog _ = if null body then [""] else ansiColor White "  Request Body: " <> body <> ["\n"]
@@ -308,10 +308,7 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
     collectPostParams (postParams, files) = postParams ++
       map (\(k,v) -> (k, "FILE: " <> fileName v)) files
 
-    readInt bs =
-        case reads $ unpack bs of
-            (i, _):_ -> Just (i :: Int)
-            [] -> Nothing
+
 
 statusBS :: Response -> BS.ByteString
 statusBS = pack . show . statusCode . responseStatus
