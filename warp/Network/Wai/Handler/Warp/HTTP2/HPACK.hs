@@ -62,7 +62,7 @@ hpackDecodeHeader hdrblk Context{decodeDynamicTable} = do
 -- >>> concatCookie [("foo","bar")]
 -- [("foo","bar")]
 -- >>> concatCookie [("cookie","a=b"),("foo","bar"),("cookie","c=d"),("cookie","e=f")]
--- [("cookie","a=b; c=d; e=f"),("foo","bar")]
+-- [("foo","bar"),("cookie","a=b; c=d; e=f")]
 concatCookie :: HeaderList -> HeaderList
 concatCookie = collect []
   where
