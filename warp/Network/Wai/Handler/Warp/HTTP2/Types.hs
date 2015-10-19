@@ -17,6 +17,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.IntMap.Strict (IntMap, IntMap)
 import qualified Data.IntMap.Strict as M
+import Data.Word8 (_colon)
 import qualified Network.HTTP.Types as H
 import Network.Wai (Request, FilePart)
 import Network.Wai.HTTP2 (PushPromise, Trailers)
@@ -308,3 +309,10 @@ enqueueOrSpawnTemporaryWaiter strm outQ out = do
       else do
         pri <- readIORef $ streamPriority strm
         enqueue outQ out pri
+
+----------------------------------------------------------------
+
+{-# INLINE isPseudo #-}
+isPseudo :: ByteString -> Bool
+isPseudo "" = False
+isPseudo k  = BS.head k == _colon

@@ -22,7 +22,7 @@ import Data.Maybe (isJust)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mempty)
 #endif
-import Data.Word8 (isUpper,_colon)
+import Data.Word8 (isUpper)
 import Network.HPACK
 import Network.HTTP.Types (RequestHeaders,hRange)
 import qualified Network.HTTP.Types as H
@@ -118,10 +118,6 @@ validateHeaders hs = case pseudo hs (emptyPseudo,id) of
       | otherwise         = case BS.find isUpper k of
                                  Nothing -> normal kvs (p, b . ((mk k,v) :))
                                  Just _  -> Nothing
-
-    isPseudo "" = False
-    isPseudo k  = BS.head k == _colon
-
 
 ----------------------------------------------------------------
 
