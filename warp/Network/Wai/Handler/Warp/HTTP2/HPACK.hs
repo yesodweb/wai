@@ -10,7 +10,6 @@ import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Char8 as B8
 import Data.CaseInsensitive (foldedCase)
 import Data.IORef (readIORef, writeIORef)
-import qualified Data.List as L
 import Network.HPACK
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
