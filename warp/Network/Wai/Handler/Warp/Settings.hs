@@ -92,6 +92,10 @@ data Settings = Settings
       -- ^ Size of bytes read to prevent Slowloris protection. Default value: 2048
       --
       -- Since 3.1.2.
+    , settingsHTTP2Enabled :: Bool
+      -- ^ Whether to enable HTTP2 ALPN/upgrades. Default: True
+      --
+      -- Since 3.1.7.
     }
 
 -- | Specify usage of the PROXY protocol.
@@ -123,6 +127,7 @@ defaultSettings = Settings
     , settingsMaximumBodyFlush = Just 8192
     , settingsProxyProtocol = ProxyProtocolNone
     , settingsSlowlorisSize = 2048
+    , settingsHTTP2Enabled = True
     }
 
 -- | Apply the logic provided by 'defaultOnException' to determine if an

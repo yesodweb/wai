@@ -76,6 +76,7 @@ module Network.Wai.Handler.Warp (
   , setProxyProtocolRequired
   , setProxyProtocolOptional
   , setSlowlorisSize
+  , setHTTP2Disabled
     -- ** Getters
   , getPort
   , getHost
@@ -355,6 +356,12 @@ setProxyProtocolOptional y = y { settingsProxyProtocol = ProxyProtocolOptional }
 -- Since 3.1.2
 setSlowlorisSize :: Int -> Settings -> Settings
 setSlowlorisSize x y = y { settingsSlowlorisSize = x }
+
+-- | Disable HTTP2.
+--
+-- Since 3.1.7
+setHTTP2Disabled :: Settings -> Settings
+setHTTP2Disabled y = y { settingsHTTP2Enabled = False }
 
 -- | Explicitly pause the slowloris timeout.
 --

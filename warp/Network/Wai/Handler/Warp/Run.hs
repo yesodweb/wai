@@ -387,7 +387,7 @@ serveHTTP2 app2 app conn ii origAddr transport settings = do
                        return (True, bs0)
                      else
                        return (False, bs0)
-    if h2 then do
+    if settingsHTTP2Enabled settings && h2 then do
         recvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
         -- fixme: origAddr
         http2 conn ii origAddr transport settings recvN app2
