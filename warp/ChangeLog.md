@@ -1,3 +1,8 @@
+## 3.1.7
+
+* A concatenated Cookie header is prepended to the headers to ensure that it flows pseudo headers. [#454](https://github.com/yesodweb/wai/pull/454)
+* Providing a new settings: `setHTTP2Disabled` [#450](https://github.com/yesodweb/wai/pull/450)
+
 ## 3.1.6
 
 * Adding back http-types 0.8 support [#449](https://github.com/yesodweb/wai/pull/449)
