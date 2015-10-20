@@ -1,3 +1,7 @@
+## 3.1.4
+
+* Add an option to disable HTTP2 [#450](https://github.com/yesodweb/wai/pull/450)
+
 ## 3.1.3
 
 * Removing SHA 512 and SHA 384 from supportedCiphers to rescue Safari and golang. [#429](https://github.com/yesodweb/wai/issues/429)
