@@ -44,6 +44,7 @@ module Network.Wai.Handler.WarpTLS (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
+import Control.Applicative ((<|>))
 import Control.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException, SomeException(..))
 import qualified Control.Exception as E
 import Control.Monad (void)
@@ -279,7 +280,8 @@ runServeTLSSocket' tlsset@TLSSettings{..} set credential sock serve =
       }
     -- Adding alpn to user's tlsServerHooks.
     hooks = tlsServerHooks {
-        TLS.onALPNClientSuggest = Just alpn
+        TLS.onALPNClientSuggest = TLS.onALPNClientSuggest tlsServerHooks <|>
+          (if settingsHTTP2Enabled set then Just alpn else Nothing)
       }
     shared = def {
         TLS.sharedCredentials = TLS.Credentials [credential]

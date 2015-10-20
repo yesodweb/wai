@@ -10,7 +10,6 @@ import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Char8 as B8
 import Data.CaseInsensitive (foldedCase)
 import Data.IORef (readIORef, writeIORef)
-import qualified Data.List as L
 import Network.HPACK
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
@@ -63,17 +62,11 @@ hpackDecodeHeader hdrblk Context{decodeDynamicTable} = do
 -- >>> concatCookie [("foo","bar")]
 -- [("foo","bar")]
 -- >>> concatCookie [("cookie","a=b"),("foo","bar"),("cookie","c=d"),("cookie","e=f")]
--- [("cookie","a=b; c=d; e=f"),("foo","bar")]
--- >>> concatCookie [(":pseudo","pseudo"),("cookie","a=b"),("foo","bar"),("cookie","c=d"),("cookie","e=f")]
--- [(":pseudo","pseudo"),("cookie","a=b; c=d; e=f"),("foo","bar")]
+-- [("foo","bar"),("cookie","a=b; c=d; e=f")]
 concatCookie :: HeaderList -> HeaderList
-concatCookie hdr = case L.partition (\x -> fst x == "cookie") hdr of
-    ([],_)           -> hdr
-    (cookies,others) -> let cookieValue = B.intercalate "; " (map snd cookies)
-                        in insertAfterPseudo ("cookie",cookieValue) others
-
-insertAfterPseudo :: Header -> HeaderList -> HeaderList
-insertAfterPseudo x [] = [x]
-insertAfterPseudo x yys@(y:ys)
-  | isPseudo (fst y) = y : insertAfterPseudo x ys
-  | otherwise        = x : yys
+concatCookie = collect []
+  where
+    collect cookies (("cookie",c):rest) = collect (cookies ++ [c]) rest
+    collect cookies (h:rest) = h : collect cookies rest
+    collect [] [] = []
+    collect cookies [] = [("cookie", B.intercalate "; " cookies)]
