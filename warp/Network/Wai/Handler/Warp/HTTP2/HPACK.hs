@@ -22,7 +22,8 @@ import Network.Wai.Handler.Warp.Types
 -- $setup
 -- >>> :set -XOverloadedStrings
 
--- fixme: should we split "Set-Cookie:" headers?
+-- Set-Cookie: contains only one cookie value.
+-- So, we don't need to split it.
 hpackEncodeHeader :: Context -> InternalInfo -> S.Settings -> H.Status
                   -> H.ResponseHeaders -> IO Builder
 hpackEncodeHeader ctx ii settings s h = do
