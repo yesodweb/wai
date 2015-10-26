@@ -96,10 +96,11 @@ runStream Context{outputQ} mkOutput tickle strm s h strmbdy = do
 -- | Handle abnormal termination of a stream: mark it as closed, send a reset
 -- frame, and call the user's 'settingsOnException' handler if applicable.
 cleanupStream :: Context -> S.Settings -> Stream -> Maybe Request -> Maybe SomeException -> IO ()
-cleanupStream Context{outputQ} set strm req me = do
-    closed strm Killed
-    let frame = resetFrame InternalError (streamNumber strm)
-    enqueue outputQ (OFrame frame) highestPriority
+cleanupStream ctx@Context{outputQ} set strm req me = do
+    closed strm Killed ctx
+    let sid = streamNumber strm
+        frame = resetFrame InternalError sid
+    enqueue outputQ sid controlPriority $ OFrame frame
     case me of
         Nothing -> return ()
         Just e -> S.settingsOnException set req e

@@ -248,10 +248,14 @@ opened Stream{concurrencyRef,streamState} = do
     atomicModifyIORef' concurrencyRef (\x -> (x+1,()))
     writeIORef streamState (Open JustOpened)
 
-closed :: Stream -> ClosedCode -> IO ()
-closed Stream{concurrencyRef,streamState} cc = do
+closed :: Stream -> ClosedCode -> Context -> IO ()
+closed Stream{concurrencyRef,streamState,streamNumber,streamPriority}
+       cc
+       Context{outputQ} = do
     atomicModifyIORef' concurrencyRef (\x -> (x-1,()))
     writeIORef streamState (Closed cc)
+    pri <- readIORef streamPriority
+    clear outputQ streamNumber pri
 
 ----------------------------------------------------------------
 
@@ -297,7 +301,7 @@ enqueueWhenWindowIsOpen outQ out = do
         x <- readTVar $ streamWindow strm
         check (x > 0)
     pri <- readIORef $ streamPriority strm
-    enqueue outQ out pri
+    enqueue outQ (streamNumber strm) pri out
 
 enqueueOrSpawnTemporaryWaiter :: Stream -> PriorityTree Output -> Output -> IO ()
 enqueueOrSpawnTemporaryWaiter strm outQ out = do
@@ -307,4 +311,4 @@ enqueueOrSpawnTemporaryWaiter strm outQ out = do
         void $ forkIO $ enqueueWhenWindowIsOpen outQ out
       else do
         pri <- readIORef $ streamPriority strm
-        enqueue outQ out pri
+        enqueue outQ (streamNumber strm) pri out

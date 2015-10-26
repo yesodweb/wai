@@ -60,15 +60,16 @@ data Leftover = LZero
 
 -- | Run the given action if the stream is not closed; handle any exceptions by
 -- resetting the stream.
-unlessClosed :: Connection -> Stream -> IO () -> IO Bool
-unlessClosed Connection{connSendAll}
+unlessClosed :: Context -> Connection -> Stream -> IO () -> IO Bool
+unlessClosed ctx
+             Connection{connSendAll}
              strm@Stream{streamState,streamNumber}
              body = E.handle resetStream $ do
     state <- readIORef streamState
     if (isClosed state) then return False else body >> return True
   where
     resetStream e = do
-        closed strm (ResetByMe e)
+        closed strm (ResetByMe e) ctx
         let rst = resetFrame InternalError streamNumber
         connSendAll rst
         return False
@@ -99,7 +100,7 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
         loop
 
     -- ignoring the old priority because the value might be changed.
-    loop = dequeue outputQ >>= \(out, _) -> switch out
+    loop = dequeue outputQ >>= \(_sid,out) -> switch out
 
     ignore :: E.SomeException -> IO ()
     ignore _ = return ()
@@ -118,12 +119,12 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
         connSendAll frame
         loop
     switch (OResponse strm s h aux) = do
-        _ <- unlessClosed conn strm $
+        _ <- unlessClosed ctx conn strm $
             getWindowSize connectionWindow (streamWindow strm) >>=
                 sendResponse strm s h aux
         loop
     switch (ONext strm curr) = do
-        _ <- unlessClosed conn strm $ do
+        _ <- unlessClosed ctx conn strm $ do
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Data frame payload
             Next datPayloadLen mnext <- curr lim
@@ -131,7 +132,7 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
             dispatchNext strm mnext
         loop
     switch (OPush oldStrm push mvar strm s h aux) = do
-        pushed <- unlessClosed conn oldStrm $ do
+        pushed <- unlessClosed ctx conn oldStrm $ do
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Write and send the promise.
             builder <- hpackEncodeCIHeaders ctx $ promiseHeaders push
@@ -183,7 +184,7 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
         -- 'closed' must be before 'flushN'. If not, the context would be
         -- switched to the receiver, resulting in the inconsistency of
         -- concurrency.
-        closed strm Finished
+        closed strm Finished ctx
         flushN toFlush
 
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
