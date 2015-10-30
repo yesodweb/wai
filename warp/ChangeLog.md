@@ -1,3 +1,7 @@
+## 3.1.8
+
+* Using the new priority queue based on PSQ provided by http2 lib.
+
 ## 3.1.7
 
 * A concatenated Cookie header is prepended to the headers to ensure that it flows pseudo headers. [#454](https://github.com/yesodweb/wai/pull/454)
