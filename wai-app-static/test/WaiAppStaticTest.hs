@@ -161,3 +161,13 @@ spec = do
             resp <- request (setRawPathInfo defRequest "/")
             assertStatus 200 resp
             assertBodyContains "foo" resp
+
+    context "with defaultFileServerSettings" $ do
+      it "prefers ssIndices over ssListing" $ do
+        withSystemTempDirectory "wai-app-static-test" $ \ dir -> do
+          writeFile (dir </> "index.html") "foo"
+          let testSettings = defaultFileServerSettings dir
+          fileServerAppWithSettings testSettings $ do
+            resp <- request (setRawPathInfo defRequest "/")
+            assertStatus 200 resp
+            assertBodyContains "foo" resp

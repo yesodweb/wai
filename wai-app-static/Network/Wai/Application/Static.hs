@@ -40,9 +40,7 @@ import Data.FileEmbed (embedFile)
 import Data.Text (Text)
 import qualified Data.Text as T
 
-import Data.Either (rights)
 import Network.HTTP.Date (parseHTTPDate, epochTimeToHTTPDate, formatHTTPDate)
-import Data.Monoid (First (First, getFirst), mconcat)
 
 import WaiAppStatic.Types
 import Util
@@ -74,38 +72,20 @@ filterButLast f (x:xs)
 
 -- | Serve an appropriate response for a folder request.
 serveFolder :: StaticSettings -> Pieces -> W.Request -> Folder -> IO StaticResponse
-serveFolder ss@StaticSettings {..} pieces req folder@Folder {..} =
-    -- first check if there is an index file in this folder
-    case getFirst $ mconcat $ map (findIndex $ rights folderContents) ssIndices of
-        Just index ->
-            let pieces' = setLast pieces index in
-            case () of
-              () | ssRedirectToIndex -> return $ Redirect pieces' Nothing
-                 | Just path <- addTrailingSlash req, ssAddTrailingSlash ->
-                    return $ RawRedirect path
-                 | otherwise ->
-                    -- start the checking process over, with a new set
-                    checkPieces ss pieces' req
-        Nothing ->
-            case ssListing of
-                Just _ | Just path <- addTrailingSlash req, ssAddTrailingSlash ->
-                    return $ RawRedirect path
-                Just listing -> do
-                    -- directory listings turned on, display it
-                    builder <- listing pieces folder
-                    return $ WaiResponse $ W.responseBuilder H.status200
-                        [ ("Content-Type", "text/html; charset=utf-8")
-                        ] builder
-                Nothing -> return $ WaiResponse $ W.responseLBS H.status403
-                    [ ("Content-Type", "text/plain")
-                    ] "Directory listings disabled"
+serveFolder StaticSettings {..} pieces req folder@Folder {..} =
+    case ssListing of
+        Just _ | Just path <- addTrailingSlash req, ssAddTrailingSlash ->
+            return $ RawRedirect path
+        Just listing -> do
+            -- directory listings turned on, display it
+            builder <- listing pieces folder
+            return $ WaiResponse $ W.responseBuilder H.status200
+                [ ("Content-Type", "text/html; charset=utf-8")
+                ] builder
+        Nothing -> return $ WaiResponse $ W.responseLBS H.status403
+            [ ("Content-Type", "text/plain")
+            ] "Directory listings disabled"
   where
-    setLast :: Pieces -> Piece -> Pieces
-    setLast [] x = [x]
-    setLast [t] x
-        | fromPiece t == "" = [x]
-    setLast (a:b) x = a : setLast b x
-
     addTrailingSlash :: W.Request -> Maybe ByteString
     addTrailingSlash req
         | S8.null rp = Just "/"
@@ -113,16 +93,6 @@ serveFolder ss@StaticSettings {..} pieces req folder@Folder {..} =
         | otherwise = Just $ S8.snoc rp '/'
       where
         rp = W.rawPathInfo req
-
-    noTrailingSlash :: Pieces -> Bool
-    noTrailingSlash [] = False
-    noTrailingSlash [x] = fromPiece x /= ""
-    noTrailingSlash (_:xs) = noTrailingSlash xs
-
-    findIndex :: [File] -> Piece -> First Piece
-    findIndex files index
-        | index `elem` map fileName files = First $ Just index
-        | otherwise = First Nothing
 
 checkPieces :: StaticSettings
             -> Pieces                    -- ^ parsed request
@@ -133,12 +103,17 @@ checkPieces :: StaticSettings
 checkPieces _ pieces _ | any (T.null . fromPiece) $ safeInit pieces =
     return $ Redirect (filterButLast (not . T.null . fromPiece) pieces) Nothing
 
-checkPieces ss@StaticSettings {..} pieces req = do
-    res <- ssLookupFile pieces
-    case res of
-        LRNotFound -> return NotFound
-        LRFile file -> serveFile ss req file
-        LRFolder folder -> serveFolder ss pieces req folder
+checkPieces ss@StaticSettings {..} pieces req =
+  lookupPieces (map (\ index -> pieces ++ [index]) ssIndices ++ [pieces])
+  where
+    lookupPieces :: [Pieces] -> IO StaticResponse
+    lookupPieces (x : xs) = do
+      res <- ssLookupFile x
+      case res of
+          LRNotFound -> lookupPieces xs
+          LRFile file -> serveFile ss req file
+          LRFolder folder -> serveFolder ss x req folder
+    lookupPieces [] = return NotFound
 
 serveFile :: StaticSettings -> W.Request -> File -> IO StaticResponse
 serveFile StaticSettings {..} req file
