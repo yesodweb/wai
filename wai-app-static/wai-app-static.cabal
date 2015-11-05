@@ -102,6 +102,8 @@ test-suite runtests
                    , transformers
                    , mime-types
                    , zlib
+                   , filepath
+                   , temporary
                    -- , containers
   ghc-options:   -Wall
 
