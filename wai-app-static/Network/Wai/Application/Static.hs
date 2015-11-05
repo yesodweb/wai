@@ -103,17 +103,31 @@ checkPieces :: StaticSettings
 checkPieces _ pieces _ | any (T.null . fromPiece) $ safeInit pieces =
     return $ Redirect (filterButLast (not . T.null . fromPiece) pieces) Nothing
 
-checkPieces ss@StaticSettings {..} pieces req =
-  lookupPieces (map (\ index -> pieces ++ [index]) ssIndices ++ [pieces])
+checkPieces ss@StaticSettings {..} pieces req = do
+    res <- lookupResult
+    case res of
+        LRNotFound -> return NotFound
+        LRFile file -> serveFile ss req file
+        LRFolder folder -> serveFolder ss pieces req folder
   where
-    lookupPieces :: [Pieces] -> IO StaticResponse
-    lookupPieces (x : xs) = do
-      res <- ssLookupFile x
-      case res of
-          LRNotFound -> lookupPieces xs
-          LRFile file -> serveFile ss req file
-          LRFolder folder -> serveFolder ss x req folder
-    lookupPieces [] = return NotFound
+    lookupResult :: IO LookupResult
+    lookupResult = do
+      nonIndexResult <- ssLookupFile pieces
+      case nonIndexResult of
+          LRFile{} -> return nonIndexResult
+          _ -> do
+              indexResult <- lookupIndices (map (\ index -> pieces ++ [index]) ssIndices)
+              return $ case indexResult of
+                  LRNotFound -> nonIndexResult
+                  _ -> indexResult
+
+    lookupIndices :: [Pieces] -> IO LookupResult
+    lookupIndices (x : xs) = do
+        res <- ssLookupFile x
+        case res of
+            LRNotFound -> lookupIndices xs
+            _ -> return res
+    lookupIndices [] = return LRNotFound
 
 serveFile :: StaticSettings -> W.Request -> File -> IO StaticResponse
 serveFile StaticSettings {..} req file
