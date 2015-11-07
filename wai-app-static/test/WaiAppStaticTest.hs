@@ -160,7 +160,7 @@ spec = do
           fileServerAppWithSettings testSettings $ do
             resp <- request (setRawPathInfo defRequest "/")
             assertStatus 200 resp
-            assertBodyContains "foo" resp
+            assertBody "foo" resp
 
     context "with defaultFileServerSettings" $ do
       it "prefers ssIndices over ssListing" $ do
@@ -170,4 +170,4 @@ spec = do
           fileServerAppWithSettings testSettings $ do
             resp <- request (setRawPathInfo defRequest "/")
             assertStatus 200 resp
-            assertBodyContains "foo" resp
+            assertBody "foo" resp

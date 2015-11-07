@@ -42,4 +42,9 @@ mkEntries = return
   , EmbeddableEntry "e6.txt"
                     "text/plain"
                     (Right [| return ("" :: T.Text, body 1000 'W') |] )
+
+    -- An index file
+  , EmbeddableEntry "index.html"
+                    "text/html"
+                    (Right [| return ("" :: T.Text, "index file") |] )
   ]

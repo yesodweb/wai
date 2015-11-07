@@ -8,16 +8,15 @@ import Network.Wai.Application.Static (staticApp)
 import Network.Wai.Test
 import Test.Hspec
 import WaiAppStatic.Storage.Embedded
-
-embApp :: Application
-embApp = staticApp $(mkSettings mkEntries)
+import WaiAppStatic.Types
 
 defRequest :: Request
 defRequest = defaultRequest
 
 embSpec :: Spec
 embSpec = do
-    let embed = flip runSession embApp
+    let embedSettings settings = flip runSession (staticApp settings)
+    let embed = embedSettings $(mkSettings mkEntries)
     describe "embedded, compressed entry" $ do
         it "served correctly" $ embed $ do
             req <- request (setRawPathInfo defRequest "e1.txt")
@@ -32,6 +31,15 @@ embSpec = do
             req <- request (setRawPathInfo defRequest "e1.txt")
                              { requestHeaders = [("If-None-Match", "Etag 1")] }
             assertStatus 304 req
+
+        it "ssIndices works" $ do
+            let testSettings = $(mkSettings mkEntries){
+                    ssIndices = [unsafeToPiece "index.html"]
+                }
+            embedSettings testSettings $ do
+              req <- request defRequest
+              assertStatus 200 req
+              assertBody "index file" req
 
     describe "embedded, uncompressed entry" $ do
         it "too short" $ embed $ do
@@ -75,4 +83,3 @@ embSpec = do
             assertNoHeader "Content-Encoding" req
             assertNoHeader "ETag" req
             assertBody (body 1000 'W') req
-
