@@ -1,4 +1,4 @@
-resolver: lts-2.17
+resolver: lts-3.13
 packages:
 - ./wai
 - ./wai-extra
@@ -12,6 +12,4 @@ packages:
 - ./mime-types
 - ./auto-update
 extra-deps:
-- doctest-0.10.1
-- http2-1.0.2
-- hex-0.1.2
+- http2-1.2.0
