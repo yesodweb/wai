@@ -23,7 +23,7 @@ install:
     - travis_retry cabal update
     - cabal unpack wai-logger
     - mv wai-logger-* wai-logger
-    - cabal install hspec doctest HTTP cabal-meta cabal-src
+    - cabal install hspec doctest HTTP temporary cabal-meta cabal-src
     - cabal-meta install --force-reinstalls
 
 script: mega-sdist --test
