@@ -1,17 +1,55 @@
-resolver: lts-2.17
+# For more information, see: https://github.com/commercialhaskell/stack/blob/release/doc/yaml_configuration.md
+
+# Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
+resolver: lts-3.13
+
+# Local packages, usually specified by relative directory name
 packages:
-- ./wai
-- ./wai-extra
-- ./warp
-- ./warp-tls
-- ./wai-app-static
-- ./wai-handler-fastcgi
-- ./wai-handler-launch
-- ./wai-websockets
-- ./wai-conduit
-- ./mime-types
-- ./auto-update
+- wai-extra/
+- wai/
+- wai-handler-webkit/
+- auto-update/
+- wai-app-static/
+- wai-websockets/
+- wai-frontend-monadcgi/
+- wai-handler-launch/
+- warp/
+- wai-conduit/
+- mime-types/
+- warp-tls/
+- wai-handler-fastcgi/
+
+# Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
 - doctest-0.10.1
-- http2-1.0.2
+- http2-1.2.0
 - hex-0.1.2
+
+# Override default flag values for local packages and extra-deps
+flags:
+  warp:
+    allow-sendfilefd: true
+    network-bytestring: false
+    warp-debug: false
+  wai-websockets:
+    example: true
+  wai-app-static:
+    print: false
+
+# Extra package databases containing global packages
+extra-package-dbs: []
+
+# Control whether we use the GHC we find on the path
+# system-ghc: true
+
+# Require a specific version of stack, using version ranges
+# require-stack-version: -any # Default
+# require-stack-version: >= 0.1.4.0
+
+# Override the architecture used by stack, especially useful on Windows
+# arch: i386
+# arch: x86_64
+
+# Extra directories used by stack for building
+# extra-include-dirs: [/path/to/dir]
+# extra-lib-dirs: [/path/to/dir]

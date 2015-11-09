@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <title>Building wai-devel</title>
+    <style>
+      body {
+      background: #e6e6e6;
+      color: #444;
+      text-shadow: 1px 1px 1px #ffffff;
+      font-size: 30px;
+      font-family: georgia, serif;
+      }
+      .wrap {
+      margin: auto;
+      width: 25em;
+      }
+      h1 {
+      margin-bottom: 0;
+      }
+      h2 {
+      margin-top: 0;
+      font-size: 1em;
+      font-style: italic;
+      color: #546369;
+      }
+      header {
+      margin-top: 1em;
+      padding-bottom: 0.25em;
+      border-bottom: 1px solid #ccc;
+      color: #1a6e8e;
+      }
+      footer {
+      margin-top: 3em;
+      padding-top: 0.25em;
+      border-top: 1px solid #ccc;
+      color: #666;
+      font-size: 0.8em;
+      }
+      .msgs {
+      font-size: 0.9em;
+      }
+      .msgs p {
+      margin-bottom: 0.5em;
+      }
+      .msgs ul {
+      margin-top: 0;
+      line-height: 1.7em;
+      }
+      .msgs li {
+      padding-left: 0.5em;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header><small>wai-devel</small></header>
+      <h1>The application isn’t built</h1>
+      <h2>We’ll keep trying to refresh every second</h2>
+      <div class="msgs">
+        <script> document.getElementsByClassName("msgs")[0].style.display = "none"; </script>
+        <p>Meanwhile, here is a motivational message:</p>
+        <ul>
+          <li>You are a beautiful person making a beautiful web site.</li>
+          <li>Keep going, you’ve nearly fixed the bug!</li>
+          <li>Check your posture, don’t lean over too much.</li>
+          <li>Get a glass of water, keep hydrated.</li>
+        </ul>
+      </div>
+      <script>
+        var msg = document.getElementsByClassName("msgs")[0];
+        var lis = Array.prototype.slice.call(msg.querySelectorAll("li"));
+        lis.forEach(function(li){ li.style.display = "none"; });
+        lis[Math.floor(Math.random() * lis.length)].style.display = "block";
+        msg.style.display = "block";
+      </script>
+      <footer>
+        <small>
+          <script>
+            document.write(new Date())
+          </script>
+        </small>
+      </footer>
+    </div>
+  </body>
+</html>

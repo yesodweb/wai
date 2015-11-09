@@ -1,0 +1,67 @@
+# NB: don't set `language: haskell` here
+
+branches:
+  only:
+    - master
+
+sudo: false
+
+before_install:
+  # stack
+  - mkdir -p ~/.local/bin
+  - export PATH=~/.local/bin:$PATH
+  - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.2.0/stack-0.1.2.0-x86_64-linux.gz | gunzip > ~/.local/bin/stack
+  - chmod a+x ~/.local/bin/stack
+
+# N.B. No top-level env: declaration!
+
+matrix:
+  include:
+  - env: GHCVER=7.10.2 STACK_YAML=stack.yaml
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-7.10.2
+        - libgmp-dev
+  - env: GHCVER=7.8.4 STACK_YAML=stack-7.8.yaml
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-7.8.4
+        - base-4.7.0.2
+  - env: GHCVER=head STACK_YAML=stack-head.yaml
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-head
+        - libgmp-dev
+
+  allow_failures:
+    - env: GHCVER=head STACK_YAML=stack-head.yaml
+
+before_install:
+  # ghc
+  - export PATH=/opt/ghc/$GHCVER/bin:$PATH
+  # stack
+  - mkdir -p ~/.local/bin
+  - export PATH=~/.local/bin:$PATH
+  - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.2.0/stack-0.1.2.0-x86_64-linux.gz | gunzip > ~/.local/bin/stack
+  - chmod a+x ~/.local/bin/stack
+
+install:
+  - ./travis_long stack --no-terminal --skip-ghc-check setup
+  - ./travis_long stack --no-terminal --skip-ghc-check test --only-snapshot
+
+script:
+  - stack --no-terminal --skip-ghc-check build
+  - stack --no-terminal --skip-ghc-check test wai-devel 
+
+cache:
+  directories:
+  - $HOME/.stack
