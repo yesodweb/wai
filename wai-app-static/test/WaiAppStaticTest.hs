@@ -2,11 +2,14 @@
 module WaiAppStaticTest (spec) where
 
 import Network.Wai.Application.Static
+import WaiAppStatic.Types
 
 import Test.Hspec
 import qualified Data.ByteString.Char8 as S8
 -- import qualified Data.ByteString.Lazy.Char8 as L8
 import System.PosixCompat.Files (getFileStatus, modificationTime)
+import System.FilePath
+import System.IO.Temp
 
 import Network.HTTP.Date
 import Network.HTTP.Types (status500)
@@ -25,7 +28,8 @@ defRequest = defaultRequest
 spec :: Spec
 spec = do
   let webApp = flip runSession $ staticApp $ defaultWebAppSettings "test"
-  let fileServerApp = flip runSession $ staticApp (defaultFileServerSettings "test")
+  let fileServerAppWithSettings settings = flip runSession $ staticApp settings
+  let fileServerApp = fileServerAppWithSettings (defaultFileServerSettings "test")
         { ssAddTrailingSlash = True
         }
 
@@ -145,3 +149,25 @@ spec = do
         req <- request (setRawPathInfo defRequest "/subPath")
         assertStatus 301 req
         assertHeader "Location" "/subPath/" req
+
+    context "with defaultWebAppSettings" $ do
+      it "ssIndices works" $ do
+        withSystemTempDirectory "wai-app-static-test" $ \ dir -> do
+          writeFile (dir </> "index.html") "foo"
+          let testSettings = (defaultWebAppSettings dir) {
+                ssIndices = [unsafeToPiece "index.html"]
+              }
+          fileServerAppWithSettings testSettings $ do
+            resp <- request (setRawPathInfo defRequest "/")
+            assertStatus 200 resp
+            assertBody "foo" resp
+
+    context "with defaultFileServerSettings" $ do
+      it "prefers ssIndices over ssListing" $ do
+        withSystemTempDirectory "wai-app-static-test" $ \ dir -> do
+          writeFile (dir </> "index.html") "foo"
+          let testSettings = defaultFileServerSettings dir
+          fileServerAppWithSettings testSettings $ do
+            resp <- request (setRawPathInfo defRequest "/")
+            assertStatus 200 resp
+            assertBody "foo" resp
