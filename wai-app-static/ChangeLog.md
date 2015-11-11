@@ -1,3 +1,7 @@
+## 3.1.2
+
+* Honor ssIndices when used with defaultWebAppSettings [#460](https://github.com/yesodweb/wai/pull/460)
+
 ## 3.1.1
 
 * Make adding a trailing slash optional [#327](https://github.com/yesodweb/wai/issues/327) [yesod#988](https://github.com/yesodweb/yesod/issues/988)
