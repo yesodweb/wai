@@ -1,3 +1,7 @@
+## 3.0.5.0
+
+* Avoid using the IsString Builder instance
+
 ## 3.0.4.0
 
 * A new module Network.Wai.HTTP2 is exported.
