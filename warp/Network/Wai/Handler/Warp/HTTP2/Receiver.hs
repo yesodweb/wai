@@ -41,17 +41,17 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
       | Just (ConnectionError err msg) <- E.fromException e = do
           csid <- readIORef currentStreamId
           let frame = goawayFrame csid err msg
-          enqueue outputQ 0 controlPriority $ OGoaway frame
+          enqueueControl outputQ 0 $ OGoaway frame
       | otherwise = return ()
 
     sendReset err sid = do
         let frame = resetFrame err sid
-        enqueue outputQ 0 controlPriority $ OFrame frame
+        enqueueControl outputQ 0 $ OFrame frame
 
     loop = do
         hd <- recvN frameHeaderLength
         if BS.null hd then
-            enqueue outputQ 0 controlPriority OFinish
+            enqueueControl outputQ 0 OFinish
           else do
             cont <- processStreamGuardingError $ decodeFrameHeader hd
             when cont loop
@@ -92,7 +92,7 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
           control ftyp header pl ctx
       | otherwise = do
           checkContinued
-          strm@Stream{streamState,streamContentLength,streamPriority} <- getStream
+          strm@Stream{streamState,streamContentLength,streamPrecedence} <- getStream
           pl <- recvN payloadLength
           state <- readIORef streamState
           state' <- stream ftyp header pl ctx state strm
@@ -103,7 +103,7 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
                       Just vh -> do
                           when (isJust (vhCL vh) && vhCL vh /= Just 0) $
                               E.throwIO $ StreamError ProtocolError streamId
-                          writeIORef streamPriority pri
+                          writeIORef streamPrecedence $ toPrecedence pri
                           writeIORef streamState HalfClosed
                           let req = mkreq vh (return "")
                           atomically $ writeTQueue inputQ $ Input strm req
@@ -113,7 +113,7 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
                   case validateHeaders hdr of
                       Just vh -> do
                           q <- newTQueueIO
-                          writeIORef streamPriority pri
+                          writeIORef streamPrecedence $ toPrecedence pri
                           writeIORef streamState (Open (Body q))
                           writeIORef streamContentLength $ vhCL vh
                           readQ <- newReadBody q
@@ -186,7 +186,7 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, output
     unless (testAck flags) $ do
         modifyIORef http2settings $ \old -> updateSettings old alist
         let frame = settingsFrame setAck []
-        enqueue outputQ 0 controlPriority $ OSettings frame alist
+        enqueueControl outputQ 0 $ OSettings frame alist
     return True
 
 control FramePing FrameHeader{flags} bs Context{outputQ} =
@@ -194,11 +194,11 @@ control FramePing FrameHeader{flags} bs Context{outputQ} =
         E.throwIO $ ConnectionError ProtocolError "the ack flag of this ping frame must not be set"
       else do
         let frame = pingFrame bs
-        enqueue outputQ 0 controlPriority $ OFrame frame
+        enqueueControl outputQ 0 $ OFrame frame
         return True
 
 control FrameGoAway _ _ Context{outputQ} = do
-    enqueue outputQ 0 controlPriority OFinish
+    enqueueControl outputQ 0 OFinish
     return False
 
 control FrameWindowUpdate header bs Context{connectionWindow} = do
@@ -271,7 +271,7 @@ stream FrameData
         let frame1 = windowUpdateFrame 0 payloadLength
             frame2 = windowUpdateFrame streamNumber payloadLength
             frame = frame1 `BS.append` frame2
-        enqueue outputQ 0 controlPriority $ OFrame frame
+        enqueueControl outputQ 0 $ OFrame frame
     atomically $ writeTQueue q body
     if endOfStream then do
         mcl <- readIORef streamContentLength
@@ -310,25 +310,26 @@ stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow
     atomically $ writeTVar streamWindow w
     return s
 
-stream FrameRSTStream header bs ctx _ strm = do
+stream FrameRSTStream header bs _ _ strm = do
     RSTStreamFrame e <- guardIt $ decoderstStreamFrame header bs
     let cc = Reset e
-    closed strm cc ctx
+    closed strm cc
     return $ Closed cc -- will be written to streamState again
 
-stream FramePriority header bs Context{outputQ} s Stream{streamNumber,streamPriority} = do
-    PriorityFrame newp <- guardIt $ decodePriorityFrame header bs
-    checkPriority newp streamNumber
+stream FramePriority header bs Context{outputQ} s Stream{streamNumber,streamPrecedence} = do
+    PriorityFrame newpri <- guardIt $ decodePriorityFrame header bs
+    checkPriority newpri streamNumber
     -- checkme: this should be tested
-    oldp <- readIORef streamPriority
-    writeIORef streamPriority newp
+    oldpre <- readIORef streamPrecedence
+    let !newpre = toPrecedence newpri
+    writeIORef streamPrecedence newpre
     if isIdle s then
-        prepare outputQ streamNumber newp
+        prepare outputQ streamNumber newpri
       else do
-        mx <- delete outputQ streamNumber oldp
+        mx <- delete outputQ streamNumber oldpre
         case mx of
             Nothing -> return ()
-            Just x  -> enqueue outputQ streamNumber newp x
+            Just x  -> enqueue outputQ streamNumber newpre x
     return s
 
 -- this ordering is important

@@ -83,7 +83,7 @@ runStream Context{outputQ} mkOutput tickle strm s h strmbdy = do
     -- queue, we spawn a thread to ensure that the designated
     -- queue is not empty.
     void $ forkIO $ waiter tvar sq strm outputQ
-    atomically $ writeTVar tvar (SyncNext out)
+    atomically $ writeTVar tvar $ SyncNext out
     let write chunk = do
             atomically $ writeTBQueue sq $ case chunk of
                 BuilderChunk b -> SBuilder b
@@ -96,11 +96,11 @@ runStream Context{outputQ} mkOutput tickle strm s h strmbdy = do
 -- | Handle abnormal termination of a stream: mark it as closed, send a reset
 -- frame, and call the user's 'settingsOnException' handler if applicable.
 cleanupStream :: Context -> S.Settings -> Stream -> Maybe Request -> Maybe SomeException -> IO ()
-cleanupStream ctx@Context{outputQ} set strm req me = do
-    closed strm Killed ctx
+cleanupStream Context{outputQ} set strm req me = do
+    closed strm Killed
     let sid = streamNumber strm
         frame = resetFrame InternalError sid
-    enqueue outputQ sid controlPriority $ OFrame frame
+    enqueueControl outputQ sid $ OFrame frame
     case me of
         Nothing -> return ()
         Just e -> S.settingsOnException set req e
@@ -144,8 +144,8 @@ actuallyPushResponder ctx set strm promise responder = do
     -- Section 5.3.5 of RFC 7540 defines the weight of push promise is 16.
     -- But we need not to follow the spec. So, this value would change
     -- if necessary.
-    writeIORef (streamPriority newStrm) $
-        defaultPriority { streamDependency = streamNumber strm }
+    writeIORef (streamPrecedence newStrm) $
+        toPrecedence $ defaultPriority { streamDependency = streamNumber strm }
     opened newStrm
     insert streamTable newSid newStrm
 

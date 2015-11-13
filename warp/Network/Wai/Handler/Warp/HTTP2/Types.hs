@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, CPP #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, RecordWildCards #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Types where
 
@@ -221,7 +221,7 @@ data Stream = Stream {
   , streamContentLength :: IORef (Maybe Int)
   , streamBodyLength    :: IORef Int
   , streamWindow        :: TVar WindowSize
-  , streamPriority      :: IORef Priority
+  , streamPrecedence    :: IORef Precedence
   -- | The concurrency IORef in which this stream has been counted.  The client
   -- and server each have separate concurrency values to respect, so pushed
   -- streams need to decrement a different count when they're closed.  This
@@ -238,7 +238,7 @@ newStream ref sid win =
                <*> newIORef Nothing
                <*> newIORef 0
                <*> newTVarIO win
-               <*> newIORef defaultPriority
+               <*> newIORef defaultPrecedence
                <*> pure ref
 
 ----------------------------------------------------------------
@@ -248,14 +248,10 @@ opened Stream{concurrencyRef,streamState} = do
     atomicModifyIORef' concurrencyRef (\x -> (x+1,()))
     writeIORef streamState (Open JustOpened)
 
-closed :: Stream -> ClosedCode -> Context -> IO ()
-closed Stream{concurrencyRef,streamState,streamNumber,streamPriority}
-       cc
-       Context{outputQ} = do
+closed :: Stream -> ClosedCode -> IO ()
+closed Stream{concurrencyRef,streamState} cc = do
     atomicModifyIORef' concurrencyRef (\x -> (x-1,()))
     writeIORef streamState (Closed cc)
-    pri <- readIORef streamPriority
-    clear outputQ streamNumber pri
 
 ----------------------------------------------------------------
 
@@ -296,19 +292,19 @@ search strmtbl k = M.lookup k <$> reaperRead strmtbl
 -- INVARIANT: streams in the output queue have non-zero window size.
 enqueueWhenWindowIsOpen :: PriorityTree Output -> Output -> IO ()
 enqueueWhenWindowIsOpen outQ out = do
-    let strm = outputStream out
+    let Stream{..} = outputStream out
     atomically $ do
-        x <- readTVar $ streamWindow strm
+        x <- readTVar streamWindow
         check (x > 0)
-    pri <- readIORef $ streamPriority strm
-    enqueue outQ (streamNumber strm) pri out
+    pre <- readIORef streamPrecedence
+    enqueue outQ streamNumber pre out
 
 enqueueOrSpawnTemporaryWaiter :: Stream -> PriorityTree Output -> Output -> IO ()
-enqueueOrSpawnTemporaryWaiter strm outQ out = do
-    sw <- atomically $ readTVar $ streamWindow strm
+enqueueOrSpawnTemporaryWaiter Stream{..} outQ out = do
+    sw <- atomically $ readTVar streamWindow
     if sw == 0 then
         -- This waiter waits only for the stream window.
         void $ forkIO $ enqueueWhenWindowIsOpen outQ out
       else do
-        pri <- readIORef $ streamPriority strm
-        enqueue outQ (streamNumber strm) pri out
+        pre <- readIORef streamPrecedence
+        enqueue outQ streamNumber pre out
