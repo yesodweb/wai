@@ -316,14 +316,17 @@ stream FrameRSTStream header bs _ _ strm = do
     closed strm cc
     return $ Closed cc -- will be written to streamState again
 
-stream FramePriority header bs Context{outputQ} s Stream{streamNumber,streamPrecedence} = do
+stream FramePriority header bs Context{outputQ,priorityTreeSize} s Stream{streamNumber,streamPrecedence} = do
     PriorityFrame newpri <- guardIt $ decodePriorityFrame header bs
     checkPriority newpri streamNumber
     -- checkme: this should be tested
     oldpre <- readIORef streamPrecedence
     let !newpre = toPrecedence newpri
     writeIORef streamPrecedence newpre
-    if isIdle s then
+    if isIdle s then do
+        n <- atomicModifyIORef' priorityTreeSize (\x -> (x+1,x+1))
+        -- fixme hard coding
+        when (n >= 20) $ E.throwIO $ ConnectionError EnhanceYourCalm "too many idle priority frames"
         prepare outputQ streamNumber newpri
       else do
         mx <- delete outputQ streamNumber oldpre

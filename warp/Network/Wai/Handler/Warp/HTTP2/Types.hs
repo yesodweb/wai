@@ -130,6 +130,7 @@ data Context = Context {
   -- | Number of active streams initiated by the server; for respecting the
   -- client's max concurrency setting.
   , pushConcurrency    :: IORef Int
+  , priorityTreeSize   :: IORef Int
   -- | RFC 7540 says "Other frames (from any stream) MUST NOT
   --   occur between the HEADERS frame and any CONTINUATION
   --   frames that might follow". This field is used to implement
@@ -151,6 +152,7 @@ data Context = Context {
 newContext :: IO Context
 newContext = Context <$> newIORef defaultSettings
                      <*> initialize 10 -- fixme: hard coding: 10
+                     <*> newIORef 0
                      <*> newIORef 0
                      <*> newIORef 0
                      <*> newIORef Nothing
