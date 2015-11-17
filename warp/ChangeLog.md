@@ -1,3 +1,7 @@
+## 3.1.9
+
+* Using the new priority queue based on PSQ provided by http2 lib again.
+
 ## 3.1.8
 
 * Using the new priority queue based on PSQ provided by http2 lib.
