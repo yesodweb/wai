@@ -93,7 +93,7 @@ mkRequestLogger RequestLoggerSettings{..} = do
     let (callback, flusher) =
             case destination of
                 Handle h -> (BS.hPutStr h . logToByteString, when autoFlush (hFlush h))
-                Logger l -> (pushLogStr l, flushLogStr l)
+                Logger l -> (pushLogStr l, when autoFlush (flushLogStr l))
                 Callback c -> (c, return ())
     case outputFormat of
         Apache ipsrc -> do
