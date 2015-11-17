@@ -98,7 +98,7 @@ mkRequestLogger RequestLoggerSettings{..} = do
     case outputFormat of
         Apache ipsrc -> do
             getdate <- getDateGetter flusher
-            apache <- initLogger ipsrc (LogCallback callback (return ())) getdate
+            apache <- initLogger ipsrc (LogCallback callback flusher) getdate
             return $ apacheMiddleware apache
         Detailed useColors -> detailedMiddleware
                                   (\str -> callback str >> flusher)
