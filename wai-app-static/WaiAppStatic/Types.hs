@@ -144,4 +144,7 @@ data StaticSettings = StaticSettings
 
       -- | Force a trailing slash at the end of directories
     , ssAddTrailingSlash :: Bool
+
+      -- | Optional `W.Application` to be used in case of 404 errors
+    , ss404Handler :: Maybe W.Application
     }
