@@ -1,3 +1,7 @@
+## 3.0.13
+
+* Autoflush handle [#466](https://github.com/yesodweb/wai/pull/466)
+
 ## 3.0.12
 
 * Add Network.Wai.Header.contentLength to read the Content-Length header of a response
