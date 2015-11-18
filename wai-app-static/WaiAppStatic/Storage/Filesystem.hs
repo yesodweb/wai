@@ -47,6 +47,7 @@ defaultWebAppSettings root = StaticSettings
     , ssRedirectToIndex = False
     , ssUseHash = True
     , ssAddTrailingSlash = False
+    , ss404Handler = Nothing
     }
 
 -- | Settings optimized for a file server. More conservative caching will be
@@ -63,6 +64,7 @@ defaultFileServerSettings root = StaticSettings
     , ssRedirectToIndex = False
     , ssUseHash = False
     , ssAddTrailingSlash = False
+    , ss404Handler = Nothing
     }
 
 -- | Same as @defaultWebAppSettings@, but additionally uses a specialized
