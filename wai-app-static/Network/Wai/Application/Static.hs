@@ -256,7 +256,7 @@ staticAppPieces ss rawPieces req sendResponse = liftIO $ do
                 ] "Redirect"
 
     response NotFound = case (ss404Handler ss) of
-        Just app -> app req sendResponde
+        Just app -> app req sendResponse
         Nothing  -> sendResponse $ W.responseLBS H.status404
                         [ ("Content-Type", "text/plain")
                         ] "File not found"
