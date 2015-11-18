@@ -19,10 +19,11 @@ module Network.Wai.Middleware.RequestLogger
     , IPAddrSource (..)
     ) where
 
-import System.IO (Handle, stdout)
+import System.IO (Handle, hFlush, stdout)
 import qualified Blaze.ByteString.Builder as B
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack, unpack)
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Network.Wai
   ( Request(..), requestBodyLength, RequestBodyLength(..)
@@ -91,13 +92,13 @@ mkRequestLogger :: RequestLoggerSettings -> IO Middleware
 mkRequestLogger RequestLoggerSettings{..} = do
     let (callback, flusher) =
             case destination of
-                Handle h -> (BS.hPutStr h . logToByteString, return ())
-                Logger l -> (pushLogStr l, flushLogStr l)
+                Handle h -> (BS.hPutStr h . logToByteString, when autoFlush (hFlush h))
+                Logger l -> (pushLogStr l, when autoFlush (flushLogStr l))
                 Callback c -> (c, return ())
     case outputFormat of
         Apache ipsrc -> do
             getdate <- getDateGetter flusher
-            apache <- initLogger ipsrc (LogCallback callback (return ())) getdate
+            apache <- initLogger ipsrc (LogCallback callback flusher) getdate
             return $ apacheMiddleware apache
         Detailed useColors -> detailedMiddleware
                                   (\str -> callback str >> flusher)
