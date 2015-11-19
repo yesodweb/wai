@@ -22,6 +22,7 @@ module Network.Wai.Application.Static
     , ssMaxAge
     , ssRedirectToIndex
     , ssAddTrailingSlash
+    , ss404Handler
     ) where
 
 import Prelude hiding (FilePath)
