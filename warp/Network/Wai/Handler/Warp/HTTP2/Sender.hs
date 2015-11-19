@@ -310,8 +310,10 @@ runStreamBuilder ii buf0 room0 sq = loop buf0 room0 0
             Just (SFile path part) -> do
                 (leftover, len) <- runStreamFile ii buf room path part
                 let !total' = total + len
-                return (leftover, Nothing, total')
-                -- TODO if file part is done, go back to loop
+                case leftover of
+                    LZero -> loop (buf `plusPtr` len) (room - len) total'
+                    _     -> return (leftover, Nothing, total')
+
             Just SFlush  -> return (LZero, Nothing, total)
             Just (SFinish trailers) -> return (LZero, Just trailers, total)
 
