@@ -146,5 +146,7 @@ data StaticSettings = StaticSettings
     , ssAddTrailingSlash :: Bool
 
       -- | Optional `W.Application` to be used in case of 404 errors
+      --
+      -- Since 3.1.3
     , ss404Handler :: Maybe W.Application
     }

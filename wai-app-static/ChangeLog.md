@@ -1,3 +1,7 @@
+## 3.1.3
+
+* Add 404 handler [#467](https://github.com/yesodweb/wai/pull/467)
+
 ## 3.1.2
 
 * Honor ssIndices when used with defaultWebAppSettings [#460](https://github.com/yesodweb/wai/pull/460)
