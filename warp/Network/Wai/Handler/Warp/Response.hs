@@ -154,7 +154,11 @@ sendResponse :: ByteString -- ^ default server value
 sendResponse defServer conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s then do
-        -- HEAD comes here even if it does not have body.
+        -- HEAD comes here even if it does not have body.  We include HEAD
+        -- responses here so that we generate appropriate content-length
+        -- headers below.
+        --
+        -- See definition of rsp below for proper body stripping.
         sendRsp conn mfdc ver s hs rsp
         T.tickle th
         return ret
@@ -178,8 +182,12 @@ sendResponse defServer conn ii req reqidxhdr src response = do
     isHead = requestMethod req == H.methodHead
     rsp = case response of
         ResponseFile _ _ path mPart -> RspFile path mPart mRange isHead (T.tickle th)
-        ResponseBuilder _ _ b       -> RspBuilder b needsChunked
-        ResponseStream _ _ fb       -> RspStream fb needsChunked th
+        ResponseBuilder _ _ b
+          | isHead                  -> RspBuilder mempty False
+          | otherwise               -> RspBuilder b needsChunked
+        ResponseStream _ _ fb
+          | isHead                  -> RspBuilder mempty False
+          | otherwise               -> RspStream fb needsChunked th
         ResponseRaw raw _           -> RspRaw raw src (T.tickle th)
     ret = case response of
         ResponseFile    {} -> isPersist
