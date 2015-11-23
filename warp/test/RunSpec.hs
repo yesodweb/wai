@@ -392,6 +392,15 @@ spec = do
         it "streaming" $ withApp defaultSettings app $ \port -> do
             res <- sendHEAD $ concat ["http://127.0.0.1:", show port, "/streaming"]
             rspBody res `shouldBe` ""
+        it "file, no range" $ withApp defaultSettings app $ \port -> do
+            bs <- S.readFile fp
+            res <- sendHEAD $ concat ["http://127.0.0.1:", show port, "/file"]
+            getHeaderValue HdrContentLength res `shouldBe` Just (show $ S.length bs)
+        it "file, with range" $ withApp defaultSettings app $ \port -> do
+            res <- sendHEADwH
+                (concat ["http://127.0.0.1:", show port, "/file"])
+                [mkHeader HdrRange "bytes=0-1"]
+            getHeaderValue HdrContentLength res `shouldBe` Just "2"
 
 consumeBody :: IO ByteString -> IO [ByteString]
 consumeBody body =

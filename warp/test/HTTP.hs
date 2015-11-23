@@ -2,13 +2,15 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module HTTP (
     sendGET
-  , sendHEAD
   , sendGETwH
+  , sendHEAD
+  , sendHEADwH
   , rspBody
   , rspCode
   , rspHeaders
   , getHeaderValue
   , HeaderName(..)
+  , mkHeader
   ) where
 
 import Network.HTTP
@@ -21,7 +23,10 @@ sendGETwH :: String -> [Header] -> IO (Response String)
 sendGETwH url hdr = unResult $ simpleHTTP $ (getRequest url) { rqHeaders = hdr }
 
 sendHEAD :: String -> IO (Response String)
-sendHEAD url = unResult $ simpleHTTP $ headRequest url
+sendHEAD url = sendHEADwH url []
+
+sendHEADwH :: String -> [Header] -> IO (Response String)
+sendHEADwH url hdr = unResult $ simpleHTTP $ (headRequest url) { rqHeaders = hdr }
 
 unResult :: IO (Result (Response String)) -> IO (Response String)
 unResult action = do
