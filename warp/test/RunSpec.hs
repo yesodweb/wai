@@ -377,6 +377,22 @@ spec = do
             res <- sendGET $ "http://127.0.0.1:" ++ show port
             rspBody res `shouldBe` "HelloHelloHelloHello"
 
+    describe "head requests" $ do
+        let fp = "test/head-response"
+        let app req f =
+                f $ case pathInfo req of
+                    ["builder"] -> responseBuilder status200 [] $ error "should never be evaluated"
+                    ["streaming"] -> responseStream status200 [] $ \write _ ->
+                        write $ error "should never be evaluated"
+                    ["file"] -> responseFile status200 [] fp Nothing
+                    _ -> error "invalid path"
+        it "builder" $ withApp defaultSettings app $ \port -> do
+            res <- sendHEAD $ concat ["http://127.0.0.1:", show port, "/builder"]
+            rspBody res `shouldBe` ""
+        it "streaming" $ withApp defaultSettings app $ \port -> do
+            res <- sendHEAD $ concat ["http://127.0.0.1:", show port, "/streaming"]
+            rspBody res `shouldBe` ""
+
 consumeBody :: IO ByteString -> IO [ByteString]
 consumeBody body =
     loop id

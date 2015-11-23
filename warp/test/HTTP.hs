@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module HTTP (
     sendGET
+  , sendHEAD
   , sendGETwH
   , rspBody
   , rspCode
@@ -18,6 +19,9 @@ sendGET url = sendGETwH url []
 
 sendGETwH :: String -> [Header] -> IO (Response String)
 sendGETwH url hdr = unResult $ simpleHTTP $ (getRequest url) { rqHeaders = hdr }
+
+sendHEAD :: String -> IO (Response String)
+sendHEAD url = unResult $ simpleHTTP $ headRequest url
 
 unResult :: IO (Result (Response String)) -> IO (Response String)
 unResult action = do

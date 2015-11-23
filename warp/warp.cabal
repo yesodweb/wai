@@ -18,6 +18,7 @@ description:         HTTP\/1.0, HTTP\/1.1 and HTTP\/2 are supported.
 extra-source-files:  attic/hex
                      ChangeLog.md
                      README.md
+                     test/head-response
 
 Flag network-bytestring
     Default: False
