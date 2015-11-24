@@ -154,7 +154,11 @@ sendResponse :: ByteString -- ^ default server value
 sendResponse defServer conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s then do
-        -- HEAD comes here even if it does not have body.
+        -- HEAD comes here even if it does not have body.  We include HEAD
+        -- responses here so that we generate appropriate content-length
+        -- headers below.
+        --
+        -- See definition of rsp below for proper body stripping.
         sendRsp conn mfdc ver s hs rsp
         T.tickle th
         return ret
@@ -176,8 +180,10 @@ sendResponse defServer conn ii req reqidxhdr src response = do
     isChunked = not isHead && isChunked0
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist,isChunked)
     isHead = requestMethod req == H.methodHead
-    rsp = case response of
-        ResponseFile _ _ path mPart -> RspFile path mPart mRange isHead (T.tickle th)
+    rsp
+      | isHead    = RspBuilder mempty False
+      | otherwise = case response of
+        ResponseFile _ _ path mPart -> RspFile path mPart mRange (T.tickle th)
         ResponseBuilder _ _ b       -> RspBuilder b needsChunked
         ResponseStream _ _ fb       -> RspStream fb needsChunked th
         ResponseRaw raw _           -> RspRaw raw src (T.tickle th)
@@ -214,7 +220,7 @@ sanitizeHeaderValue v = case S8.lines $ S.filter (/= _cr) v of
 
 ----------------------------------------------------------------
 
-data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) Bool (IO ())
+data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) (IO ())
          | RspBuilder Builder Bool
          | RspStream StreamingBody Bool T.Handle
          | RspRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) (IO ByteString) (IO ())
@@ -228,7 +234,7 @@ sendRsp :: Connection
         -> H.ResponseHeaders
         -> Rsp
         -> IO ()
-sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
+sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange hook) = do
     ex <- fileRange s0 hs0 path mPart mRange
     case ex of
         Left _ex ->
@@ -237,24 +243,21 @@ sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
 #endif
           sendRsp conn mfdc ver s2 hs2 (RspBuilder body True)
         Right (s, hs, beg, len)
-          | len >= 0 ->
-            if isHead then
-                sendRsp conn mfdc ver s hs (RspBuilder mempty False)
-              else do
-                lheader <- composeHeader ver s hs
+          | len >= 0 -> do
+            lheader <- composeHeader ver s hs
 #ifdef WINDOWS
-                let fid = FileId path Nothing
-                    hook' = hook
+            let fid = FileId path Nothing
+                hook' = hook
 #else
-                (mfd, hook') <- case mfdc of
-                   -- settingsFdCacheDuration is 0
-                   Nothing  -> return (Nothing, hook)
-                   Just fdc -> do
-                      (fd, fresher) <- F.getFd fdc path
-                      return (Just fd, hook >> fresher)
-                let fid = FileId path mfd
+            (mfd, hook') <- case mfdc of
+               -- settingsFdCacheDuration is 0
+               Nothing  -> return (Nothing, hook)
+               Just fdc -> do
+                  (fd, fresher) <- F.getFd fdc path
+                  return (Just fd, hook >> fresher)
+            let fid = FileId path mfd
 #endif
-                connSendFile conn fid beg len hook' [lheader]
+            connSendFile conn fid beg len hook' [lheader]
           | otherwise ->
             sendRsp conn mfdc ver H.status416
                 (filter (\(k, _) -> k /= "content-length") hs)

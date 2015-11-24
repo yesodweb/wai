@@ -3,11 +3,14 @@
 module HTTP (
     sendGET
   , sendGETwH
+  , sendHEAD
+  , sendHEADwH
   , rspBody
   , rspCode
   , rspHeaders
   , getHeaderValue
   , HeaderName(..)
+  , mkHeader
   ) where
 
 import Network.HTTP
@@ -18,6 +21,12 @@ sendGET url = sendGETwH url []
 
 sendGETwH :: String -> [Header] -> IO (Response String)
 sendGETwH url hdr = unResult $ simpleHTTP $ (getRequest url) { rqHeaders = hdr }
+
+sendHEAD :: String -> IO (Response String)
+sendHEAD url = sendHEADwH url []
+
+sendHEADwH :: String -> [Header] -> IO (Response String)
+sendHEADwH url hdr = unResult $ simpleHTTP $ (headRequest url) { rqHeaders = hdr }
 
 unResult :: IO (Result (Response String)) -> IO (Response String)
 unResult action = do
