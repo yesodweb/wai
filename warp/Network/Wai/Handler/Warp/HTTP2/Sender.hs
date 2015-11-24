@@ -128,9 +128,9 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
         _ <- unlessClosed conn strm $ do
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Data frame payload
-            Next datPayloadLen mnext <- curr lim
-            fillDataHeaderSend strm 0 datPayloadLen mnext
-            dispatchNext strm mnext
+            Next datPayloadLen cnext <- curr lim
+            fillDataHeaderSend strm 0 datPayloadLen cnext
+            dispatchNext strm cnext
         loop
     switch (OPush oldStrm push mvar strm s h aux) pre = do
         writeIORef (streamPrecedence strm) pre -- fixme
@@ -157,15 +157,15 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
         let total = len + frameHeaderLength
         (off, needSend) <- sendHeadersIfNecessary total
         let payloadOff = off + frameHeaderLength
-        Next datPayloadLen mnext <-
+        Next datPayloadLen cnext <-
             fillStreamBodyGetNext ii conn payloadOff lim sq tvar strm
         -- If no data was immediately available, avoid sending an
         -- empty data frame.
         if datPayloadLen > 0 then
-            fillDataHeaderSend strm total datPayloadLen mnext
+            fillDataHeaderSend strm total datPayloadLen cnext
           else
             when needSend $ flushN off
-        dispatchNext strm mnext
+        dispatchNext strm cnext
 
     -- Send the stream's trailers and close the stream.
     sendTrailers :: Stream -> Trailers -> IO ()
