@@ -246,7 +246,7 @@ stream FrameHeaders header@FrameHeader{flags} bs ctx (Open JustOpened) Stream{st
         let !siz = BS.length frag
         return $ Open $ Continued [frag] siz 1 endOfStream pri
 
-stream FrameHeaders header@FrameHeader{flags} bs _ s@(Open (Body q)) _ = do
+stream FrameHeaders header@FrameHeader{flags} bs _ (Open (Body q)) _ = do
     -- trailer is not supported.
     -- let's read and ignore it.
     HeadersFrame _ _ <- guardIt $ decodeHeadersFrame header bs
@@ -255,7 +255,8 @@ stream FrameHeaders header@FrameHeader{flags} bs _ s@(Open (Body q)) _ = do
         atomically $ writeTQueue q ""
         return HalfClosed
       else
-        return s
+        -- we don't support continuation here.
+        E.throwIO $ ConnectionError ProtocolError "continuation in trailer is not supported"
 
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
