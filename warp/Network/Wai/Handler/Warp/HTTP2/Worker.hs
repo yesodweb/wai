@@ -27,6 +27,7 @@ import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
+import Network.Wai.Handler.Warp.Response (hasBody)
 import Network.Wai.HTTP2
     ( Chunk(..)
     , HTTP2Application
@@ -48,13 +49,13 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 -- doesn't break that property.
 --
 -- This is the argument to a 'Responder'.
-type Respond = IO () -> Stream -> RespondFunc ()
+type Respond = Request -> IO () -> Stream -> RespondFunc ()
 
 -- | This function is passed to workers.  They also pass responses from
 -- 'HTTP2Application's to this function.  This function enqueues commands for
 -- the HTTP/2 sender.
 response :: Context -> Manager -> ThreadContinue -> Respond
-response ctx mgr tconf tickle strm s h strmbdy = do
+response ctx mgr tconf req tickle strm s h strmbdy = do
     -- TODO(awpr) HEAD requests will still stream.
 
     -- We must not exit this WAI application.
@@ -66,14 +67,14 @@ response ctx mgr tconf tickle strm s h strmbdy = do
     -- After this work, this thread stops to decrease the number of workers.
     setThreadContinue tconf False
 
-    runStream ctx OResponse tickle strm s h strmbdy
+    runStream ctx OResponse req tickle strm s h strmbdy
 
 -- | Set up a waiter thread and run the stream body with functions to enqueue
 -- 'Sequence's on the stream's queue.
 runStream :: Context
           -> (Stream -> H.Status -> H.ResponseHeaders -> Aux -> Output)
           -> Respond
-runStream Context{outputQ} mkOutput tickle strm s h strmbdy = do
+runStream Context{outputQ} mkOutput req tickle strm s h strmbdy = do
     -- Since 'Body' is loop, we cannot control it.
     -- So, let's serialize 'Builder' with a designated queue.
     sq <- newTBQueueIO 10 -- fixme: hard coding: 10
@@ -84,14 +85,17 @@ runStream Context{outputQ} mkOutput tickle strm s h strmbdy = do
     -- queue is not empty.
     void $ forkIO $ waiter tvar sq strm outputQ
     atomically $ writeTVar tvar $ SyncNext out
-    let write chunk = do
-            atomically $ writeTBQueue sq $ case chunk of
-                BuilderChunk b -> SBuilder b
-                FileChunk path part -> SFile path part
-            tickle
-        flush  = atomically $ writeTBQueue sq SFlush
-    trailers <- strmbdy write flush
-    atomically $ writeTBQueue sq $ SFinish trailers
+    if hasBody req s then do
+        let write chunk = do
+                atomically $ writeTBQueue sq $ case chunk of
+                    BuilderChunk b -> SBuilder b
+                    FileChunk path part -> SFile path part
+                tickle
+            flush  = atomically $ writeTBQueue sq SFlush
+        trailers <- strmbdy write flush
+        atomically $ writeTBQueue sq $ SFinish trailers
+      else
+        atomically $ writeTBQueue sq $ SFinish []
 
 -- | Handle abnormal termination of a stream: mark it as closed, send a reset
 -- frame, and call the user's 'settingsOnException' handler if applicable.
@@ -110,8 +114,8 @@ cleanupStream Context{outputQ} set strm req me = do
 -- the stream was actually pushed.
 --
 -- This is the push function given to an 'HTTP2Application'.
-pushResponder :: Context -> S.Settings -> Stream -> PushPromise -> Responder -> IO Bool
-pushResponder ctx set strm promise responder = do
+pushResponder :: Context -> S.Settings -> Stream -> Request -> PushPromise -> Responder -> IO Bool
+pushResponder ctx set strm req promise responder = do
     let Context{ http2settings
                , pushConcurrency
                } = ctx
@@ -121,7 +125,7 @@ pushResponder ctx set strm promise responder = do
         fits = maybe True (cnt <) $ maxConcurrentStreams settings
         canPush = fits && enabled
     if canPush then
-        actuallyPushResponder ctx set strm promise responder
+        actuallyPushResponder ctx set strm req promise responder
       else
         return False
 
@@ -129,8 +133,8 @@ pushResponder ctx set strm promise responder = do
 -- for the sender thread to handle the push request.  This can fail to push the
 -- stream and return 'False' if the sender dequeued the push request after the
 -- associated stream was closed.
-actuallyPushResponder :: Context -> S.Settings -> Stream -> PushPromise -> Responder -> IO Bool
-actuallyPushResponder ctx set strm promise responder = do
+actuallyPushResponder :: Context -> S.Settings -> Stream -> Request -> PushPromise -> Responder -> IO Bool
+actuallyPushResponder ctx set strm req promise responder = do
     let Context{ http2settings
                , nextPushStreamId
                , pushConcurrency
@@ -155,7 +159,7 @@ actuallyPushResponder ctx set strm promise responder = do
 
     let mkOutput = OPush strm promise mvar
         tickle = return ()
-        respond = runStream ctx mkOutput
+        respond = runStream ctx mkOutput req
 
     -- TODO(awpr): synthesize a Request for 'settingsOnException'?
     _ <- forkIO $ runResponder responder (respond tickle newStrm) `E.catch`
@@ -189,8 +193,8 @@ worker ctx@Context{inputQ} set tm app respond = do
             setStreamInfo sinfo strm req
             T.resume th
             T.tickle th
-            let responder = app req $ pushResponder ctx set strm
-            runResponder responder $ respond tcont (T.tickle th) strm
+            let responder = app req $ pushResponder ctx set strm req
+            runResponder responder $ respond tcont req (T.tickle th) strm
         cont1 <- case ex of
             Right () -> return True
             Left  e@(SomeException _)
