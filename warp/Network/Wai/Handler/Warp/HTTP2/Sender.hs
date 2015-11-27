@@ -129,7 +129,7 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
             lim <- getWindowSize connectionWindow (streamWindow strm)
             -- Data frame payload
             Next datPayloadLen cnext <- curr lim
-            fillDataHeaderSend strm 0 datPayloadLen cnext
+            fillDataHeaderSend strm 0 datPayloadLen (isEndStream cnext)
             dispatchNext strm cnext
         loop
     switch (OPush oldStrm push mvar strm s h aux) pre = do
@@ -161,8 +161,9 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
             fillStreamBodyGetNext ii conn payloadOff lim sq tvar strm
         -- If no data was immediately available, avoid sending an
         -- empty data frame.
-        if datPayloadLen > 0 then
-            fillDataHeaderSend strm total datPayloadLen cnext
+        let endStrm = isEndStream cnext
+        if datPayloadLen > 0 || endStrm then
+            fillDataHeaderSend strm total datPayloadLen endStrm
           else
             when needSend $ flushN off
         dispatchNext strm cnext
@@ -255,10 +256,10 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
           flushN total
           return (0, False)
 
-    fillDataHeaderSend strm otherLen datPayloadLen cnext = do
-        let flag = case cnext of
-                CFinish [] -> setEndStream defaultFlags
-                _          -> defaultFlags
+    fillDataHeaderSend strm otherLen datPayloadLen endStrm = do
+        let flag
+              | endStrm   = setEndStream defaultFlags
+              | otherwise = defaultFlags
         -- Data frame header
         let sid = streamNumber strm
             buf = connWriteBuffer `plusPtr` otherLen
@@ -272,6 +273,9 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
     fillFrameHeader ftyp len sid flag buf = encodeFrameHeaderBuf ftyp hinfo buf
       where
         hinfo = FrameHeader len flag sid
+
+    isEndStream (CFinish []) = True
+    isEndStream _            = False
 
 ----------------------------------------------------------------
 
