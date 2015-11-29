@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.Handler.WebSockets
-    ( websocketsApp
-    , websocketsOr
+    ( websocketsOr
+    , websocketsApp
     , isWebSocketsReq
     , getRequestHead
     , runWebSockets
@@ -18,11 +18,38 @@ import qualified    Network.WebSockets.Connection   as WS
 import qualified    Network.WebSockets.Stream       as WS
 
 --------------------------------------------------------------------------------
+-- | Returns whether or not the given 'Wai.Request' is a WebSocket request.
 isWebSocketsReq :: Wai.Request -> Bool
 isWebSocketsReq req =
     fmap CI.mk (lookup "upgrade" $ Wai.requestHeaders req) == Just "websocket"
 
 --------------------------------------------------------------------------------
+-- | Upgrade a @websockets@ 'WS.ServerApp' to a @wai@ 'Wai.Application'. Uses
+-- the given backup 'Wai.Application' to handle 'Wai.Request's that are not
+-- WebSocket requests.
+--
+-- @
+-- websocketsOr opts ws_app backup_app = \\req send_response ->
+--     __case__ 'websocketsApp' opts ws_app req __of__
+--         'Nothing'  -> backup_app req send_response
+--         'Just' res -> send_response res
+-- @
+--
+-- For example, below is an 'Wai.Application' that sends @"Hello, client!"@ to
+-- each connected client.
+--
+-- @
+-- app :: 'Wai.Application'
+-- app = 'websocketsOr' 'WS.defaultConnectionOptions' wsApp backupApp
+--   __where__
+--     wsApp :: 'WS.ServerApp'
+--     wsApp pending_conn = do
+--         conn <- 'WS.acceptRequest' pending_conn
+--         'WS.sendTextData' conn ("Hello, client!" :: 'Data.Text.Text')
+--
+--     backupApp :: 'Wai.Application'
+--     backupApp = 'Wai.respondLBS' 'Network.HTTP.Types.status400' [] "Not a WebSocket request"
+-- @
 websocketsOr :: WS.ConnectionOptions
              -> WS.ServerApp
              -> Wai.Application
@@ -33,6 +60,11 @@ websocketsOr opts app backup req sendResponse =
         Just res -> sendResponse res
 
 --------------------------------------------------------------------------------
+-- | Handle a single @wai@ 'Wai.Request' with the given @websockets@
+-- 'WS.ServerApp'. Returns 'Nothing' if the 'Wai.Request' is not a WebSocket
+-- request, 'Just' otherwise.
+--
+-- Usually, 'websocketsOr' is more convenient.
 websocketsApp :: WS.ConnectionOptions
               -> WS.ServerApp
               -> Wai.Request
@@ -55,7 +87,7 @@ getRequestHead req = WS.RequestHead
     (Wai.isSecure req)
 
 --------------------------------------------------------------------------------
----- | Internal function to run the WebSocket io-streams using the conduit library
+-- | Internal function to run the WebSocket io-streams using the conduit library.
 runWebSockets :: WS.ConnectionOptions
               -> WS.RequestHead
               -> (WS.PendingConnection -> IO a)
