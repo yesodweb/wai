@@ -80,7 +80,7 @@ fileRange :: H.Status -> H.ResponseHeaders -> FilePath
           -> IO (Either IOException
                         (H.Status, H.ResponseHeaders, Integer, Integer))
 fileRange s0 hs0 path Nothing mRange =
-    fmap (fileRangeSized s0 hs0 Nothing mRange) <$> tryGetFileSize path
+    fmap (fileRangeSized s0 hs0 Nothing mRange) <$> tryGetFileSize path -- fixme: using fileInfo
 fileRange s0 hs0 _ mPart@(Just part) mRange =
     return . Right $ fileRangeSized s0 hs0 mPart mRange size
   where

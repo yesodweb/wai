@@ -29,6 +29,7 @@ import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Counter
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
+import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.HTTP2 (http2, isHTTP2)
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ReadInt
@@ -237,12 +238,16 @@ runServeSettingsConnectionMakerSecure :: Settings
 runServeSettingsConnectionMakerSecure set getConnMaker serveConn = do
     settingsBeforeMainLoop set
     counter <- newCounter
-
-    D.withDateCache $ \dc ->
-        F.withFdCache fdCacheDurationInSeconds $ \fc ->
-            withTimeoutManager $ \tm ->
-                acceptConnection set getConnMaker serveConn dc fc tm counter
+    withII $ acceptConnection set getConnMaker serveConn counter
   where
+    withII action =
+        D.withDateCache $ \dc ->
+        F.withFdCache fdCacheDurationInSeconds $ \fc ->
+        I.withFileInfoCache 10 $ \get -> -- fixme: hard-coding
+        withTimeoutManager $ \tm -> do
+            let ii0 = InternalInfo undefined tm fc get dc -- fixme: undefined
+            action ii0
+
     fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
     withTimeoutManager f = case settingsManager set of
         Just tm -> f tm
@@ -267,12 +272,10 @@ runServeSettingsConnectionMakerSecure set getConnMaker serveConn = do
 acceptConnection :: Settings
                  -> IO (IO (Connection, Transport), SockAddr)
                  -> ServeConnection
-                 -> D.DateCache
-                 -> Maybe F.MutableFdCache
-                 -> T.Manager
                  -> Counter
+                 -> InternalInfo
                  -> IO ()
-acceptConnection set getConnMaker serveConn dc fc tm counter = do
+acceptConnection set getConnMaker serveConn counter ii0 = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
@@ -294,7 +297,7 @@ acceptConnection set getConnMaker serveConn dc fc tm counter = do
         case mx of
             Nothing             -> return ()
             Just (mkConn, addr) -> do
-                fork set mkConn addr serveConn dc fc tm counter
+                fork set mkConn addr serveConn counter ii0
                 acceptLoop
 
     acceptNewConnection = do
@@ -319,12 +322,10 @@ fork :: Settings
      -> IO (Connection, Transport)
      -> SockAddr
      -> ServeConnection
-     -> D.DateCache
-     -> Maybe F.MutableFdCache
-     -> T.Manager
      -> Counter
+     -> InternalInfo
      -> IO ()
-fork set mkConn addr serveConn dc fc tm counter = settingsFork set $ \ unmask ->
+fork set mkConn addr serveConn counter ii0 = settingsFork set $ \ unmask ->
     -- Run the connection maker to get a new connection, and ensure
     -- that the connection is closed. If the mkConn call throws an
     -- exception, we will leak the connection. If the mkConn call is
@@ -339,9 +340,9 @@ fork set mkConn addr serveConn dc fc tm counter = settingsFork set $ \ unmask ->
 
     -- We need to register a timeout handler for this thread, and
     -- cancel that handler as soon as we exit.
-    bracket (T.registerKillThread tm) T.cancel $ \th ->
+    bracket (T.registerKillThread (timeoutManager ii0)) T.cancel $ \th ->
 
-    let ii = InternalInfo th tm fc dc
+    let ii = ii0 { threadHandle = th }
         -- We now have fully registered a connection close handler
         -- in the case of all exceptions, so it is safe to one
         -- again allow async exceptions.

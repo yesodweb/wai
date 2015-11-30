@@ -83,9 +83,7 @@ recvRequest settings conn ii addr src = do
           , isSecure          = False
           , remoteHost        = addr
           , requestBody       = rbody'
-          , vault             = Vault.insert pauseTimeoutKey
-                                (Timeout.pause th)
-                                Vault.empty
+          , vault             = vaultValue
           , requestBodyLength = bodyLength
           , requestHeaderHost = idxhdr ! idxHost
           , requestHeaderRange = idxhdr ! idxRange
@@ -93,6 +91,9 @@ recvRequest settings conn ii addr src = do
     return (req, remainingRef, idxhdr, rbodyFlush)
   where
     th = threadHandle ii
+    vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
+               $ Vault.insert getFileInfoKey (fileInfo ii)
+                 Vault.empty
 
 ----------------------------------------------------------------
 

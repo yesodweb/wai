@@ -13,6 +13,7 @@ import Data.Word (Word16, Word8)
 import Foreign.Ptr (Ptr)
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
+import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import qualified Network.Wai.Handler.Warp.Timeout as T
 
 #ifndef WINDOWS
@@ -118,6 +119,7 @@ data InternalInfo = InternalInfo {
     threadHandle :: T.Handle
   , timeoutManager :: T.Manager
   , fdCacher :: Maybe F.MutableFdCache
+  , fileInfo :: FilePath -> IO I.FileInfo
   , dateCacher :: D.DateCache
   }
 
