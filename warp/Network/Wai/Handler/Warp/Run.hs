@@ -243,12 +243,13 @@ runServeSettingsConnectionMakerSecure set getConnMaker serveConn = do
     withII action =
         D.withDateCache $ \dc ->
         F.withFdCache fdCacheDurationInSeconds $ \fc ->
-        I.withFileInfoCache 10 $ \get -> -- fixme: hard-coding
+        I.withFileInfoCache fdFileInfoDurationInSeconds $ \get ->
         withTimeoutManager $ \tm -> do
             let ii0 = InternalInfo undefined tm fc get dc -- fixme: undefined
             action ii0
 
     fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
+    fdFileInfoDurationInSeconds = settingsFileInfoCacheDuration set * 1000000
     withTimeoutManager f = case settingsManager set of
         Just tm -> f tm
         Nothing -> bracket

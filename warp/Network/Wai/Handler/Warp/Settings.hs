@@ -48,6 +48,7 @@ data Settings = Settings
     , settingsTimeout :: Int -- ^ Timeout value in seconds. Default value: 30
     , settingsManager :: Maybe Manager -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
     , settingsFdCacheDuration :: Int -- ^ Cache duration time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 0
+    , settingsFileInfoCacheDuration :: Int -- ^ Cache duration time of file information in seconds. 0 means that the cache mechanism is not used. Default value: 0
     , settingsBeforeMainLoop :: IO ()
       -- ^ Code to run after the listening socket is ready but before entering
       -- the main event loop. Useful for signaling to tests that they can start
@@ -119,6 +120,7 @@ defaultSettings = Settings
     , settingsTimeout = 30
     , settingsManager = Nothing
     , settingsFdCacheDuration = 0
+    , settingsFileInfoCacheDuration = 0
     , settingsBeforeMainLoop = return ()
     , settingsFork = void . forkIOWithUnmask
     , settingsNoParsePath = False

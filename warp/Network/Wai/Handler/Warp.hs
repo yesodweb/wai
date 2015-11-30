@@ -66,6 +66,7 @@ module Network.Wai.Handler.Warp (
   , setTimeout
   , setManager
   , setFdCacheDuration
+  , setFileInfoCacheDuration
   , setBeforeMainLoop
   , setNoParsePath
   , setInstallShutdownHandler
@@ -225,6 +226,9 @@ setManager x y = y { settingsManager = Just x }
 -- Default value: since 3.0.13, default value is 0, was previously 10
 setFdCacheDuration :: Int -> Settings -> Settings
 setFdCacheDuration x y = y { settingsFdCacheDuration = x }
+
+setFileInfoCacheDuration :: Int -> Settings -> Settings
+setFileInfoCacheDuration x y = y { settingsFileInfoCacheDuration = x }
 
 -- | Code to run after the listening socket is ready but before entering
 -- the main event loop. Useful for signaling to tests that they can start
