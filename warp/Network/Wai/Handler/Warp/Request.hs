@@ -7,6 +7,7 @@ module Network.Wai.Handler.Warp.Request (
     recvRequest
   , headerLines
   , pauseTimeoutKey
+  , getFileInfoKey
   ) where
 
 import qualified Control.Concurrent as Conc (yield)
@@ -21,6 +22,7 @@ import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.Conduit
+import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.RequestHeader
@@ -278,3 +280,7 @@ checkCR bs pos = if pos > 0 && 13 == S.index bs p then p else pos -- 13 is CR
 pauseTimeoutKey :: Vault.Key (IO ())
 pauseTimeoutKey = unsafePerformIO Vault.newKey
 {-# NOINLINE pauseTimeoutKey #-}
+
+getFileInfoKey :: Vault.Key (FilePath -> IO FileInfo)
+getFileInfoKey = unsafePerformIO Vault.newKey
+{-# NOINLINE getFileInfoKey #-}

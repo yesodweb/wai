@@ -95,6 +95,8 @@ module Network.Wai.Handler.Warp (
   , InvalidRequest (..)
     -- * Utilities
   , pauseTimeout
+  , FileInfo(..)
+  , getFileInfo
     -- * Internal
     -- | The following APIs will be removed in Warp 3.2.0. Please use ones exported from Network.Wai.Handler.Warp.Internal.
 
@@ -136,7 +138,7 @@ module Network.Wai.Handler.Warp (
   , module Network.Wai.Handler.Warp.Timeout
   ) where
 
-import Control.Exception (SomeException)
+import Control.Exception (SomeException, throwIO)
 import Data.ByteString (ByteString)
 import Data.Maybe (fromMaybe)
 import Data.Streaming.Network (HostPreference)
@@ -145,6 +147,7 @@ import Network.Socket (SockAddr)
 import Network.Wai (Request, Response, vault)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Date
+import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Request
@@ -371,3 +374,10 @@ setHTTP2Disabled y = y { settingsHTTP2Enabled = False }
 -- Since 3.0.10
 pauseTimeout :: Request -> IO ()
 pauseTimeout = fromMaybe (return ()) . Vault.lookup pauseTimeoutKey . vault
+
+-- | Getting file information from the inside cache.
+--   If file information is not available, an IO error is thrown.
+--
+-- Since 3.1.10
+getFileInfo :: Request -> FilePath -> IO FileInfo
+getFileInfo = fromMaybe (\_ -> throwIO (userError "getFileInfo")) . Vault.lookup getFileInfoKey . vault
