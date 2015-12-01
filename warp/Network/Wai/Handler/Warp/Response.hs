@@ -160,7 +160,11 @@ sendResponse :: ByteString -- ^ default server value
              -> IO Bool -- ^ Returing True if the connection is persistent.
 sendResponse defServer conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
-    if hasBody req s then do
+    if hasBody s then do
+        -- HEAD comes here even if it does not have body.  We include HEAD
+        -- responses here so that we generate appropriate content-length
+        -- headers below.
+        --
         -- See definition of rsp below for proper body stripping.
         sendRsp conn ii ver s hs rsp
         T.tickle th
@@ -178,9 +182,13 @@ sendResponse defServer conn ii req reqidxhdr src response = do
     dc = dateCacher ii
     addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
     mRange = reqidxhdr ! idxRange
-    (isPersist,isChunked) = infoFromRequest req reqidxhdr
+    (isPersist,isChunked0) = infoFromRequest req reqidxhdr
+    isChunked = not isHead && isChunked0
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist,isChunked)
-    rsp = case response of
+    isHead = requestMethod req == H.methodHead
+    rsp
+      | isHead    = RspBuilder mempty False
+      | otherwise = case response of
         ResponseFile _ _ path mPart -> RspFile path mPart mRange (T.tickle th)
         ResponseBuilder _ _ b       -> RspBuilder b needsChunked
         ResponseStream _ _ fb       -> RspStream fb needsChunked th
@@ -377,14 +385,12 @@ infoFromResponse rspidxhdr (isPersist,isChunked) = (isKeepAlive, needsChunked)
 
 ----------------------------------------------------------------
 
-hasBody :: Request -> H.Status -> Bool
-hasBody req s = not isHead
-             && sc /= 204
-             && sc /= 304
-             && sc >= 200
+hasBody :: H.Status -> Bool
+hasBody s = sc /= 204
+         && sc /= 304
+         && sc >= 200
   where
     sc = H.statusCode s
-    isHead = requestMethod req == H.methodHead
 
 ----------------------------------------------------------------
 
