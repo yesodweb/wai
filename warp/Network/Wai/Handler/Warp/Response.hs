@@ -161,9 +161,10 @@ sendResponse :: ByteString -- ^ default server value
 sendResponse defServer conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s then do
-        -- HEAD comes here even if it does not have body.  We include HEAD
-        -- responses here so that we generate appropriate content-length
-        -- headers below.
+        -- The response to HEAD does not have body.
+        -- But to handle the conditional requests defined RFC 7232 and
+        -- to generate appropriate content-length, content-range,
+        -- and status, the response to HEAD is processed here.
         --
         -- See definition of rsp below for proper body stripping.
         sendRsp conn ii ver s hs rsp
