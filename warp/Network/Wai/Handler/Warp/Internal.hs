@@ -67,6 +67,8 @@ module Network.Wai.Handler.Warp.Internal (
   , module Network.Wai.Handler.Warp.Timeout
     -- * File descriptor cache
   , module Network.Wai.Handler.Warp.FdCache
+    -- * File information cache
+  , module Network.Wai.Handler.Warp.FileInfoCache
     -- * Date
   , module Network.Wai.Handler.Warp.Date
     -- * Request and response
@@ -78,6 +80,7 @@ module Network.Wai.Handler.Warp.Internal (
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Date
 import Network.Wai.Handler.Warp.FdCache
+import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.Request

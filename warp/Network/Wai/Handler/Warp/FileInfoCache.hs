@@ -1,9 +1,7 @@
 {-# LANGUAGE RecordWildCards, CPP #-}
 
 module Network.Wai.Handler.Warp.FileInfoCache (
-  -- * Types
     FileInfo(..)
-  -- * Functions
   , withFileInfoCache
   , getInfo -- test purpose only
   ) where
@@ -24,6 +22,7 @@ import Network.Wai.Handler.Warp.Date (uToH)
 
 ----------------------------------------------------------------
 
+-- | File information.
 data FileInfo = FileInfo {
     fileInfoName :: !FilePath
   , fileInfoSize :: !Integer
@@ -37,6 +36,7 @@ type FileInfoCache = Reaper Cache (FilePath,Entry)
 
 ----------------------------------------------------------------
 
+-- | Getting the file information corresponding to the file.
 getInfo :: FilePath -> IO FileInfo
 getInfo path = do
     fs <- getFileStatus path -- file access
@@ -79,6 +79,9 @@ negative Reaper{..} path = do
 
 ----------------------------------------------------------------
 
+-- | Creating a file information cache
+--   and executing the action in the second argument.
+--   The first argument is a cache duration in second.
 withFileInfoCache :: Int -> ((FilePath -> IO FileInfo) -> IO a) -> IO a
 withFileInfoCache 0        action = action getInfo
 withFileInfoCache duration action = E.bracket (initialize duration)
