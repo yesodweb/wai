@@ -223,10 +223,23 @@ setManager x y = y { settingsManager = Just x }
 -- Enabling this cache results in drastic performance improvement for file
 -- transfers.
 --
--- Default value: since 3.0.13, default value is 0, was previously 10
+-- Default value: 0, was previously 10
+--
+-- Since 3.0.13
 setFdCacheDuration :: Int -> Settings -> Settings
 setFdCacheDuration x y = y { settingsFdCacheDuration = x }
 
+-- | Cache duration time of file information in seconds. 0 means that the cache mechanism is not used.
+--
+-- The file information cache is an optimization that is useful for servers dealing with
+-- static files. However, if files are being modified, it can cause incorrect
+-- results in some cases. Therefore, we disable it by default. If you know that
+-- your files will be static or you prefer performance to file consistency,
+-- it's recommended to turn this on; a reasonable value for those cases is 10.
+-- Enabling this cache results in drastic performance improvement for file
+-- transfers.
+--
+-- Default value: 0
 setFileInfoCacheDuration :: Int -> Settings -> Settings
 setFileInfoCacheDuration x y = y { settingsFileInfoCacheDuration = x }
 
