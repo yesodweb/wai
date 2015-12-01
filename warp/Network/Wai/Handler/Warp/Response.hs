@@ -57,6 +57,7 @@ import Network.Wai
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
+import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.IO (toBufIOWith)
 import Network.Wai.Handler.Warp.ResponseHeader
@@ -77,11 +78,17 @@ import qualified Paths_warp
 
 fileRange :: H.Status -> H.ResponseHeaders -> FilePath
           -> Maybe FilePart -> Maybe HeaderValue
+          -> (FilePath -> IO I.FileInfo)
           -> IO (Either IOException
                         (H.Status, H.ResponseHeaders, Integer, Integer))
-fileRange s0 hs0 path Nothing mRange =
-    fmap (fileRangeSized s0 hs0 Nothing mRange) <$> tryGetFileSize path -- fixme: using fileInfo
-fileRange s0 hs0 _ mPart@(Just part) mRange =
+fileRange s0 hs0 path Nothing mRange get = do
+    efinfo <- try (get path)
+    case efinfo of
+        Left  e     -> return $ Left e
+        Right finfo -> do
+            let ret = fileRangeSized s0 hs0 Nothing mRange $ I.fileInfoSize finfo
+            return $ Right ret
+fileRange s0 hs0 _ mPart@(Just part) mRange _ =
     return . Right $ fileRangeSized s0 hs0 mPart mRange size
   where
     size = filePartFileSize part
@@ -155,7 +162,7 @@ sendResponse defServer conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody req s then do
         -- See definition of rsp below for proper body stripping.
-        sendRsp conn mfdc ver s hs rsp
+        sendRsp conn ii ver s hs rsp
         T.tickle th
         return ret
       else do
@@ -169,7 +176,6 @@ sendResponse defServer conn ii req reqidxhdr src response = do
     rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
     dc = dateCacher ii
-    mfdc = fdCacher ii
     addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
     mRange = reqidxhdr ! idxRange
     (isPersist,isChunked) = infoFromRequest req reqidxhdr
@@ -220,20 +226,20 @@ data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) (IO ())
 ----------------------------------------------------------------
 
 sendRsp :: Connection
-        -> Maybe F.MutableFdCache
+        -> InternalInfo
         -> H.HttpVersion
         -> H.Status
         -> H.ResponseHeaders
         -> Rsp
         -> IO ()
-sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange hook) = do
-    ex <- fileRange s0 hs0 path mPart mRange
+sendRsp conn ii ver s0 hs0 (RspFile path mPart mRange hook) = do
+    ex <- fileRange s0 hs0 path mPart mRange get
     case ex of
         Left _ex ->
 #ifdef WARP_DEBUG
           print _ex >>
 #endif
-          sendRsp conn mfdc ver s2 hs2 (RspBuilder body True)
+          sendRsp conn ii ver s2 hs2 (RspBuilder body True)
         Right (s, hs, beg, len)
           | len >= 0 -> do
             lheader <- composeHeader ver s hs
@@ -251,13 +257,15 @@ sendRsp conn mfdc ver s0 hs0 (RspFile path mPart mRange hook) = do
 #endif
             connSendFile conn fid beg len hook' [lheader]
           | otherwise ->
-            sendRsp conn mfdc ver H.status416
+            sendRsp conn ii ver H.status416
                 (filter (\(k, _) -> k /= "content-length") hs)
                 (RspBuilder mempty True)
   where
     s2 = H.status404
     hs2 =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
     body = byteString "File not found"
+    mfdc = fdCacher ii
+    get = fileInfo ii
 
 ----------------------------------------------------------------
 

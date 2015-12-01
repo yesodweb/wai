@@ -9,6 +9,7 @@ import Network (connectTo, PortID (PortNumber))
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.Response
 import RunSpec (withApp)
 import System.IO (hClose, hFlush)
@@ -76,7 +77,7 @@ testFileRange :: String
               -> Either String (Status, ResponseHeaders, Integer, Integer)
               -> Spec
 testFileRange desc s rsphdr file mPart mRange ans = it desc $ do
-    eres <- fileRange s rsphdr file mPart mRange
+    eres <- fileRange s rsphdr file mPart mRange getInfo
     let res = case eres of
             Left  e   -> Left $ show e
             Right r   -> Right r

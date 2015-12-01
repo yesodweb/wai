@@ -5,6 +5,7 @@ module Network.Wai.Handler.Warp.FileInfoCache (
     FileInfo(..)
   -- * Functions
   , withFileInfoCache
+  , getInfo -- test purpose only
   ) where
 
 import Control.Exception as E
