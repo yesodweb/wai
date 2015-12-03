@@ -279,11 +279,11 @@ sendRsp conn ii ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
                 connSendFile conn fid beg len hook' [lheader]
                 return (Just s, Just len)
           | otherwise -> do
-            sendRsp conn ii ver H.status416
+            sendRsp conn ii ver H.requestedRangeNotSatisfiable416
                 (filter (\(k, _) -> k /= "content-length") hs)
                 (RspBuilder mempty True)
   where
-    s2 = H.status404
+    s2 = H.notFound404
     hs2 =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
     body = byteString "File not found"
     mfdc = fdCacher ii
