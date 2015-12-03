@@ -66,6 +66,7 @@ Library
                      Network.Wai.Handler.Warp.Counter
                      Network.Wai.Handler.Warp.Date
                      Network.Wai.Handler.Warp.FdCache
+                     Network.Wai.Handler.Warp.File
                      Network.Wai.Handler.Warp.FileInfoCache
                      Network.Wai.Handler.Warp.HTTP2
                      Network.Wai.Handler.Warp.HTTP2.EncodeFrame
