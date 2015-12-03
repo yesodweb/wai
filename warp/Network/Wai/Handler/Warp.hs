@@ -78,6 +78,7 @@ module Network.Wai.Handler.Warp (
   , setProxyProtocolOptional
   , setSlowlorisSize
   , setHTTP2Disabled
+  , setLogger
     -- ** Getters
   , getPort
   , getHost
@@ -144,12 +145,13 @@ import Data.ByteString (ByteString)
 import Data.Maybe (fromMaybe)
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Vault.Lazy as Vault
+import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai (Request, Response, vault)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Date
-import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.FdCache
+import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
@@ -382,6 +384,13 @@ setSlowlorisSize x y = y { settingsSlowlorisSize = x }
 -- Since 3.1.7
 setHTTP2Disabled :: Settings -> Settings
 setHTTP2Disabled y = y { settingsHTTP2Enabled = False }
+
+-- | Setting a log function.
+--
+-- Since 3.X.X
+setLogger :: (Request -> H.Status -> Maybe Integer -> IO ())
+          -> Settings -> Settings
+setLogger lgr y = y { settingsLogger = lgr }
 
 -- | Explicitly pause the slowloris timeout.
 --

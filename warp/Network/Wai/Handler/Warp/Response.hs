@@ -61,6 +61,7 @@ import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.IO (toBufIOWith)
 import Network.Wai.Handler.Warp.ResponseHeader
+import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
@@ -150,7 +151,7 @@ fileRangeSized s0 hs0 mPart mRange fileSize = (s, hs, beg, len)
 --   ['responseRaw' :: ('IO' 'ByteString' -> ('ByteString' -> 'IO' ()) -> 'IO' ()) -> 'Response' -> 'Response']
 --     No header is added and no Transfer-Encoding: is applied.
 
-sendResponse :: ByteString -- ^ default server value
+sendResponse :: Settings
              -> Connection
              -> InternalInfo
              -> Request -- ^ HTTP request.
@@ -158,7 +159,7 @@ sendResponse :: ByteString -- ^ default server value
              -> IO ByteString -- ^ source from client, for raw response
              -> Response -- ^ HTTP response including status code and response header.
              -> IO Bool -- ^ Returing True if the connection is persistent.
-sendResponse defServer conn ii req reqidxhdr src response = do
+sendResponse settings conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s then do
         -- The response to HEAD does not have body.
@@ -167,14 +168,20 @@ sendResponse defServer conn ii req reqidxhdr src response = do
         -- and status, the response to HEAD is processed here.
         --
         -- See definition of rsp below for proper body stripping.
-        sendRsp conn ii ver s hs rsp
+        (ms, mlen) <- sendRsp conn ii ver s hs rsp
+        case ms of
+            Nothing         -> return ()
+            Just realStatus -> logger req realStatus mlen
         T.tickle th
         return ret
       else do
         sendResponseNoBody conn ver s hs
+        logger req s Nothing
         T.tickle th
         return isPersist
   where
+    defServer = settingsServerName settings
+    logger = settingsLogger settings
     ver = httpVersion req
     s = responseStatus response
     hs0 = sanitizeHeaders $ responseHeaders response
@@ -242,7 +249,7 @@ sendRsp :: Connection
         -> H.Status
         -> H.ResponseHeaders
         -> Rsp
-        -> IO ()
+        -> IO (Maybe H.Status, Maybe Integer)
 sendRsp conn ii ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
     ex <- fileRange s0 hs0 path mPart mRange get
     case ex of
@@ -270,7 +277,8 @@ sendRsp conn ii ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
                 let fid = FileId path mfd
 #endif
                 connSendFile conn fid beg len hook' [lheader]
-          | otherwise ->
+                return (Just s, Just len)
+          | otherwise -> do
             sendRsp conn ii ver H.status416
                 (filter (\(k, _) -> k /= "content-length") hs)
                 (RspBuilder mempty True)
@@ -292,6 +300,7 @@ sendRsp conn _ ver s hs (RspBuilder body needsChunked) = do
         buffer = connWriteBuffer conn
         size = connBufferSize conn
     toBufIOWith buffer size (connSendAll conn) hdrBdy
+    return (Just s, Nothing) -- fixme: can we tell the actual sent bytes?
 
 ----------------------------------------------------------------
 
@@ -315,11 +324,13 @@ sendRsp conn _ ver s hs (RspStream streamingBody needsChunked th) = do
     when needsChunked $ send chunkedTransferTerminator
     mbs <- finish
     maybe (return ()) (sendFragment conn th) mbs
+    return (Just s, Nothing) -- fixme: can we tell the actual sent bytes?
 
 ----------------------------------------------------------------
 
-sendRsp conn _ _ _ _ (RspRaw withApp src tickle) =
+sendRsp conn _ _ _ _ (RspRaw withApp src tickle) = do
     withApp recv send
+    return (Nothing, Nothing)
   where
     recv = do
         bs <- src

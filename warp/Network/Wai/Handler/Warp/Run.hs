@@ -448,9 +448,7 @@ serveHTTP2 app2 app conn ii origAddr transport settings = do
     sendErrorResponse addr istatus e = do
         status <- readIORef istatus
         when status $ void $
-            sendResponse
-                (settingsServerName settings)
-                conn ii (dummyreq addr) defaultIndexRequestHeader (return S.empty) (errorResponse e)
+            sendResponse settings conn ii (dummyreq addr) defaultIndexRequestHeader (return S.empty) (errorResponse e)
 
     dummyreq addr = defaultRequest { remoteHost = addr }
 
@@ -482,9 +480,7 @@ serveHTTP2 app2 app conn ii origAddr transport settings = do
             -- send more meaningful error messages to the user.
             -- However, it may affect performance.
             writeIORef istatus False
-            keepAlive <- sendResponse
-                (settingsServerName settings)
-                conn ii req idxhdr (readSource src) res
+            keepAlive <- sendResponse settings conn ii req idxhdr (readSource src) res
             writeIORef keepAliveRef keepAlive
             return ResponseReceived
         keepAlive <- readIORef keepAliveRef
