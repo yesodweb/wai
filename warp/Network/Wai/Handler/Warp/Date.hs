@@ -5,6 +5,9 @@ module Network.Wai.Handler.Warp.Date (
   , getDate
   , DateCache
   , GMTDate
+#if WINDOWS
+  , uToH
+#endif
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -12,16 +15,13 @@ import Control.Applicative
 #endif
 import Control.AutoUpdate (defaultUpdateSettings, updateAction, mkAutoUpdate)
 import Data.ByteString.Char8
+import Network.HTTP.Date
 
 #if WINDOWS
-import Data.Time (formatTime, getCurrentTime)
-# if MIN_VERSION_time(1,5,0)
-import Data.Time (defaultTimeLocale)
-# else
-import System.Locale (defaultTimeLocale)
-# endif
+import Data.Time (UTCTime, formatTime, getCurrentTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Foreign.C.Types (CTime(..))
 #else
-import Network.HTTP.Date
 import System.Posix (epochTime)
 #endif
 
@@ -36,17 +36,21 @@ withDateCache :: (DateCache -> IO a) -> IO a
 withDateCache action = initialize >>= action
 
 initialize :: IO DateCache
-initialize = mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentGMTDate }
+initialize = mkAutoUpdate defaultUpdateSettings {
+                            updateAction = formatHTTPDate <$> getCurrentHTTPDate
+                          }
 
--- | Getting 'GMTDate' based on 'DateCache'.
+-- | Getting current 'GMTDate' based on 'DateCache'.
 getDate :: DateCache -> IO GMTDate
 getDate = id
 
-getCurrentGMTDate :: IO GMTDate
 #ifdef WINDOWS
-getCurrentGMTDate = formatDate <$> getCurrentTime
-  where
-    formatDate = pack . formatTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT"
+uToH :: UTCTime -> HTTPDate
+uToH = epochTimeToHTTPDate . CTime . truncate . utcTimeToPOSIXSeconds
+
+getCurrentHTTPDate :: IO HTTPDate
+getCurrentHTTPDate =  uToH <$> getCurrentTime
 #else
-getCurrentGMTDate = formatHTTPDate . epochTimeToHTTPDate <$> epochTime
+getCurrentHTTPDate :: IO HTTPDate
+getCurrentHTTPDate = epochTimeToHTTPDate <$> epochTime
 #endif
