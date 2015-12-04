@@ -10,7 +10,6 @@ import Network (connectTo, PortID (PortNumber))
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
-import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.Response
 import RunSpec (withApp)
 import System.IO (hClose, hFlush)
