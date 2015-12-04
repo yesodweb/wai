@@ -175,7 +175,7 @@ sendResponse settings conn ii req reqidxhdr src response = do
         T.tickle th
         return ret
       else do
-        sendResponseNoBody conn ver s hs
+        _ <- sendRsp conn ii ver s hs RspNoBody
         logger req s Nothing
         T.tickle th
         return isPersist
@@ -197,10 +197,10 @@ sendResponse settings conn ii req reqidxhdr src response = do
     rsp = case response of
         ResponseFile _ _ path mPart -> RspFile path mPart mRange isHead (T.tickle th)
         ResponseBuilder _ _ b
-          | isHead                  -> RspBuilder mempty False
+          | isHead                  -> RspNoBody
           | otherwise               -> RspBuilder b needsChunked
         ResponseStream _ _ fb
-          | isHead                  -> RspBuilder mempty False
+          | isHead                  -> RspNoBody
           | otherwise               -> RspStream fb needsChunked th
         ResponseRaw raw _           -> RspRaw raw src (T.tickle th)
     ret = case response of
@@ -236,7 +236,8 @@ sanitizeHeaderValue v = case S8.lines $ S.filter (/= _cr) v of
 
 ----------------------------------------------------------------
 
-data Rsp = RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) Bool (IO ())
+data Rsp = RspNoBody
+         | RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) Bool (IO ())
          | RspBuilder Builder Bool
          | RspStream StreamingBody Bool T.Handle
          | RspRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) (IO ByteString) (IO ())
@@ -250,6 +251,17 @@ sendRsp :: Connection
         -> H.ResponseHeaders
         -> Rsp
         -> IO (Maybe H.Status, Maybe Integer)
+
+----------------------------------------------------------------
+
+sendRsp conn _ ver s hs RspNoBody = do
+    -- Not adding Content-Length.
+    -- User agents treats it as Content-Length: 0.
+    composeHeader ver s hs >>= connSendAll conn
+    return (Just s, Nothing)
+
+----------------------------------------------------------------
+
 sendRsp conn ii ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
     ex <- fileRange s0 hs0 path mPart mRange get
     case ex of
@@ -261,7 +273,7 @@ sendRsp conn ii ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
         Right (s, hs, beg, len)
           | len >= 0 ->
             if isHead then
-                sendRsp conn ii ver s hs (RspBuilder mempty False)
+                sendRsp conn ii ver s hs RspNoBody
               else do
                 lheader <- composeHeader ver s hs
 #ifdef WINDOWS
@@ -337,15 +349,6 @@ sendRsp conn _ _ _ _ (RspRaw withApp src tickle) = do
         unless (S.null bs) tickle
         return bs
     send bs = connSendAll conn bs >> tickle
-
-----------------------------------------------------------------
-
-sendResponseNoBody :: Connection
-                   -> H.HttpVersion
-                   -> H.Status
-                   -> H.ResponseHeaders
-                   -> IO ()
-sendResponseNoBody conn ver s hs = composeHeader ver s hs >>= connSendAll conn
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
