@@ -78,11 +78,11 @@ import qualified Paths_warp
 
 -- | Sending a HTTP response to 'Connection' according to 'Response'.
 --
---   Applications/middlewares MUST specify a proper 'H.ResponseHeaders'.
+--   Applications/middlewares MUST provide a proper 'H.ResponseHeaders'.
 --   so that inconsistency does not happen.
 --   No header is deleted by this function.
 --
---   Especially, Applications/middlewares MUST take care of
+--   Especially, Applications/middlewares MUST take attention to
 --   Content-Length, Content-Range, and Transfer-Encoding
 --   because they are inserted, when necessary,
 --   regardless they already exist.
@@ -94,22 +94,6 @@ import qualified Paths_warp
 --
 --   There are three basic APIs to create 'Response':
 --
---   ['responseFile' :: 'H.Status' -> 'H.ResponseHeaders' -> 'FilePath' -> 'Maybe' 'FilePart' -> 'Response']
---     HTTP response body is sent by sendfile() for GET method.
---     HTTP response body is not sent by HEAD method.
---     Applications are categorized into simple and sophisticated.
---     Simple applications should specify 'Nothing' to
---     'Maybe' 'FilePart'. The size of the specified file is obtained
---     by disk access. Then Range is handled.
---     Sophisticated applications should specify 'Just' to
---     'Maybe' 'FilePart'. They should treat Range (and If-Range) by
---     themselves. In both cases,
---     Content-Length and Content-Range (if necessary) are automatically
---     added into the HTTP response header.
---     If Content-Length and Content-Range exist in the HTTP response header,
---     they would cause inconsistency.
---     Status is also changed to 206 (Partial Content) if necessary.
---
 --   ['responseBuilder' :: 'H.Status' -> 'H.ResponseHeaders' -> 'Builder' -> 'Response']
 --     HTTP response body is created from 'Builder'.
 --     Transfer-Encoding: chunked is used in HTTP/1.1.
@@ -120,6 +104,27 @@ import qualified Paths_warp
 --
 --   ['responseRaw' :: ('IO' 'ByteString' -> ('ByteString' -> 'IO' ()) -> 'IO' ()) -> 'Response' -> 'Response']
 --     No header is added and no Transfer-Encoding: is applied.
+--
+--   ['responseFile' :: 'H.Status' -> 'H.ResponseHeaders' -> 'FilePath' -> 'Maybe' 'FilePart' -> 'Response']
+--     HTTP response body is sent (by sendfile(), if possible) for GET method.
+--     HTTP response body is not sent by HEAD method.
+--     Content-Length and Content-Range are automatically
+--     added into the HTTP response header if necessary.
+--     If Content-Length and Content-Range exist in the HTTP response header,
+--     they would cause inconsistency.
+--     \"Accept-Ranges: bytes\" is also inserted.
+--
+--     Applications are categorized into simple and sophisticated.
+--     Sophisticated applications should specify 'Just' to
+--     'Maybe' 'FilePart'. They should treat the conditional request
+--     by themselves. A proper 'Status' (200 or 206) must be provided.
+--
+--     Simple applications should specify 'Nothing' to
+--     'Maybe' 'FilePart'. The size of the specified file is obtained
+--     by disk access or from the file infor cache.
+--     If-Modified-Since, If-Unmodified-Since, If-Range and Range
+--     are processed. Since a proper status is chosen, 'Status' is
+--     ignored.
 
 sendResponse :: Settings
              -> Connection
