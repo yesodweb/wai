@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE PatternGuards #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 module Network.Wai.Handler.Warp.Run where
@@ -445,9 +446,13 @@ serveHTTP2 app2 app conn ii origAddr transport settings = do
 
     th = threadHandle ii
 
+    shouldSendErrorResponse se
+        | Just ConnectionClosedByPeer <- fromException se = False
+        | otherwise                                       = True
+
     sendErrorResponse addr istatus e = do
         status <- readIORef istatus
-        when status $ void $
+        when (shouldSendErrorResponse e && status) $ void $
             sendResponse settings conn ii (dummyreq addr) defaultIndexRequestHeader (return S.empty) (errorResponse e)
 
     dummyreq addr = defaultRequest { remoteHost = addr }
