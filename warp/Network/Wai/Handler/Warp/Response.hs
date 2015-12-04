@@ -82,7 +82,8 @@ import qualified Paths_warp
 --   so that inconsistency does not happen.
 --   No header is deleted by this function.
 --
---   Especially, Applications/middlewares MUST take attention to
+--   Especially, Applications/middlewares MUST provide a proper
+--   Content-Type. They MUST NOT provide
 --   Content-Length, Content-Range, and Transfer-Encoding
 --   because they are inserted, when necessary,
 --   regardless they already exist.
