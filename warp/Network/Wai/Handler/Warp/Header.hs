@@ -19,27 +19,35 @@ indexRequestHeader hdr = traverseHeader hdr requestMaxIndex requestKeyIndex
 
 idxContentLength,idxTransferEncoding,idxExpect :: Int
 idxConnection,idxRange,idxHost :: Int
-idxContentLength    = 0
-idxTransferEncoding = 1
-idxExpect           = 2
-idxConnection       = 3
-idxRange            = 4
-idxHost             = 5
+idxIfModifiedSince,idxIfUnmodifiedSince,idxIfRange :: Int
+idxContentLength     = 0
+idxTransferEncoding  = 1
+idxExpect            = 2
+idxConnection        = 3
+idxRange             = 4
+idxHost              = 5
+idxIfModifiedSince   = 6
+idxIfUnmodifiedSince = 7
+idxIfRange           = 8
 
 -- | The size for 'IndexedHeader' for HTTP Request.
 --   From 0 to this corresponds to \"Content-Length\", \"Transfer-Encoding\",
---   \"Expect\", \"Connection\", \"Range\", and \"Host\".
+--   \"Expect\", \"Connection\", \"Range\", \"Host\",
+--   \"If-Modified-Since\", \"If-Unmodified-Since\" and \"If-Range\".
 requestMaxIndex :: Int
-requestMaxIndex     = 5
+requestMaxIndex     = 8
 
 requestKeyIndex :: HeaderName -> Int
-requestKeyIndex "content-length"    = idxContentLength
-requestKeyIndex "transfer-encoding" = idxTransferEncoding
-requestKeyIndex "expect"            = idxExpect
-requestKeyIndex "connection"        = idxConnection
-requestKeyIndex "range"             = idxRange
-requestKeyIndex "host"              = idxHost
-requestKeyIndex _                   = -1
+requestKeyIndex "content-length"      = idxContentLength
+requestKeyIndex "transfer-encoding"   = idxTransferEncoding
+requestKeyIndex "expect"              = idxExpect
+requestKeyIndex "connection"          = idxConnection
+requestKeyIndex "range"               = idxRange
+requestKeyIndex "host"                = idxHost
+requestKeyIndex "if-modified-since"   = idxIfModifiedSince
+requestKeyIndex "if-unmodified-since" = idxIfUnmodifiedSince
+requestKeyIndex "if-range"            = idxIfRange
+requestKeyIndex _                     = -1
 
 defaultIndexRequestHeader :: IndexedHeader
 defaultIndexRequestHeader = array (0,requestMaxIndex) [(i,Nothing)|i<-[0..requestMaxIndex]]
