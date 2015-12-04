@@ -124,7 +124,7 @@ import qualified Paths_warp
 --     by disk access or from the file infor cache.
 --     If-Modified-Since, If-Unmodified-Since, If-Range and Range
 --     are processed. Since a proper status is chosen, 'Status' is
---     ignored.
+--     ignored. Last-Modified is inserted.
 
 sendResponse :: Settings
              -> Connection

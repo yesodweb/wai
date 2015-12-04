@@ -18,7 +18,10 @@ testFileRange :: String
               -> Spec
 testFileRange desc reqhs file ans = it desc $ do
     finfo <- getInfo file
-    conditionalRequest finfo [] (indexRequestHeader reqhs) `shouldBe` ans
+    let WithBody s hs off len = ans
+        hs' = ("Last-Modified",fileInfoDate finfo) : hs
+        ans' = WithBody s hs' off len
+    conditionalRequest finfo [] (indexRequestHeader reqhs) `shouldBe` ans'
 
 spec :: Spec
 spec = do

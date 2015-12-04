@@ -36,11 +36,13 @@ conditionalRequest :: I.FileInfo
                    -> RspFileInfo
 conditionalRequest finfo hs0 reqidx = case fromJust mx of
     nobody@(WithoutBody _) -> nobody
-    WithBody s _ off len   -> let hs = addContentHeaders hs0 off len size
+    WithBody s _ off len   -> let hs = (H.hLastModified,date) :
+                                       addContentHeaders hs0 off len size
                               in WithBody s hs off len
   where
     mtime = I.fileInfoTime finfo
     size  = I.fileInfoSize finfo
+    date  = I.fileInfoDate finfo
     mx = ifmodified    reqidx size mtime
                          <|> ifunmodified  reqidx size mtime
                          <|> ifrange       reqidx size mtime
