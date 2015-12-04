@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+
 module ResponseSpec (main, spec) where
 
 import Control.Concurrent (threadDelay)
@@ -71,18 +72,6 @@ testPartial size offset count out = it title $ withApp defaultSettings app $ \po
             _ -> Nothing
     range = "bytes " ++ show offset ++ "-" ++ show (offset + count - 1) ++ "/" ++ show size
 
-testFileRange :: String
-              -> Status -> ResponseHeaders -> FilePath
-              -> Maybe FilePart -> Maybe HeaderValue
-              -> Either String (Status, ResponseHeaders, Integer, Integer)
-              -> Spec
-testFileRange desc s rsphdr file mPart mRange ans = it desc $ do
-    eres <- fileRange s rsphdr file mPart mRange getInfo
-    let res = case eres of
-            Left  e   -> Left $ show e
-            Right r   -> Right r
-    res `shouldBe` ans
-
 spec :: Spec
 spec = do
     describe "preventing response splitting attack" $ do
@@ -125,37 +114,3 @@ spec = do
         testPartial 16 2 2 "23"
         testPartial 16 0 2 "01"
         testPartial 16 3 8 "3456789a"
-
-    describe "fileRange" $ do
-        testFileRange
-            "gets a file size from file system"
-            status200 [] "attic/hex" Nothing Nothing
-            $ Right (status200,[("Content-Length","16"), ("Accept-Ranges","bytes")],0,16)
-        testFileRange
-            "gets an error if a file does not exist"
-            status200 [] "attic/nonexist" Nothing Nothing
-            $ Left "attic/nonexist: getFileStatus: does not exist (No such file or directory)"
-        testFileRange
-            "changes status if FileParts is specified"
-            status200 [] "attic/hex" (Just (FilePart 2 10 16)) Nothing
-            $ Right (status206,[("Content-Range", "bytes 2-11/16"),("Content-Length","10"),("Accept-Ranges","bytes")],2,10)
-        testFileRange
-            "does not change status and does not add Content-Range if FileParts means the entire"
-            status200 [] "attic/hex" (Just (FilePart 0 16 16)) Nothing
-            $ Right (status200,[("Content-Length","16"), ("Accept-Ranges","bytes")],0,16)
-        testFileRange
-            "gets a file size from file system and handles Range and returns Partical Content"
-            status200 [] "attic/hex" Nothing (Just "bytes=2-14")
-            $ Right (status206,[("Content-Range","bytes 2-14/16"),("Content-Length","13"),("Accept-Ranges","bytes")],2,13)
-        testFileRange
-            "truncates end point of range to file size"
-            status200 [] "attic/hex" Nothing (Just "bytes=10-20")
-            $ Right (status206,[("Content-Range","bytes 10-15/16"),("Content-Length","6"),("Accept-Ranges","bytes")],10,6)
-        testFileRange
-            "gets a file size from file system and handles Range and returns OK if Range means the entire"
-            status200 [] "attic/hex" Nothing (Just "bytes=0-15")
-            $ Right (status200,[("Content-Length","16"),("Accept-Ranges","bytes")],0,16)
-        testFileRange
-            "igores Range if FilePart is specified"
-            status200 [] "attic/hex" (Just (FilePart 2 10 16)) (Just "bytes=8-9")
-            $ Right (status206,[("Content-Range", "bytes 2-11/16"),("Content-Length","10"),("Accept-Ranges","bytes")],2,10)

@@ -121,6 +121,7 @@ Test-Suite spec
                      ConduitSpec
                      ExceptionSpec
                      FdCacheSpec
+                     FileSpec
                      MultiMapSpec
                      ReadIntSpec
                      RequestSpec

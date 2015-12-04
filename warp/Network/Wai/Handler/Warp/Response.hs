@@ -7,7 +7,6 @@
 module Network.Wai.Handler.Warp.Response (
     sendResponse
   , sanitizeHeaderValue -- for testing
-  , fileRange -- for testing
   , warpVersion
   , addDate
   , addServer
@@ -26,6 +25,7 @@ import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTe
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
+import qualified Control.Exception as E
 import Control.Monad (unless, when)
 import Data.Array ((!))
 import Data.ByteString (ByteString)
@@ -159,13 +159,12 @@ sendResponse settings conn ii req reqidxhdr src response = do
     th = threadHandle ii
     dc = dateCacher ii
     addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
-    mRange = reqidxhdr ! idxRange
     (isPersist,isChunked0) = infoFromRequest req reqidxhdr
     isChunked = not isHead && isChunked0
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist,isChunked)
     isHead = requestMethod req == H.methodHead
     rsp = case response of
-        ResponseFile _ _ path mPart -> RspFile path mPart mRange isHead (T.tickle th)
+        ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr isHead (T.tickle th)
         ResponseBuilder _ _ b
           | isHead                  -> RspNoBody
           | otherwise               -> RspBuilder b needsChunked
@@ -207,7 +206,7 @@ sanitizeHeaderValue v = case S8.lines $ S.filter (/= _cr) v of
 ----------------------------------------------------------------
 
 data Rsp = RspNoBody
-         | RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) Bool (IO ())
+         | RspFile FilePath (Maybe FilePart) IndexedHeader Bool (IO ())
          | RspBuilder Builder Bool
          | RspStream StreamingBody Bool T.Handle
          | RspRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) (IO ByteString) (IO ())
@@ -229,47 +228,6 @@ sendRsp conn _ ver s hs RspNoBody = do
     -- User agents treats it as Content-Length: 0.
     composeHeader ver s hs >>= connSendAll conn
     return (Just s, Nothing)
-
-----------------------------------------------------------------
-
-sendRsp conn ii ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
-    ex <- fileRange s0 hs0 path mPart mRange get
-    case ex of
-        Left _ex ->
-#ifdef WARP_DEBUG
-          print _ex >>
-#endif
-          sendRsp conn ii ver s2 hs2 (RspBuilder body True)
-        Right (s, hs, beg, len)
-          | len >= 0 ->
-            if isHead then
-                sendRsp conn ii ver s hs RspNoBody
-              else do
-                lheader <- composeHeader ver s hs
-#ifdef WINDOWS
-                let fid = FileId path Nothing
-                    hook' = hook
-#else
-                (mfd, hook') <- case mfdc of
-                   -- settingsFdCacheDuration is 0
-                   Nothing  -> return (Nothing, hook)
-                   Just fdc -> do
-                      (fd, fresher) <- F.getFd fdc path
-                      return (Just fd, hook >> fresher)
-                let fid = FileId path mfd
-#endif
-                connSendFile conn fid beg len hook' [lheader]
-                return (Just s, Just len)
-          | otherwise -> do
-            sendRsp conn ii ver H.requestedRangeNotSatisfiable416
-                (filter (\(k, _) -> k /= "content-length") hs)
-                (RspBuilder mempty True)
-  where
-    s2 = H.notFound404
-    hs2 =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
-    body = byteString "File not found"
-    mfdc = fdCacher ii
-    get = fileInfo ii
 
 ----------------------------------------------------------------
 
@@ -319,6 +277,76 @@ sendRsp conn _ _ _ _ (RspRaw withApp src tickle) = do
         unless (S.null bs) tickle
         return bs
     send bs = connSendAll conn bs >> tickle
+
+----------------------------------------------------------------
+
+-- Sophisticated WAI applications.
+-- We respect s0. s0 MUST be a proper value of either 200 or 206.
+sendRsp conn ii ver s0 hs0 (RspFile path (Just part) _ isHead hook) =
+    sendRspFile2XX conn ii ver s0 hs path beg len isHead hook
+  where
+    beg = filePartOffset part
+    len = filePartByteCount part
+    hs = addContentHeadersForFilePart hs0 part
+
+----------------------------------------------------------------
+
+-- Simple WAI applications.
+-- Status is ignored
+sendRsp conn ii ver _ hs0 (RspFile path Nothing idxhdr isHead hook) = do
+    efinfo <- E.try $ fileInfo ii path
+    case efinfo of
+        Left (_ex :: E.IOException) ->
+#ifdef WARP_DEBUG
+          print _ex >>
+#endif
+          sendRspFile404 conn ii ver hs0
+        Right finfo -> case conditionalRequest finfo hs0 idxhdr of
+          WithoutBody s         -> sendRsp conn ii ver s hs0 RspNoBody
+          WithBody s hs beg len -> sendRspFile2XX conn ii ver s hs path beg len isHead hook
+
+----------------------------------------------------------------
+
+sendRspFile2XX :: Connection
+               -> InternalInfo
+               -> H.HttpVersion
+               -> H.Status
+               -> H.ResponseHeaders
+               -> FilePath
+               -> Integer
+               -> Integer
+               -> Bool
+               -> IO ()
+               -> IO (Maybe H.Status, Maybe Integer)
+sendRspFile2XX conn ii ver s hs path beg len isHead hook
+  | isHead = sendRsp conn ii ver s hs RspNoBody
+  | otherwise = do
+      lheader <- composeHeader ver s hs
+#ifdef WINDOWS
+      let fid = FileId path Nothing
+          hook' = hook
+#else
+      (mfd, hook') <- case fdCacher ii of
+         -- settingsFdCacheDuration is 0
+         Nothing  -> return (Nothing, hook)
+         Just fdc -> do
+            (fd, fresher) <- F.getFd fdc path
+            return (Just fd, hook >> fresher)
+      let fid = FileId path mfd
+#endif
+      connSendFile conn fid beg len hook' [lheader]
+      return (Just s, Just len)
+
+sendRspFile404 :: Connection
+               -> InternalInfo
+               -> H.HttpVersion
+               -> H.ResponseHeaders
+               -> IO (Maybe H.Status, Maybe Integer)
+sendRspFile404 conn ii ver hs0 = sendRsp conn ii ver s hs (RspBuilder body True)
+  where
+    s = H.notFound404
+    hs =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
+    body = byteString "File not found"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
