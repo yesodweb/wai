@@ -4,54 +4,85 @@ sudo: false
 # Choose a lightweight base image; we provide our own build tools.
 language: c
 
-# GHC depends on GMP. You can add other dependencies here as well.
-addons:
-  apt:
-    packages:
-    - libgmp-dev
-    - libfcgi-dev
-
 matrix:
   include:
   - env: CABALVER=1.18 GHCVER=7.6.3 BUILD=cabal
-    compiler: ": #GHC 7.6.3"
-    addons: {apt: {packages: [cabal-install-1.18,ghc-7.6.3], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [libfcgi-dev,cabal-install-1.18,ghc-7.6.3], sources: [hvr-ghc]}}
 
   - env: CABALVER=1.18 GHCVER=7.8.4 BUILD=cabal
-    compiler: ": #GHC 7.8.4"
-    addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [libfcgi-dev,cabal-install-1.18,ghc-7.8.4], sources: [hvr-ghc]}}
 
   - env: CABALVER=1.22 GHCVER=7.10.1 BUILD=cabal
-    compiler: ": #GHC 7.10.1"
-    addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.1], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [libfcgi-dev,cabal-install-1.22,ghc-7.10.1], sources: [hvr-ghc]}}
 
   - env: CABALVER=1.22 GHCVER=7.10.2 BUILD=cabal
-    compiler: ": #GHC 7.10.2"
-    addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.2], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [libfcgi-dev,cabal-install-1.22,ghc-7.10.2], sources: [hvr-ghc]}}
 
-  - env: CABALVER=head GHCVER=7.10.2 BUILD=cabal
-    compiler: ": #GHC head"
-    addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
+  - env: CABALVER=head GHCVER=head BUILD=cabal
+    addons: {apt: {packages: [libfcgi-dev,cabal-install-head,ghc-head], sources: [hvr-ghc]}}
+
+  - env: ARGS= BUILD=stack
+    addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+
+  - env: ARGS="--resolver lts-3" BUILD=stack
+    addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+
+  - env: ARGS="--resolver lts" BUILD=stack
+    addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+
+  - env: ARGS="--resolver nightly" BUILD=stack
+    addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+
+  - env: ARGS= BUILD=stack
+    os: osx
+
+  - env: ARGS="--resolver lts-3" BUILD=stack
+    os: osx
+
+  - env: ARGS="--resolver lts" BUILD=stack
+    os: osx
+
+  - env: ARGS="--resolver nightly" BUILD=stack
+    os: osx
 
   allow_failures:
-  - env: GHCVER=head CABALVER=head
+  - env: CABALVER=head GHCVER=head BUILD=cabal
 
 before_install:
-- mkdir -p $HOME/.local/bin
-- export PATH=$HOME/.local/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/bin:$PATH
-- travis_retry curl -L http://download.fpcomplete.com/michael/cabal-meta.tar.gz | tar xz -C $HOME/.local/bin
-- travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
-
+# Set up path and additional build tools
 - ./.travis-setup.sh
-- cabal --version
-- ghc --version
+- case "$BUILD" in
+    stack)
+      export PATH=$HOME/.local/bin:$HOME/.cabal/bin:$PATH;
+      stack --version;;
+    cabal)
+      export PATH=$HOME/.local/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/bin:$PATH;
+      ghc --version;
+      cabal --version;;
+  esac
 
 install:
-- travis_retry cabal update
-- cabal unpack wai-logger
-- mv wai-logger-* wai-logger
-- cabal install hspec doctest HTTP temporary
-- cabal-meta install --force-reinstalls
+- case "$BUILD" in
+    stack)
+      stack $ARGS setup --no-terminal;;
+    cabal)
+      travis_retry cabal update;
+      cabal unpack wai-logger;
+      mv wai-logger-* wai-logger;
+      cabal install hspec doctest HTTP temporary;
+      cabal-meta install --force-reinstalls;;
+  esac
 
 script:
-- mega-sdist --test
+- case "$BUILD" in
+    stack)
+      stack $ARGS --no-terminal test --haddock;;
+    cabal)
+      mega-sdist --test;;
+  esac
+
+# Caching so the next build will be fast too.
+cache:
+  directories:
+  - $HOME/.stack
+  - $HOME/.cabal/packages
