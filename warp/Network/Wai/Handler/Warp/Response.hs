@@ -287,7 +287,7 @@ sendRsp conn _ _ _ _ (RspRaw withApp src tickle) = do
 ----------------------------------------------------------------
 
 -- Sophisticated WAI applications.
--- We respect s0. s0 MUST be a proper value of either 200 or 206.
+-- We respect s0. s0 MUST be a proper value.
 sendRsp conn ii ver s0 hs0 (RspFile path (Just part) _ isHead hook) =
     sendRspFile2XX conn ii ver s0 hs path beg len isHead hook
   where
