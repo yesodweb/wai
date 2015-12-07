@@ -19,6 +19,7 @@ import qualified Data.ByteString.Char8 as B8
 import Data.CaseInsensitive (mk)
 import Data.IORef (IORef, readIORef, newIORef, writeIORef)
 import Data.Maybe (isJust)
+import qualified Data.Vault.Lazy as Vault
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mempty)
 #endif
@@ -28,10 +29,13 @@ import Network.HTTP.Types (RequestHeaders,hRange)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
+import Network.Wai.Internal (Request(..))
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.ReadInt
+import Network.Wai.Handler.Warp.Request (pauseTimeoutKey, getFileInfoKey)
+import Network.Wai.Handler.Warp.Types (InternalInfo(..))
 import qualified Network.Wai.Handler.Warp.Settings as S (Settings, settingsNoParsePath)
-import Network.Wai.Internal (Request(..))
+import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 
 data ValidHeaders = ValidHeaders {
     vhMethod :: ByteString
@@ -43,8 +47,8 @@ data ValidHeaders = ValidHeaders {
 
 type MkReq = ValidHeaders -> IO ByteString -> Request
 
-mkRequest :: S.Settings -> SockAddr -> MkReq
-mkRequest settings addr (ValidHeaders m p ma _ hdr) body = req
+mkRequest :: InternalInfo -> S.Settings -> SockAddr -> MkReq
+mkRequest ii settings addr (ValidHeaders m p ma _ hdr) body = req
   where
     (unparsedPath,query) = B8.break (=='?') p
     path = H.extractPath unparsedPath
@@ -61,11 +65,15 @@ mkRequest settings addr (ValidHeaders m p ma _ hdr) body = req
       , isSecure = True
       , remoteHost = addr
       , requestBody = body
-      , vault = mempty
+      , vault = vaultValue
       , requestBodyLength = ChunkedBody -- fixme
       , requestHeaderHost = ma
       , requestHeaderRange = lookup hRange hdr
       }
+    th = threadHandle ii
+    vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
+               $ Vault.insert getFileInfoKey (fileInfo ii)
+                 Vault.empty
 
 ----------------------------------------------------------------
 
