@@ -35,8 +35,6 @@ module Network.Wai.Handler.WarpTLS (
     -- * Runner
     , runTLS
     , runTLSSocket
-    , runHTTP2TLS
-    , runHTTP2TLSSocket
     -- * Exception
     , WarpTLSException (..)
     ) where
@@ -60,7 +58,6 @@ import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra as TLSExtra
 import Network.Wai (Application)
-import Network.Wai.HTTP2 (HTTP2Application)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal
 import System.IO.Error (isEOFError)
@@ -221,39 +218,20 @@ tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings
 
 ----------------------------------------------------------------
 
--- Composition over two arguments at once; used for runHTTP2\*.
-(.:) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
-f .: g = curry $ f . uncurry g
-
 -- | Running 'Application' with 'TLSSettings' and 'Settings'.
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
-runTLS tset set = runServeTLS tset set . serveDefault
-
--- | Run an HTTP\/2-aware server with 'TLSSettings' and 'Settings'.
-runHTTP2TLS :: TLSSettings -> Settings -> HTTP2Application -> Application -> IO ()
-runHTTP2TLS tset set = runServeTLS tset set .: serveHTTP2
-
-runServeTLS :: TLSSettings -> Settings -> ServeConnection -> IO ()
-runServeTLS tset set serve = withSocketsDo $
+runTLS tset set app = withSocketsDo $
     bracket
         (bindPortTCP (getPort set) (getHost set))
         sClose
-        (\sock -> runServeTLSSocket tset set sock serve)
+        (\sock -> runTLSSocket tset set sock app)
 
 ----------------------------------------------------------------
 
 -- | Running 'Application' with 'TLSSettings' and 'Settings' using
 --   specified 'Socket'.
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
-runTLSSocket tset set sock = runServeTLSSocket tset set sock . serveDefault
-
--- | Run an HTTP\/2-aware server with 'TLSSettings' and 'Settings' using
---   specified 'Socket'.
-runHTTP2TLSSocket :: TLSSettings -> Settings -> Socket -> HTTP2Application -> Application -> IO ()
-runHTTP2TLSSocket tset set sock = runServeTLSSocket tset set sock .: serveHTTP2
-
-runServeTLSSocket :: TLSSettings -> Settings -> Socket -> ServeConnection -> IO ()
-runServeTLSSocket tlsset@TLSSettings{..} set sock serve = do
+runTLSSocket tlsset@TLSSettings{..} set sock app = do
     credential <- case (certMemory, keyMemory) of
         (Nothing, Nothing) ->
             either error id <$>
@@ -263,11 +241,11 @@ runServeTLSSocket tlsset@TLSSettings{..} set sock serve = do
             key <- maybe (S.readFile keyFile) return mkey
             either error return $
               TLS.credentialLoadX509ChainFromMemory cert chainCertsMemory key
-    runServeTLSSocket' tlsset set credential sock serve
+    runTLSSocket' tlsset set credential sock app
 
-runServeTLSSocket' :: TLSSettings -> Settings -> TLS.Credential -> Socket -> ServeConnection -> IO ()
-runServeTLSSocket' tlsset@TLSSettings{..} set credential sock serve =
-    runServeSettingsConnectionMakerSecure set get serve
+runTLSSocket' :: TLSSettings -> Settings -> TLS.Credential -> Socket -> Application -> IO ()
+runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
+    runSettingsConnectionMakerSecure set get app
   where
     get = getter tlsset sock params
     params = TLS.ServerParams {

@@ -1,7 +1,6 @@
 {-# OPTIONS_HADDOCK not-home #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 -- | Internal constructors and helper functions. Note that no guarantees are
@@ -9,25 +8,17 @@
 module Network.Wai.Internal where
 
 import           Blaze.ByteString.Builder     (Builder)
-import           Control.Exception            (IOException, try)
 import qualified Data.ByteString              as B hiding (pack)
-import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Char8        as B (pack, readInteger)
-import qualified Data.ByteString.Lazy as L
 #if __GLASGOW_HASKELL__ < 709
 import           Data.Functor                 ((<$>))
 #endif
-import           Data.Maybe                   (listToMaybe)
 import           Data.Text                    (Text)
 import           Data.Typeable                (Typeable)
 import           Data.Vault.Lazy              (Vault)
 import           Data.Word                    (Word64)
 import qualified Network.HTTP.Types           as H
-import qualified Network.HTTP.Types.Header as HH
 import           Network.Socket               (SockAddr)
-import           Numeric                      (showInt)
 import           Data.List                    (intercalate)
-import qualified System.PosixCompat.Files     as P
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
@@ -157,91 +148,3 @@ data FilePart = FilePart
 -- Since 3.0.0
 data ResponseReceived = ResponseReceived
     deriving Typeable
-
--- | Look up the size of a file in 'Right' or the 'IOException' in 'Left'.
-tryGetFileSize :: FilePath -> IO (Either IOException Integer)
-tryGetFileSize path =
-    fmap (fromIntegral . P.fileSize) <$> try (P.getFileStatus path)
-
--- | \"Content-Range\".
-hContentRange :: H.HeaderName
-hContentRange = "Content-Range"
-
--- | \"Accept-Ranges\".
-hAcceptRanges :: H.HeaderName
-hAcceptRanges = "Accept-Ranges"
-
--- | @contentRangeHeader beg end total@ constructs a Content-Range 'H.Header'
--- for the range specified.
-contentRangeHeader :: Integer -> Integer -> Integer -> H.Header
-contentRangeHeader beg end total = (hContentRange, range)
-  where
-    range = B.pack
-      -- building with ShowS
-      $ 'b' : 'y': 't' : 'e' : 's' : ' '
-      : (if beg > end then ('*':) else
-          showInt beg
-          . ('-' :)
-          . showInt end)
-      ( '/'
-      : showInt total "")
-
--- | Given the full size of a file and optionally a Range header value,
--- determine the range to serve by parsing the range header and obeying it, or
--- serving the whole file if it's absent or malformed.
-chooseFilePart :: Integer -> Maybe B.ByteString -> FilePart
-chooseFilePart size Nothing      = FilePart 0 size size
-chooseFilePart size (Just range) = case parseByteRanges range >>= listToMaybe of
-    -- Range is broken
-    Nothing -> FilePart 0 size size
-    Just hrange -> checkRange hrange
-  where
-    checkRange (H.ByteRangeFrom   beg)     = fromRange beg (size - 1)
-    checkRange (H.ByteRangeFromTo beg end) = fromRange beg (min (size - 1) end)
-    checkRange (H.ByteRangeSuffix count)   = fromRange (max 0 (size - count)) (size - 1)
-
-    fromRange beg end = FilePart beg (end - beg + 1) size
-
--- | Adjust the given 'H.Status' and 'H.ResponseHeaders' based on the given
--- 'FilePart'.  This means replacing the status with 206 if the response is
--- partial, and adding the Content-Length and Accept-Ranges (always) and
--- Content-Range (if appropriate) headers.
-adjustForFilePart :: H.Status -> H.ResponseHeaders -> FilePart -> (H.Status, H.ResponseHeaders)
-adjustForFilePart s h part = (s', h'')
-  where
-    off = filePartOffset part
-    len = filePartByteCount part
-    size = filePartFileSize part
-
-    contentRange = contentRangeHeader off (off + len - 1) size
-    lengthBS = L.toStrict $ B.toLazyByteString $ B.integerDec len
-    s' = if filePartByteCount part /= size then H.partialContent206 else s
-    h' = (H.hContentLength, lengthBS):(hAcceptRanges, "bytes"):h
-    h'' = (if len == size then id else (contentRange:)) h'
-
--- | Parse the value of a Range header into a 'HH.ByteRanges'.
-parseByteRanges :: B.ByteString -> Maybe HH.ByteRanges
-parseByteRanges bs1 = do
-    bs2 <- stripPrefix "bytes=" bs1
-    (r, bs3) <- range bs2
-    ranges (r:) bs3
-  where
-    range bs2 = do
-        (i, bs3) <- B.readInteger bs2
-        if i < 0 -- has prefix "-" ("-0" is not valid, but here treated as "0-")
-            then Just (HH.ByteRangeSuffix (negate i), bs3)
-            else do
-                bs4 <- stripPrefix "-" bs3
-                case B.readInteger bs4 of
-                    Just (j, bs5) | j >= i -> Just (HH.ByteRangeFromTo i j, bs5)
-                    _ -> Just (HH.ByteRangeFrom i, bs4)
-    ranges front bs3
-        | B.null bs3 = Just (front [])
-        | otherwise = do
-            bs4 <- stripPrefix "," bs3
-            (r, bs5) <- range bs4
-            ranges (front . (r:)) bs5
-
-    stripPrefix x y
-        | x `B.isPrefixOf` y = Just (B.drop (B.length x) y)
-        | otherwise = Nothing

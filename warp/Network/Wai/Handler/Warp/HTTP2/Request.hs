@@ -41,7 +41,7 @@ data ValidHeaders = ValidHeaders {
     vhMethod :: ByteString
   , vhPath   :: ByteString
   , vhAuth   :: Maybe ByteString
-  , vhCL     :: Maybe Int -- ^ Content-Length
+  , vhCL     :: Maybe Int
   , vhHeader :: RequestHeaders
   }
 

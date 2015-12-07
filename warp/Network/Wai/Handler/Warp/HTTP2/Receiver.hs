@@ -56,7 +56,7 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
             cont <- processStreamGuardingError $ decodeFrameHeader hd
             when cont loop
 
-    processStreamGuardingError (FrameHeaders, FrameHeader{streamId})
+    processStreamGuardingError (_, FrameHeader{streamId})
       | isResponse streamId = E.throwIO $ ConnectionError ProtocolError "stream id should be odd"
     processStreamGuardingError (FrameUnknown _, FrameHeader{payloadLength}) = do
         mx <- readIORef continued
@@ -161,15 +161,15 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
                              -- idle, so that receiving frames on it is only a
                              -- stream error.
                              consume payloadLength
-                             strm <- newStream concurrency streamId 0
+                             strm <- newStream streamId 0
                              writeIORef (streamState strm) $ Closed $
                                  ResetByMe $ E.toException $
                                      StreamError RefusedStream streamId
                              insert streamTable streamId strm
                              E.throwIO $ StreamError RefusedStream streamId
                      ws <- initialWindowSize <$> readIORef http2settings
-                     newstrm <- newStream concurrency streamId (fromIntegral ws)
-                     when (ftyp == FrameHeaders) $ opened newstrm
+                     newstrm <- newStream streamId (fromIntegral ws)
+                     when (ftyp == FrameHeaders) $ opened ctx newstrm
                      insert streamTable streamId newstrm
                      return newstrm
 
@@ -186,7 +186,7 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, output
     unless (testAck flags) $ do
         modifyIORef http2settings $ \old -> updateSettings old alist
         let frame = settingsFrame setAck []
-        enqueueControl outputQ 0 $ OSettings frame alist
+        enqueueControl outputQ 0 $ OFrame frame
     return True
 
 control FramePing FrameHeader{flags} bs Context{outputQ} =
@@ -311,16 +311,15 @@ stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow
     atomically $ writeTVar streamWindow w
     return s
 
-stream FrameRSTStream header bs _ _ strm = do
+stream FrameRSTStream header bs ctx _ strm = do
     RSTStreamFrame e <- guardIt $ decoderstStreamFrame header bs
     let cc = Reset e
-    closed strm cc
+    closed ctx strm cc
     return $ Closed cc -- will be written to streamState again
 
 stream FramePriority header bs Context{outputQ,priorityTreeSize} s Stream{streamNumber,streamPrecedence} = do
     PriorityFrame newpri <- guardIt $ decodePriorityFrame header bs
     checkPriority newpri streamNumber
-    -- checkme: this should be tested
     oldpre <- readIORef streamPrecedence
     let !newpre = toPrecedence newpri
     writeIORef streamPrecedence newpre
