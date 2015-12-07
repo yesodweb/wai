@@ -52,13 +52,13 @@ conditionalRequest finfo hs0 reqidx = case condition of
 ----------------------------------------------------------------
 
 ifModifiedSince :: IndexedHeader -> Maybe HTTPDate
-ifModifiedSince reqidx = reqidx ! idxIfModifiedSince >>= parseHTTPDate
+ifModifiedSince reqidx = reqidx ! fromEnum ReqIfModifiedSince >>= parseHTTPDate
 
 ifUnmodifiedSince :: IndexedHeader -> Maybe HTTPDate
-ifUnmodifiedSince reqidx = reqidx ! idxIfUnmodifiedSince >>= parseHTTPDate
+ifUnmodifiedSince reqidx = reqidx ! fromEnum ReqIfUnmodifiedSince >>= parseHTTPDate
 
 ifRange :: IndexedHeader -> Maybe HTTPDate
-ifRange reqidx = reqidx ! idxIfRange >>= parseHTTPDate
+ifRange reqidx = reqidx ! fromEnum ReqIfRange >>= parseHTTPDate
 
 ----------------------------------------------------------------
 
@@ -79,13 +79,13 @@ ifunmodified reqidx size mtime = do
 ifrange :: IndexedHeader -> Integer -> HTTPDate -> Maybe RspFileInfo
 ifrange reqidx size mtime = do
     date <- ifRange reqidx
-    rng  <- reqidx ! idxRange
+    rng  <- reqidx ! fromEnum ReqRange
     return $ if date == mtime
              then parseRange rng size
              else WithBody H.ok200 [] 0 size
 
 unconditional :: IndexedHeader -> Integer -> RspFileInfo
-unconditional reqidx size = case reqidx ! idxRange of
+unconditional reqidx size = case reqidx ! fromEnum ReqRange of
     Nothing  -> WithBody H.ok200 [] 0 size
     Just rng -> parseRange rng size
 

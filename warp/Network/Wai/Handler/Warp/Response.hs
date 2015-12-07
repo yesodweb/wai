@@ -380,7 +380,7 @@ checkPersist req reqidxhdr
     | otherwise       = checkPersist10 conn
   where
     ver = httpVersion req
-    conn = reqidxhdr ! idxConnection
+    conn = reqidxhdr ! fromEnum ReqConnection
     checkPersist11 (Just x)
         | CI.foldCase x == "close"      = False
     checkPersist11 _                    = True
@@ -405,7 +405,7 @@ infoFromResponse rspidxhdr (isPersist,isChunked) = (isKeepAlive, needsChunked)
   where
     needsChunked = isChunked && not hasLength
     isKeepAlive = isPersist && (isChunked || hasLength)
-    hasLength = isJust $ rspidxhdr ! idxContentLength
+    hasLength = isJust $ rspidxhdr ! fromEnum ResContentLength
 
 ----------------------------------------------------------------
 
@@ -426,7 +426,7 @@ addTransferEncoding hdrs = ("transfer-encoding", "chunked") : hdrs
 #endif
 
 addDate :: D.DateCache -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
-addDate dc rspidxhdr hdrs = case rspidxhdr ! idxDate of
+addDate dc rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
     Nothing -> do
         gmtdate <- D.getDate dc
         return $ (H.hDate, gmtdate) : hdrs
@@ -439,7 +439,7 @@ warpVersion :: String
 warpVersion = showVersion Paths_warp.version
 
 addServer :: HeaderValue -> IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
-addServer serverName rspidxhdr hdrs = case rspidxhdr ! idxServer of
+addServer serverName rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
     Nothing -> (H.hServer, serverName) : hdrs
     _       -> hdrs
 

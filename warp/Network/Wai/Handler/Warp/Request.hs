@@ -63,9 +63,9 @@ recvRequest settings conn ii addr src = do
     hdrlines <- headerLines src
     (method, unparsedPath, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
-        expect = idxhdr ! idxExpect
-        cl = idxhdr ! idxContentLength
-        te = idxhdr ! idxTransferEncoding
+        expect = idxhdr ! fromEnum ReqExpect
+        cl = idxhdr ! fromEnum ReqContentLength
+        te = idxhdr ! fromEnum ReqTransferEncoding
         handle100Continue = handleExpect conn httpversion expect
     (rbody, remainingRef, bodyLength) <- bodyAndSource src cl te
     -- body producing function which will produce '100-continue', if needed
@@ -85,8 +85,8 @@ recvRequest settings conn ii addr src = do
           , requestBody       = rbody'
           , vault             = vaultValue
           , requestBodyLength = bodyLength
-          , requestHeaderHost = idxhdr ! idxHost
-          , requestHeaderRange = idxhdr ! idxRange
+          , requestHeaderHost  = idxhdr ! fromEnum ReqHost
+          , requestHeaderRange = idxhdr ! fromEnum ReqRange
           }
     return (req, remainingRef, idxhdr, rbodyFlush)
   where

@@ -17,36 +17,34 @@ type IndexedHeader = Array Int (Maybe HeaderValue)
 indexRequestHeader :: RequestHeaders -> IndexedHeader
 indexRequestHeader hdr = traverseHeader hdr requestMaxIndex requestKeyIndex
 
-idxContentLength,idxTransferEncoding,idxExpect :: Int
-idxConnection,idxRange,idxHost :: Int
-idxIfModifiedSince,idxIfUnmodifiedSince,idxIfRange :: Int
-idxContentLength     = 0
-idxTransferEncoding  = 1
-idxExpect            = 2
-idxConnection        = 3
-idxRange             = 4
-idxHost              = 5
-idxIfModifiedSince   = 6
-idxIfUnmodifiedSince = 7
-idxIfRange           = 8
+data RequestHeaderIndex = ReqContentLength
+                        | ReqTransferEncoding
+                        | ReqExpect
+                        | ReqConnection
+                        | ReqRange
+                        | ReqHost
+                        | ReqIfModifiedSince
+                        | ReqIfUnmodifiedSince
+                        | ReqIfRange
+                        deriving (Enum,Bounded)
 
 -- | The size for 'IndexedHeader' for HTTP Request.
 --   From 0 to this corresponds to \"Content-Length\", \"Transfer-Encoding\",
 --   \"Expect\", \"Connection\", \"Range\", \"Host\",
 --   \"If-Modified-Since\", \"If-Unmodified-Since\" and \"If-Range\".
 requestMaxIndex :: Int
-requestMaxIndex     = 8
+requestMaxIndex = fromEnum (maxBound :: RequestHeaderIndex)
 
 requestKeyIndex :: HeaderName -> Int
-requestKeyIndex "content-length"      = idxContentLength
-requestKeyIndex "transfer-encoding"   = idxTransferEncoding
-requestKeyIndex "expect"              = idxExpect
-requestKeyIndex "connection"          = idxConnection
-requestKeyIndex "range"               = idxRange
-requestKeyIndex "host"                = idxHost
-requestKeyIndex "if-modified-since"   = idxIfModifiedSince
-requestKeyIndex "if-unmodified-since" = idxIfUnmodifiedSince
-requestKeyIndex "if-range"            = idxIfRange
+requestKeyIndex "content-length"      = fromEnum ReqContentLength
+requestKeyIndex "transfer-encoding"   = fromEnum ReqTransferEncoding
+requestKeyIndex "expect"              = fromEnum ReqExpect
+requestKeyIndex "connection"          = fromEnum ReqConnection
+requestKeyIndex "range"               = fromEnum ReqRange
+requestKeyIndex "host"                = fromEnum ReqHost
+requestKeyIndex "if-modified-since"   = fromEnum ReqIfModifiedSince
+requestKeyIndex "if-unmodified-since" = fromEnum ReqIfUnmodifiedSince
+requestKeyIndex "if-range"            = fromEnum ReqIfRange
 requestKeyIndex _                     = -1
 
 defaultIndexRequestHeader :: IndexedHeader
@@ -57,19 +55,19 @@ defaultIndexRequestHeader = array (0,requestMaxIndex) [(i,Nothing)|i<-[0..reques
 indexResponseHeader :: ResponseHeaders -> IndexedHeader
 indexResponseHeader hdr = traverseHeader hdr responseMaxIndex responseKeyIndex
 
-idxServer, idxDate :: Int
---idxContentLength = 0
-idxServer        = 1
-idxDate          = 2
+data ResponseHeaderIndex = ResContentLength
+                         | ResServer
+                         | ResDate
+                         deriving (Enum,Bounded)
 
 -- | The size for 'IndexedHeader' for HTTP Response.
 responseMaxIndex :: Int
-responseMaxIndex = 2
+responseMaxIndex = fromEnum (maxBound :: ResponseHeaderIndex)
 
 responseKeyIndex :: HeaderName -> Int
-responseKeyIndex "content-length" = idxContentLength
-responseKeyIndex "server"         = idxServer
-responseKeyIndex "date"           = idxDate
+responseKeyIndex "content-length" = fromEnum ResContentLength
+responseKeyIndex "server"         = fromEnum ResServer
+responseKeyIndex "date"           = fromEnum ResDate
 responseKeyIndex _                = -1
 
 ----------------------------------------------------------------
