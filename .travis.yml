@@ -37,20 +37,21 @@ matrix:
   - env: GHCVER=head CABALVER=head
 
 before_install:
- - mkdir -p $HOME/.local/bin
- - export PATH=$HOME/.local/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/bin:$PATH
- - travis_retry curl -L http://download.fpcomplete.com/michael/cabal-meta.tar.gz | tar xz -C $HOME/.local/bin
- - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+- mkdir -p $HOME/.local/bin
+- export PATH=$HOME/.local/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/bin:$PATH
+- travis_retry curl -L http://download.fpcomplete.com/michael/cabal-meta.tar.gz | tar xz -C $HOME/.local/bin
+- travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 
- - ./.travis-setup.sh
- - cabal --version
- - ghc --version
+- ./.travis-setup.sh
+- cabal --version
+- ghc --version
 
 install:
-    - travis_retry cabal update
-    - cabal unpack wai-logger
-    - mv wai-logger-* wai-logger
-    - cabal install hspec doctest HTTP temporary
-    - cabal-meta install --force-reinstalls
+- travis_retry cabal update
+- cabal unpack wai-logger
+- mv wai-logger-* wai-logger
+- cabal install hspec doctest HTTP temporary
+- cabal-meta install --force-reinstalls
 
-script: mega-sdist --test
+script:
+- mega-sdist --test
