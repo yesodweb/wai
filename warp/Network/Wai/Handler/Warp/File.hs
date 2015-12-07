@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 
@@ -140,7 +141,13 @@ parseByteRanges bs1 = do
 -- | @contentRangeHeader beg end total@ constructs a Content-Range 'H.Header'
 -- for the range specified.
 contentRangeHeader :: Integer -> Integer -> Integer -> H.Header
-contentRangeHeader beg end total = (H.hContentRange, range)
+contentRangeHeader beg end total = (
+#if MIN_VERSION_http_types(0,9,0)
+        H.hContentRange
+#else
+        "content-range"
+#endif
+    , range)
   where
     range = B.pack
       -- building with ShowS
@@ -157,7 +164,13 @@ addContentHeaders hs off len size = hs''
   where
     contentRange = contentRangeHeader off (off + len - 1) size
     lengthBS = L.toStrict $ B.toLazyByteString $ B.integerDec len
-    hs' = (H.hContentLength, lengthBS):(H.hAcceptRanges, "bytes"):hs
+    hs' = (H.hContentLength, lengthBS):(
+#if MIN_VERSION_http_types(0,9,0)
+        H.hAcceptRanges
+#else
+        "accept-ranges"
+#endif
+        , "bytes"):hs
     hs'' = if len == size then hs' else contentRange:hs'
 
 -- |
