@@ -11,6 +11,11 @@ matrix:
    - env: GHCVER=head CABALVER=head
 
 before_install:
+ - mkdir -p $HOME/.local/bin
+ - export PATH=$HOME/.local/bin:$PATH
+ - travis_retry curl -L http://download.fpcomplete.com/michael/cabal-meta.tar.gz | tar xz -C $HOME/.local/bin
+ - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+
  - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
  - travis_retry sudo apt-get update
  - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER
@@ -25,7 +30,7 @@ install:
     - travis_retry cabal update
     - cabal unpack wai-logger
     - mv wai-logger-* wai-logger
-    - cabal install hspec doctest HTTP temporary cabal-meta cabal-src
+    - cabal install hspec doctest HTTP temporary
     - cabal-meta install --force-reinstalls
 
 script: mega-sdist --test
