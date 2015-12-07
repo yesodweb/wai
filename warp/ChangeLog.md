@@ -1,3 +1,10 @@
+## 3.1.10
+
+* `setFileInfoCacheDuration`
+* `setLogger`
+* `FileInfo`/`getFileInfo`
+* Fix: warp-tls strips out the Host request header [#478](https://github.com/yesodweb/wai/issues/478)
+
 ## 3.1.9
 
 * Using the new priority queue based on PSQ provided by http2 lib again.
