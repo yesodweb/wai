@@ -7,7 +7,6 @@
 module Network.Wai.Handler.Warp.Response (
     sendResponse
   , sanitizeHeaderValue -- for testing
-  , fileRange -- for testing
   , warpVersion
   , addDate
   , addServer
@@ -26,7 +25,7 @@ import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTe
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
-import Control.Exception
+import qualified Control.Exception as E
 import Control.Monad (unless, when)
 import Data.Array ((!))
 import Data.ByteString (ByteString)
@@ -57,7 +56,7 @@ import Network.Wai
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
-import qualified Network.Wai.Handler.Warp.FileInfoCache as I
+import Network.Wai.Handler.Warp.File
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.IO (toBufIOWith)
 import Network.Wai.Handler.Warp.ResponseHeader
@@ -77,42 +76,14 @@ import qualified Paths_warp
 
 ----------------------------------------------------------------
 
-fileRange :: H.Status -> H.ResponseHeaders -> FilePath
-          -> Maybe FilePart -> Maybe HeaderValue
-          -> (FilePath -> IO I.FileInfo)
-          -> IO (Either IOException
-                        (H.Status, H.ResponseHeaders, Integer, Integer))
-fileRange s0 hs0 path Nothing mRange get = do
-    efinfo <- try (get path)
-    case efinfo of
-        Left  e     -> return $ Left e
-        Right finfo -> do
-            let ret = fileRangeSized s0 hs0 Nothing mRange $ I.fileInfoSize finfo
-            return $ Right ret
-fileRange s0 hs0 _ mPart@(Just part) mRange _ =
-    return . Right $ fileRangeSized s0 hs0 mPart mRange size
-  where
-    size = filePartFileSize part
-
-fileRangeSized :: H.Status -> H.ResponseHeaders
-               -> Maybe FilePart -> Maybe HeaderValue -> Integer
-               -> (H.Status, H.ResponseHeaders, Integer, Integer)
-fileRangeSized s0 hs0 mPart mRange fileSize = (s, hs, beg, len)
-  where
-    part = fromMaybe (chooseFilePart fileSize mRange) mPart
-    beg = filePartOffset part
-    len = filePartByteCount part
-    (s, hs) = adjustForFilePart s0 hs0 $ FilePart beg len fileSize
-
-----------------------------------------------------------------
-
 -- | Sending a HTTP response to 'Connection' according to 'Response'.
 --
---   Applications/middlewares MUST specify a proper 'H.ResponseHeaders'.
+--   Applications/middlewares MUST provide a proper 'H.ResponseHeaders'.
 --   so that inconsistency does not happen.
 --   No header is deleted by this function.
 --
---   Especially, Applications/middlewares MUST take care of
+--   Especially, Applications/middlewares MUST provide a proper
+--   Content-Type. They MUST NOT provide
 --   Content-Length, Content-Range, and Transfer-Encoding
 --   because they are inserted, when necessary,
 --   regardless they already exist.
@@ -124,22 +95,6 @@ fileRangeSized s0 hs0 mPart mRange fileSize = (s, hs, beg, len)
 --
 --   There are three basic APIs to create 'Response':
 --
---   ['responseFile' :: 'H.Status' -> 'H.ResponseHeaders' -> 'FilePath' -> 'Maybe' 'FilePart' -> 'Response']
---     HTTP response body is sent by sendfile() for GET method.
---     HTTP response body is not sent by HEAD method.
---     Applications are categorized into simple and sophisticated.
---     Simple applications should specify 'Nothing' to
---     'Maybe' 'FilePart'. The size of the specified file is obtained
---     by disk access. Then Range is handled.
---     Sophisticated applications should specify 'Just' to
---     'Maybe' 'FilePart'. They should treat Range (and If-Range) by
---     themselves. In both cases,
---     Content-Length and Content-Range (if necessary) are automatically
---     added into the HTTP response header.
---     If Content-Length and Content-Range exist in the HTTP response header,
---     they would cause inconsistency.
---     Status is also changed to 206 (Partial Content) if necessary.
---
 --   ['responseBuilder' :: 'H.Status' -> 'H.ResponseHeaders' -> 'Builder' -> 'Response']
 --     HTTP response body is created from 'Builder'.
 --     Transfer-Encoding: chunked is used in HTTP/1.1.
@@ -150,6 +105,27 @@ fileRangeSized s0 hs0 mPart mRange fileSize = (s, hs, beg, len)
 --
 --   ['responseRaw' :: ('IO' 'ByteString' -> ('ByteString' -> 'IO' ()) -> 'IO' ()) -> 'Response' -> 'Response']
 --     No header is added and no Transfer-Encoding: is applied.
+--
+--   ['responseFile' :: 'H.Status' -> 'H.ResponseHeaders' -> 'FilePath' -> 'Maybe' 'FilePart' -> 'Response']
+--     HTTP response body is sent (by sendfile(), if possible) for GET method.
+--     HTTP response body is not sent by HEAD method.
+--     Content-Length and Content-Range are automatically
+--     added into the HTTP response header if necessary.
+--     If Content-Length and Content-Range exist in the HTTP response header,
+--     they would cause inconsistency.
+--     \"Accept-Ranges: bytes\" is also inserted.
+--
+--     Applications are categorized into simple and sophisticated.
+--     Sophisticated applications should specify 'Just' to
+--     'Maybe' 'FilePart'. They should treat the conditional request
+--     by themselves. A proper 'Status' (200 or 206) must be provided.
+--
+--     Simple applications should specify 'Nothing' to
+--     'Maybe' 'FilePart'. The size of the specified file is obtained
+--     by disk access or from the file infor cache.
+--     If-Modified-Since, If-Unmodified-Since, If-Range and Range
+--     are processed. Since a proper status is chosen, 'Status' is
+--     ignored. Last-Modified is inserted.
 
 sendResponse :: Settings
              -> Connection
@@ -189,13 +165,12 @@ sendResponse settings conn ii req reqidxhdr src response = do
     th = threadHandle ii
     dc = dateCacher ii
     addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
-    mRange = reqidxhdr ! idxRange
     (isPersist,isChunked0) = infoFromRequest req reqidxhdr
     isChunked = not isHead && isChunked0
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist,isChunked)
     isHead = requestMethod req == H.methodHead
     rsp = case response of
-        ResponseFile _ _ path mPart -> RspFile path mPart mRange isHead (T.tickle th)
+        ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr isHead (T.tickle th)
         ResponseBuilder _ _ b
           | isHead                  -> RspNoBody
           | otherwise               -> RspBuilder b needsChunked
@@ -237,7 +212,7 @@ sanitizeHeaderValue v = case S8.lines $ S.filter (/= _cr) v of
 ----------------------------------------------------------------
 
 data Rsp = RspNoBody
-         | RspFile FilePath (Maybe FilePart) (Maybe HeaderValue) Bool (IO ())
+         | RspFile FilePath (Maybe FilePart) IndexedHeader Bool (IO ())
          | RspBuilder Builder Bool
          | RspStream StreamingBody Bool T.Handle
          | RspRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) (IO ByteString) (IO ())
@@ -259,47 +234,6 @@ sendRsp conn _ ver s hs RspNoBody = do
     -- User agents treats it as Content-Length: 0.
     composeHeader ver s hs >>= connSendAll conn
     return (Just s, Nothing)
-
-----------------------------------------------------------------
-
-sendRsp conn ii ver s0 hs0 (RspFile path mPart mRange isHead hook) = do
-    ex <- fileRange s0 hs0 path mPart mRange get
-    case ex of
-        Left _ex ->
-#ifdef WARP_DEBUG
-          print _ex >>
-#endif
-          sendRsp conn ii ver s2 hs2 (RspBuilder body True)
-        Right (s, hs, beg, len)
-          | len >= 0 ->
-            if isHead then
-                sendRsp conn ii ver s hs RspNoBody
-              else do
-                lheader <- composeHeader ver s hs
-#ifdef WINDOWS
-                let fid = FileId path Nothing
-                    hook' = hook
-#else
-                (mfd, hook') <- case mfdc of
-                   -- settingsFdCacheDuration is 0
-                   Nothing  -> return (Nothing, hook)
-                   Just fdc -> do
-                      (fd, fresher) <- F.getFd fdc path
-                      return (Just fd, hook >> fresher)
-                let fid = FileId path mfd
-#endif
-                connSendFile conn fid beg len hook' [lheader]
-                return (Just s, Just len)
-          | otherwise -> do
-            sendRsp conn ii ver H.requestedRangeNotSatisfiable416
-                (filter (\(k, _) -> k /= "content-length") hs)
-                (RspBuilder mempty True)
-  where
-    s2 = H.notFound404
-    hs2 =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
-    body = byteString "File not found"
-    mfdc = fdCacher ii
-    get = fileInfo ii
 
 ----------------------------------------------------------------
 
@@ -351,6 +285,76 @@ sendRsp conn _ _ _ _ (RspRaw withApp src tickle) = do
     send bs = connSendAll conn bs >> tickle
 
 ----------------------------------------------------------------
+
+-- Sophisticated WAI applications.
+-- We respect s0. s0 MUST be a proper value.
+sendRsp conn ii ver s0 hs0 (RspFile path (Just part) _ isHead hook) =
+    sendRspFile2XX conn ii ver s0 hs path beg len isHead hook
+  where
+    beg = filePartOffset part
+    len = filePartByteCount part
+    hs = addContentHeadersForFilePart hs0 part
+
+----------------------------------------------------------------
+
+-- Simple WAI applications.
+-- Status is ignored
+sendRsp conn ii ver _ hs0 (RspFile path Nothing idxhdr isHead hook) = do
+    efinfo <- E.try $ fileInfo ii path
+    case efinfo of
+        Left (_ex :: E.IOException) ->
+#ifdef WARP_DEBUG
+          print _ex >>
+#endif
+          sendRspFile404 conn ii ver hs0
+        Right finfo -> case conditionalRequest finfo hs0 idxhdr of
+          WithoutBody s         -> sendRsp conn ii ver s hs0 RspNoBody
+          WithBody s hs beg len -> sendRspFile2XX conn ii ver s hs path beg len isHead hook
+
+----------------------------------------------------------------
+
+sendRspFile2XX :: Connection
+               -> InternalInfo
+               -> H.HttpVersion
+               -> H.Status
+               -> H.ResponseHeaders
+               -> FilePath
+               -> Integer
+               -> Integer
+               -> Bool
+               -> IO ()
+               -> IO (Maybe H.Status, Maybe Integer)
+sendRspFile2XX conn ii ver s hs path beg len isHead hook
+  | isHead = sendRsp conn ii ver s hs RspNoBody
+  | otherwise = do
+      lheader <- composeHeader ver s hs
+#ifdef WINDOWS
+      let fid = FileId path Nothing
+          hook' = hook
+#else
+      (mfd, hook') <- case fdCacher ii of
+         -- settingsFdCacheDuration is 0
+         Nothing  -> return (Nothing, hook)
+         Just fdc -> do
+            (fd, fresher) <- F.getFd fdc path
+            return (Just fd, hook >> fresher)
+      let fid = FileId path mfd
+#endif
+      connSendFile conn fid beg len hook' [lheader]
+      return (Just s, Just len)
+
+sendRspFile404 :: Connection
+               -> InternalInfo
+               -> H.HttpVersion
+               -> H.ResponseHeaders
+               -> IO (Maybe H.Status, Maybe Integer)
+sendRspFile404 conn ii ver hs0 = sendRsp conn ii ver s hs (RspBuilder body True)
+  where
+    s = H.notFound404
+    hs =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
+    body = byteString "File not found"
+
+----------------------------------------------------------------
 ----------------------------------------------------------------
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
@@ -376,7 +380,7 @@ checkPersist req reqidxhdr
     | otherwise       = checkPersist10 conn
   where
     ver = httpVersion req
-    conn = reqidxhdr ! idxConnection
+    conn = reqidxhdr ! fromEnum ReqConnection
     checkPersist11 (Just x)
         | CI.foldCase x == "close"      = False
     checkPersist11 _                    = True
@@ -401,7 +405,7 @@ infoFromResponse rspidxhdr (isPersist,isChunked) = (isKeepAlive, needsChunked)
   where
     needsChunked = isChunked && not hasLength
     isKeepAlive = isPersist && (isChunked || hasLength)
-    hasLength = isJust $ rspidxhdr ! idxContentLength
+    hasLength = isJust $ rspidxhdr ! fromEnum ResContentLength
 
 ----------------------------------------------------------------
 
@@ -422,7 +426,7 @@ addTransferEncoding hdrs = ("transfer-encoding", "chunked") : hdrs
 #endif
 
 addDate :: D.DateCache -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
-addDate dc rspidxhdr hdrs = case rspidxhdr ! idxDate of
+addDate dc rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
     Nothing -> do
         gmtdate <- D.getDate dc
         return $ (H.hDate, gmtdate) : hdrs
@@ -435,7 +439,7 @@ warpVersion :: String
 warpVersion = showVersion Paths_warp.version
 
 addServer :: HeaderValue -> IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
-addServer serverName rspidxhdr hdrs = case rspidxhdr ! idxServer of
+addServer serverName rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
     Nothing -> (H.hServer, serverName) : hdrs
     _       -> hdrs
 
