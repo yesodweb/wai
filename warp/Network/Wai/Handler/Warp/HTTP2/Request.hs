@@ -55,7 +55,9 @@ mkRequest settings addr (ValidHeaders m p ma _ hdr) body = req
       , pathInfo = H.decodePathSegments path
       , rawQueryString = query
       , queryString = H.parseQuery query
-      , requestHeaders = hdr
+      , requestHeaders = case ma of
+                           Nothing -> hdr
+                           Just h  -> (mk "host", h) : hdr
       , isSecure = True
       , remoteHost = addr
       , requestBody = body
@@ -110,7 +112,7 @@ validateHeaders hs = case pseudo hs (emptyPseudo,id) of
                               else
                                 Nothing
       | k == "content-length"
-                          = normal kvs (p { contentLen = Just v },b)
+                          = normal kvs (p { contentLen = Just v }, b . ((mk k,v) :))
       | k == "host"       = if isJust (colonAuth p) then
                                 normal kvs (p,b)
                               else
