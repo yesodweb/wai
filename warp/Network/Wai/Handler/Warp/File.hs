@@ -145,7 +145,7 @@ contentRangeHeader beg end total = (
 #if MIN_VERSION_http_types(0,9,0)
         H.hContentRange
 #else
-        "content-range"
+        "Content-Range"
 #endif
     , range)
   where
@@ -168,7 +168,7 @@ addContentHeaders hs off len size = hs''
 #if MIN_VERSION_http_types(0,9,0)
         H.hAcceptRanges
 #else
-        "accept-ranges"
+        "Accept-Ranges"
 #endif
         , "bytes"):hs
     hs'' = if len == size then hs' else contentRange:hs'
