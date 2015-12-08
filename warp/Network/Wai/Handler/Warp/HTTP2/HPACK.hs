@@ -5,6 +5,7 @@ module Network.Wai.Handler.Warp.HTTP2.HPACK where
 
 import Control.Arrow (first)
 import qualified Control.Exception as E
+import qualified Data.ByteString as B
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Char8 as B8
 import Data.CaseInsensitive (foldedCase)
@@ -19,23 +20,35 @@ import Network.Wai.Handler.Warp.Response
 import qualified Network.Wai.Handler.Warp.Settings as S
 import Network.Wai.Handler.Warp.Types
 
+-- $setup
+-- >>> :set -XOverloadedStrings
+
+-- Set-Cookie: contains only one cookie value.
+-- So, we don't need to split it.
 hpackEncodeHeader :: Context -> InternalInfo -> S.Settings -> Response
                   -> IO Builder
-hpackEncodeHeader Context{encodeDynamicTable} ii settings rsp = do
-    hdr1 <- addServerAndDate hdr0
+hpackEncodeHeader ctx ii settings rsp = do
+    hdr1 <- addServerAndDate h
     let hdr2 = (":status", status) : map (first foldedCase) hdr1
-    ehdrtbl <- readIORef encodeDynamicTable
-    (ehdrtbl', builder) <- encodeHeaderBuilder defaultEncodeStrategy ehdrtbl hdr2
-    writeIORef encodeDynamicTable ehdrtbl'
-    return builder
+    hpackEncodeRawHeaders ctx hdr2
   where
-    hdr0 = responseHeaders rsp
-    status = B8.pack $ show $ H.statusCode $ responseStatus rsp
+    s = responseStatus rsp
+    h = responseHeaders rsp
+    status = B8.pack $ show $ H.statusCode $ s
     dc = dateCacher ii
-    rspidxhdr = indexResponseHeader hdr0
+    rspidxhdr = indexResponseHeader h
     defServer = S.settingsServerName settings
     addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
 
+hpackEncodeCIHeaders :: Context -> [H.Header] -> IO Builder
+hpackEncodeCIHeaders ctx = hpackEncodeRawHeaders ctx . map (first foldedCase)
+
+hpackEncodeRawHeaders :: Context -> [(B.ByteString, B.ByteString)] -> IO Builder
+hpackEncodeRawHeaders Context{encodeDynamicTable} hdr = do
+    ehdrtbl <- readIORef encodeDynamicTable
+    (ehdrtbl', builder) <- encodeHeaderBuilder defaultEncodeStrategy ehdrtbl hdr
+    writeIORef encodeDynamicTable ehdrtbl'
+    return builder
 
 ----------------------------------------------------------------
 
@@ -44,6 +57,20 @@ hpackDecodeHeader hdrblk Context{decodeDynamicTable} = do
     hdrtbl <- readIORef decodeDynamicTable
     (hdrtbl', hdr) <- decodeHeader hdrtbl hdrblk `E.onException` cleanup
     writeIORef decodeDynamicTable hdrtbl'
-    return hdr
+    return $ concatCookie hdr
   where
     cleanup = E.throwIO $ ConnectionError CompressionError "cannot decompress the header"
+
+-- |
+--
+-- >>> concatCookie [("foo","bar")]
+-- [("foo","bar")]
+-- >>> concatCookie [("cookie","a=b"),("foo","bar"),("cookie","c=d"),("cookie","e=f")]
+-- [("foo","bar"),("cookie","a=b; c=d; e=f")]
+concatCookie :: HeaderList -> HeaderList
+concatCookie = collect []
+  where
+    collect cookies (("cookie",c):rest) = collect (cookies ++ [c]) rest
+    collect cookies (h:rest) = h : collect cookies rest
+    collect [] [] = []
+    collect cookies [] = [("cookie", B.intercalate "; " cookies)]
