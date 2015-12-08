@@ -4,8 +4,8 @@
 
 module RequestSpec (main, spec) where
 
+import Network.Wai.Handler.Warp.File (parseByteRanges)
 import Network.Wai.Handler.Warp.Request
-import Network.Wai.Handler.Warp.RequestHeader (parseByteRanges)
 import Network.Wai.Handler.Warp.Types
 import Test.Hspec
 import Test.Hspec.QuickCheck
