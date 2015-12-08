@@ -186,7 +186,7 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, output
     unless (testAck flags) $ do
         modifyIORef http2settings $ \old -> updateSettings old alist
         let frame = settingsFrame setAck []
-        enqueueControl outputQ 0 $ OFrame frame
+        enqueueControl outputQ 0 $ OSettings frame alist
     return True
 
 control FramePing FrameHeader{flags} bs Context{outputQ} =

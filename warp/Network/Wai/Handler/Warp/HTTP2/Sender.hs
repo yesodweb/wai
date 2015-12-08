@@ -13,6 +13,7 @@ import Control.Monad (unless, void, when)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder.Extra as B
 import Foreign.Ptr
+import Network.HPACK (setLimitForEncoding)
 import Network.HTTP2
 import Network.HTTP2.Priority
 import Network.Wai
@@ -68,7 +69,7 @@ getWindowSize connWindow strmWindow = do
    return $ min cw sw
 
 frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> IO ()
-frameSender ctx@Context{outputQ,connectionWindow}
+frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
             conn@Connection{connWriteBuffer,connBufferSize,connSendAll}
             ii settings = go `E.catch` ignore
   where
@@ -91,6 +92,14 @@ frameSender ctx@Context{outputQ,connectionWindow}
     switch (OGoaway frame) _ = connSendAll frame
     switch (OFrame frame)  _ = do
         connSendAll frame
+        loop
+    switch (OSettings frame alist) _ = do
+        connSendAll frame
+        case lookup SettingsHeaderTableSize alist of
+            Nothing  -> return ()
+            Just siz -> do
+                dyntbl <- readIORef encodeDynamicTable
+                setLimitForEncoding siz dyntbl
         loop
     switch (OResponse strm rsp aux) pre = do
         writeIORef (streamPrecedence strm) pre

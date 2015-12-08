@@ -62,6 +62,7 @@ data Next = Next BytesFilled (Control DynaNext)
 data Output = OFinish
             | OGoaway ByteString
             | OFrame  ByteString
+            | OSettings ByteString SettingsList
             | OResponse Stream Response Aux
             | ONext Stream DynaNext
 
