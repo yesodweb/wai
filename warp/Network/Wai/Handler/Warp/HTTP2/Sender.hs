@@ -25,7 +25,6 @@ import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal (Response(..))
-import qualified System.PosixCompat.Files as P
 
 #ifdef WINDOWS
 import qualified System.IO as IO
@@ -277,11 +276,9 @@ fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
 fillResponseBodyGetNext _ _ _ _ _ = error "fillResponseBodyGetNext"
 
 fileStartEnd :: FilePath -> Maybe FilePart -> IO (Integer, Integer)
-fileStartEnd path Nothing = do
-    end <- fromIntegral . P.fileSize <$> P.getFileStatus path
-    return (0, end)
 fileStartEnd _ (Just part) =
     return (filePartOffset part, filePartByteCount part)
+fileStartEnd _ _ = error "fileStartEnd"
 
 ----------------------------------------------------------------
 
