@@ -11,6 +11,7 @@ module Network.Wai.Handler.Warp.Response (
   , addDate
   , addServer
   , hasBody
+  , replaceHeader
   ) where
 
 #ifndef MIN_VERSION_base

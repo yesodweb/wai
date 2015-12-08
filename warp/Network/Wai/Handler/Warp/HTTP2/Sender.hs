@@ -214,7 +214,9 @@ frameSender ctx@Context{outputQ,connectionWindow}
         -- the context would be switched to the receiver,
         -- resulting the inconsistency of concurrency.
         case mnext of
-            CFinish    -> closed ctx strm Finished
+            CFinish    -> do closed ctx strm Finished
+                             logger <- readIORef $ streamLogger strm
+                             logger
             _          -> return ()
         flushN total
         atomically $ do

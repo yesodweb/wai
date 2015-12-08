@@ -2,6 +2,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Worker (
     Responder
@@ -17,18 +19,23 @@ import Control.Concurrent.STM
 import Control.Exception (Exception, SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
 import Control.Monad (void, when)
+import Data.ByteString.Builder (byteString)
 import Data.Typeable
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
 import Network.Wai
+import Network.Wai.Handler.Warp.File
+import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
+import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Response as R
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
+import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceived(..))
 
 ----------------------------------------------------------------
@@ -42,42 +49,88 @@ type Responder = ThreadContinue -> T.Handle -> Stream -> Request ->
 -- | This function is passed to workers.
 --   They also pass 'Response's from 'Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
-response :: Context -> Manager -> Responder
-response Context{outputQ} mgr tconf th strm req rsp = do
-    case rsp of
-        ResponseStream _ _ strmbdy -> do
-            -- We must not exit this WAI application.
-            -- If the application exits, streaming would be also closed.
-            -- So, this work occupies this thread.
-            --
-            -- We need to increase the number of workers.
-            myThreadId >>= replaceWithAction mgr
-            -- After this work, this thread stops to decease
-            -- the number of workers.
-            setThreadContinue tconf False
-            -- Since 'StreamingBody' is loop, we cannot control it.
-            -- So, let's serialize 'Builder' with a designated queue.
-            sq <- newTBQueueIO 10 -- fixme: hard coding: 10
-            tvar <- newTVarIO SyncNone
-            let out = OResponse strm rsp (Persist sq tvar)
-            -- Since we must not enqueue an empty queue to the priority
-            -- queue, we spawn a thread to ensure that the designated
-            -- queue is not empty.
-            void $ forkIO $ waiter tvar sq outputQ
-            atomically $ writeTVar tvar (SyncNext out)
-            let push b = do
-                    atomically $ writeTBQueue sq (SBuilder b)
-                    T.tickle th
-                flush  = atomically $ writeTBQueue sq SFlush
-            strmbdy push flush
-            atomically $ writeTBQueue sq SFinish
-        _ -> do
-            setThreadContinue tconf True
-            let hasBody = requestMethod req /= H.methodHead
-                       && R.hasBody (responseStatus rsp)
-                out = OResponse strm rsp (Oneshot hasBody)
-            enqueueOrSpawnTemporaryWaiter strm outputQ out
-    return ResponseReceived
+response :: InternalInfo -> S.Settings -> Context -> Manager -> Responder
+response ii settings Context{outputQ} mgr tconf th strm req rsp
+  | R.hasBody s0 = case rsp of
+    ResponseStream _ _ strmbdy
+      | isHead             -> responseNoBody s0 hs0
+      | otherwise          -> responseStreaming strmbdy
+    ResponseBuilder _ _ b
+      | isHead             -> responseNoBody s0 hs0
+      | otherwise          -> responseBuilderBody s0 hs0 b
+    ResponseFile _ _ p mp  -> responseFileXXX p mp
+    ResponseRaw _ _        -> error "HTTP/2 does not support ResponseRaw"
+  | otherwise               = responseNoBody s0 hs0
+  where
+    isHead = requestMethod req == H.methodHead
+    s0 = responseStatus rsp
+    hs0 = responseHeaders rsp
+    logger = S.settingsLogger settings req
+
+    responseNoBody s hs = responseBuilderBody s hs mempty
+
+    responseBuilderBody s hs bdy = do
+        writeIORef (streamLogger strm) (logger s Nothing)
+        setThreadContinue tconf True
+        let rsp' = ResponseBuilder s hs bdy
+            out = OResponse strm rsp' (Oneshot True)
+        enqueueOrSpawnTemporaryWaiter strm outputQ out
+        return ResponseReceived
+
+    responseFileXXX path Nothing = do
+        efinfo <- E.try $ fileInfo ii path
+        case efinfo of
+            Left (_ex :: E.IOException) -> response404
+            Right finfo -> case conditionalRequest finfo hs0 (indexRequestHeader (requestHeaders req)) of
+                 WithoutBody s         -> responseNoBody s hs0
+                 WithBody s hs beg len -> responseFile2XX s hs path (Just (FilePart beg len (fileInfoSize finfo)))
+
+    responseFileXXX path mpart = responseFile2XX s0 hs0 path mpart
+
+    responseFile2XX s hs path mpart
+      | isHead    = responseNoBody s hs
+      | otherwise = do
+          writeIORef (streamLogger strm) (logger s (filePartByteCount <$> mpart))
+          setThreadContinue tconf True
+          let rsp' = ResponseFile s hs path mpart
+              out = OResponse strm rsp' (Oneshot True)
+          enqueueOrSpawnTemporaryWaiter strm outputQ out
+          return ResponseReceived
+
+    response404 = responseBuilderBody s hs body
+      where
+        s = H.notFound404
+        hs = R.replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
+        body = byteString "File not found"
+
+    responseStreaming strmbdy = do
+        writeIORef (streamLogger strm) (logger s0 Nothing)
+        -- We must not exit this WAI application.
+        -- If the application exits, streaming would be also closed.
+        -- So, this work occupies this thread.
+        --
+        -- We need to increase the number of workers.
+        myThreadId >>= replaceWithAction mgr
+        -- After this work, this thread stops to decease
+        -- the number of workers.
+        setThreadContinue tconf False
+        -- Since 'StreamingBody' is loop, we cannot control it.
+        -- So, let's serialize 'Builder' with a designated queue.
+        sq <- newTBQueueIO 10 -- fixme: hard coding: 10
+        tvar <- newTVarIO SyncNone
+        let out = OResponse strm rsp (Persist sq tvar)
+        -- Since we must not enqueue an empty queue to the priority
+        -- queue, we spawn a thread to ensure that the designated
+        -- queue is not empty.
+        void $ forkIO $ waiter tvar sq outputQ
+        atomically $ writeTVar tvar (SyncNext out)
+        let push b = do
+              atomically $ writeTBQueue sq (SBuilder b)
+              T.tickle th
+            flush  = atomically $ writeTBQueue sq SFlush
+        _ <- strmbdy push flush
+        atomically $ writeTBQueue sq SFinish
+        return ResponseReceived
 
 data Break = Break deriving (Show, Typeable)
 

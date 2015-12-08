@@ -30,7 +30,7 @@ http2 conn ii addr transport settings readN app = do
         ctx <- newContext
         -- Workers & Manager
         mgr <- start
-        let responder = response ctx mgr
+        let responder = response ii settings ctx mgr
             action = worker ctx settings tm app responder
         setAction mgr action
         -- fixme: hard coding: 10
