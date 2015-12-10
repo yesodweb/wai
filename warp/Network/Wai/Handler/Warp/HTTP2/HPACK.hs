@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.HPACK where
 
@@ -68,9 +69,14 @@ hpackDecodeHeader hdrblk Context{decodeDynamicTable} = do
 -- >>> concatCookie [("cookie","a=b"),("foo","bar"),("cookie","c=d"),("cookie","e=f")]
 -- [("foo","bar"),("cookie","a=b; c=d; e=f")]
 concatCookie :: HeaderList -> HeaderList
-concatCookie = collect []
+concatCookie = collect id
   where
-    collect cookies (("cookie",c):rest) = collect (cookies ++ [c]) rest
-    collect cookies (h:rest) = h : collect cookies rest
-    collect [] [] = []
-    collect cookies [] = [("cookie", B.intercalate "; " cookies)]
+    collect cb (("cookie",c):rest) = collect (cb . (c:)) rest
+    collect cb (h:rest)            = h : collect cb rest
+    collect cb []                  = cookie
+      where
+        !cookies = cb []
+        !cookie
+           | null cookies  = []
+           | otherwise     = let !v = B.intercalate "; " cookies
+                             in [("cookie",v)]
