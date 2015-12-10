@@ -58,25 +58,6 @@ hpackDecodeHeader hdrblk Context{decodeDynamicTable} = do
     hdrtbl <- readIORef decodeDynamicTable
     (hdrtbl', hdr) <- decodeHeader hdrtbl hdrblk `E.onException` cleanup
     writeIORef decodeDynamicTable hdrtbl'
-    return $ concatCookie hdr
+    return hdr
   where
     cleanup = E.throwIO $ ConnectionError CompressionError "cannot decompress the header"
-
--- |
---
--- >>> concatCookie [("foo","bar")]
--- [("foo","bar")]
--- >>> concatCookie [("cookie","a=b"),("foo","bar"),("cookie","c=d"),("cookie","e=f")]
--- [("foo","bar"),("cookie","a=b; c=d; e=f")]
-concatCookie :: HeaderList -> HeaderList
-concatCookie = collect id
-  where
-    collect cb (("cookie",c):rest) = collect (cb . (c:)) rest
-    collect cb (h:rest)            = h : collect cb rest
-    collect cb []                  = cookie
-      where
-        !cookies = cb []
-        !cookie
-           | null cookies  = []
-           | otherwise     = let !v = B.intercalate "; " cookies
-                             in [("cookie",v)]

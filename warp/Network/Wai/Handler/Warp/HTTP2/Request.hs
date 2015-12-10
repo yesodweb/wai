@@ -44,7 +44,7 @@ data ValidHeaders = ValidHeaders {
   , vhAuth   :: !(Maybe ByteString)
   , vhCL     :: !(Maybe Int)
   , vhHeader :: !RequestHeaders
-  }
+  } deriving Show
 
 type MkReq = ValidHeaders -> IO ByteString -> Request
 
@@ -83,53 +83,70 @@ data Pseudo = Pseudo {
   , colonPath   :: !(Maybe ByteString)
   , colonAuth   :: !(Maybe ByteString)
   , contentLen  :: !(Maybe ByteString)
-  }
+  } deriving Show
 
 emptyPseudo :: Pseudo
 emptyPseudo = Pseudo Nothing Nothing Nothing Nothing
 
+-- |
+--
+-- >>> validateHeaders [(":method","GET"),(":path","path")]
+-- Just (ValidHeaders {vhMethod = "GET", vhPath = "path", vhAuth = Nothing, vhCL = Nothing, vhHeader = []})
+-- >>> validateHeaders [(":method","GET"),(":path","path"),(":authority","authority"),("accept-language","en")]
+-- Just (ValidHeaders {vhMethod = "GET", vhPath = "path", vhAuth = Just "authority", vhCL = Nothing, vhHeader = [("accept-language","en")]})
+-- >>> validateHeaders [(":method","GET"),(":path","path"),("cookie","a=b"),("accept-language","en"),("cookie","c=d"),("cookie","e=f")]
+-- Just (ValidHeaders {vhMethod = "GET", vhPath = "path", vhAuth = Nothing, vhCL = Nothing, vhHeader = [("accept-language","en"),("cookie","a=b; c=d; e=f")]})
 validateHeaders :: HeaderList -> Maybe ValidHeaders
-validateHeaders hs = case pseudo hs (emptyPseudo,id) of
-    Just (Pseudo (Just m) (Just p) ma mcl, h)
+validateHeaders hs = case pseudo hs emptyPseudo of
+    Just (Pseudo (Just m) (Just p) ma mcl, !h)
         -> Just $! ValidHeaders m p ma (readInt <$> mcl) h
     _   -> Nothing
   where
-    pseudo [] (!p,!b)     = Just (p,b [])
-    pseudo h@((k,v):kvs) (!p,!b)
+    pseudo [] !p          = Just (p,[])
+    pseudo h@((k,v):kvs) !p
       | k == ":method"    = if isJust (colonMethod p) then
                                 Nothing
                               else
-                                pseudo kvs (p { colonMethod = Just v },b)
+                                pseudo kvs (p { colonMethod = Just v })
       | k == ":path"      = if isJust (colonPath p) then
                                 Nothing
                               else
-                                pseudo kvs (p { colonPath   = Just v },b)
+                                pseudo kvs (p { colonPath   = Just v })
       | k == ":authority" = if isJust (colonAuth p) then
                                 Nothing
                               else
-                                pseudo kvs (p { colonAuth   = Just v },b)
-      | k == ":scheme"    = pseudo kvs (p,b) -- fixme: how to store :scheme?
+                                pseudo kvs (p { colonAuth   = Just v })
+      | k == ":scheme"    = pseudo kvs p -- fixme: how to store :scheme?
       | isPseudo k        = Nothing
-      | otherwise         = normal h (p,b)
+      | otherwise         = normal h (p,id,id)
 
-    normal [] (!p,!b)     = Just (p,b [])
-    normal ((k,v):kvs) (!p,!b)
+    normal [] (!p,b,c)     = Just (p, mkH b c)
+    normal ((k,v):kvs) (!p,b,c)
       | isPseudo k        = Nothing
       | k == "connection" = Nothing
       | k == "te"         = if v == "trailers" then
-                                normal kvs (p, b . ((mk k,v) :))
+                                normal kvs (p, b . ((mk k,v) :), c)
                               else
                                 Nothing
       | k == "content-length"
-                          = normal kvs (p { contentLen = Just v }, b . ((mk k,v) :))
+                          = normal kvs (p { contentLen = Just v }, b . ((mk k,v) :), c)
       | k == "host"       = if isJust (colonAuth p) then
-                                normal kvs (p,b)
+                                normal kvs (p, b, c)
                               else
-                                normal kvs (p { colonAuth = Just v },b)
+                                normal kvs (p { colonAuth = Just v }, b, c)
+      | k == "cookie"     = normal kvs (p, b, c . (v:))
       | otherwise         = case BS.find isUpper k of
-                                 Nothing -> normal kvs (p, b . ((mk k,v) :))
+                                 Nothing -> normal kvs (p, b . ((mk k,v) :), c)
                                  Just _  -> Nothing
 
+    mkH b c = h
+      where
+        !h = b anchor
+        !cookieList = c []
+        !anchor
+          | null cookieList = []
+          | otherwise       = let !v = BS.intercalate "; " cookieList
+                              in [("cookie",v)]
     isPseudo "" = False
     isPseudo k  = BS.head k == _colon
 
