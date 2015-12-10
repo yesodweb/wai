@@ -38,7 +38,7 @@ http2 conn ii addr transport settings readN app = do
         -- fixme: hard coding: 10
         replicateM_ 10 $ spawnAction mgr
         -- Receiver
-        let mkreq = mkRequest settings addr
+        let mkreq = mkRequest ii settings addr
         tid <- forkIO $ frameReceiver ctx mkreq readN
         -- Sender
         -- frameSender is the main thread because it ensures to send

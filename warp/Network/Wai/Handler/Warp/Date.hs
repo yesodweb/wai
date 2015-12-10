@@ -18,8 +18,8 @@ import Data.ByteString.Char8
 import Network.HTTP.Date
 
 #if WINDOWS
-import Data.Time (UTCTime, formatTime, getCurrentTime)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Data.Time (UTCTime, getCurrentTime)
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Foreign.C.Types (CTime(..))
 #else
 import System.Posix (epochTime)
