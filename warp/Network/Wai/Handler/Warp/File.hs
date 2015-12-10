@@ -12,9 +12,7 @@ import Control.Applicative ((<|>))
 import Data.Array ((!))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B hiding (pack)
-import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Char8 as B (pack, readInteger)
-import qualified Data.ByteString.Lazy as L
 import Network.HTTP.Date
 import qualified Network.HTTP.Types as H
 import qualified Network.HTTP.Types.Header as H
@@ -163,7 +161,7 @@ addContentHeaders :: H.ResponseHeaders -> Integer -> Integer -> Integer -> H.Res
 addContentHeaders hs off len size = hs''
   where
     contentRange = contentRangeHeader off (off + len - 1) size
-    lengthBS = L.toStrict $ B.toLazyByteString $ B.integerDec len
+    !lengthBS = B.pack $ show len
     hs' = (H.hContentLength, lengthBS):(
 #if MIN_VERSION_http_types(0,9,0)
         H.hAcceptRanges
