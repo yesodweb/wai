@@ -92,7 +92,7 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
           control ftyp header pl ctx
       | otherwise = do
           checkContinued
-          strm@Stream{streamState,streamContentLength,streamPrecedence} <- getStream
+          !strm@Stream{streamState,streamContentLength,streamPrecedence} <- getStream
           pl <- recvN payloadLength
           state <- readIORef streamState
           state' <- stream ftyp header pl ctx state strm
@@ -105,7 +105,7 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
                               E.throwIO $ StreamError ProtocolError streamId
                           writeIORef streamPrecedence $ toPrecedence pri
                           writeIORef streamState HalfClosed
-                          let req = mkreq vh (return "")
+                          let !req = mkreq vh (return "")
                           atomically $ writeTQueue inputQ $ Input strm req
                       Nothing -> E.throwIO $ StreamError ProtocolError streamId
               Open (HasBody hdr pri) -> do
@@ -118,7 +118,7 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
                           writeIORef streamContentLength $ vhCL vh
                           readQ <- newReadBody q
                           bodySource <- mkSource readQ
-                          let req = mkreq vh (readSource bodySource)
+                          let !req = mkreq vh (readSource bodySource)
                           atomically $ writeTQueue inputQ $ Input strm req
                       Nothing -> E.throwIO $ StreamError ProtocolError streamId
               s@(Open Continued{}) -> do

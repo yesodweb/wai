@@ -57,14 +57,14 @@ type DynaNext = WindowSize -> IO Next
 
 type BytesFilled = Int
 
-data Next = Next BytesFilled (Control DynaNext)
+data Next = Next !BytesFilled (Control DynaNext)
 
 data Output = OFinish
-            | OGoaway ByteString
-            | OFrame  ByteString
-            | OSettings ByteString SettingsList
-            | OResponse Stream Response Aux
-            | ONext Stream DynaNext
+            | OGoaway !ByteString
+            | OFrame  !ByteString
+            | OSettings !ByteString !SettingsList
+            | OResponse !Stream !Response !Aux
+            | ONext !Stream !DynaNext
 
 outputStream :: Output -> Stream
 outputStream (OResponse strm _ _) = strm
@@ -88,21 +88,21 @@ data Aux = Oneshot Bool
 
 -- | The context for HTTP/2 connection.
 data Context = Context {
-    http2settings      :: IORef Settings
-  , streamTable        :: StreamTable
-  , concurrency        :: IORef Int
-  , priorityTreeSize   :: IORef Int
+    http2settings      :: !(IORef Settings)
+  , streamTable        :: !StreamTable
+  , concurrency        :: !(IORef Int)
+  , priorityTreeSize   :: !(IORef Int)
   -- | RFC 7540 says "Other frames (from any stream) MUST NOT
   --   occur between the HEADERS frame and any CONTINUATION
   --   frames that might follow". This field is used to implement
   --   this requirement.
-  , continued          :: IORef (Maybe StreamId)
-  , currentStreamId    :: IORef StreamId
-  , inputQ             :: TQueue Input
-  , outputQ            :: PriorityTree Output
-  , encodeDynamicTable :: IORef DynamicTable
-  , decodeDynamicTable :: IORef DynamicTable
-  , connectionWindow   :: TVar WindowSize
+  , continued          :: !(IORef (Maybe StreamId))
+  , currentStreamId    :: !(IORef StreamId)
+  , inputQ             :: !(TQueue Input)
+  , outputQ            :: !(PriorityTree Output)
+  , encodeDynamicTable :: !(IORef DynamicTable)
+  , decodeDynamicTable :: !(IORef DynamicTable)
+  , connectionWindow   :: !(TVar WindowSize)
   }
 
 ----------------------------------------------------------------
@@ -128,25 +128,25 @@ clearContext ctx = void $ reaperStop $ streamTable ctx
 data OpenState =
     JustOpened
   | Continued [HeaderBlockFragment]
-              Int  -- Total size
-              Int  -- The number of continuation frames
-              Bool -- End of stream
-              Priority
-  | NoBody HeaderList Priority
-  | HasBody HeaderList Priority
-  | Body (TQueue ByteString)
+              !Int  -- Total size
+              !Int  -- The number of continuation frames
+              !Bool -- End of stream
+              !Priority
+  | NoBody HeaderList !Priority
+  | HasBody HeaderList !Priority
+  | Body !(TQueue ByteString)
 
 data ClosedCode = Finished
                 | Killed
-                | Reset ErrorCodeId
+                | Reset !ErrorCodeId
                 | ResetByMe SomeException
                 deriving Show
 
 data StreamState =
     Idle
-  | Open OpenState
+  | Open !OpenState
   | HalfClosed
-  | Closed ClosedCode
+  | Closed !ClosedCode
 
 isIdle :: StreamState -> Bool
 isIdle Idle = True
@@ -173,14 +173,14 @@ instance Show StreamState where
 ----------------------------------------------------------------
 
 data Stream = Stream {
-    streamNumber        :: StreamId
-  , streamState         :: IORef StreamState
+    streamNumber        :: !StreamId
+  , streamState         :: !(IORef StreamState)
   -- Next two fields are for error checking.
-  , streamContentLength :: IORef (Maybe Int)
-  , streamBodyLength    :: IORef Int
-  , streamWindow        :: TVar WindowSize
-  , streamPrecedence    :: IORef Precedence
-  , streamLogger        :: IORef (IO ())
+  , streamContentLength :: !(IORef (Maybe Int))
+  , streamBodyLength    :: !(IORef Int)
+  , streamWindow        :: !(TVar WindowSize)
+  , streamPrecedence    :: !(IORef Precedence)
+  , streamLogger        :: !(IORef (IO ()))
   }
 
 instance Show Stream where
