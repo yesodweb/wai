@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, CPP #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Request (
     mkRequest
@@ -38,11 +39,11 @@ import qualified Network.Wai.Handler.Warp.Settings as S (Settings, settingsNoPar
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 
 data ValidHeaders = ValidHeaders {
-    vhMethod :: ByteString
-  , vhPath   :: ByteString
-  , vhAuth   :: Maybe ByteString
-  , vhCL     :: Maybe Int
-  , vhHeader :: RequestHeaders
+    vhMethod :: !ByteString
+  , vhPath   :: !ByteString
+  , vhAuth   :: !(Maybe ByteString)
+  , vhCL     :: !(Maybe Int)
+  , vhHeader :: !RequestHeaders
   }
 
 type MkReq = ValidHeaders -> IO ByteString -> Request
@@ -51,8 +52,8 @@ mkRequest :: InternalInfo -> S.Settings -> SockAddr -> MkReq
 mkRequest ii settings addr (ValidHeaders m p ma _ hdr) body = req
   where
     (unparsedPath,query) = B8.break (=='?') p
-    path = H.extractPath unparsedPath
-    req = Request {
+    !path = H.extractPath unparsedPath
+    !req = Request {
         requestMethod = m
       , httpVersion = http2ver
       , rawPathInfo = if S.settingsNoParsePath settings then unparsedPath else path
@@ -70,8 +71,8 @@ mkRequest ii settings addr (ValidHeaders m p ma _ hdr) body = req
       , requestHeaderHost = ma
       , requestHeaderRange = lookup hRange hdr
       }
-    th = threadHandle ii
-    vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
+    !th = threadHandle ii
+    !vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
                $ Vault.insert getFileInfoKey (fileInfo ii)
                  Vault.empty
 
@@ -90,11 +91,11 @@ emptyPseudo = Pseudo Nothing Nothing Nothing Nothing
 validateHeaders :: HeaderList -> Maybe ValidHeaders
 validateHeaders hs = case pseudo hs (emptyPseudo,id) of
     Just (Pseudo (Just m) (Just p) ma mcl, h)
-        -> Just $ ValidHeaders m p ma (readInt <$> mcl) h
+        -> Just $! ValidHeaders m p ma (readInt <$> mcl) h
     _   -> Nothing
   where
-    pseudo [] (p,b)       = Just (p,b [])
-    pseudo h@((k,v):kvs) (p,b)
+    pseudo [] (!p,!b)     = Just (p,b [])
+    pseudo h@((k,v):kvs) (!p,!b)
       | k == ":method"    = if isJust (colonMethod p) then
                                 Nothing
                               else
@@ -111,8 +112,8 @@ validateHeaders hs = case pseudo hs (emptyPseudo,id) of
       | isPseudo k        = Nothing
       | otherwise         = normal h (p,b)
 
-    normal [] (p,b)       = Just (p,b [])
-    normal ((k,v):kvs) (p,b)
+    normal [] (!p,!b)     = Just (p,b [])
+    normal ((k,v):kvs) (!p,!b)
       | isPseudo k        = Nothing
       | k == "connection" = Nothing
       | k == "te"         = if v == "trailers" then
