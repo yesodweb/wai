@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings, CPP #-}
 {-# LANGUAGE NamedFieldPuns, RecordWildCards #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Types where
 
@@ -10,7 +11,7 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Exception (SomeException)
-import Control.Monad (void)
+import Control.Monad (void,(<$!>))
 import Control.Reaper
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -121,7 +122,9 @@ newContext = Context <$> newIORef defaultSettings
                      <*> newTVarIO defaultInitialWindowSize
 
 clearContext :: Context -> IO ()
-clearContext ctx = void $ reaperStop $ streamTable ctx
+clearContext ctx = do
+    !_ <- reaperStop $ streamTable ctx
+    return ()
 
 ----------------------------------------------------------------
 
@@ -223,13 +226,13 @@ initialize duration = mkReaper settings
 
 clean :: IntMap Stream -> IO (IntMap Stream -> IntMap Stream)
 clean old = do
-    new <- M.fromAscList <$> prune oldlist []
-    return $ M.union new
+    !new <- M.fromAscList <$> prune oldlist []
+    return $! M.union new
   where
-    oldlist = M.toDescList old
+    !oldlist = M.toDescList old
     prune []     lst = return lst
     prune (x@(_,s):xs) lst = do
-        st <- readIORef (streamState s)
+        !st <- readIORef (streamState s)
         if isClosed st then
             prune xs lst
           else
@@ -239,7 +242,7 @@ insert :: StreamTable -> M.Key -> Stream -> IO ()
 insert strmtbl k v = reaperAdd strmtbl (k,v)
 
 search :: StreamTable -> M.Key -> IO (Maybe Stream)
-search strmtbl k = M.lookup k <$> reaperRead strmtbl
+search strmtbl k = M.lookup k <$!> reaperRead strmtbl
 
 
 -- INVARIANT: streams in the output queue have non-zero window size.
