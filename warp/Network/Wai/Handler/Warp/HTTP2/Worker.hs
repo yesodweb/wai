@@ -4,6 +4,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Worker (
     Responder
@@ -62,15 +63,16 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
     ResponseRaw _ _        -> error "HTTP/2 does not support ResponseRaw"
   | otherwise               = responseNoBody s0 hs0
   where
-    isHead = requestMethod req == H.methodHead
-    s0 = responseStatus rsp
-    hs0 = responseHeaders rsp
-    logger = S.settingsLogger settings req
+    !isHead = requestMethod req == H.methodHead
+    !s0 = responseStatus rsp
+    !hs0 = responseHeaders rsp
+    !logger = S.settingsLogger settings req
 
     responseNoBody s hs = responseBuilderBody s hs mempty
 
     responseBuilderBody s hs bdy = do
-        writeIORef (streamLogger strm) (logger s Nothing)
+        let !logact = logger s Nothing
+        writeIORef (streamLogger strm) logact
         setThreadContinue tconf True
         let rsp' = ResponseBuilder s hs bdy
             out = OResponse strm rsp' (Oneshot True)
@@ -90,7 +92,8 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
     responseFile2XX s hs path mpart
       | isHead    = responseNoBody s hs
       | otherwise = do
-          writeIORef (streamLogger strm) (logger s (filePartByteCount <$> mpart))
+          let !logact = logger s (filePartByteCount <$> mpart)
+          writeIORef (streamLogger strm) logact
           setThreadContinue tconf True
           let rsp' = ResponseFile s hs path mpart
               out = OResponse strm rsp' (Oneshot True)
@@ -104,7 +107,8 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         body = byteString "File not found"
 
     responseStreaming strmbdy = do
-        writeIORef (streamLogger strm) (logger s0 Nothing)
+        let !logact = logger s0 Nothing
+        writeIORef (streamLogger strm) logact
         -- We must not exit this WAI application.
         -- If the application exits, streaming would be also closed.
         -- So, this work occupies this thread.
