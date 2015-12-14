@@ -22,6 +22,7 @@ import Network.HTTP.Types
 import Network.Socket (sClose)
 import Network.Socket.ByteString (sendAll)
 import Network.Wai
+import Network.Wai.HTTP2(promoteApplication)
 import Network.Wai.Handler.Warp
 import System.IO (hFlush, hClose)
 import System.IO.Unsafe (unsafePerformIO)
@@ -88,7 +89,13 @@ getPort = do
             return port
 
 withApp :: Settings -> Application -> (Int -> IO a) -> IO a
-withApp settings app f = do
+withApp settings app f = runServer settings (flip runSettings app) f
+
+withAppHttp2 :: Settings -> Application -> (Int -> IO a) -> IO a
+withAppHttp2 settings app f = runServer settings (\ s -> runHTTP2Settings s (promoteApplication app) app) f
+
+runServer :: Settings -> (Settings -> IO ()) -> (Int -> IO a) -> IO a
+runServer settings runApp f = do
     port <- RunSpec.getPort
     baton <- newEmptyMVar
     let settings' = setPort port
@@ -96,7 +103,7 @@ withApp settings app f = do
                   $ setBeforeMainLoop (putMVar baton ())
                     settings
     bracket
-        (forkIO $ runSettings settings' app `onException` putMVar baton ())
+        (forkIO $ runApp settings' `onException` putMVar baton ())
         killThread
         (const $ takeMVar baton >> f port)
 
@@ -401,6 +408,28 @@ spec = do
                 (concat ["http://127.0.0.1:", show port, "/file"])
                 [mkHeader HdrRange "bytes=0-1"]
             getHeaderValue HdrContentLength res `shouldBe` Just "2"
+
+    describe "cookie header" $ do
+        let app req send = let Just cookies = lookup "cookie" $ requestHeaders req
+                           in send $ responseLBS status200 [] $ L.fromStrict cookies
+
+        it "concatenates multiple cookies in HTTP/1.1" $ do
+          withApp defaultSettings app $ \port -> do
+            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+            hPutStr handle "GET / HTTP/1.1\r\ncookie: a=b\r\ncookie: c=d\r\n\r\n"
+            hFlush handle
+            Just out <- timeout 100000 $ hGetSome handle 4096
+            out `shouldSatisfy` ("a=b; c=d" `S.isInfixOf`)
+            
+        it "concatenates multiple cookies in HTTP/2" $ do
+          withAppHttp2 defaultSettings app $ \port -> do
+            handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+            hPutStr handle "GET / HTTP/1.1\r\ncookie: a=b\r\ncookie: c=d\r\n\r\n"
+            hFlush handle
+            Just out <- timeout 100000 $ hGetSome handle 4096
+            out `shouldSatisfy` ("a=b; c=d" `S.isInfixOf`)
+            
+                                
 
 consumeBody :: IO ByteString -> IO [ByteString]
 consumeBody body =
