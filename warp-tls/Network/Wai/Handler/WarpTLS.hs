@@ -440,7 +440,11 @@ plainHTTP TLSSettings{..} s bs0 = case onInsecure of
                 }
         return (conn'', TCP)
     DenyInsecure lbs -> do
-        sendAll s "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
+        -- http://tools.ietf.org/html/rfc2817#section-4.2
+        sendAll s "HTTP/1.1 426 Upgrade Required\
+        \r\nUpgrade: TLS/1.0, HTTP/1.1\
+        \r\nConnection: Upgrade\
+        \r\nContent-Type: text/plain\r\n\r\n"
         mapM_ (sendAll s) $ L.toChunks lbs
         sClose s
         throwIO InsecureConnectionDenied
