@@ -183,7 +183,6 @@ data Stream = Stream {
   , streamBodyLength    :: !(IORef Int)
   , streamWindow        :: !(TVar WindowSize)
   , streamPrecedence    :: !(IORef Precedence)
-  , streamLogger        :: !(IORef (IO ()))
   }
 
 instance Show Stream where
@@ -195,7 +194,6 @@ newStream sid win = Stream sid <$> newIORef Idle
                                <*> newIORef 0
                                <*> newTVarIO win
                                <*> newIORef defaultPrecedence
-                               <*> newIORef (return ())
 
 ----------------------------------------------------------------
 

@@ -222,9 +222,7 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
         -- the context would be switched to the receiver,
         -- resulting the inconsistency of concurrency.
         case mnext of
-            CFinish    -> do closed ctx strm Finished
-                             logger <- readIORef $ streamLogger strm
-                             logger
+            CFinish    -> closed ctx strm Finished
             _          -> return ()
         flushN total
         atomically $ do
