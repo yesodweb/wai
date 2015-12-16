@@ -13,6 +13,7 @@ module Network.Wai.Handler.Warp.HTTP2.Worker (
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
+import Data.Monoid (mempty)
 #endif
 import Control.Concurrent
 import Control.Concurrent.STM
