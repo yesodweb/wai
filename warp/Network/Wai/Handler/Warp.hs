@@ -44,15 +44,6 @@ module Network.Wai.Handler.Warp (
   , runEnv
   , runSettings
   , runSettingsSocket
-    -- * Run an HTTP\/2-aware server
-    -- | Each of these takes an HTTP\/2-aware application as well as a backup
-    -- 'Application' to be used for HTTP\/1.1 and HTTP\/1 connections.  These
-    -- are only needed if your application needs access to HTTP\/2-specific
-    -- features such as trailers or pushed streams.
-  , runHTTP2
-  , runHTTP2Env
-  , runHTTP2Settings
-  , runHTTP2SettingsSocket
     -- * Settings
   , Settings
   , defaultSettings

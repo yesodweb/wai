@@ -13,6 +13,7 @@ import Data.IORef (readIORef, writeIORef)
 import Network.HPACK
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
+import Network.Wai
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Response
@@ -24,14 +25,16 @@ import Network.Wai.Handler.Warp.Types
 
 -- Set-Cookie: contains only one cookie value.
 -- So, we don't need to split it.
-hpackEncodeHeader :: Context -> InternalInfo -> S.Settings -> H.Status
-                  -> H.ResponseHeaders -> IO Builder
-hpackEncodeHeader ctx ii settings s h = do
+hpackEncodeHeader :: Context -> InternalInfo -> S.Settings -> Response
+                  -> IO Builder
+hpackEncodeHeader ctx ii settings rsp = do
     hdr1 <- addServerAndDate h
     let hdr2 = (":status", status) : map (first foldedCase) hdr1
     hpackEncodeRawHeaders ctx hdr2
   where
-    status = B8.pack $ show $ H.statusCode $ s
+    s = responseStatus rsp
+    h = responseHeaders rsp
+    status = B8.pack $ show $ H.statusCode s
     dc = dateCacher ii
     rspidxhdr = indexResponseHeader h
     defServer = S.settingsServerName settings
@@ -54,20 +57,6 @@ hpackDecodeHeader hdrblk Context{decodeDynamicTable} = do
     hdrtbl <- readIORef decodeDynamicTable
     (hdrtbl', hdr) <- decodeHeader hdrtbl hdrblk `E.onException` cleanup
     writeIORef decodeDynamicTable hdrtbl'
-    return $ concatCookie hdr
+    return hdr
   where
     cleanup = E.throwIO $ ConnectionError CompressionError "cannot decompress the header"
-
--- |
---
--- >>> concatCookie [("foo","bar")]
--- [("foo","bar")]
--- >>> concatCookie [("cookie","a=b"),("foo","bar"),("cookie","c=d"),("cookie","e=f")]
--- [("foo","bar"),("cookie","a=b; c=d; e=f")]
-concatCookie :: HeaderList -> HeaderList
-concatCookie = collect []
-  where
-    collect cookies (("cookie",c):rest) = collect (cookies ++ [c]) rest
-    collect cookies (h:rest) = h : collect cookies rest
-    collect [] [] = []
-    collect cookies [] = [("cookie", B.intercalate "; " cookies)]

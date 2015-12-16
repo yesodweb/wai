@@ -3,7 +3,6 @@
 
 module Network.Wai.Handler.Warp.RequestHeader (
       parseHeaderLines
-    , parseByteRanges
     ) where
 
 import Control.Exception (throwIO)
@@ -18,7 +17,7 @@ import Foreign.Ptr (Ptr, plusPtr, minusPtr, nullPtr)
 import Foreign.Storable (peek)
 import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Internal (parseByteRanges)
+
 -- $setup
 -- >>> :set -XOverloadedStrings
 

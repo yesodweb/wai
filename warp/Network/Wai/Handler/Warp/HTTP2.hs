@@ -7,11 +7,9 @@ import Control.Concurrent (forkIO, killThread)
 import qualified Control.Exception as E
 import Control.Monad (when, unless, replicateM_)
 import Data.ByteString (ByteString)
-
 import Network.HTTP2
 import Network.Socket (SockAddr)
-
-import Network.Wai.HTTP2 (HTTP2Application)
+import Network.Wai
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Receiver
@@ -24,16 +22,16 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-http2 :: Connection -> InternalInfo -> SockAddr -> Transport -> S.Settings -> (BufSize -> IO ByteString) -> HTTP2Application -> IO ()
+http2 :: Connection -> InternalInfo -> SockAddr -> Transport -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
 http2 conn ii addr transport settings readN app = do
     checkTLS
     ok <- checkPreface
     when ok $ do
         ctx <- newContext
-        -- Workers & Manager
-        mgr <- start
-        let responder = response ctx mgr
-            action = worker ctx settings tm app responder
+        -- Workers, worker manager and timer manager
+        mgr <- start settings
+        let responder = response ii settings ctx mgr
+            action = worker ctx settings app responder
         setAction mgr action
         -- fixme: hard coding: 10
         replicateM_ 10 $ spawnAction mgr
@@ -48,7 +46,6 @@ http2 conn ii addr transport settings readN app = do
             stop mgr
             killThread tid
   where
-    tm = timeoutManager ii
     checkTLS = case transport of
         TCP -> return () -- direct
         tls -> unless (tls12orLater tls) $ goaway conn InadequateSecurity "Weak TLS"

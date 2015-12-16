@@ -8,18 +8,7 @@ module Network.Wai.Handler.Warp.Internal (
   , runSettingsConnection
   , runSettingsConnectionMaker
   , runSettingsConnectionMakerSecure
-  , runServe
-  , runServeEnv
-  , runServeSettings
-  , runServeSettingsSocket
-  , runServeSettingsConnection
-  , runServeSettingsConnectionMaker
-  , runServeSettingsConnectionMakerSecure
   , Transport (..)
-    -- * ServeConnection
-  , ServeConnection
-  , serveDefault
-  , serveHTTP2
     -- * Connection
   , Connection (..)
   , socketConnection

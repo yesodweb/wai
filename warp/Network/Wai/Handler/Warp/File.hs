@@ -6,6 +6,7 @@ module Network.Wai.Handler.Warp.File (
     RspFileInfo(..)
   , conditionalRequest
   , addContentHeadersForFilePart
+  , parseByteRanges
   ) where
 
 import Control.Applicative ((<|>))

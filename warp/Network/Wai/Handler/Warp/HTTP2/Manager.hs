@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, BangPatterns #-}
 
 -- | A thread pool manager.
 --   The manager has responsibility to spawn and kill
@@ -20,42 +20,45 @@ import Control.Concurrent.STM
 import Control.Monad (void)
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Foldable
 import Network.Wai.Handler.Warp.IORef
+import Network.Wai.Handler.Warp.Settings
+import qualified Network.Wai.Handler.Warp.Timeout as T
 
 ----------------------------------------------------------------
 
+type Action = T.Manager -> IO ()
+
 data Command = Stop | Spawn | Replace ThreadId
 
-data Manager = Manager (TQueue Command) (IORef (IO ()))
+data Manager = Manager (TQueue Command) (IORef Action)
 
 -- | Starting a thread pool manager.
 --   Its action is initially set to 'return ()' and should be set
 --   by 'setAction'. This allows that the action can include
 --   the manager itself.
-start :: IO Manager
-start = do
-    tset <- newThreadSet
+start :: Settings -> IO Manager
+start set = do
     q <- newTQueueIO
-    ref <- newIORef (return ())
-    void $ forkIO $ go q tset ref
+    ref <- newIORef (\_ -> return ())
+    timmgr <- T.initialize $ settingsTimeout set * 1000000
+    void $ forkIO $ go q Set.empty ref timmgr
     return $ Manager q ref
   where
-    go q tset ref = do
+    go q !tset0 ref timmgr = do
         x <- atomically $ readTQueue q
         case x of
-            Stop           -> kill tset
-            Spawn          -> next
-            Replace oldtid -> do
-                del tset oldtid
-                next
+            Stop           -> kill tset0 >> T.killManager timmgr
+            Spawn          -> next tset0
+            Replace oldtid -> next $ del oldtid tset0
       where
-        next = do
+        next tset = do
             action <- readIORef ref
-            newtid <- forkIO action
-            add tset newtid
-            go q tset ref
+            newtid <- forkIO (action timmgr)
+            let !tset' = add newtid tset
+            go q tset' ref timmgr
 
-setAction :: Manager -> IO () -> IO ()
+setAction :: Manager -> Action -> IO ()
 setAction (Manager _ ref) action = writeIORef ref action
 
 stop :: Manager -> IO ()
@@ -69,18 +72,15 @@ replaceWithAction (Manager q _) tid = atomically $ writeTQueue q $ Replace tid
 
 ----------------------------------------------------------------
 
-newtype ThreadSet = ThreadSet (IORef (Set ThreadId))
+add :: ThreadId -> Set ThreadId -> Set ThreadId
+add tid set = set'
+  where
+    !set' = Set.insert tid set
 
-newThreadSet :: IO ThreadSet
-newThreadSet = ThreadSet <$> newIORef Set.empty
+del :: ThreadId -> Set ThreadId -> Set ThreadId
+del tid set = set'
+  where
+    !set' = Set.delete tid set
 
-add :: ThreadSet -> ThreadId -> IO ()
-add (ThreadSet ref) tid =
-    atomicModifyIORef' ref (\set -> (Set.insert tid set, ()))
-
-del :: ThreadSet -> ThreadId -> IO ()
-del (ThreadSet ref) tid =
-    atomicModifyIORef' ref (\set -> (Set.delete tid set, ()))
-
-kill :: ThreadSet -> IO ()
-kill (ThreadSet ref) = Set.toList <$> readIORef ref >>= mapM_ killThread
+kill :: Set ThreadId -> IO ()
+kill set = traverse_ killThread set
