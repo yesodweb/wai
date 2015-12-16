@@ -1,7 +1,4 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE UnboxedTuples #-} -- for GHC 7.4 or earlier
 
 module Network.Wai.Handler.Warp.Timeout (
   -- ** Types
@@ -24,25 +21,12 @@ module Network.Wai.Handler.Warp.Timeout (
   , TimeoutThread (..)
   ) where
 
-#ifndef MIN_VERSION_base
-#define MIN_VERSION_base(x,y,z) 1
-#endif
-
-#if MIN_VERSION_base(4,6,0)
-import Control.Concurrent (mkWeakThreadId, ThreadId)
-#else
-import GHC.Conc (ThreadId(..))
-import GHC.Exts (mkWeak#)
-import GHC.IO (IO (IO))
-#endif
 import Control.Concurrent (myThreadId)
 import qualified Control.Exception as E
-import GHC.Weak (Weak (..))
+import Control.Reaper
+import Data.Typeable (Typeable)
 import Network.Wai.Handler.Warp.IORef (IORef)
 import qualified Network.Wai.Handler.Warp.IORef as I
-import System.Mem.Weak (deRefWeak)
-import Data.Typeable (Typeable)
-import Control.Reaper
 
 ----------------------------------------------------------------
 
@@ -53,7 +37,7 @@ type Manager = Reaper [Handle] Handle
 type TimeoutAction = IO ()
 
 -- | A handle used by 'Manager'
-data Handle = Handle TimeoutAction (IORef State)
+data Handle = Handle !(IORef TimeoutAction) !(IORef State)
 
 data State = Active    -- Manager turns it to Inactive.
            | Inactive  -- Manager removes it with timeout action.
@@ -70,10 +54,11 @@ initialize timeout = mkReaper defaultReaperSettings
         , reaperDelay = timeout
         }
   where
-    prune m@(Handle onTimeout iactive) = do
-        state <- I.atomicModifyIORef' iactive (\x -> (inactivate x, x))
+    prune m@(Handle actionRef stateRef) = do
+        state <- I.atomicModifyIORef' stateRef (\x -> (inactivate x, x))
         case state of
             Inactive -> do
+                onTimeout <- I.readIORef actionRef
                 onTimeout `E.catch` ignoreAll
                 return Nothing
             Canceled -> return Nothing
@@ -88,7 +73,9 @@ initialize timeout = mkReaper defaultReaperSettings
 stopManager :: Manager -> IO ()
 stopManager mgr = E.mask_ (reaperStop mgr >>= mapM_ fire)
   where
-    fire (Handle onTimeout _) = onTimeout `E.catch` ignoreAll
+    fire (Handle actionRef _) = do
+        onTimeout <- I.readIORef actionRef
+        onTimeout `E.catch` ignoreAll
 
 ignoreAll :: E.SomeException -> IO ()
 ignoreAll _ = return ()
@@ -98,24 +85,22 @@ ignoreAll _ = return ()
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
 register mgr onTimeout = do
-    iactive <- I.newIORef Active
-    let h = Handle onTimeout iactive
+    actionRef <- I.newIORef onTimeout
+    stateRef  <- I.newIORef Active
+    let h = Handle actionRef stateRef
     reaperAdd mgr h
     return h
 
 -- | Registering a timeout action of killing this thread.
 registerKillThread :: Manager -> IO Handle
 registerKillThread m = do
-    wtid <- myThreadId >>= mkWeakThreadId
-    register m $ killIfExist wtid
-
--- If ThreadId is hold referred by a strong reference,
--- it leaks even after the thread is killed.
--- So, let's use a weak reference so that CG can throw ThreadId away.
--- deRefWeak checks if ThreadId referenced by the weak reference
--- exists. If exists, it means that the thread is alive.
-killIfExist :: Weak ThreadId -> TimeoutAction
-killIfExist wtid = deRefWeak wtid >>= maybe (return ()) (`E.throwTo` TimeoutThread)
+    -- If we hold ThreadId, the stack and data of the thread is leaked.
+    -- If we hold Weak ThreadId, the stack is released. However, its
+    -- data is still leaked probably because of a bug of GHC.
+    -- So, let's just use ThreadId and release ThreadId by
+    -- overriding the timeout action by "cancel".
+    tid <- myThreadId
+    register m $ E.throwTo tid TimeoutThread
 
 data TimeoutThread = TimeoutThread
     deriving Typeable
@@ -123,29 +108,24 @@ instance E.Exception TimeoutThread
 instance Show TimeoutThread where
     show TimeoutThread = "Thread killed by Warp's timeout reaper"
 
-#if !MIN_VERSION_base(4,6,0)
-mkWeakThreadId :: ThreadId -> IO (Weak ThreadId)
-mkWeakThreadId t@(ThreadId t#) = IO $ \s ->
-   case mkWeak# t# t Nothing s of
-      (# s1, w #) -> (# s1, Weak w #)
-#endif
-
 ----------------------------------------------------------------
 
 -- | Setting the state to active.
 --   'Manager' turns active to inactive repeatedly.
 tickle :: Handle -> IO ()
-tickle (Handle _ iactive) = I.writeIORef iactive Active
+tickle (Handle _ stateRef) = I.writeIORef stateRef Active
 
 -- | Setting the state to canceled.
 --   'Manager' eventually removes this without timeout action.
 cancel :: Handle -> IO ()
-cancel (Handle _ iactive) = I.writeIORef iactive Canceled
+cancel (Handle actionRef stateRef) = do
+    I.writeIORef actionRef (return ()) -- ensuring to release ThreadId
+    I.writeIORef stateRef Canceled
 
 -- | Setting the state to paused.
 --   'Manager' does not change the value.
 pause :: Handle -> IO ()
-pause (Handle _ iactive) = I.writeIORef iactive Paused
+pause (Handle _ stateRef) = I.writeIORef stateRef Paused
 
 -- | Setting the paused state to active.
 --   This is an alias to 'tickle'.
