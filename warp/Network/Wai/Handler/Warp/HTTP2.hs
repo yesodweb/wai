@@ -28,10 +28,10 @@ http2 conn ii addr transport settings readN app = do
     ok <- checkPreface
     when ok $ do
         ctx <- newContext
-        -- Workers & Manager
-        mgr <- start
+        -- Workers, worker manager and timer manager
+        mgr <- start settings
         let responder = response ii settings ctx mgr
-            action = worker ctx settings tm app responder
+            action = worker ctx settings app responder
         setAction mgr action
         -- fixme: hard coding: 10
         replicateM_ 10 $ spawnAction mgr
@@ -46,7 +46,6 @@ http2 conn ii addr transport settings readN app = do
             stop mgr
             killThread tid
   where
-    tm = timeoutManager ii
     checkTLS = case transport of
         TCP -> return () -- direct
         tls -> unless (tls12orLater tls) $ goaway conn InadequateSecurity "Weak TLS"

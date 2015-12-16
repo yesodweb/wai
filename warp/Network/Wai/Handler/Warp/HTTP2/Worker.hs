@@ -133,17 +133,11 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         atomically $ writeTBQueue sq SFinish
         return ResponseReceived
 
-data Break = Break deriving (Show, Typeable)
-
-instance Exception Break
-
-worker :: Context -> S.Settings -> T.Manager -> Application -> Responder -> IO ()
-worker ctx@Context{inputQ,outputQ} set tm app responder = do
-    tid <- myThreadId
+worker :: Context -> S.Settings -> Application -> Responder -> T.Manager -> IO ()
+worker ctx@Context{inputQ,outputQ} set app responder tm = do
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
-    let setup = T.register tm $ E.throwTo tid Break
-    E.bracket setup T.cancel $ go sinfo tcont
+    E.bracket (T.registerKillThread tm) T.cancel $ go sinfo tcont
   where
     go sinfo tcont th = do
         setThreadContinue tcont True
@@ -157,17 +151,16 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
         cont1 <- case ex of
             Right ResponseReceived -> return True
             Left  e@(SomeException _)
-              | Just Break        <- E.fromException e -> do
+              -- killed by the worker manager
+              | Just ThreadKilled    <- E.fromException e -> return False
+              | Just T.TimeoutThread <- E.fromException e -> do
                   cleanup sinfo Nothing
                   return True
-              -- killed by the sender
-              | Just ThreadKilled <- E.fromException e -> do
-                  cleanup sinfo Nothing
-                  return False
               | otherwise -> do
-                  cleanup sinfo (Just e)
+                  cleanup sinfo $ Just e
                   return True
         cont2 <- getThreadContinue tcont
+        clearStreamInfo sinfo
         when (cont1 && cont2) $ go sinfo tcont th
     cleanup sinfo me = do
         m <- getStreamInfo sinfo
@@ -180,7 +173,6 @@ worker ctx@Context{inputQ,outputQ} set tm app responder = do
                 case me of
                     Nothing -> return ()
                     Just e  -> S.settingsOnException set (Just req) e
-                clearStreamInfo sinfo
 
 waiter :: TVar Sync -> TBQueue Sequence -> PriorityTree Output -> IO ()
 waiter tvar sq outQ = do
