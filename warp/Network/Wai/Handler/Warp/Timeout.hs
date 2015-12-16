@@ -8,6 +8,7 @@ module Network.Wai.Handler.Warp.Timeout (
   -- ** Manager
   , initialize
   , stopManager
+  , killManager
   , withManager
   -- ** Registration
   , register
@@ -69,7 +70,7 @@ initialize timeout = mkReaper defaultReaperSettings
 
 ----------------------------------------------------------------
 
--- | Stopping timeout manager.
+-- | Stopping timeout manager with onTimeout fired.
 stopManager :: Manager -> IO ()
 stopManager mgr = E.mask_ (reaperStop mgr >>= mapM_ fire)
   where
@@ -79,6 +80,14 @@ stopManager mgr = E.mask_ (reaperStop mgr >>= mapM_ fire)
 
 ignoreAll :: E.SomeException -> IO ()
 ignoreAll _ = return ()
+
+-- | Killing timeout manager immediately without firing onTimeout.
+killManager :: Manager -> IO ()
+killManager mgr = E.mask_ (reaperStop mgr >>= mapM_ fire)
+  where
+    fire (Handle actionRef _) = do
+        onTimeout <- I.readIORef actionRef
+        onTimeout `E.catch` ignoreAll
 
 ----------------------------------------------------------------
 
