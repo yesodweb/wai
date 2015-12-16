@@ -24,7 +24,7 @@ module Control.Reaper (
 import Control.AutoUpdate.Util (atomicModifyIORef')
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Exception (mask_)
-import Control.Monad (join, void)
+import Control.Monad (void)
 import Data.IORef (IORef, newIORef, readIORef)
 
 -- | Settings for creating a reaper. This type has two parameters:
@@ -129,7 +129,9 @@ mkReaper settings@ReaperSettings{..} = do
 add :: ReaperSettings workload item -> IORef (State workload) -> item
        -> IO ()
 add settings@ReaperSettings{..} stateRef item =
-    mask_ $ join $ atomicModifyIORef' stateRef cons
+    mask_ $ do
+      next <- atomicModifyIORef' stateRef cons
+      next
   where
     cons NoReaper      = (Workload $ reaperCons item reaperEmpty
                          ,spawn settings stateRef)
@@ -149,7 +151,8 @@ reaper settings@ReaperSettings{..} stateRef = do
     merge <- reaperAction wl
     -- Merging the left jobs and new jobs.
     -- If there is no jobs, this thread finishes.
-    join $ atomicModifyIORef' stateRef (check merge)
+    next <- atomicModifyIORef' stateRef (check merge)
+    next
   where
     swapWithEmpty NoReaper      = error "Control.Reaper.reaper: unexpected NoReaper (1)"
     swapWithEmpty (Workload wl) = (Workload reaperEmpty, wl)
