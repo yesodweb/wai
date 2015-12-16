@@ -11,8 +11,7 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Exception (SomeException)
-import Control.Monad (void,(<$!>))
-import Control.Reaper
+import Control.Monad (void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.IntMap.Strict (IntMap, IntMap)
@@ -110,7 +109,7 @@ data Context = Context {
 
 newContext :: IO Context
 newContext = Context <$> newIORef defaultSettings
-                     <*> initialize 10 -- fixme: hard coding: 10
+                     <*> newStreamTable
                      <*> newIORef 0
                      <*> newIORef 0
                      <*> newIORef Nothing
@@ -122,9 +121,7 @@ newContext = Context <$> newIORef defaultSettings
                      <*> newTVarIO defaultInitialWindowSize
 
 clearContext :: Context -> IO ()
-clearContext ctx = do
-    !_ <- reaperStop $ streamTable ctx
-    return ()
+clearContext _ctx = return ()
 
 ----------------------------------------------------------------
 
@@ -203,45 +200,30 @@ opened Context{concurrency} Stream{streamState} = do
     writeIORef streamState (Open JustOpened)
 
 closed :: Context -> Stream -> ClosedCode -> IO ()
-closed Context{concurrency} Stream{streamState} cc = do
+closed Context{concurrency,streamTable} Stream{streamState,streamNumber} cc = do
+    remove streamTable streamNumber
     atomicModifyIORef' concurrency (\x -> (x-1,()))
-    writeIORef streamState (Closed cc)
+    writeIORef streamState (Closed cc) -- anyway
 
 ----------------------------------------------------------------
 
-type StreamTable = Reaper (IntMap Stream) (M.Key, Stream)
+newtype StreamTable = StreamTable (IORef (IntMap Stream))
 
-initialize :: Int -> IO StreamTable
-initialize duration = mkReaper settings
-  where
-    settings = defaultReaperSettings {
-          reaperAction = clean
-        , reaperDelay  = duration * 1000000
-        , reaperCons   = uncurry M.insert
-        , reaperNull   = M.null
-        , reaperEmpty  = M.empty
-        }
-
-clean :: IntMap Stream -> IO (IntMap Stream -> IntMap Stream)
-clean old = do
-    !new <- M.fromAscList <$> prune oldlist []
-    return $! M.union new
-  where
-    !oldlist = M.toDescList old
-    prune []     lst = return lst
-    prune (x@(_,s):xs) lst = do
-        !st <- readIORef (streamState s)
-        if isClosed st then
-            prune xs lst
-          else
-            prune xs (x:lst)
+newStreamTable :: IO StreamTable
+newStreamTable = StreamTable <$> newIORef M.empty
 
 insert :: StreamTable -> M.Key -> Stream -> IO ()
-insert strmtbl k v = reaperAdd strmtbl (k,v)
+insert (StreamTable ref) k v = atomicModifyIORef' ref $ \m ->
+    let !m' = M.insert k v m
+    in (m', ())
+
+remove :: StreamTable -> M.Key -> IO ()
+remove (StreamTable ref) k = atomicModifyIORef' ref $ \m ->
+    let !m' = M.delete k m
+    in (m', ())
 
 search :: StreamTable -> M.Key -> IO (Maybe Stream)
-search strmtbl k = M.lookup k <$!> reaperRead strmtbl
-
+search (StreamTable ref) k = M.lookup k <$> readIORef ref
 
 -- INVARIANT: streams in the output queue have non-zero window size.
 enqueueWhenWindowIsOpen :: PriorityTree Output -> Output -> IO ()

@@ -147,25 +147,16 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
                          when (isHalfClosed st) $ E.throwIO $ ConnectionError StreamClosed "header must not be sent to half closed"
                      return strm0
                  Nothing    -> do
+                     -- checkme
                      when (ftyp `notElem` [FrameHeaders,FramePriority]) $
                          E.throwIO $ ConnectionError ProtocolError "this frame is not allowed in an idel stream"
+                     csid <- readIORef currentStreamId
+                     when (streamId <= csid) $
+                         E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
                      when (ftyp == FrameHeaders) $ do
-                         csid <- readIORef currentStreamId
-                         if streamId <= csid then
-                             E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
-                           else
-                             writeIORef currentStreamId streamId
+                         writeIORef currentStreamId streamId
                          cnt <- readIORef concurrency
-                         when (cnt >= recommendedConcurrency) $ do
-                             -- Record that the stream is closed, rather than
-                             -- idle, so that receiving frames on it is only a
-                             -- stream error.
-                             consume payloadLength
-                             strm <- newStream streamId 0
-                             writeIORef (streamState strm) $ Closed $
-                                 ResetByMe $ E.toException $
-                                     StreamError RefusedStream streamId
-                             insert streamTable streamId strm
+                         when (cnt >= recommendedConcurrency) $
                              E.throwIO $ StreamError RefusedStream streamId
                      ws <- initialWindowSize <$> readIORef http2settings
                      newstrm <- newStream streamId (fromIntegral ws)

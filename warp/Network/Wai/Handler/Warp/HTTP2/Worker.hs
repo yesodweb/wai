@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE CPP #-}
@@ -17,11 +16,10 @@ import Control.Applicative
 #endif
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Exception (Exception, SomeException(..), AsyncException(..))
+import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
 import Control.Monad (void, when)
 import Data.ByteString.Builder (byteString)
-import Data.Typeable
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
