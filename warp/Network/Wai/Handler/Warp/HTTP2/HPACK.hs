@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE BangPatterns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.HPACK where
 
@@ -35,7 +34,7 @@ hpackEncodeHeader ctx ii settings rsp = do
   where
     s = responseStatus rsp
     h = responseHeaders rsp
-    status = B8.pack $ show $ H.statusCode $ s
+    status = B8.pack $ show $ H.statusCode s
     dc = dateCacher ii
     rspidxhdr = indexResponseHeader h
     defServer = S.settingsServerName settings
