@@ -83,11 +83,7 @@ ignoreAll _ = return ()
 
 -- | Killing timeout manager immediately without firing onTimeout.
 killManager :: Manager -> IO ()
-killManager mgr = E.mask_ (reaperStop mgr >>= mapM_ fire)
-  where
-    fire (Handle actionRef _) = do
-        onTimeout <- I.readIORef actionRef
-        onTimeout `E.catch` ignoreAll
+killManager = reaperKill
 
 ----------------------------------------------------------------
 
