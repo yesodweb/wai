@@ -111,7 +111,7 @@ mkReaper :: ReaperSettings workload item -> IO (Reaper workload item)
 mkReaper settings@ReaperSettings{..} = do
     stateRef <- newIORef NoReaper
     return Reaper {
-        reaperAdd  = update settings stateRef
+        reaperAdd  = add settings stateRef
       , reaperRead = readRef stateRef
       , reaperStop = stop stateRef
       }
@@ -126,9 +126,9 @@ mkReaper settings@ReaperSettings{..} = do
             NoReaper   -> (NoReaper, reaperEmpty)
             Workload x -> (Workload reaperEmpty, x)
 
-update :: ReaperSettings workload item -> IORef (State workload) -> item
+add :: ReaperSettings workload item -> IORef (State workload) -> item
        -> IO ()
-update settings@ReaperSettings{..} stateRef item =
+add settings@ReaperSettings{..} stateRef item =
     mask_ $ join $ atomicModifyIORef' stateRef cons
   where
     cons NoReaper      = (Workload $ reaperCons item reaperEmpty
@@ -157,7 +157,7 @@ reaper settings@ReaperSettings{..} stateRef = do
     check _ NoReaper   = error "Control.Reaper.reaper: unexpected NoReaper (2)"
     check merge (Workload wl)
       -- If there is no job, reaper is terminated.
-      | reaperNull wl' = (NoReaper,  return ())
+      | reaperNull wl' = (NoReaper, return ())
       -- If there are jobs, carry them out.
       | otherwise      = (Workload wl', reaper settings stateRef)
       where
