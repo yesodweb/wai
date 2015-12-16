@@ -83,7 +83,7 @@ module Network.Wai.Handler.Warp (
   , defaultOnExceptionResponse
   , exceptionResponseForDebug
     -- * Data types
-  , HostPreference (..)
+  , HostPreference
   , Port
   , InvalidRequest (..)
     -- * Utilities
