@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE BangPatterns       #-}
 
 -- | This module provides the ability to create reapers: dedicated cleanup
 -- threads. These threads will automatically spawn and die based on the
@@ -133,10 +134,10 @@ add settings@ReaperSettings{..} stateRef item =
       next <- atomicModifyIORef' stateRef cons
       next
   where
-    cons NoReaper      = (Workload $ reaperCons item reaperEmpty
-                         ,spawn settings stateRef)
-    cons (Workload wl) = (Workload $ reaperCons item wl
-                         ,return ())
+    cons NoReaper      = let !wl = reaperCons item reaperEmpty
+                         in (Workload wl, spawn settings stateRef)
+    cons (Workload wl) = let wl' = reaperCons item wl
+                         in (Workload wl', return ())
 
 spawn :: ReaperSettings workload item -> IORef (State workload) -> IO ()
 spawn settings stateRef = void . forkIO $ reaper settings stateRef
@@ -148,7 +149,7 @@ reaper settings@ReaperSettings{..} stateRef = do
     wl <- atomicModifyIORef' stateRef swapWithEmpty
     -- Do the jobs. A function to merge the left jobs and
     -- new jobs is returned.
-    merge <- reaperAction wl
+    !merge <- reaperAction wl
     -- Merging the left jobs and new jobs.
     -- If there is no jobs, this thread finishes.
     next <- atomicModifyIORef' stateRef (check merge)
@@ -178,8 +179,8 @@ mkListAction :: (item -> IO (Maybe item'))
 mkListAction f =
     go id
   where
-    go front [] = return front
-    go front (x:xs) = do
+    go !front [] = return front
+    go !front (x:xs) = do
         my <- f x
         let front' =
                 case my of
