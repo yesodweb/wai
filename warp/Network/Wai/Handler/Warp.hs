@@ -90,45 +90,6 @@ module Network.Wai.Handler.Warp (
   , pauseTimeout
   , FileInfo(..)
   , getFileInfo
-    -- * Internal
-    -- | The following APIs will be removed in Warp 3.2.0. Please use ones exported from Network.Wai.Handler.Warp.Internal.
-
-    -- ** Low level run functions
-  , runSettingsConnection
-  , runSettingsConnectionMaker
-  , runSettingsConnectionMakerSecure
-  , Transport (..)
-    -- ** Connection
-  , Connection (..)
-  , socketConnection
-    -- ** Buffer
-  , Buffer
-  , BufSize
-  , bufferSize
-  , allocateBuffer
-  , freeBuffer
-    -- ** Sendfile
-  , FileId (..)
-  , SendFile
-  , sendFile
-  , readSendFile
-    -- ** Version
-  , warpVersion
-    -- ** Data types
-  , InternalInfo (..)
-  , HeaderValue
-  , IndexedHeader
-  , requestMaxIndex
-    -- ** File descriptor cache
-  , module Network.Wai.Handler.Warp.FdCache
-    -- ** Date
-  , module Network.Wai.Handler.Warp.Date
-    -- ** Request and response
-  , Source
-  , recvRequest
-  , sendResponse
-    -- ** Time out manager
-  , module Network.Wai.Handler.Warp.Timeout
   ) where
 
 import Control.Exception (SomeException, throwIO)
@@ -139,15 +100,9 @@ import qualified Data.Vault.Lazy as Vault
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai (Request, Response, vault)
-import Network.Wai.Handler.Warp.Buffer
-import Network.Wai.Handler.Warp.Date
-import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.FileInfoCache
-import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Request
-import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Run
-import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
