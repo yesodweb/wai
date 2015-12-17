@@ -142,8 +142,8 @@ worker ctx@Context{inputQ,outputQ} set app responder tm = do
         setThreadContinue tcont True
         ex <- E.try $ do
             T.pause th
-            Input strm req <- atomically $ readTQueue inputQ
-            setStreamInfo sinfo strm req
+            inp@(Input strm req) <- atomically $ readTQueue inputQ
+            setStreamInfo sinfo inp
             T.resume th
             T.tickle th
             app req $ responder tcont th strm req
@@ -162,10 +162,10 @@ worker ctx@Context{inputQ,outputQ} set app responder tm = do
         clearStreamInfo sinfo
         when (cont1 && cont2) $ go sinfo tcont th
     cleanup sinfo me = do
-        m <- getStreamInfo sinfo
-        case m of
-            Nothing -> return ()
-            Just (strm,req) -> do
+        minp <- getStreamInfo sinfo
+        case minp of
+            Nothing               -> return ()
+            Just (Input strm req) -> do
                 closed ctx strm Killed
                 let frame = resetFrame InternalError (streamNumber strm)
                 enqueueControl outputQ 0 (OFrame frame)
@@ -218,7 +218,7 @@ getThreadContinue (ThreadContinue ref) = readIORef ref
 ----------------------------------------------------------------
 
 -- | The type to store enough information for 'settingsOnException'.
-newtype StreamInfo = StreamInfo (IORef (Maybe (Stream,Request)))
+newtype StreamInfo = StreamInfo (IORef (Maybe Input))
 
 newStreamInfo :: IO StreamInfo
 newStreamInfo = StreamInfo <$> newIORef Nothing
@@ -226,8 +226,8 @@ newStreamInfo = StreamInfo <$> newIORef Nothing
 clearStreamInfo :: StreamInfo -> IO ()
 clearStreamInfo (StreamInfo ref) = writeIORef ref Nothing
 
-setStreamInfo :: StreamInfo -> Stream -> Request -> IO ()
-setStreamInfo (StreamInfo ref) strm req = writeIORef ref $ Just (strm,req)
+setStreamInfo :: StreamInfo -> Input -> IO ()
+setStreamInfo (StreamInfo ref) inp = writeIORef ref $ Just inp
 
-getStreamInfo :: StreamInfo -> IO (Maybe (Stream, Request))
+getStreamInfo :: StreamInfo -> IO (Maybe Input)
 getStreamInfo (StreamInfo ref) = readIORef ref
