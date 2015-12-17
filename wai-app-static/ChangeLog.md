@@ -1,3 +1,7 @@
+## 3.1.4
+
+* Reinstate redirectToIndex
+
 ## 3.1.3
 
 * Add 404 handler [#467](https://github.com/yesodweb/wai/pull/467)

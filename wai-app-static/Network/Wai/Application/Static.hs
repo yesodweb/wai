@@ -40,6 +40,7 @@ import Data.FileEmbed (embedFile)
 
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 
 import Network.HTTP.Date (parseHTTPDate, epochTimeToHTTPDate, formatHTTPDate)
 
@@ -107,20 +108,37 @@ checkPieces _ pieces _ | any (T.null . fromPiece) $ safeInit pieces =
 checkPieces ss@StaticSettings {..} pieces req = do
     res <- lookupResult
     case res of
-        LRNotFound -> return NotFound
-        LRFile file -> serveFile ss req file
-        LRFolder folder -> serveFolder ss pieces req folder
+        Left location -> return $ RawRedirect $ TE.encodeUtf8 location
+        Right LRNotFound -> return NotFound
+        Right (LRFile file) -> serveFile ss req file
+        Right (LRFolder folder) -> serveFolder ss pieces req folder
   where
-    lookupResult :: IO LookupResult
+    lookupResult :: IO (Either Text LookupResult)
     lookupResult = do
       nonIndexResult <- ssLookupFile pieces
       case nonIndexResult of
-          LRFile{} -> return nonIndexResult
+          LRFile{} -> return $ Right nonIndexResult
           _ -> do
               indexResult <- lookupIndices (map (\ index -> pieces ++ [index]) ssIndices)
               return $ case indexResult of
-                  LRNotFound -> nonIndexResult
-                  _ -> indexResult
+                  LRNotFound -> Right nonIndexResult
+                  LRFile file | ssRedirectToIndex ->
+                      let relPath =
+                              case reverse pieces of
+                                  -- Served at root
+                                  [] -> fromPiece $ fileName file
+                                  lastSegment:_ ->
+                                      case fromPiece lastSegment of
+                                          -- Ends with a trailing slash
+                                          "" -> fromPiece $ fileName file
+                                          -- Lacks a trailing slash
+                                          lastSegment' -> T.concat
+                                              [ lastSegment'
+                                              , "/"
+                                              , fromPiece $ fileName file
+                                              ]
+                       in Left relPath
+                  _ -> Right indexResult
 
     lookupIndices :: [Pieces] -> IO LookupResult
     lookupIndices (x : xs) = do
