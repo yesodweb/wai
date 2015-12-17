@@ -150,8 +150,9 @@ worker ctx@Context{inputQ,outputQ} set app responder tm = do
         cont1 <- case ex of
             Right ResponseReceived -> return True
             Left  e@(SomeException _)
-              -- killed by the worker manager
+              -- killed by the local worker manager
               | Just ThreadKilled    <- E.fromException e -> return False
+              -- killed by the local timeout manager
               | Just T.TimeoutThread <- E.fromException e -> do
                   cleanup sinfo Nothing
                   return True
