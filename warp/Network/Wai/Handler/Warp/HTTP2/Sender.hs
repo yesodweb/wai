@@ -71,6 +71,11 @@ waitStreamWindowSize Stream{streamWindow} = do
     w <- readTVar streamWindow
     check (w > 0)
 
+waitStreaming :: TBQueue a -> STM ()
+waitStreaming tbq = do
+    isEmpty <- isEmptyTBQueue tbq
+    check (isEmpty == False)
+
 frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> IO ()
 frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
             conn@Connection{connWriteBuffer,connBufferSize,connSendAll}
@@ -104,65 +109,75 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                 dyntbl <- readIORef encodeDynamicTable
                 setLimitForEncoding siz dyntbl
         loop
-    switch out@(OResponse strm rsp binfo) pre = do
-        writeIORef (streamPrecedence strm) pre
-        unlessClosed ctx conn strm $ do
-            sws <- getStreamWindowSize strm
-            if sws == 0 then do
-                enqueueWhenReady (waitStreamWindowSize strm) outputQ out
-              else do
-                cws <- getConnectionWindowSizeWhenReady ctx
-                let !lim = min cws sws
-                -- Header frame and Continuation frame
-                let sid = streamNumber strm
-                    endOfStream = case binfo of
-                        Persist{}          -> False
-                        OneshotWithBody    -> False
-                        OneshotWithoutBody -> True
-                len <- headerContinue sid rsp endOfStream
-                let total = len + frameHeaderLength
-                case binfo of
-                    OneshotWithBody -> do
-                        -- Data frame payload
-                        (off, _) <- sendHeadersIfNecessary total
-                        let payloadOff = off + frameHeaderLength
-                        Next datPayloadLen mnext <-
-                            fillResponseBodyGetNext conn ii payloadOff lim rsp
-                        fillDataHeaderSend strm total datPayloadLen mnext
-                        maybeEnqueueNext strm mnext binfo
-                    OneshotWithoutBody -> do
-                        -- "closed" must be before "connSendAll". If not,
-                        -- the context would be switched to the receiver,
-                        -- resulting the inconsistency of concurrency.
-                        closed ctx strm Finished
-                        flushN total
-                    Persist sq -> do
-                        (off, needSend) <- sendHeadersIfNecessary total
-                        let payloadOff = off + frameHeaderLength
-                        Next datPayloadLen mnext <-
-                            fillStreamBodyGetNext conn payloadOff lim sq strm
-                        -- If no data was immediately available, avoid sending an
-                        -- empty data frame.
-                        if datPayloadLen > 0 then
-                            fillDataHeaderSend strm total datPayloadLen mnext
-                          else
-                            when needSend $ flushN off
-                        maybeEnqueueNext strm mnext binfo
-        loop
     switch out@(ONext strm curr binfo) pre = do
         writeIORef (streamPrecedence strm) pre
-        unlessClosed ctx conn strm $ do
+        whenReadyOrEnqueueAgain strm binfo out $ \sws -> do
+            cws <- getConnectionWindowSizeWhenReady ctx
+            let !lim = min cws sws
+            -- Data frame payload
+            Next datPayloadLen mnext <- curr lim
+            fillDataHeaderSend strm 0 datPayloadLen mnext
+            maybeEnqueueNext strm mnext binfo
+        loop
+    switch out@(OResponse strm rsp binfo) pre = do
+        writeIORef (streamPrecedence strm) pre
+        whenReadyOrEnqueueAgain strm binfo out $ \sws -> do
+            cws <- getConnectionWindowSizeWhenReady ctx
+            let !lim = min cws sws
+            -- Header frame and Continuation frame
+            let sid = streamNumber strm
+                endOfStream = case binfo of
+                    Persist{}          -> False
+                    OneshotWithBody    -> False
+                    OneshotWithoutBody -> True
+            len <- headerContinue sid rsp endOfStream
+            let total = len + frameHeaderLength
+            case binfo of
+                OneshotWithBody -> do
+                    -- Data frame payload
+                    (off, _) <- sendHeadersIfNecessary total
+                    let payloadOff = off + frameHeaderLength
+                    Next datPayloadLen mnext <-
+                        fillResponseBodyGetNext conn ii payloadOff lim rsp
+                    fillDataHeaderSend strm total datPayloadLen mnext
+                    maybeEnqueueNext strm mnext binfo
+                OneshotWithoutBody -> do
+                    -- "closed" must be before "connSendAll". If not,
+                    -- the context would be switched to the receiver,
+                    -- resulting the inconsistency of concurrency.
+                    closed ctx strm Finished
+                    flushN total
+                Persist sq -> do
+                    (off, needSend) <- sendHeadersIfNecessary total
+                    let payloadOff = off + frameHeaderLength
+                    Next datPayloadLen mnext <-
+                        fillStreamBodyGetNext conn payloadOff lim sq strm
+                    -- If no data was immediately available, avoid sending an
+                    -- empty data frame.
+                    if datPayloadLen > 0 then
+                        fillDataHeaderSend strm total datPayloadLen mnext
+                      else
+                        when needSend $ flushN off
+                    maybeEnqueueNext strm mnext binfo
+        loop
+
+    whenReadyOrEnqueueAgain strm binfo out body =
+        unlessClosed ctx conn strm $ case binfo of
+            Persist tbq -> checkStreaming tbq
+            _           -> checkStreamWindowSize
+      where
+        checkStreaming tbq = do
+            isEmpty <- atomically $ isEmptyTBQueue tbq
+            if isEmpty then
+                enqueueWhenReady (waitStreaming tbq) outputQ out
+              else
+                checkStreamWindowSize
+        checkStreamWindowSize = do
             sws <- getStreamWindowSize strm
             if sws == 0 then do
                 enqueueWhenReady (waitStreamWindowSize strm) outputQ out
-              else do
-                cws <- getConnectionWindowSizeWhenReady ctx
-                let !lim = min cws sws
-                -- Data frame payload
-                Next datPayloadLen mnext <- curr lim
-                fillDataHeaderSend strm 0 datPayloadLen mnext
-                maybeEnqueueNext strm mnext binfo
-        loop
+              else
+                body sws
 
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
     -- the buffer are filled.
