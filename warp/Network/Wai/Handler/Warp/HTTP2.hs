@@ -33,8 +33,12 @@ http2 conn ii addr transport settings readN app = do
         let responder = response ii settings ctx mgr
             action = worker ctx settings app responder
         setAction mgr action
-        -- fixme: hard coding: 10
-        replicateM_ 10 $ spawnAction mgr
+        -- The number of workers is 3.
+        -- This was carefully chosen based on a lot of benchmarks.
+        -- If it is 1, we cannot avoid head-of-line blocking.
+        -- If it is large, huge memory is consumed and many
+        -- context switches happen.
+        replicateM_ 3 $ spawnAction mgr
         -- Receiver
         let mkreq = mkRequest ii settings addr
         tid <- forkIO $ frameReceiver ctx mkreq readN
