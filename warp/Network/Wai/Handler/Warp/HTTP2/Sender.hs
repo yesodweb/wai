@@ -250,9 +250,8 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
             Nothing -> closed ctx strm Finished
             _       -> return ()
         flushN total
-        atomically $ do
-           modifyTVar' connectionWindow (subtract datPayloadLen)
-           modifyTVar' (streamWindow strm) (subtract datPayloadLen)
+        atomically $ modifyTVar' connectionWindow (subtract datPayloadLen)
+        atomically $ modifyTVar' (streamWindow strm) (subtract datPayloadLen)
 
     fillFrameHeader ftyp len sid flag buf = encodeFrameHeaderBuf ftyp hinfo buf
       where
