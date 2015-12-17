@@ -9,6 +9,7 @@ module Network.Wai.Handler.Warp.HTTP2.Receiver (frameReceiver) where
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
+import Control.Concurrent
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (when, unless, void)
@@ -27,7 +28,7 @@ import Network.Wai.Handler.Warp.Types
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> MkReq -> (BufSize -> IO ByteString) -> IO ()
-frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
+frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
   where
     Context{ http2settings
            , streamTable
@@ -48,13 +49,18 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
         let !frame = resetFrame err sid
         enqueueControl outputQ 0 $ OFrame frame
 
-    loop = do
+    loop :: Int -> IO ()
+    loop !n
+      | n == 6 = do
+          yield
+          loop 0
+      | otherwise = do
         hd <- recvN frameHeaderLength
         if BS.null hd then
             enqueueControl outputQ 0 OFinish
           else do
             cont <- processStreamGuardingError $ decodeFrameHeader hd
-            when cont loop
+            when cont $ loop (n + 1)
 
     processStreamGuardingError (_, FrameHeader{streamId})
       | isResponse streamId = E.throwIO $ ConnectionError ProtocolError "stream id should be odd"
