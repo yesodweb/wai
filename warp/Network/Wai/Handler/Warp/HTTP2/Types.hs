@@ -42,29 +42,22 @@ data Input = Input Stream Request
 
 ----------------------------------------------------------------
 
-data Control a = CFinish
-               | CNext a
-
-instance Show (Control a) where
-    show CFinish   = "CFinish"
-    show (CNext _) = "CNext"
-
 type DynaNext = WindowSize -> IO Next
 
 type BytesFilled = Int
 
-data Next = Next !BytesFilled (Control DynaNext)
+data Next = Next !BytesFilled (Maybe DynaNext)
 
 data Output = OFinish
             | OGoaway !ByteString
             | OFrame  !ByteString
             | OSettings !ByteString !SettingsList
             | OResponse !Stream !Response !BodyInfo
-            | ONext !Stream !DynaNext
+            | ONext     !Stream !DynaNext !BodyInfo
 
 outputStream :: Output -> Stream
 outputStream (OResponse strm _ _) = strm
-outputStream (ONext strm _)       = strm
+outputStream (ONext     strm _ _) = strm
 outputStream _                    = error "outputStream"
 
 ----------------------------------------------------------------
