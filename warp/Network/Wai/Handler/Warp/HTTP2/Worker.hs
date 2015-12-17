@@ -19,7 +19,7 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
-import Control.Monad (void, when)
+import Control.Monad (when)
 import Data.ByteString.Builder (byteString)
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
@@ -74,7 +74,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         setThreadContinue tconf True
         let rsp' = ResponseBuilder s hs bdy
             out = OResponse strm rsp' (Oneshot True)
-        enqueueOrSpawnTemporaryWaiter strm outputQ out
+        enqueueOutput outputQ out
         return ResponseReceived
 
     responseFileXXX path Nothing = do
@@ -94,7 +94,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
           setThreadContinue tconf True
           let rsp' = ResponseFile s hs path mpart
               out = OResponse strm rsp' (Oneshot True)
-          enqueueOrSpawnTemporaryWaiter strm outputQ out
+          enqueueOutput outputQ out
           return ResponseReceived
 
     response404 = responseBuilderBody s hs body
@@ -117,13 +117,8 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         -- Since 'StreamingBody' is loop, we cannot control it.
         -- So, let's serialize 'Builder' with a designated queue.
         sq <- newTBQueueIO 10 -- fixme: hard coding: 10
-        tvar <- newTVarIO SyncNone
-        let out = OResponse strm rsp (Persist sq tvar)
-        -- Since we must not enqueue an empty queue to the priority
-        -- queue, we spawn a thread to ensure that the designated
-        -- queue is not empty.
-        void $ forkIO $ waiter tvar sq outputQ
-        atomically $ writeTVar tvar (SyncNext out)
+        let out = OResponse strm rsp (Persist sq)
+        enqueueOutput outputQ out
         let push b = do
               atomically $ writeTBQueue sq (SBuilder b)
               T.tickle th
@@ -173,28 +168,6 @@ worker ctx@Context{inputQ,outputQ} set app responder tm = do
                 case me of
                     Nothing -> return ()
                     Just e  -> S.settingsOnException set (Just req) e
-
-waiter :: TVar Sync -> TBQueue Sequence -> PriorityTree Output -> IO ()
-waiter tvar sq outQ = do
-    -- waiting for actions other than SyncNone
-    mx <- atomically $ do
-        mout <- readTVar tvar
-        case mout of
-            SyncNone     -> retry
-            SyncNext out -> do
-                writeTVar tvar SyncNone
-                return $ Just out
-            SyncFinish   -> return Nothing
-    case mx of
-        Nothing -> return ()
-        Just out -> do
-            -- ensuring that the streaming queue is not empty.
-            atomically $ do
-                isEmpty <- isEmptyTBQueue sq
-                when isEmpty retry
-            -- ensuring that stream window is greater than 0.
-            enqueueWhenWindowIsOpen outQ out
-            waiter tvar sq outQ
 
 ----------------------------------------------------------------
 

@@ -8,10 +8,8 @@ import Data.ByteString.Builder (Builder)
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>),(<*>))
 #endif
-import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Exception (SomeException)
-import Control.Monad (void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.IntMap.Strict (IntMap, IntMap)
@@ -46,12 +44,10 @@ data Input = Input Stream Request
 
 data Control a = CFinish
                | CNext a
-               | CNone
 
 instance Show (Control a) where
     show CFinish   = "CFinish"
     show (CNext _) = "CNext"
-    show CNone     = "CNone"
 
 type DynaNext = WindowSize -> IO Next
 
@@ -77,12 +73,8 @@ data Sequence = SFinish
               | SFlush
               | SBuilder Builder
 
-data Sync = SyncNone
-          | SyncFinish
-          | SyncNext Output
-
 data Aux = Oneshot Bool
-         | Persist (TBQueue Sequence) (TVar Sync)
+         | Persist (TBQueue Sequence)
 
 ----------------------------------------------------------------
 
@@ -225,22 +217,15 @@ remove (StreamTable ref) k = atomicModifyIORef' ref $ \m ->
 search :: StreamTable -> M.Key -> IO (Maybe Stream)
 search (StreamTable ref) k = M.lookup k <$> readIORef ref
 
--- INVARIANT: streams in the output queue have non-zero window size.
-enqueueWhenWindowIsOpen :: PriorityTree Output -> Output -> IO ()
-enqueueWhenWindowIsOpen outQ out = do
+{-# INLINE enqueueWhenReady #-}
+enqueueWhenReady :: STM () -> PriorityTree Output -> Output -> IO ()
+enqueueWhenReady wait outQ out = do
+    atomically $ wait
+    enqueueOutput outQ out
+
+{-# INLINE enqueueOutput #-}
+enqueueOutput :: PriorityTree Output -> Output -> IO ()
+enqueueOutput outQ out = do
     let Stream{..} = outputStream out
-    atomically $ do
-        x <- readTVar streamWindow
-        check (x > 0)
     pre <- readIORef streamPrecedence
     enqueue outQ streamNumber pre out
-
-enqueueOrSpawnTemporaryWaiter :: Stream -> PriorityTree Output -> Output -> IO ()
-enqueueOrSpawnTemporaryWaiter Stream{..} outQ out = do
-    sw <- atomically $ readTVar streamWindow
-    if sw == 0 then
-        -- This waiter waits only for the stream window.
-        void $ forkIO $ enqueueWhenWindowIsOpen outQ out
-      else do
-        pre <- readIORef streamPrecedence
-        enqueue outQ streamNumber pre out
