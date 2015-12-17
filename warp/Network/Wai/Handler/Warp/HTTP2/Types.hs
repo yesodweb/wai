@@ -59,7 +59,7 @@ data Output = OFinish
             | OGoaway !ByteString
             | OFrame  !ByteString
             | OSettings !ByteString !SettingsList
-            | OResponse !Stream !Response !Aux
+            | OResponse !Stream !Response !BodyInfo
             | ONext !Stream !DynaNext
 
 outputStream :: Output -> Stream
@@ -73,8 +73,9 @@ data Sequence = SFinish
               | SFlush
               | SBuilder Builder
 
-data Aux = Oneshot Bool
-         | Persist (TBQueue Sequence)
+data BodyInfo = OneshotWithBody
+              | OneshotWithoutBody
+              | Persist (TBQueue Sequence)
 
 ----------------------------------------------------------------
 

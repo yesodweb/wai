@@ -67,13 +67,15 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
     !hs0 = responseHeaders rsp
     !logger = S.settingsLogger settings req
 
-    responseNoBody s hs = responseBuilderBody s hs mempty
+    responseNoBody s hs = responseBuilderCore s hs mempty OneshotWithoutBody
 
-    responseBuilderBody s hs bdy = do
+    responseBuilderBody s hs bdy = responseBuilderCore s hs bdy OneshotWithBody
+
+    responseBuilderCore s hs bdy binfo = do
         logger s Nothing
         setThreadContinue tconf True
         let rsp' = ResponseBuilder s hs bdy
-            out = OResponse strm rsp' (Oneshot True)
+            out = OResponse strm rsp' binfo
         enqueueOutput outputQ out
         return ResponseReceived
 
@@ -93,7 +95,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
           logger s (filePartByteCount <$> mpart)
           setThreadContinue tconf True
           let rsp' = ResponseFile s hs path mpart
-              out = OResponse strm rsp' (Oneshot True)
+              out = OResponse strm rsp' OneshotWithBody
           enqueueOutput outputQ out
           return ResponseReceived
 

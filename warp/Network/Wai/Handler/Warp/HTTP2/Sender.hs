@@ -104,7 +104,7 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                 dyntbl <- readIORef encodeDynamicTable
                 setLimitForEncoding siz dyntbl
         loop
-    switch out@(OResponse strm rsp aux) pre = do
+    switch out@(OResponse strm rsp binfo) pre = do
         writeIORef (streamPrecedence strm) pre
         unlessClosed ctx conn strm $ do
             cws <- getConnectionWindowSizeWhenReady ctx
@@ -115,13 +115,14 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                 let !lim = min cws sws
                 -- Header frame and Continuation frame
                 let sid = streamNumber strm
-                    endOfStream = case aux of
-                        Persist{}  -> False
-                        Oneshot hb -> not hb
+                    endOfStream = case binfo of
+                        Persist{}          -> False
+                        OneshotWithBody    -> False
+                        OneshotWithoutBody -> True
                 len <- headerContinue sid rsp endOfStream
                 let total = len + frameHeaderLength
-                case aux of
-                    Oneshot True -> do -- hasBody
+                case binfo of
+                    OneshotWithBody -> do
                         -- Data frame payload
                         (off, _) <- sendHeadersIfNecessary total
                         let payloadOff = off + frameHeaderLength
@@ -129,7 +130,7 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                             fillResponseBodyGetNext conn ii payloadOff lim rsp
                         fillDataHeaderSend strm total datPayloadLen mnext
                         maybeEnqueueNext strm mnext
-                    Oneshot False -> do
+                    OneshotWithoutBody -> do
                         -- "closed" must be before "connSendAll". If not,
                         -- the context would be switched to the receiver,
                         -- resulting the inconsistency of concurrency.
