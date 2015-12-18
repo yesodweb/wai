@@ -223,3 +223,7 @@ enqueueOutput outQ out = do
     let Stream{..} = outputStream out
     pre <- readIORef streamPrecedence
     enqueue outQ streamNumber pre out
+
+{-# INLINE enqueueOutputControl #-}
+enqueueOutputControl :: PriorityTree Output -> Output -> IO ()
+enqueueOutputControl outQ out = enqueueControl outQ 0 out

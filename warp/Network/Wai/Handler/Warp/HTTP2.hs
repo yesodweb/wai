@@ -8,7 +8,6 @@ import qualified Control.Exception as E
 import Control.Monad (when, unless, replicateM_)
 import Data.ByteString (ByteString)
 import Network.HTTP2
-import Network.HTTP2.Priority
 import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
@@ -32,6 +31,7 @@ http2 conn ii addr transport settings readN app = do
     ok <- checkPreface
     when ok $ do
         ctx <- newContext
+        enqueueOutputControl (outputQ ctx) $ OFrame initialFrame
         -- Workers, worker manager and timer manager
         mgr <- start settings
         let responder = response ii settings ctx mgr
@@ -46,7 +46,6 @@ http2 conn ii addr transport settings readN app = do
         -- Receiver
         let mkreq = mkRequest ii settings addr
         tid <- forkIO $ frameReceiver ctx mkreq readN
-        enqueueControl (outputQ ctx) 0 $ OFrame initialFrame
         -- Sender
         -- frameSender is the main thread because it ensures to send
         -- a goway frame.

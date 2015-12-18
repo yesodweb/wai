@@ -23,7 +23,6 @@ import Control.Monad (when)
 import Data.ByteString.Builder (byteString)
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
-import Network.HTTP2.Priority
 import Network.Wai
 import Network.Wai.Handler.Warp.File
 import Network.Wai.Handler.Warp.FileInfoCache
@@ -166,7 +165,7 @@ worker ctx@Context{inputQ,outputQ} set app responder tm = do
             Just (Input strm req) -> do
                 closed ctx strm Killed
                 let frame = resetFrame InternalError (streamNumber strm)
-                enqueueControl outputQ 0 (OFrame frame)
+                enqueueOutputControl outputQ $ OFrame frame
                 case me of
                     Nothing -> return ()
                     Just e  -> S.settingsOnException set (Just req) e

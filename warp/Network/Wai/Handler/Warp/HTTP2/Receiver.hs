@@ -17,7 +17,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Maybe (isJust)
 import Network.HTTP2
-import Network.HTTP2.Priority
+import Network.HTTP2.Priority (toPrecedence, delete, prepare)
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.HPACK
 import Network.Wai.Handler.Warp.HTTP2.Request
@@ -42,12 +42,12 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
       | Just (ConnectionError err msg) <- E.fromException e = do
           csid <- readIORef currentStreamId
           let !frame = goawayFrame csid err msg
-          enqueueControl outputQ 0 $ OGoaway frame
+          enqueueOutputControl outputQ $ OGoaway frame
       | otherwise = return ()
 
     sendReset err sid = do
         let !frame = resetFrame err sid
-        enqueueControl outputQ 0 $ OFrame frame
+        enqueueOutputControl outputQ $ OFrame frame
 
     loop :: Int -> IO ()
     loop !n
@@ -57,7 +57,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
       | otherwise = do
         hd <- recvN frameHeaderLength
         if BS.null hd then
-            enqueueControl outputQ 0 OFinish
+            enqueueOutputControl outputQ OFinish
           else do
             cont <- processStreamGuardingError $ decodeFrameHeader hd
             when cont $ loop (n + 1)
@@ -183,7 +183,7 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, output
     unless (testAck flags) $ do
         modifyIORef' http2settings $ \old -> updateSettings old alist
         let !frame = settingsFrame setAck []
-        enqueueControl outputQ 0 $ OSettings frame alist
+        enqueueOutputControl outputQ $ OSettings frame alist
     return True
 
 control FramePing FrameHeader{flags} bs Context{outputQ} =
@@ -191,11 +191,11 @@ control FramePing FrameHeader{flags} bs Context{outputQ} =
         E.throwIO $ ConnectionError ProtocolError "the ack flag of this ping frame must not be set"
       else do
         let !frame = pingFrame bs
-        enqueueControl outputQ 0 $ OFrame frame
+        enqueueOutputControl outputQ $ OFrame frame
         return True
 
 control FrameGoAway _ _ Context{outputQ} = do
-    enqueueControl outputQ 0 OFinish
+    enqueueOutputControl outputQ OFinish
     return False
 
 control FrameWindowUpdate header bs Context{connectionWindow} = do
@@ -269,7 +269,7 @@ stream FrameData
         let !frame1 = windowUpdateFrame 0 payloadLength
             !frame2 = windowUpdateFrame streamNumber payloadLength
             !frame = frame1 `BS.append` frame2
-        enqueueControl outputQ 0 $ OFrame frame
+        enqueueOutputControl outputQ $ OFrame frame
     atomically $ writeTQueue q body
     if endOfStream then do
         mcl <- readIORef streamContentLength
@@ -328,8 +328,8 @@ stream FramePriority header bs Context{outputQ,priorityTreeSize} s Stream{stream
       else do
         mx <- delete outputQ streamNumber oldpre
         case mx of
-            Nothing -> return ()
-            Just x  -> enqueue outputQ streamNumber newpre x
+            Nothing  -> return ()
+            Just out -> enqueueOutput outputQ out
     return s
 
 -- this ordering is important

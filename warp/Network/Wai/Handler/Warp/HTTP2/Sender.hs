@@ -15,7 +15,7 @@ import qualified Data.ByteString.Builder.Extra as B
 import Foreign.Ptr
 import Network.HPACK (setLimitForEncoding)
 import Network.HTTP2
-import Network.HTTP2.Priority
+import Network.HTTP2.Priority (dequeue)
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
@@ -45,19 +45,6 @@ data Leftover = LZero
               | LTwo BS.ByteString B.BufferWriter
 
 ----------------------------------------------------------------
-
-unlessClosed :: Context -> Connection -> Stream -> IO () -> IO ()
-unlessClosed ctx
-             Connection{connSendAll}
-             strm@Stream{streamState,streamNumber}
-             body = E.handle resetStream $ do
-    state <- readIORef streamState
-    unless (isClosed state) body
-  where
-    resetStream e = do
-        closed ctx strm (ResetByMe e)
-        let rst = resetFrame InternalError streamNumber
-        connSendAll rst
 
 getConnectionWindowSizeWhenReady :: Context -> IO WindowSize
 getConnectionWindowSizeWhenReady Context{connectionWindow} = atomically $ do
@@ -156,8 +143,9 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                     maybeEnqueueNext strm mnext binfo
         loop
 
-    whenReadyOrEnqueueAgain strm binfo out body =
-        unlessClosed ctx conn strm $ case binfo of
+    whenReadyOrEnqueueAgain strm binfo out body = E.handle resetStream $ do
+        state <- readIORef $ streamState strm
+        unless (isClosed state) $ case binfo of
             Persist tbq -> checkStreaming tbq
             _           -> checkStreamWindowSize
       where
@@ -173,6 +161,11 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                 enqueueWhenReady (waitStreamWindowSize strm) outputQ out
               else
                 body sws
+        resetStream e = do
+            closed ctx strm (ResetByMe e)
+            let rst = resetFrame InternalError $ streamNumber strm
+                eout = OFrame rst
+            enqueueOutputControl outputQ eout
 
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
     -- the buffer are filled.
