@@ -69,10 +69,10 @@ type Hash = Int
 type FdCache = MMap Hash FdEntry
 
 -- | Mutable Fd cacher.
-type MutableFdCache = Reaper FdCache (Hash, FdEntry)
+newtype MutableFdCache = MutableFdCache (Reaper FdCache (Hash, FdEntry))
 
 fdCache :: MutableFdCache -> IO FdCache
-fdCache mfc = reaperRead mfc
+fdCache (MutableFdCache reaper) = reaperRead reaper
 
 look :: MutableFdCache -> FilePath -> Hash -> IO (Maybe FdEntry)
 look mfc path key = searchWith key check <$> fdCache mfc
@@ -98,7 +98,7 @@ withFdCache duration action = bracket (initialize duration)
 -- The first argument is a cache duration in second.
 initialize :: Int -> IO (Maybe MutableFdCache)
 initialize 0 = return Nothing
-initialize duration = Just <$> mkReaper defaultReaperSettings
+initialize duration = Just . MutableFdCache <$> mkReaper defaultReaperSettings
     { reaperAction = clean
     , reaperDelay = duration
     , reaperCons = uncurry insert
@@ -131,8 +131,8 @@ prune k (Tom ent@(FdEntry _ fd mst) vs) = status mst >>= prune'
 
 terminate :: Maybe MutableFdCache -> IO ()
 terminate Nothing = return ()
-terminate (Just mfc) = do
-    !t <- reaperStop mfc
+terminate (Just (MutableFdCache reaper)) = do
+    !t <- reaperStop reaper
     mapM_ closeIt $ toList t
   where
     closeIt (_, FdEntry _ fd _) = closeFd fd
@@ -141,12 +141,12 @@ terminate (Just mfc) = do
 
 -- | Getting 'Fd' and 'Refresh' from the mutable Fd cacher.
 getFd :: MutableFdCache -> FilePath -> IO (Fd, Refresh)
-getFd mfc path = look mfc path key >>= getFd'
+getFd mfc@(MutableFdCache reaper) path = look mfc path key >>= getFd'
   where
     key = hash path
     getFd' Nothing = do
         ent@(FdEntry _ fd mst) <- newFdEntry path
-        reaperAdd mfc (key, ent)
+        reaperAdd reaper (key, ent)
         return (fd, refresh mst)
     getFd' (Just (FdEntry _ fd mst)) = do
         refresh mst
