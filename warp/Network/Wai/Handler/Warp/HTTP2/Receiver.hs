@@ -9,6 +9,7 @@ module Network.Wai.Handler.Warp.HTTP2.Receiver (frameReceiver) where
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
+import Control.Concurrent
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (when, unless, void)
@@ -27,7 +28,7 @@ import Network.Wai.Handler.Warp.Types
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> MkReq -> (BufSize -> IO ByteString) -> IO ()
-frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
+frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
   where
     Context{ http2settings
            , streamTable
@@ -40,21 +41,26 @@ frameReceiver ctx mkreq recvN = loop `E.catch` sendGoaway
     sendGoaway e
       | Just (ConnectionError err msg) <- E.fromException e = do
           csid <- readIORef currentStreamId
-          let frame = goawayFrame csid err msg
+          let !frame = goawayFrame csid err msg
           enqueueControl outputQ 0 $ OGoaway frame
       | otherwise = return ()
 
     sendReset err sid = do
-        let frame = resetFrame err sid
+        let !frame = resetFrame err sid
         enqueueControl outputQ 0 $ OFrame frame
 
-    loop = do
+    loop :: Int -> IO ()
+    loop !n
+      | n == 6 = do
+          yield
+          loop 0
+      | otherwise = do
         hd <- recvN frameHeaderLength
         if BS.null hd then
             enqueueControl outputQ 0 OFinish
           else do
             cont <- processStreamGuardingError $ decodeFrameHeader hd
-            when cont loop
+            when cont $ loop (n + 1)
 
     processStreamGuardingError (_, FrameHeader{streamId})
       | isResponse streamId = E.throwIO $ ConnectionError ProtocolError "stream id should be odd"
@@ -176,7 +182,7 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, output
         Nothing -> return ()
     unless (testAck flags) $ do
         modifyIORef' http2settings $ \old -> updateSettings old alist
-        let frame = settingsFrame setAck []
+        let !frame = settingsFrame setAck []
         enqueueControl outputQ 0 $ OSettings frame alist
     return True
 
@@ -184,7 +190,7 @@ control FramePing FrameHeader{flags} bs Context{outputQ} =
     if testAck flags then
         E.throwIO $ ConnectionError ProtocolError "the ack flag of this ping frame must not be set"
       else do
-        let frame = pingFrame bs
+        let !frame = pingFrame bs
         enqueueControl outputQ 0 $ OFrame frame
         return True
 
@@ -194,7 +200,7 @@ control FrameGoAway _ _ Context{outputQ} = do
 
 control FrameWindowUpdate header bs Context{connectionWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    w <- (n +) <$> atomically (readTVar connectionWindow)
+    !w <- (n +) <$> atomically (readTVar connectionWindow)
     when (isWindowOverflow w) $ E.throwIO $ ConnectionError FlowControlError "control window should be less than 2^31"
     atomically $ writeTVar connectionWindow w
     return True
@@ -225,8 +231,8 @@ stream FrameHeaders header@FrameHeader{flags} bs ctx (Open JustOpened) Stream{st
         Just p  -> do
             checkPriority p streamNumber
             return p
-    let endOfStream = testEndStream flags
-        endOfHeader = testEndHeader flags
+    let !endOfStream = testEndStream flags
+        !endOfHeader = testEndHeader flags
     if endOfHeader then do
         hdr <- hpackDecodeHeader frag ctx
         return $ if endOfStream then
@@ -241,7 +247,7 @@ stream FrameHeaders header@FrameHeader{flags} bs _ (Open (Body q)) _ = do
     -- trailer is not supported.
     -- let's read and ignore it.
     HeadersFrame _ _ <- guardIt $ decodeHeadersFrame header bs
-    let endOfStream = testEndStream flags
+    let !endOfStream = testEndStream flags
     if endOfStream then do
         atomically $ writeTQueue q ""
         return HalfClosed
@@ -255,14 +261,14 @@ stream FrameData
        Context{outputQ} s@(Open (Body q))
        Stream{streamNumber,streamBodyLength,streamContentLength} = do
     DataFrame body <- guardIt $ decodeDataFrame header bs
-    let endOfStream = testEndStream flags
+    let !endOfStream = testEndStream flags
     len0 <- readIORef streamBodyLength
     let !len = len0 + payloadLength
     writeIORef streamBodyLength len
     when (payloadLength /= 0) $ do
-        let frame1 = windowUpdateFrame 0 payloadLength
-            frame2 = windowUpdateFrame streamNumber payloadLength
-            frame = frame1 `BS.append` frame2
+        let !frame1 = windowUpdateFrame 0 payloadLength
+            !frame2 = windowUpdateFrame streamNumber payloadLength
+            !frame = frame1 `BS.append` frame2
         enqueueControl outputQ 0 $ OFrame frame
     atomically $ writeTQueue q body
     if endOfStream then do
@@ -276,16 +282,16 @@ stream FrameData
         return s
 
 stream FrameContinuation FrameHeader{flags} frag ctx (Open (Continued rfrags siz n endOfStream pri)) _ = do
-    let endOfHeader = testEndHeader flags
-        rfrags' = frag : rfrags
-        siz' = siz + BS.length frag
-        n' = n + 1
+    let !endOfHeader = testEndHeader flags
+        !rfrags' = frag : rfrags
+        !siz' = siz + BS.length frag
+        !n' = n + 1
     when (siz' > 51200) $ -- fixme: hard coding: 50K
       E.throwIO $ ConnectionError EnhanceYourCalm "Header is too big"
     when (n' > 10) $ -- fixme: hard coding
       E.throwIO $ ConnectionError EnhanceYourCalm "Header is too fragmented"
     if endOfHeader then do
-        let hdrblk = BS.concat $ reverse rfrags'
+        let !hdrblk = BS.concat $ reverse rfrags'
         hdr <- hpackDecodeHeader hdrblk ctx
         return $ if endOfStream then
                     Open (NoBody hdr pri)
@@ -296,7 +302,7 @@ stream FrameContinuation FrameHeader{flags} frag ctx (Open (Continued rfrags siz
 
 stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    w <- (n +) <$> atomically (readTVar streamWindow)
+    !w <- (n +) <$> atomically (readTVar streamWindow)
     when (isWindowOverflow w) $
         E.throwIO $ StreamError FlowControlError streamId
     atomically $ writeTVar streamWindow w
@@ -304,7 +310,7 @@ stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow
 
 stream FrameRSTStream header bs ctx _ strm = do
     RSTStreamFrame e <- guardIt $ decoderstStreamFrame header bs
-    let cc = Reset e
+    let !cc = Reset e
     closed ctx strm cc
     return $ Closed cc -- will be written to streamState again
 
