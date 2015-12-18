@@ -75,6 +75,7 @@ data BodyInfo = OneshotWithBody
 -- | The context for HTTP/2 connection.
 data Context = Context {
     http2settings      :: !(IORef Settings)
+  , firstSettings      :: !(IORef Bool)
   , streamTable        :: !StreamTable
   , concurrency        :: !(IORef Int)
   , priorityTreeSize   :: !(IORef Int)
@@ -95,6 +96,7 @@ data Context = Context {
 
 newContext :: IO Context
 newContext = Context <$> newIORef defaultSettings
+                     <*> newIORef False
                      <*> newStreamTable
                      <*> newIORef 0
                      <*> newIORef 0

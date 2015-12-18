@@ -22,16 +22,12 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-initialFrame :: ByteString
-initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,recommendedConcurrency)]
-
 http2 :: Connection -> InternalInfo -> SockAddr -> Transport -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
 http2 conn ii addr transport settings readN app = do
     checkTLS
     ok <- checkPreface
     when ok $ do
         ctx <- newContext
-        enqueueOutputControl (outputQ ctx) $ OFrame initialFrame
         -- Workers, worker manager and timer manager
         mgr <- start settings
         let responder = response ii settings ctx mgr

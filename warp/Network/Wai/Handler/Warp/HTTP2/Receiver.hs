@@ -172,10 +172,13 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
 
     consume = void . recvN
 
+initialFrame :: ByteString
+initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,recommendedConcurrency)]
+
 ----------------------------------------------------------------
 
 control :: FrameTypeId -> FrameHeader -> ByteString -> Context -> IO Bool
-control FrameSettings header@FrameHeader{flags} bs Context{http2settings, outputQ} = do
+control FrameSettings header@FrameHeader{flags} bs Context{http2settings, outputQ,firstSettings} = do
     SettingsFrame alist <- guardIt $ decodeSettingsFrame header bs
     case checkSettingsList alist of
         Just x  -> E.throwIO x
@@ -183,7 +186,10 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, output
     unless (testAck flags) $ do
         modifyIORef' http2settings $ \old -> updateSettings old alist
         let !frame = settingsFrame setAck []
-        enqueueOutputControl outputQ $ OSettings frame alist
+        sent <- readIORef firstSettings
+        let !frame' = if sent then frame else BS.append initialFrame frame
+        unless sent $ writeIORef firstSettings True
+        enqueueOutputControl outputQ $ OSettings frame' alist
     return True
 
 control FramePing FrameHeader{flags} bs Context{outputQ} =
