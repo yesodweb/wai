@@ -214,7 +214,7 @@ search (StreamTable ref) k = M.lookup k <$> readIORef ref
 {-# INLINE enqueueWhenReady #-}
 enqueueWhenReady :: STM () -> PriorityTree Output -> Output -> IO ()
 enqueueWhenReady wait outQ out = do
-    atomically $ wait
+    atomically wait
     enqueueOutput outQ out
 
 {-# INLINE enqueueOutput #-}
