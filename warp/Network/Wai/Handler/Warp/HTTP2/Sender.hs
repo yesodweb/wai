@@ -12,6 +12,7 @@ import qualified Control.Exception as E
 import Control.Monad (unless, void, when)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder.Extra as B
+import Data.Maybe (isNothing)
 import Foreign.Ptr
 import Network.HPACK (setLimitForEncoding)
 import Network.HTTP2
@@ -231,12 +232,10 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                 Nothing -> setEndStream defaultFlags
                 _       -> defaultFlags
         fillFrameHeader FrameData datPayloadLen sid flag buf
-        -- "closed" must be before "connSendAll". If not,
+        -- "closed" must be before "flushN". If not,
         -- the context would be switched to the receiver,
         -- resulting the inconsistency of concurrency.
-        case mnext of
-            Nothing -> closed ctx strm Finished
-            _       -> return ()
+        when (isNothing mnext) $ closed ctx strm Finished
         flushN total
         atomically $ modifyTVar' connectionWindow (subtract datPayloadLen)
         atomically $ modifyTVar' (streamWindow strm) (subtract datPayloadLen)
