@@ -14,6 +14,7 @@ import Data.Array ((!))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B hiding (pack)
 import qualified Data.ByteString.Char8 as B (pack, readInteger)
+import Data.Maybe (fromMaybe)
 import Network.HTTP.Date
 import qualified Network.HTTP.Types as H
 import qualified Network.HTTP.Types.Header as H
@@ -21,6 +22,10 @@ import Network.Wai
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.Header
 import Numeric (showInt)
+
+#ifndef MIN_VERSION_http_types
+#define MIN_VERSION_http_types(x,y,z) 1
+#endif
 
 ----------------------------------------------------------------
 
@@ -45,9 +50,7 @@ conditionalRequest finfo hs0 reqidx = case condition of
     mcondition = ifmodified    reqidx size mtime
              <|> ifunmodified  reqidx size mtime
              <|> ifrange       reqidx size mtime
-    condition = case mcondition of
-        Nothing -> unconditional reqidx size
-        Just x  -> x
+    condition = fromMaybe (unconditional reqidx size) mcondition
 
 ----------------------------------------------------------------
 
