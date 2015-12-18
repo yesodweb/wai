@@ -105,8 +105,6 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
     switch out@(OResponse strm rsp binfo) pre = do
         writeIORef (streamPrecedence strm) pre
         whenReadyOrEnqueueAgain strm binfo out $ \sws -> do
-            cws <- getConnectionWindowSizeWhenReady ctx
-            let !lim = min cws sws
             -- Header frame and Continuation frame
             let sid = streamNumber strm
                 endOfStream = case binfo of
@@ -120,6 +118,8 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                     -- Data frame payload
                     (off, _) <- sendHeadersIfNecessary total
                     let payloadOff = off + frameHeaderLength
+                    cws <- getConnectionWindowSizeWhenReady ctx
+                    let !lim = min cws sws
                     Next datPayloadLen mnext <-
                         fillResponseBodyGetNext conn ii payloadOff lim rsp
                     fillDataHeaderSend strm total datPayloadLen mnext
@@ -133,6 +133,8 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                 Persist sq -> do
                     (off, needSend) <- sendHeadersIfNecessary total
                     let payloadOff = off + frameHeaderLength
+                    cws <- getConnectionWindowSizeWhenReady ctx
+                    let !lim = min cws sws
                     Next datPayloadLen mnext <-
                         fillStreamBodyGetNext conn payloadOff lim sq strm
                     -- If no data was immediately available, avoid sending an
