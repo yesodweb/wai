@@ -8,6 +8,7 @@ import qualified Control.Exception as E
 import Control.Monad (when, unless, replicateM_)
 import Data.ByteString (ByteString)
 import Network.HTTP2
+import Network.HTTP2.Priority
 import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
@@ -21,6 +22,9 @@ import qualified Network.Wai.Handler.Warp.Settings as S (Settings)
 import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
+
+initialFrame :: ByteString
+initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,recommendedConcurrency)]
 
 http2 :: Connection -> InternalInfo -> SockAddr -> Transport -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
 http2 conn ii addr transport settings readN app = do
@@ -42,6 +46,7 @@ http2 conn ii addr transport settings readN app = do
         -- Receiver
         let mkreq = mkRequest ii settings addr
         tid <- forkIO $ frameReceiver ctx mkreq readN
+        enqueueControl (outputQ ctx) 0 $ OFrame initialFrame
         -- Sender
         -- frameSender is the main thread because it ensures to send
         -- a goway frame.

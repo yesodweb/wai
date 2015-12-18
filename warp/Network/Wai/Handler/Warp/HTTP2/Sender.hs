@@ -81,18 +81,11 @@ waitStreaming tbq = do
 frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> IO ()
 frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
             conn@Connection{connWriteBuffer,connBufferSize,connSendAll}
-            ii settings = go `E.catch` ignore
+            ii settings = loop `E.catch` ignore
   where
-    initialSettings = [(SettingsMaxConcurrentStreams,recommendedConcurrency)]
-    initialFrame = settingsFrame id initialSettings
     bufHeaderPayload = connWriteBuffer `plusPtr` frameHeaderLength
     headerPayloadLim = connBufferSize - frameHeaderLength
 
-    go = do
-        connSendAll initialFrame
-        loop
-
-    -- ignoring the old priority because the value might be changed.
     loop = dequeue outputQ >>= \(_sid,pre,out) -> switch out pre
 
     ignore :: E.SomeException -> IO ()
