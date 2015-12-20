@@ -36,18 +36,18 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
            , continued
            , currentStreamId
            , inputQ
-           , outputQ
+           , controlQ
            } = ctx
     sendGoaway e
       | Just (ConnectionError err msg) <- E.fromException e = do
           csid <- readIORef currentStreamId
           let !frame = goawayFrame csid err msg
-          enqueueOutputControl outputQ $ OGoaway frame
+          enqueueControl controlQ $ CGoaway frame
       | otherwise = return ()
 
     sendReset err sid = do
         let !frame = resetFrame err sid
-        enqueueOutputControl outputQ $ OFrame frame
+        enqueueControl controlQ $ CFrame frame
 
     loop :: Int -> IO ()
     loop !n
@@ -57,7 +57,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
       | otherwise = do
         hd <- recvN frameHeaderLength
         if BS.null hd then
-            enqueueOutputControl outputQ OFinish
+            enqueueControl controlQ CFinish
           else do
             cont <- processStreamGuardingError $ decodeFrameHeader hd
             when cont $ loop (n + 1)
@@ -178,7 +178,7 @@ initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,recommendedConcur
 ----------------------------------------------------------------
 
 control :: FrameTypeId -> FrameHeader -> ByteString -> Context -> IO Bool
-control FrameSettings header@FrameHeader{flags} bs Context{http2settings, outputQ,firstSettings} = do
+control FrameSettings header@FrameHeader{flags} bs Context{http2settings, controlQ,firstSettings} = do
     SettingsFrame alist <- guardIt $ decodeSettingsFrame header bs
     case checkSettingsList alist of
         Just x  -> E.throwIO x
@@ -189,19 +189,19 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, output
         sent <- readIORef firstSettings
         let !frame' = if sent then frame else BS.append initialFrame frame
         unless sent $ writeIORef firstSettings True
-        enqueueOutputControl outputQ $ OSettings frame' alist
+        enqueueControl controlQ $ CSettings frame' alist
     return True
 
-control FramePing FrameHeader{flags} bs Context{outputQ} =
+control FramePing FrameHeader{flags} bs Context{controlQ} =
     if testAck flags then
         E.throwIO $ ConnectionError ProtocolError "the ack flag of this ping frame must not be set"
       else do
         let !frame = pingFrame bs
-        enqueueOutputControl outputQ $ OFrame frame
+        enqueueControl controlQ $ CFrame frame
         return True
 
-control FrameGoAway _ _ Context{outputQ} = do
-    enqueueOutputControl outputQ OFinish
+control FrameGoAway _ _ Context{controlQ} = do
+    enqueueControl controlQ CFinish
     return False
 
 control FrameWindowUpdate header bs Context{connectionWindow} = do
@@ -264,7 +264,7 @@ stream FrameHeaders header@FrameHeader{flags} bs _ (Open (Body q)) _ = do
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
        bs
-       Context{outputQ} s@(Open (Body q))
+       Context{controlQ} s@(Open (Body q))
        Stream{streamNumber,streamBodyLength,streamContentLength} = do
     DataFrame body <- guardIt $ decodeDataFrame header bs
     let !endOfStream = testEndStream flags
@@ -275,7 +275,7 @@ stream FrameData
         let !frame1 = windowUpdateFrame 0 payloadLength
             !frame2 = windowUpdateFrame streamNumber payloadLength
             !frame = frame1 `BS.append` frame2
-        enqueueOutputControl outputQ $ OFrame frame
+        enqueueControl controlQ $ CFrame frame
     atomically $ writeTQueue q body
     if endOfStream then do
         mcl <- readIORef streamContentLength

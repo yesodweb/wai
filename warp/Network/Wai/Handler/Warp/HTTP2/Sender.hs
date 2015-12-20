@@ -16,7 +16,7 @@ import Data.Maybe (isNothing)
 import Foreign.Ptr
 import Network.HPACK (setLimitForEncoding)
 import Network.HTTP2
-import Network.HTTP2.Priority (dequeue)
+import Network.HTTP2.Priority (dequeueSTM)
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
@@ -47,12 +47,6 @@ data Leftover = LZero
 
 ----------------------------------------------------------------
 
-getConnectionWindowSizeWhenReady :: Context -> IO WindowSize
-getConnectionWindowSizeWhenReady Context{connectionWindow} = atomically $ do
-    w <- readTVar connectionWindow
-    check (w > 0)
-    return w
-
 getStreamWindowSize :: Stream -> IO WindowSize
 getStreamWindowSize Stream{streamWindow} = atomically $ readTVar streamWindow
 
@@ -67,24 +61,30 @@ waitStreaming tbq = do
     check (isEmpty == False)
 
 frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> IO ()
-frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
+frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             conn@Connection{connWriteBuffer,connBufferSize,connSendAll}
             ii settings = loop `E.catch` ignore
   where
-    bufHeaderPayload = connWriteBuffer `plusPtr` frameHeaderLength
-    headerPayloadLim = connBufferSize - frameHeaderLength
+    dequeueControl = Left <$> readTQueue controlQ
+    dequeueData    = Right <$> do
+        w <- readTVar connectionWindow
+        check (w > 0)
+        dequeueSTM outputQ
 
-    loop = dequeue outputQ >>= \(_sid,pre,out) -> switch out pre
+    loop = do
+        ex <- atomically (dequeueControl `orElse` dequeueData)
+        case ex of
+            Left  ctl         -> control ctl
+            Right (_,pre,out) -> do
+                writeIORef (streamPrecedence (outputStream out)) pre
+                switch out
 
-    ignore :: E.SomeException -> IO ()
-    ignore _ = return ()
-
-    switch OFinish         _ = return ()
-    switch (OGoaway frame) _ = connSendAll frame
-    switch (OFrame frame)  _ = do
+    control CFinish         = return ()
+    control (CGoaway frame) = connSendAll frame
+    control (CFrame frame)  = do
         connSendAll frame
         loop
-    switch (OSettings frame alist) _ = do
+    control (CSettings frame alist) = do
         connSendAll frame
         case lookup SettingsHeaderTableSize alist of
             Nothing  -> return ()
@@ -92,18 +92,17 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                 dyntbl <- readIORef encodeDynamicTable
                 setLimitForEncoding siz dyntbl
         loop
-    switch out@(ONext strm curr binfo) pre = do
-        writeIORef (streamPrecedence strm) pre
+
+    switch out@(ONext strm curr binfo) = do
         whenReadyOrEnqueueAgain strm binfo out $ \sws -> do
-            cws <- getConnectionWindowSizeWhenReady ctx
+            cws <- atomically $ readTVar connectionWindow
             let !lim = min cws sws
             -- Data frame payload
             Next datPayloadLen mnext <- curr lim
             fillDataHeaderSend strm 0 datPayloadLen mnext
             maybeEnqueueNext strm mnext binfo
         loop
-    switch out@(OResponse strm rsp binfo) pre = do
-        writeIORef (streamPrecedence strm) pre
+    switch out@(OResponse strm rsp binfo) = do
         whenReadyOrEnqueueAgain strm binfo out $ \sws -> do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
@@ -118,7 +117,7 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                     -- Data frame payload
                     (off, _) <- sendHeadersIfNecessary total
                     let payloadOff = off + frameHeaderLength
-                    cws <- getConnectionWindowSizeWhenReady ctx
+                    cws <- atomically $ readTVar connectionWindow
                     let !lim = min cws sws
                     Next datPayloadLen mnext <-
                         fillResponseBodyGetNext conn ii payloadOff lim rsp
@@ -133,7 +132,7 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                 Persist sq -> do
                     (off, needSend) <- sendHeadersIfNecessary total
                     let payloadOff = off + frameHeaderLength
-                    cws <- getConnectionWindowSizeWhenReady ctx
+                    cws <- atomically $ readTVar connectionWindow
                     let !lim = min cws sws
                     Next datPayloadLen mnext <-
                         fillStreamBodyGetNext conn payloadOff lim sq strm
@@ -166,9 +165,8 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
                 body sws
         resetStream e = do
             closed ctx strm (ResetByMe e)
-            let rst = resetFrame InternalError $ streamNumber strm
-                eout = OFrame rst
-            enqueueOutputControl outputQ eout
+            let !rst = resetFrame InternalError $ streamNumber strm
+            enqueueControl controlQ $ CFrame rst
 
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
     -- the buffer are filled.
@@ -245,6 +243,13 @@ frameSender ctx@Context{outputQ,connectionWindow,encodeDynamicTable}
     fillFrameHeader ftyp len sid flag buf = encodeFrameHeaderBuf ftyp hinfo buf
       where
         hinfo = FrameHeader len flag sid
+
+    bufHeaderPayload = connWriteBuffer `plusPtr` frameHeaderLength
+    headerPayloadLim = connBufferSize - frameHeaderLength
+
+    ignore :: E.SomeException -> IO ()
+    ignore _ = return ()
+
 
 ----------------------------------------------------------------
 

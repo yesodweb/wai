@@ -129,7 +129,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         return ResponseReceived
 
 worker :: Context -> S.Settings -> Application -> Responder -> T.Manager -> IO ()
-worker ctx@Context{inputQ,outputQ} set app responder tm = do
+worker ctx@Context{inputQ,controlQ} set app responder tm = do
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
     E.bracket (T.registerKillThread tm) T.cancel $ go sinfo tcont
@@ -165,7 +165,7 @@ worker ctx@Context{inputQ,outputQ} set app responder tm = do
             Just (Input strm req) -> do
                 closed ctx strm Killed
                 let frame = resetFrame InternalError (streamNumber strm)
-                enqueueOutputControl outputQ $ OFrame frame
+                enqueueControl controlQ $ CFrame frame
                 case me of
                     Nothing -> return ()
                     Just e  -> S.settingsOnException set (Just req) e

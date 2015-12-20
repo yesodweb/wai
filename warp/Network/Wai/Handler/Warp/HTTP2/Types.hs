@@ -48,17 +48,17 @@ type BytesFilled = Int
 
 data Next = Next !BytesFilled (Maybe DynaNext)
 
-data Output = OFinish
-            | OGoaway !ByteString
-            | OFrame  !ByteString
-            | OSettings !ByteString !SettingsList
-            | OResponse !Stream !Response !BodyInfo
+data Output = OResponse !Stream !Response !BodyInfo
             | ONext     !Stream !DynaNext !BodyInfo
 
 outputStream :: Output -> Stream
 outputStream (OResponse strm _ _) = strm
 outputStream (ONext     strm _ _) = strm
-outputStream _                    = error "outputStream"
+
+data Control = CFinish
+             | CGoaway   !ByteString
+             | CFrame    !ByteString
+             | CSettings !ByteString !SettingsList
 
 ----------------------------------------------------------------
 
@@ -87,6 +87,7 @@ data Context = Context {
   , currentStreamId    :: !(IORef StreamId)
   , inputQ             :: !(TQueue Input)
   , outputQ            :: !(PriorityTree Output)
+  , controlQ           :: !(TQueue Control)
   , encodeDynamicTable :: !(IORef DynamicTable)
   , decodeDynamicTable :: !(IORef DynamicTable)
   , connectionWindow   :: !(TVar WindowSize)
@@ -104,6 +105,7 @@ newContext = Context <$> newIORef defaultSettings
                      <*> newIORef 0
                      <*> newTQueueIO
                      <*> newPriorityTree
+                     <*> newTQueueIO
                      <*> (newDynamicTableForEncoding defaultDynamicTableSize >>= newIORef)
                      <*> (newDynamicTableForDecoding defaultDynamicTableSize >>= newIORef)
                      <*> newTVarIO defaultInitialWindowSize
@@ -226,6 +228,6 @@ enqueueOutput outQ out = do
     pre <- readIORef streamPrecedence
     enqueue outQ streamNumber pre out
 
-{-# INLINE enqueueOutputControl #-}
-enqueueOutputControl :: PriorityTree Output -> Output -> IO ()
-enqueueOutputControl outQ out = enqueueControl outQ 0 out
+{-# INLINE enqueueControl #-}
+enqueueControl :: TQueue Control -> Control -> IO ()
+enqueueControl ctlQ ctl = atomically $ writeTQueue ctlQ ctl
