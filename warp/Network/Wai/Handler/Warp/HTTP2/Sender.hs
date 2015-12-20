@@ -67,18 +67,18 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             ii settings = loop `E.catch` ignore
   where
     dequeueControl = Left <$> readTQueue controlQ
-    dequeueData    = Right <$> do
+    dequeueOutput    = Right <$> do
         w <- readTVar connectionWindow
         check (w > 0)
         dequeueSTM outputQ
 
     loop = do
-        ex <- atomically (dequeueControl `orElse` dequeueData)
+        ex <- atomically (dequeueControl `orElse` dequeueOutput)
         case ex of
             Left  ctl         -> control ctl
             Right (_,pre,out) -> do
                 writeIORef (streamPrecedence (outputStream out)) pre
-                switch out
+                output out
 
     control CFinish         = return ()
     control (CGoaway frame) = connSendAll frame
@@ -94,7 +94,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 setLimitForEncoding siz dyntbl
         loop
 
-    switch out@(ONext strm curr binfo) = do
+    output out@(ONext strm curr binfo) = do
         whenReadyOrEnqueueAgain strm binfo out $ \sws -> do
             cws <- atomically $ readTVar connectionWindow
             let !lim = min cws sws
@@ -103,7 +103,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             fillDataHeaderSend strm 0 datPayloadLen mnext
             maybeEnqueueNext strm mnext binfo
         loop
-    switch out@(OResponse strm rsp binfo) = do
+    output out@(OResponse strm rsp binfo) = do
         whenReadyOrEnqueueAgain strm binfo out $ \sws -> do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
