@@ -7,6 +7,7 @@ module Network.Wai.Handler.Warp.HTTP2.Sender (frameSender) where
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
+import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (unless, void, when)
@@ -154,13 +155,13 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         checkStreaming tbq = do
             isEmpty <- atomically $ isEmptyTBQueue tbq
             if isEmpty then
-                enqueueWhenReady (waitStreaming tbq) outputQ out
+                void . forkIO $ enqueueWhenReady (waitStreaming tbq) outputQ out
               else
                 checkStreamWindowSize
         checkStreamWindowSize = do
             sws <- getStreamWindowSize strm
             if sws == 0 then do
-                enqueueWhenReady (waitStreamWindowSize strm) outputQ out
+                void . forkIO $ enqueueWhenReady (waitStreamWindowSize strm) outputQ out
               else
                 body sws
         resetStream e = do
