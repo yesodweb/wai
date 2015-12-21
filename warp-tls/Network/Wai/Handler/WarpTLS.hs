@@ -462,6 +462,7 @@ plainHTTP TLSSettings{..} s bs0 = case onInsecure of
                 }
         return (conn'', TCP)
     DenyInsecure lbs -> do
+        -- FIXME: what about HTTP/2?
         -- http://tools.ietf.org/html/rfc2817#section-4.2
         sendAll s "HTTP/1.1 426 Upgrade Required\
         \r\nUpgrade: TLS/1.0, HTTP/1.1\
