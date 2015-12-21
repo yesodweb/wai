@@ -12,7 +12,7 @@ import Network.Wai (responseLBS)
 import Network.HTTP.Types (status200)
 import Data.Enumerator (($$), run_)
 
-app = const $ return $ responseLBS status200 [("Content-type", "text/plain")] "This is not kept alive under any circumtances"
+app = const $ return $ responseLBS status200 [("Content-type", "text/plain")] "This is not kept alive under any circumstances"
 
 main = withManager 30000000 $ \man -> bracket
     (bindPort (settingsPort set) (settingsHost set))
