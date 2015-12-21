@@ -7,7 +7,6 @@ module Network.Wai.Handler.Warp.HTTP2.Sender (frameSender) where
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
-import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (unless, void, when)
@@ -22,6 +21,7 @@ import Network.Wai
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.HPACK
+import Network.Wai.Handler.Warp.HTTP2.Manager (Manager)
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Settings as S
@@ -61,10 +61,10 @@ waitStreaming tbq = do
     isEmpty <- isEmptyTBQueue tbq
     check (isEmpty == False)
 
-frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> IO ()
+frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> Manager -> IO ()
 frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             conn@Connection{connWriteBuffer,connBufferSize,connSendAll}
-            ii settings = loop `E.catch` ignore
+            ii settings mgr = loop `E.catch` ignore
   where
     dequeueControl = Left <$> readTQueue controlQ
     dequeueOutput    = Right <$> do
@@ -155,13 +155,13 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         checkStreaming tbq = do
             isEmpty <- atomically $ isEmptyTBQueue tbq
             if isEmpty then
-                void . forkIO $ enqueueWhenReady (waitStreaming tbq) outputQ out
+                forkAndEnqueueWhenReady (waitStreaming tbq) outputQ out mgr
               else
                 checkStreamWindowSize
         checkStreamWindowSize = do
             sws <- getStreamWindowSize strm
             if sws == 0 then do
-                void . forkIO $ enqueueWhenReady (waitStreamWindowSize strm) outputQ out
+                forkAndEnqueueWhenReady (waitStreamWindowSize strm) outputQ out mgr
               else
                 body sws
         resetStream e = do

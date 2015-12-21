@@ -15,7 +15,6 @@ module Network.Wai.Handler.Warp.HTTP2.Worker (
 import Control.Applicative
 import Data.Monoid (mempty)
 #endif
-import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
@@ -111,7 +110,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         -- So, this work occupies this thread.
         --
         -- We need to increase the number of workers.
-        myThreadId >>= replaceWithAction mgr
+        spawnAction mgr
         -- After this work, this thread stops to decease
         -- the number of workers.
         setThreadContinue tconf False
@@ -126,6 +125,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
             flush  = atomically $ writeTBQueue sq SFlush
         _ <- strmbdy push flush
         atomically $ writeTBQueue sq SFinish
+        deleteMyId mgr
         return ResponseReceived
 
 worker :: Context -> S.Settings -> Application -> Responder -> T.Manager -> IO ()

@@ -8,14 +8,17 @@ import Data.ByteString.Builder (Builder)
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>),(<*>))
 #endif
+import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
-import Control.Exception (SomeException)
+import Control.Exception (SomeException, bracket)
+import Control.Monad (void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.IntMap.Strict (IntMap, IntMap)
 import qualified Data.IntMap.Strict as M
 import qualified Network.HTTP.Types as H
 import Network.Wai (Request, Response)
+import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.Types
 
@@ -215,11 +218,15 @@ remove (StreamTable ref) k = atomicModifyIORef' ref $ \m ->
 search :: StreamTable -> M.Key -> IO (Maybe Stream)
 search (StreamTable ref) k = M.lookup k <$> readIORef ref
 
-{-# INLINE enqueueWhenReady #-}
-enqueueWhenReady :: STM () -> PriorityTree Output -> Output -> IO ()
-enqueueWhenReady wait outQ out = do
-    atomically wait
-    enqueueOutput outQ out
+{-# INLINE forkAndEnqueueWhenReady #-}
+forkAndEnqueueWhenReady :: STM () -> PriorityTree Output -> Output -> Manager -> IO ()
+forkAndEnqueueWhenReady wait outQ out mgr = bracket setup teardown $ \_ ->
+    void . forkIO $ do
+        atomically wait
+        enqueueOutput outQ out
+  where
+    setup = addMyId mgr
+    teardown _ = deleteMyId mgr
 
 {-# INLINE enqueueOutput #-}
 enqueueOutput :: PriorityTree Output -> Output -> IO ()
