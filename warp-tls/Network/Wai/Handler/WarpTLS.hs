@@ -270,7 +270,7 @@ runServeTLSSocket' tlsset@TLSSettings{..} set credential sock serve =
     runServeSettingsConnectionMakerSecure set get serve
   where
     get = getter tlsset sock params
-    params = TLS.ServerParams {
+    params = def { -- TLS.ServerParams
         TLS.serverWantClientCert = tlsWantClientCert
       , TLS.serverCACertificates = []
       , TLS.serverDHEParams      = Nothing
@@ -286,7 +286,7 @@ runServeTLSSocket' tlsset@TLSSettings{..} set credential sock serve =
     shared = def {
         TLS.sharedCredentials = TLS.Credentials [credential]
       }
-    supported = TLS.Supported {
+    supported = def { -- TLS.Supported
         TLS.supportedVersions       = tlsAllowedVersions
       , TLS.supportedCiphers        = tlsCiphers
       , TLS.supportedCompressions   = [TLS.nullCompression]
