@@ -65,6 +65,12 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
     !hs0 = responseHeaders rsp
     !logger = S.settingsLogger settings req
 
+    -- Ideally, log messages should be written when responses are
+    -- actually sent. But there is no way to keep good memory usage
+    -- (resist to Request leak) and throughput. By compromise,
+    -- log message are written here even the window size of streams
+    -- is 0.
+
     responseNoBody s hs = responseBuilderCore s hs mempty OneshotWithoutBody
 
     responseBuilderBody s hs bdy = responseBuilderCore s hs bdy OneshotWithBody
