@@ -23,7 +23,9 @@ import Network.Wai.Handler.Warp.HTTP2.HPACK
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Settings as S
+#ifndef WINDOWS
 import qualified Network.Wai.Handler.Warp.Timeout as T
+#endif
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal (Response(..))
 

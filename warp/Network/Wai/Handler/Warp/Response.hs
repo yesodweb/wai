@@ -56,7 +56,9 @@ import qualified Network.HTTP.Types.Header as H
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
+#ifndef WINDOWS
 import qualified Network.Wai.Handler.Warp.FdCache as F
+#endif
 import Network.Wai.Handler.Warp.File
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.IO (toBufIOWith)

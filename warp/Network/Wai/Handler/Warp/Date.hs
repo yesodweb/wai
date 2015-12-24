@@ -5,9 +5,6 @@ module Network.Wai.Handler.Warp.Date (
   , getDate
   , DateCache
   , GMTDate
-#if WINDOWS
-  , uToH
-#endif
   ) where
 
 #if __GLASGOW_HASKELL__ < 709

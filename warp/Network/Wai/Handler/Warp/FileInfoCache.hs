@@ -15,11 +15,6 @@ import qualified Data.HashMap.Strict as M
 import Network.HTTP.Date
 import System.PosixCompat.Files
 
-#if WINDOWS
-import Data.Time (UTCTime)
-import Network.Wai.Handler.Warp.Date (uToH)
-#endif
-
 ----------------------------------------------------------------
 
 -- | File information.
