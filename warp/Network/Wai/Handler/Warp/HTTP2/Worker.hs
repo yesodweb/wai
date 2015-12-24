@@ -63,7 +63,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
     !isHead = requestMethod req == H.methodHead
     !s0 = responseStatus rsp
     !hs0 = responseHeaders rsp
-    !logger = S.settingsLogger settings req
+    !logger = S.settingsLogger settings
 
     -- Ideally, log messages should be written when responses are
     -- actually sent. But there is no way to keep good memory usage
@@ -76,7 +76,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
     responseBuilderBody s hs bdy = responseBuilderCore s hs bdy OneshotWithBody
 
     responseBuilderCore s hs bdy binfo = do
-        logger s Nothing
+        logger req s Nothing
         setThreadContinue tconf True
         let rsp' = ResponseBuilder s hs bdy
             out = OResponse strm rsp' binfo
@@ -94,9 +94,11 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
     responseFileXXX path mpart = responseFile2XX s0 hs0 path mpart
 
     responseFile2XX s hs path mpart
-      | isHead    = responseNoBody s hs
+      | isHead    = do
+          logger req s Nothing
+          responseNoBody s hs
       | otherwise = do
-          logger s (filePartByteCount <$> mpart)
+          logger req s (filePartByteCount <$> mpart)
           setThreadContinue tconf True
           let rsp' = ResponseFile s hs path mpart
               out = OResponse strm rsp' OneshotWithBody
@@ -110,7 +112,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         body = byteString "File not found"
 
     responseStreaming strmbdy = do
-        logger s0 Nothing
+        logger req s0 Nothing
         -- We must not exit this WAI application.
         -- If the application exits, streaming would be also closed.
         -- So, this work occupies this thread.
