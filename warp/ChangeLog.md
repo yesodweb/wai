@@ -1,3 +1,13 @@
+## 3.1.12
+
+* Setting lower bound for auto-update [#495](https://github.com/yesodweb/wai/issues/495)
+
+## 3.1.11
+
+* Providing a new API: killManager.
+* Preventing space leaks due to Weak ThreadId [#488](https://github.com/yesodweb/wai/issues/488)
+* Setting upper bound for http2.
+
 ## 3.1.10
 
 * `setFileInfoCacheDuration`
