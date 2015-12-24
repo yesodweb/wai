@@ -10,7 +10,7 @@ module Network.Wai.Handler.Warp.FdCache (
   ) where
 
 type Refresh = IO ()
-data MutableFdCache = MutableFdCache
+type MutableFdCache = ()
 
 withFdCache :: Int -> (Maybe MutableFdCache -> IO a) -> IO a
 withFdCache _ f = f Nothing
