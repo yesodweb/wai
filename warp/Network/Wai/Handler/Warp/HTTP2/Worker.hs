@@ -15,7 +15,6 @@ module Network.Wai.Handler.Warp.HTTP2.Worker (
 import Control.Applicative
 import Data.Monoid (mempty)
 #endif
-import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
@@ -23,7 +22,6 @@ import Control.Monad (when)
 import Data.ByteString.Builder (byteString)
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
-import Network.HTTP2.Priority
 import Network.Wai
 import Network.Wai.Handler.Warp.File
 import Network.Wai.Handler.Warp.FileInfoCache
@@ -65,17 +63,23 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
     !isHead = requestMethod req == H.methodHead
     !s0 = responseStatus rsp
     !hs0 = responseHeaders rsp
-    !logger = S.settingsLogger settings req
+    !logger = S.settingsLogger settings
+
+    -- Ideally, log messages should be written when responses are
+    -- actually sent. But there is no way to keep good memory usage
+    -- (resist to Request leak) and throughput. By compromise,
+    -- log message are written here even the window size of streams
+    -- is 0.
 
     responseNoBody s hs = responseBuilderCore s hs mempty OneshotWithoutBody
 
     responseBuilderBody s hs bdy = responseBuilderCore s hs bdy OneshotWithBody
 
     responseBuilderCore s hs bdy binfo = do
-        logger s Nothing
+        logger req s Nothing
         setThreadContinue tconf True
         let rsp' = ResponseBuilder s hs bdy
-            out = OResponse strm rsp' binfo
+            out = OResponse strm binfo rsp'
         enqueueOutput outputQ out
         return ResponseReceived
 
@@ -90,12 +94,14 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
     responseFileXXX path mpart = responseFile2XX s0 hs0 path mpart
 
     responseFile2XX s hs path mpart
-      | isHead    = responseNoBody s hs
+      | isHead    = do
+          logger req s Nothing
+          responseNoBody s hs
       | otherwise = do
-          logger s (filePartByteCount <$> mpart)
+          logger req s (filePartByteCount <$> mpart)
           setThreadContinue tconf True
           let rsp' = ResponseFile s hs path mpart
-              out = OResponse strm rsp' OneshotWithBody
+              out = OResponse strm OneshotWithBody rsp'
           enqueueOutput outputQ out
           return ResponseReceived
 
@@ -106,20 +112,20 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         body = byteString "File not found"
 
     responseStreaming strmbdy = do
-        logger s0 Nothing
+        logger req s0 Nothing
         -- We must not exit this WAI application.
         -- If the application exits, streaming would be also closed.
         -- So, this work occupies this thread.
         --
         -- We need to increase the number of workers.
-        myThreadId >>= replaceWithAction mgr
+        spawnAction mgr
         -- After this work, this thread stops to decease
         -- the number of workers.
         setThreadContinue tconf False
         -- Since 'StreamingBody' is loop, we cannot control it.
         -- So, let's serialize 'Builder' with a designated queue.
         sq <- newTBQueueIO 10 -- fixme: hard coding: 10
-        let out = OResponse strm rsp (Persist sq)
+        let out = OResponse strm (Persist sq) rsp
         enqueueOutput outputQ out
         let push b = do
               atomically $ writeTBQueue sq (SBuilder b)
@@ -127,10 +133,11 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
             flush  = atomically $ writeTBQueue sq SFlush
         _ <- strmbdy push flush
         atomically $ writeTBQueue sq SFinish
+        deleteMyId mgr
         return ResponseReceived
 
 worker :: Context -> S.Settings -> Application -> Responder -> T.Manager -> IO ()
-worker ctx@Context{inputQ,outputQ} set app responder tm = do
+worker ctx@Context{inputQ,controlQ} set app responder tm = do
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
     E.bracket (T.registerKillThread tm) T.cancel $ go sinfo tcont
@@ -166,7 +173,7 @@ worker ctx@Context{inputQ,outputQ} set app responder tm = do
             Just (Input strm req) -> do
                 closed ctx strm Killed
                 let frame = resetFrame InternalError (streamNumber strm)
-                enqueueControl outputQ 0 (OFrame frame)
+                enqueueControl controlQ $ CFrame frame
                 case me of
                     Nothing -> return ()
                     Just e  -> S.settingsOnException set (Just req) e

@@ -45,7 +45,7 @@ http2 conn ii addr transport settings readN app = do
         -- Sender
         -- frameSender is the main thread because it ensures to send
         -- a goway frame.
-        frameSender ctx conn ii settings `E.finally` do
+        frameSender ctx conn ii settings mgr `E.finally` do
             clearContext ctx
             stop mgr
             killThread tid

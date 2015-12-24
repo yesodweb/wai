@@ -8,14 +8,17 @@ import Data.ByteString.Builder (Builder)
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>),(<*>))
 #endif
+import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
-import Control.Exception (SomeException)
+import Control.Exception (SomeException, bracket)
+import Control.Monad (void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.IntMap.Strict (IntMap, IntMap)
 import qualified Data.IntMap.Strict as M
 import qualified Network.HTTP.Types as H
 import Network.Wai (Request, Response)
+import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.Types
 
@@ -42,23 +45,27 @@ data Input = Input Stream Request
 
 ----------------------------------------------------------------
 
-type DynaNext = WindowSize -> IO Next
+type DynaNext = Buffer -> BufSize -> WindowSize -> IO Next
 
 type BytesFilled = Int
 
 data Next = Next !BytesFilled (Maybe DynaNext)
 
-data Output = OFinish
-            | OGoaway !ByteString
-            | OFrame  !ByteString
-            | OSettings !ByteString !SettingsList
-            | OResponse !Stream !Response !BodyInfo
-            | ONext     !Stream !DynaNext !BodyInfo
+data Output = OResponse !Stream !BodyInfo !Response
+            | ONext     !Stream !BodyInfo !DynaNext
 
 outputStream :: Output -> Stream
 outputStream (OResponse strm _ _) = strm
 outputStream (ONext     strm _ _) = strm
-outputStream _                    = error "outputStream"
+
+outputBodyInfo :: Output -> BodyInfo
+outputBodyInfo (OResponse _ binfo _) = binfo
+outputBodyInfo (ONext     _ binfo _) = binfo
+
+data Control = CFinish
+             | CGoaway   !ByteString
+             | CFrame    !ByteString
+             | CSettings !ByteString !SettingsList
 
 ----------------------------------------------------------------
 
@@ -75,6 +82,7 @@ data BodyInfo = OneshotWithBody
 -- | The context for HTTP/2 connection.
 data Context = Context {
     http2settings      :: !(IORef Settings)
+  , firstSettings      :: !(IORef Bool)
   , streamTable        :: !StreamTable
   , concurrency        :: !(IORef Int)
   , priorityTreeSize   :: !(IORef Int)
@@ -86,6 +94,7 @@ data Context = Context {
   , currentStreamId    :: !(IORef StreamId)
   , inputQ             :: !(TQueue Input)
   , outputQ            :: !(PriorityTree Output)
+  , controlQ           :: !(TQueue Control)
   , encodeDynamicTable :: !(IORef DynamicTable)
   , decodeDynamicTable :: !(IORef DynamicTable)
   , connectionWindow   :: !(TVar WindowSize)
@@ -95,6 +104,7 @@ data Context = Context {
 
 newContext :: IO Context
 newContext = Context <$> newIORef defaultSettings
+                     <*> newIORef False
                      <*> newStreamTable
                      <*> newIORef 0
                      <*> newIORef 0
@@ -102,6 +112,7 @@ newContext = Context <$> newIORef defaultSettings
                      <*> newIORef 0
                      <*> newTQueueIO
                      <*> newPriorityTree
+                     <*> newTQueueIO
                      <*> (newDynamicTableForEncoding defaultDynamicTableSize >>= newIORef)
                      <*> (newDynamicTableForDecoding defaultDynamicTableSize >>= newIORef)
                      <*> newTVarIO defaultInitialWindowSize
@@ -211,11 +222,15 @@ remove (StreamTable ref) k = atomicModifyIORef' ref $ \m ->
 search :: StreamTable -> M.Key -> IO (Maybe Stream)
 search (StreamTable ref) k = M.lookup k <$> readIORef ref
 
-{-# INLINE enqueueWhenReady #-}
-enqueueWhenReady :: STM () -> PriorityTree Output -> Output -> IO ()
-enqueueWhenReady wait outQ out = do
-    atomically wait
-    enqueueOutput outQ out
+{-# INLINE forkAndEnqueueWhenReady #-}
+forkAndEnqueueWhenReady :: STM () -> PriorityTree Output -> Output -> Manager -> IO ()
+forkAndEnqueueWhenReady wait outQ out mgr = bracket setup teardown $ \_ ->
+    void . forkIO $ do
+        atomically wait
+        enqueueOutput outQ out
+  where
+    setup = addMyId mgr
+    teardown _ = deleteMyId mgr
 
 {-# INLINE enqueueOutput #-}
 enqueueOutput :: PriorityTree Output -> Output -> IO ()
@@ -223,3 +238,7 @@ enqueueOutput outQ out = do
     let Stream{..} = outputStream out
     pre <- readIORef streamPrecedence
     enqueue outQ streamNumber pre out
+
+{-# INLINE enqueueControl #-}
+enqueueControl :: TQueue Control -> Control -> IO ()
+enqueueControl ctlQ ctl = atomically $ writeTQueue ctlQ ctl
