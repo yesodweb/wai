@@ -94,7 +94,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 setLimitForEncoding siz dyntbl
         loop
 
-    output out@(ONext strm curr binfo) = do
+    output out@(ONext strm binfo curr) = do
         whenReadyOrEnqueueAgain strm binfo out $ \sws -> do
             cws <- atomically $ readTVar connectionWindow
             let !lim = min cws sws
@@ -103,7 +103,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             fillDataHeaderSend strm 0 datPayloadLen mnext
             maybeEnqueueNext strm mnext binfo
         loop
-    output out@(OResponse strm rsp binfo) = do
+    output out@(OResponse strm binfo rsp) = do
         whenReadyOrEnqueueAgain strm binfo out $ \sws -> do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
@@ -210,7 +210,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     -- Re-enqueue the stream in the output queue.
     maybeEnqueueNext :: Stream -> Maybe DynaNext -> BodyInfo -> IO ()
     maybeEnqueueNext strm (Just next) binfo = do
-        let !out = ONext strm next binfo
+        let !out = ONext strm binfo next
         enqueueOutput outputQ out
     maybeEnqueueNext _    _           _     = return ()
 

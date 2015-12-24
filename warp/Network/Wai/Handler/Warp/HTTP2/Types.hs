@@ -51,12 +51,16 @@ type BytesFilled = Int
 
 data Next = Next !BytesFilled (Maybe DynaNext)
 
-data Output = OResponse !Stream !Response !BodyInfo
-            | ONext     !Stream !DynaNext !BodyInfo
+data Output = OResponse !Stream !BodyInfo !Response
+            | ONext     !Stream !BodyInfo !DynaNext
 
 outputStream :: Output -> Stream
 outputStream (OResponse strm _ _) = strm
 outputStream (ONext     strm _ _) = strm
+
+outputBodyInfo :: Output -> BodyInfo
+outputBodyInfo (OResponse _ binfo _) = binfo
+outputBodyInfo (ONext     _ binfo _) = binfo
 
 data Control = CFinish
              | CGoaway   !ByteString

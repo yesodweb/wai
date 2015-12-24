@@ -79,7 +79,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         logger req s Nothing
         setThreadContinue tconf True
         let rsp' = ResponseBuilder s hs bdy
-            out = OResponse strm rsp' binfo
+            out = OResponse strm binfo rsp'
         enqueueOutput outputQ out
         return ResponseReceived
 
@@ -101,7 +101,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
           logger req s (filePartByteCount <$> mpart)
           setThreadContinue tconf True
           let rsp' = ResponseFile s hs path mpart
-              out = OResponse strm rsp' OneshotWithBody
+              out = OResponse strm OneshotWithBody rsp'
           enqueueOutput outputQ out
           return ResponseReceived
 
@@ -125,7 +125,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         -- Since 'StreamingBody' is loop, we cannot control it.
         -- So, let's serialize 'Builder' with a designated queue.
         sq <- newTBQueueIO 10 -- fixme: hard coding: 10
-        let out = OResponse strm rsp (Persist sq)
+        let out = OResponse strm (Persist sq) rsp
         enqueueOutput outputQ out
         let push b = do
               atomically $ writeTBQueue sq (SBuilder b)
