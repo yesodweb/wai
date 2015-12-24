@@ -45,7 +45,7 @@ data Input = Input Stream Request
 
 ----------------------------------------------------------------
 
-type DynaNext = WindowSize -> IO Next
+type DynaNext = Buffer -> BufSize -> WindowSize -> IO Next
 
 type BytesFilled = Int
 

@@ -9,14 +9,14 @@ import Control.Applicative
 #endif
 import Control.Concurrent.STM
 import qualified Control.Exception as E
-import Control.Monad (unless, void, when)
+import Control.Monad (void, when)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder.Extra as B
 import Data.Maybe (isNothing)
 import Foreign.Ptr
 import Network.HPACK (setLimitForEncoding)
 import Network.HTTP2
-import Network.HTTP2.Priority (dequeueSTM)
+import Network.HTTP2.Priority (isEmptySTM, dequeueSTM, Precedence)
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
@@ -25,9 +25,6 @@ import Network.Wai.Handler.Warp.HTTP2.Manager (Manager)
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Settings as S
-#ifndef WINDOWS
-import qualified Network.Wai.Handler.Warp.Timeout as T
-#endif
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal (Response(..))
 
@@ -36,6 +33,7 @@ import qualified System.IO as IO
 #else
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.SendFile (positionRead)
+import qualified Network.Wai.Handler.Warp.Timeout as T
 import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types
 #endif
@@ -61,30 +59,48 @@ waitStreaming tbq = do
     isEmpty <- isEmptyTBQueue tbq
     check (isEmpty == False)
 
+data Switch = C Control
+            | O (StreamId,Precedence,Output)
+            | Flush
+
 frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> Manager -> IO ()
 frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             conn@Connection{connWriteBuffer,connBufferSize,connSendAll}
-            ii settings mgr = loop `E.catch` ignore
+            ii settings mgr = loop 0 `E.catch` ignore
   where
-    dequeueControl = Left <$> readTQueue controlQ
-    dequeueOutput    = Right <$> do
-        w <- readTVar connectionWindow
-        check (w > 0)
-        dequeueSTM outputQ
+    dequeue off = do
+        isEmpty <- isEmptyTQueue controlQ
+        if isEmpty then do
+            w <- readTVar connectionWindow
+            check (w > 0)
+            emp <- isEmptySTM outputQ
+            if emp then
+                if off /= 0 then return Flush else retry
+               else
+                O <$> dequeueSTM outputQ
+          else
+            C <$> readTQueue controlQ
 
-    loop = do
-        ex <- atomically (dequeueControl `orElse` dequeueOutput)
-        case ex of
-            Left  ctl         -> control ctl
-            Right (_,pre,out) -> do
-                writeIORef (streamPrecedence (outputStream out)) pre
-                output out
+    loop off = do
+        x <- atomically $ dequeue off
+        case x of
+            C ctl -> do
+                when (off /= 0) $ flushN off
+                cont <- control ctl
+                when cont $ loop 0
+            O (_,pre,out) -> do
+                let strm = outputStream out
+                writeIORef (streamPrecedence strm) pre
+                off' <- whenReadyOrEnqueueAgain out off $ output out off
+                case off' of
+                    0                -> loop 0
+                    _ | off' > 12288 -> flushN off' >> loop 0 -- fixme: hard-coding
+                      | otherwise    -> loop off'
+            Flush -> flushN off >> loop 0
 
-    control CFinish         = return ()
-    control (CGoaway frame) = connSendAll frame
-    control (CFrame frame)  = do
-        connSendAll frame
-        loop
+    control CFinish         = return False
+    control (CGoaway frame) = connSendAll frame >> return False
+    control (CFrame frame)  = connSendAll frame >> return True
     control (CSettings frame alist) = do
         connSendAll frame
         case lookup SettingsHeaderTableSize alist of
@@ -92,165 +108,158 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             Just siz -> do
                 dyntbl <- readIORef encodeDynamicTable
                 setLimitForEncoding siz dyntbl
-        loop
+        return True
 
-    output out@(ONext strm binfo curr) = do
-        whenReadyOrEnqueueAgain strm binfo out $ \sws -> do
-            cws <- atomically $ readTVar connectionWindow
-            let !lim = min cws sws
-            -- Data frame payload
-            Next datPayloadLen mnext <- curr lim
-            fillDataHeaderSend strm 0 datPayloadLen mnext
-            maybeEnqueueNext strm mnext binfo
-        loop
-    output out@(OResponse strm binfo rsp) = do
-        whenReadyOrEnqueueAgain strm binfo out $ \sws -> do
-            -- Header frame and Continuation frame
-            let sid = streamNumber strm
-                endOfStream = case binfo of
-                    Persist{}          -> False
-                    OneshotWithBody    -> False
-                    OneshotWithoutBody -> True
-            len <- headerContinue sid rsp endOfStream
-            let total = len + frameHeaderLength
-            case binfo of
-                OneshotWithBody -> do
-                    -- Data frame payload
-                    (off, _) <- sendHeadersIfNecessary total
-                    let payloadOff = off + frameHeaderLength
-                    cws <- atomically $ readTVar connectionWindow
-                    let !lim = min cws sws
-                    Next datPayloadLen mnext <-
-                        fillResponseBodyGetNext conn ii payloadOff lim rsp
-                    fillDataHeaderSend strm total datPayloadLen mnext
-                    maybeEnqueueNext strm mnext binfo
-                OneshotWithoutBody -> do
-                    -- "closed" must be before "connSendAll". If not,
-                    -- the context would be switched to the receiver,
-                    -- resulting the inconsistency of concurrency.
-                    closed ctx strm Finished
-                    flushN total
-                Persist sq -> do
-                    (off, needSend) <- sendHeadersIfNecessary total
-                    let payloadOff = off + frameHeaderLength
-                    cws <- atomically $ readTVar connectionWindow
-                    let !lim = min cws sws
-                    Next datPayloadLen mnext <-
-                        fillStreamBodyGetNext conn payloadOff lim sq strm
-                    -- If no data was immediately available, avoid sending an
-                    -- empty data frame.
-                    if datPayloadLen > 0 then
-                        fillDataHeaderSend strm total datPayloadLen mnext
-                      else
-                        when needSend $ flushN off
-                    maybeEnqueueNext strm mnext binfo
-        loop
+    output (ONext strm binfo curr) off0 lim = do
+        -- Data frame payload
+        let !buf = connWriteBuffer `plusPtr` off0
+            !siz = connBufferSize - off0
+        Next datPayloadLen mnext <- curr buf siz lim
+        off <- fillDataHeader strm off0 datPayloadLen mnext
+        maybeEnqueueNext strm binfo mnext
+        return off
 
-    whenReadyOrEnqueueAgain strm binfo out body = E.handle resetStream $ do
+    output (OResponse strm binfo rsp) off0 lim = do
+        -- Header frame and Continuation frame
+        let sid = streamNumber strm
+            endOfStream = case binfo of
+                Persist{}          -> False
+                OneshotWithBody    -> False
+                OneshotWithoutBody -> True
+        kvlen <- headerContinue sid rsp endOfStream off0
+        off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
+        case binfo of
+            OneshotWithoutBody -> do
+                closed ctx strm Finished
+                return off
+            OneshotWithBody -> do
+                -- Data frame payload
+                let payloadOff = off + frameHeaderLength
+                Next datPayloadLen mnext <-
+                    fillResponseBodyGetNext conn ii payloadOff lim rsp
+                off' <- fillDataHeader strm off datPayloadLen mnext
+                maybeEnqueueNext strm binfo mnext
+                return off'
+            Persist sq -> do
+                let payloadOff = off + frameHeaderLength
+                Next datPayloadLen mnext <-
+                    fillStreamBodyGetNext conn payloadOff lim sq strm
+                off' <- fillDataHeader strm off datPayloadLen mnext
+                maybeEnqueueNext strm binfo mnext
+                return off'
+
+    whenReadyOrEnqueueAgain out off body = E.handle resetStream $ do
         state <- readIORef $ streamState strm
-        unless (isClosed state) $ case binfo of
+        if isClosed state then
+            return off
+          else case binfo of
             Persist tbq -> checkStreaming tbq
             _           -> checkStreamWindowSize
       where
+        strm = outputStream out
+        binfo = outputBodyInfo out
         checkStreaming tbq = do
             isEmpty <- atomically $ isEmptyTBQueue tbq
-            if isEmpty then
+            if isEmpty then do
                 forkAndEnqueueWhenReady (waitStreaming tbq) outputQ out mgr
+                return off
               else
                 checkStreamWindowSize
         checkStreamWindowSize = do
             sws <- getStreamWindowSize strm
             if sws == 0 then do
                 forkAndEnqueueWhenReady (waitStreamWindowSize strm) outputQ out mgr
-              else
-                body sws
+                return off
+              else do
+                cws <- atomically $ readTVar connectionWindow -- not 0
+                let !lim = min cws sws
+                body lim
         resetStream e = do
             closed ctx strm (ResetByMe e)
             let !rst = resetFrame InternalError $ streamNumber strm
             enqueueControl controlQ $ CFrame rst
+            return off
 
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
     -- the buffer are filled.
     flushN :: Int -> IO ()
     flushN n = bufferIO connWriteBuffer n connSendAll
 
-    headerContinue sid rsp endOfStream = do
+    headerContinue sid rsp endOfStream off = do
         builder <- hpackEncodeHeader ctx ii settings rsp
-        (len, signal) <- B.runBuilder builder bufHeaderPayload headerPayloadLim
+        let !offkv = off + frameHeaderLength
+        let !bufkv = connWriteBuffer `plusPtr` offkv
+            !limkv = connBufferSize - offkv
+        (kvlen, signal) <- B.runBuilder builder bufkv limkv
         let flag0 = case signal of
                 B.Done -> setEndHeader defaultFlags
                 _      -> defaultFlags
             flag = if endOfStream then setEndStream flag0 else flag0
-        fillFrameHeader FrameHeaders len sid flag connWriteBuffer
-        continue sid len signal
+        let buf = connWriteBuffer `plusPtr` off
+        fillFrameHeader FrameHeaders kvlen sid flag buf
+        continue sid kvlen signal
 
-    continue _   len B.Done = return len
-    continue sid len (B.More _ writer) = do
-        flushN $ len + frameHeaderLength
-        (len', signal') <- writer bufHeaderPayload headerPayloadLim
+    bufHeaderPayload = connWriteBuffer `plusPtr` frameHeaderLength
+    headerPayloadLim = connBufferSize - frameHeaderLength
+
+    continue _   kvlen B.Done = return kvlen
+    continue sid kvlen (B.More _ writer) = do
+        flushN $ kvlen + frameHeaderLength
+        -- Now off is 0
+        (kvlen', signal') <- writer bufHeaderPayload headerPayloadLim
         let flag = case signal' of
                 B.Done -> setEndHeader defaultFlags
                 _      -> defaultFlags
-        fillFrameHeader FrameContinuation len' sid flag connWriteBuffer
-        continue sid len' signal'
-    continue sid len (B.Chunk bs writer) = do
-        flushN $ len + frameHeaderLength
+        fillFrameHeader FrameContinuation kvlen' sid flag connWriteBuffer
+        continue sid kvlen' signal'
+    continue sid kvlen (B.Chunk bs writer) = do
+        flushN $ kvlen + frameHeaderLength
+        -- Now off is 0
         let (bs1,bs2) = BS.splitAt headerPayloadLim bs
-            len' = BS.length bs1
+            kvlen' = BS.length bs1
         void $ copy bufHeaderPayload bs1
-        fillFrameHeader FrameContinuation len' sid defaultFlags connWriteBuffer
+        fillFrameHeader FrameContinuation kvlen' sid defaultFlags connWriteBuffer
         if bs2 == "" then
-            continue sid len' (B.More 0 writer)
+            continue sid kvlen' (B.More 0 writer)
           else
-            continue sid len' (B.Chunk bs2 writer)
-
-    -- True if the connection buffer has room for a 1-byte data frame.
-    canFitDataFrame total = total + frameHeaderLength < connBufferSize
+            continue sid kvlen' (B.Chunk bs2 writer)
 
     -- Re-enqueue the stream in the output queue.
-    maybeEnqueueNext :: Stream -> Maybe DynaNext -> BodyInfo -> IO ()
-    maybeEnqueueNext strm (Just next) binfo = do
-        let !out = ONext strm binfo next
-        enqueueOutput outputQ out
-    maybeEnqueueNext _    _           _     = return ()
-
+    maybeEnqueueNext :: Stream -> BodyInfo -> Maybe DynaNext -> IO ()
+    maybeEnqueueNext _    _     Nothing     = return ()
+    maybeEnqueueNext strm binfo (Just next) = enqueueOutput outputQ out
+      where
+        !out = ONext strm binfo next
 
     -- Send headers if there is not room for a 1-byte data frame, and return
-    -- the offset of the next frame's first header byte and whether the headers
-    -- still need to be sent.
-    sendHeadersIfNecessary total
-      | canFitDataFrame total = return (total, True)
-      | otherwise             = do
-          flushN total
-          return (0, False)
+    -- the offset of the next frame's first header byte.
+    sendHeadersIfNecessary off
+      -- True if the connection buffer has room for a 1-byte data frame.
+      | off + frameHeaderLength < connBufferSize = return off
+      | otherwise = do
+          flushN off
+          return 0
 
-    fillDataHeaderSend strm otherLen datPayloadLen mnext = do
+    fillDataHeader strm off datPayloadLen mnext = do
         -- Data frame header
-        let sid = streamNumber strm
-            buf = connWriteBuffer `plusPtr` otherLen
-            total = otherLen + frameHeaderLength + datPayloadLen
+        let !sid = streamNumber strm
+            !buf = connWriteBuffer `plusPtr` off
+            !off' = off + frameHeaderLength + datPayloadLen
             flag = case mnext of
                 Nothing -> setEndStream defaultFlags
                 _       -> defaultFlags
         fillFrameHeader FrameData datPayloadLen sid flag buf
-        -- "closed" must be before "flushN". If not,
-        -- the context would be switched to the receiver,
-        -- resulting the inconsistency of concurrency.
         when (isNothing mnext) $ closed ctx strm Finished
-        flushN total
         atomically $ modifyTVar' connectionWindow (subtract datPayloadLen)
         atomically $ modifyTVar' (streamWindow strm) (subtract datPayloadLen)
+        return off'
 
     fillFrameHeader ftyp len sid flag buf = encodeFrameHeaderBuf ftyp hinfo buf
       where
         hinfo = FrameHeader len flag sid
 
-    bufHeaderPayload = connWriteBuffer `plusPtr` frameHeaderLength
-    headerPayloadLim = connBufferSize - frameHeaderLength
-
     ignore :: E.SomeException -> IO ()
     ignore _ = return ()
-
 
 ----------------------------------------------------------------
 
@@ -267,7 +276,7 @@ fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (len, signal) <- B.runBuilder bb datBuf room
-    return $ nextForBuilder connWriteBuffer connBufferSize len signal
+    return $ nextForBuilder len signal
 
 #ifdef WINDOWS
 fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
@@ -280,7 +289,8 @@ fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
     IO.hSeek h IO.AbsoluteSeek start
     len <- IO.hGetBufSome h datBuf (mini room bytes)
     let bytes' = bytes - fromIntegral len
-    return $ nextForFile len connWriteBuffer connBufferSize h bytes' (return ())
+    -- fixme: connWriteBuffer connBufferSize
+    return $ nextForFile len h bytes' (return ())
 #else
 fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
                         ii off lim (ResponseFile _ _ path mpart) = do
@@ -296,7 +306,7 @@ fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
     len <- positionRead fd datBuf (mini room bytes) start
     refresh
     let len' = fromIntegral len
-    return $ nextForFile len connWriteBuffer connBufferSize fd (start + len') (bytes - len') refresh
+    return $ nextForFile len fd (start + len') (bytes - len') refresh
 #endif
 
 fillResponseBodyGetNext _ _ _ _ _ = error "fillResponseBodyGetNext"
@@ -314,12 +324,12 @@ fillStreamBodyGetNext Connection{connWriteBuffer,connBufferSize}
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (leftover, cont, len) <- runStreamBuilder datBuf room sq
-    return $ nextForStream connWriteBuffer connBufferSize sq strm leftover cont len
+    return $ nextForStream sq strm leftover cont len
 
 ----------------------------------------------------------------
 
-fillBufBuilder :: Buffer -> BufSize -> Leftover -> DynaNext
-fillBufBuilder buf0 siz0 leftover lim = do
+fillBufBuilder :: Leftover -> DynaNext
+fillBufBuilder leftover buf0 siz0 lim = do
     let payloadBuf = buf0 `plusPtr` frameHeaderLength
         room = min (siz0 - frameHeaderLength) lim
     case leftover of
@@ -338,15 +348,15 @@ fillBufBuilder buf0 siz0 leftover lim = do
               void $ copy payloadBuf bs1
               getNext room (B.Chunk bs2 writer)
   where
-    getNext l s = return $ nextForBuilder buf0 siz0 l s
+    getNext l s = return $ nextForBuilder l s
 
-nextForBuilder :: Buffer -> BufSize -> BytesFilled -> B.Next -> Next
-nextForBuilder _   _   len B.Done
+nextForBuilder :: BytesFilled -> B.Next -> Next
+nextForBuilder len B.Done
     = Next len Nothing
-nextForBuilder buf siz len (B.More _ writer)
-    = Next len $ Just (fillBufBuilder buf siz (LOne writer))
-nextForBuilder buf siz len (B.Chunk bs writer)
-    = Next len $ Just (fillBufBuilder buf siz (LTwo bs writer))
+nextForBuilder len (B.More _ writer)
+    = Next len $ Just (fillBufBuilder (LOne writer))
+nextForBuilder len (B.Chunk bs writer)
+    = Next len $ Just (fillBufBuilder (LTwo bs writer))
 
 ----------------------------------------------------------------
 
@@ -368,8 +378,8 @@ runStreamBuilder buf0 room0 sq = loop buf0 room0 0
             Just SFlush  -> return (LZero, True, total)
             Just SFinish -> return (LZero, False, total)
 
-fillBufStream :: Buffer -> BufSize -> Leftover -> TBQueue Sequence -> Stream -> DynaNext
-fillBufStream buf0 siz0 leftover0 sq strm lim0 = do
+fillBufStream :: Leftover -> TBQueue Sequence -> Stream -> DynaNext
+fillBufStream leftover0 sq strm buf0 siz0 lim0 = do
     let payloadBuf = buf0 `plusPtr` frameHeaderLength
         room0 = min (siz0 - frameHeaderLength) lim0
     case leftover0 of
@@ -387,7 +397,7 @@ fillBufStream buf0 siz0 leftover0 sq strm lim0 = do
               void $ copy payloadBuf bs1
               getNext (LTwo bs2 writer) True room0
   where
-    getNext l b r = return $ nextForStream buf0 siz0 sq strm l b r
+    getNext l b r = return $ nextForStream sq strm l b r
     write writer1 buf room sofar = do
         (len, signal) <- writer1 buf room
         case signal of
@@ -402,45 +412,45 @@ fillBufStream buf0 siz0 leftover0 sq strm lim0 = do
                 let !total = sofar + len
                 getNext (LTwo bs writer) True total
 
-nextForStream :: Buffer -> BufSize -> TBQueue Sequence -> Stream
+nextForStream :: TBQueue Sequence -> Stream
               -> Leftover -> Bool -> BytesFilled
               -> Next
-nextForStream _ _ _ _ _ False len = Next len Nothing
-nextForStream buf siz sq strm leftOrZero True len =
-    Next len $ Just (fillBufStream buf siz leftOrZero sq strm)
+nextForStream _ _ _ False len = Next len Nothing
+nextForStream sq strm leftOrZero True len =
+    Next len $ Just (fillBufStream leftOrZero sq strm)
 
 ----------------------------------------------------------------
 
 #ifdef WINDOWS
-fillBufFile :: Buffer -> BufSize -> IO.Handle -> Integer -> IO () -> DynaNext
-fillBufFile buf siz h bytes refresh lim = do
+fillBufFile :: IO.Handle -> Integer -> IO () -> DynaNext
+fillBufFile h bytes refresh buf siz lim = do
     let payloadBuf = buf `plusPtr` frameHeaderLength
         room = min (siz - frameHeaderLength) lim
     len <- IO.hGetBufSome h payloadBuf room
     refresh
     let bytes' = bytes - fromIntegral len
-    return $ nextForFile len buf siz h bytes' refresh
+    return $ nextForFile len h bytes' refresh
 
-nextForFile :: BytesFilled -> Buffer -> BufSize -> IO.Handle -> Integer -> IO () -> Next
-nextForFile 0   _   _   _  _    _       = Next 0   Nothing
-nextForFile len _   _   _  0    _       = Next len Nothing
-nextForFile len buf siz h bytes refresh =
-    Next len $ Just (fillBufFile buf siz h bytes refresh)
+nextForFile :: BytesFilled -> IO.Handle -> Integer -> IO () -> Next
+nextForFile 0   _ _     _       = Next 0   Nothing
+nextForFile len _ 0     _       = Next len Nothing
+nextForFile len h bytes refresh =
+    Next len $ Just (fillBufFile h bytes refresh)
 #else
-fillBufFile :: Buffer -> BufSize -> Fd -> Integer -> Integer -> IO () -> DynaNext
-fillBufFile buf siz fd start bytes refresh lim = do
+fillBufFile :: Fd -> Integer -> Integer -> IO () -> DynaNext
+fillBufFile fd start bytes refresh buf siz lim = do
     let payloadBuf = buf `plusPtr` frameHeaderLength
         room = min (siz - frameHeaderLength) lim
     len <- positionRead fd payloadBuf (mini room bytes) start
     let len' = fromIntegral len
     refresh
-    return $ nextForFile len buf siz fd (start + len') (bytes - len') refresh
+    return $ nextForFile len fd (start + len') (bytes - len') refresh
 
-nextForFile :: BytesFilled -> Buffer -> BufSize -> Fd -> Integer -> Integer -> IO () -> Next
-nextForFile 0   _   _   _  _     _     _       = Next 0   Nothing
-nextForFile len _   _   _  _     0     _       = Next len Nothing
-nextForFile len buf siz fd start bytes refresh =
-    Next len $ Just (fillBufFile buf siz fd start bytes refresh)
+nextForFile :: BytesFilled -> Fd -> Integer -> Integer -> IO () -> Next
+nextForFile 0   _  _     _     _       = Next 0   Nothing
+nextForFile len _  _     0     _       = Next len Nothing
+nextForFile len fd start bytes refresh =
+    Next len $ Just (fillBufFile fd start bytes refresh)
 #endif
 
 mini :: Int -> Integer -> Int
