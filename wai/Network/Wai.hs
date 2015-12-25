@@ -59,6 +59,8 @@ module Network.Wai
     , requestBodyLength
     , requestHeaderHost
     , requestHeaderRange
+    , requestHeaderReferer
+    , requestHeaderUserAgent
     , strictRequestBody
     , lazyRequestBody
       -- * Response
@@ -274,6 +276,8 @@ defaultRequest = Request
     , requestBodyLength = KnownLength 0
     , requestHeaderHost = Nothing
     , requestHeaderRange = Nothing
+    , requestHeaderReferer = Nothing
+    , requestHeaderUserAgent = Nothing
     }
 
 
