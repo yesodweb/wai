@@ -85,8 +85,10 @@ recvRequest settings conn ii addr src = do
           , requestBody       = rbody'
           , vault             = vaultValue
           , requestBodyLength = bodyLength
-          , requestHeaderHost  = idxhdr ! fromEnum ReqHost
-          , requestHeaderRange = idxhdr ! fromEnum ReqRange
+          , requestHeaderHost      = idxhdr ! fromEnum ReqHost
+          , requestHeaderRange     = idxhdr ! fromEnum ReqRange
+          , requestHeaderReferer   = idxhdr ! fromEnum ReqReferer
+          , requestHeaderUserAgent = idxhdr ! fromEnum ReqUserAgent
           }
     return (req, remainingRef, idxhdr, rbodyFlush)
   where

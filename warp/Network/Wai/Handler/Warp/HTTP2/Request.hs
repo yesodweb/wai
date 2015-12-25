@@ -26,7 +26,7 @@ import Data.Monoid (mempty)
 #endif
 import Data.Word8 (isUpper,_colon)
 import Network.HPACK
-import Network.HTTP.Types (RequestHeaders,hRange)
+import Network.HTTP.Types (RequestHeaders)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
@@ -39,17 +39,20 @@ import qualified Network.Wai.Handler.Warp.Settings as S (Settings, settingsNoPar
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 
 data ValidHeaders = ValidHeaders {
-    vhMethod :: !ByteString
-  , vhPath   :: !ByteString
-  , vhAuth   :: !(Maybe ByteString)
-  , vhCL     :: !(Maybe Int)
-  , vhHeader :: !RequestHeaders
+    vhMethod  :: !ByteString
+  , vhPath    :: !ByteString
+  , vhAuth    :: !(Maybe ByteString)
+  , vhRange   :: !(Maybe ByteString)
+  , vhReferer :: !(Maybe ByteString)
+  , vhUA      :: !(Maybe ByteString)
+  , vhCL      :: !(Maybe Int)
+  , vhHeader  :: !RequestHeaders
   } deriving Show
 
 type MkReq = ValidHeaders -> IO ByteString -> Request
 
 mkRequest :: InternalInfo -> S.Settings -> SockAddr -> MkReq
-mkRequest ii settings addr (ValidHeaders m p ma _ hdr) body = req
+mkRequest ii settings addr (ValidHeaders m p ma mrng mrr mua _ hdr) body = req
   where
     (unparsedPath,query) = B8.break (=='?') p
     !path = H.extractPath unparsedPath
@@ -68,75 +71,86 @@ mkRequest ii settings addr (ValidHeaders m p ma _ hdr) body = req
       , requestBody = body
       , vault = vaultValue
       , requestBodyLength = ChunkedBody -- fixme
-      , requestHeaderHost = ma
-      , requestHeaderRange = lookup hRange hdr
+      , requestHeaderHost      = ma
+      , requestHeaderRange     = mrng
+      , requestHeaderReferer   = mrr
+      , requestHeaderUserAgent = mua
       }
     !th = threadHandle ii
     !vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
-               $ Vault.insert getFileInfoKey (fileInfo ii)
-                 Vault.empty
+                $ Vault.insert getFileInfoKey (fileInfo ii)
+                  Vault.empty
 
 ----------------------------------------------------------------
 
-data Pseudo = Pseudo {
+data Special = Special {
     colonMethod :: !(Maybe ByteString)
   , colonPath   :: !(Maybe ByteString)
   , colonAuth   :: !(Maybe ByteString)
+  , sRange      :: !(Maybe ByteString)
+  , sReferer    :: !(Maybe ByteString)
+  , sUA         :: !(Maybe ByteString)
   , contentLen  :: !(Maybe ByteString)
   } deriving Show
 
-emptyPseudo :: Pseudo
-emptyPseudo = Pseudo Nothing Nothing Nothing Nothing
+emptySpecial :: Special
+emptySpecial = Special Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- |
 --
 -- >>> validateHeaders [(":method","GET"),(":path","path")]
--- Just (ValidHeaders {vhMethod = "GET", vhPath = "path", vhAuth = Nothing, vhCL = Nothing, vhHeader = []})
+-- Just (ValidHeaders {vhMethod = "GET", vhPath = "path", vhAuth = Nothing, vhRange = Nothing, vhReferer = Nothing, vhUA = Nothing, vhCL = Nothing, vhHeader = []})
 -- >>> validateHeaders [(":method","GET"),(":path","path"),(":authority","authority"),("accept-language","en")]
--- Just (ValidHeaders {vhMethod = "GET", vhPath = "path", vhAuth = Just "authority", vhCL = Nothing, vhHeader = [("accept-language","en")]})
+-- Just (ValidHeaders {vhMethod = "GET", vhPath = "path", vhAuth = Just "authority", vhRange = Nothing, vhReferer = Nothing, vhUA = Nothing, vhCL = Nothing, vhHeader = [("accept-language","en")]})
 -- >>> validateHeaders [(":method","GET"),(":path","path"),("cookie","a=b"),("accept-language","en"),("cookie","c=d"),("cookie","e=f")]
--- Just (ValidHeaders {vhMethod = "GET", vhPath = "path", vhAuth = Nothing, vhCL = Nothing, vhHeader = [("accept-language","en"),("cookie","a=b; c=d; e=f")]})
+-- Just (ValidHeaders {vhMethod = "GET", vhPath = "path", vhAuth = Nothing, vhRange = Nothing, vhReferer = Nothing, vhUA = Nothing, vhCL = Nothing, vhHeader = [("accept-language","en"),("cookie","a=b; c=d; e=f")]})
 validateHeaders :: HeaderList -> Maybe ValidHeaders
-validateHeaders hs = case pseudo hs emptyPseudo of
-    Just (Pseudo (Just m) (Just p) ma mcl, !h)
-        -> Just $! ValidHeaders m p ma (readInt <$> mcl) h
+validateHeaders hs = case pseudo hs emptySpecial of
+    Just (Special (Just m) (Just p) ma mrng mrr mua mcl, !h)
+        -> Just $! ValidHeaders m p ma mrng mrr mua (readInt <$> mcl) h
     _   -> Nothing
   where
-    pseudo [] !p          = Just (p,[])
-    pseudo h@((k,v):kvs) !p
-      | k == ":method"    = if isJust (colonMethod p) then
+    pseudo [] !s          = Just (s,[])
+    pseudo h@((k,v):kvs) !s
+      | k == ":method"    = if isJust (colonMethod s) then
                                 Nothing
                               else
-                                pseudo kvs (p { colonMethod = Just v })
-      | k == ":path"      = if isJust (colonPath p) then
+                                pseudo kvs (s { colonMethod = Just v })
+      | k == ":path"      = if isJust (colonPath s) then
                                 Nothing
                               else
-                                pseudo kvs (p { colonPath   = Just v })
-      | k == ":authority" = if isJust (colonAuth p) then
+                                pseudo kvs (s { colonPath   = Just v })
+      | k == ":authority" = if isJust (colonAuth s) then
                                 Nothing
                               else
-                                pseudo kvs (p { colonAuth   = Just v })
-      | k == ":scheme"    = pseudo kvs p -- fixme: how to store :scheme?
+                                pseudo kvs (s { colonAuth   = Just v })
+      | k == ":scheme"    = pseudo kvs s -- fixme: how to store :scheme?
       | isPseudo k        = Nothing
-      | otherwise         = normal h (p,id,id)
+      | otherwise         = normal h (s,id,id)
 
-    normal [] (!p,b,c)     = Just (p, mkH b c)
-    normal ((k,v):kvs) (!p,b,c)
+    normal [] (!s,b,c)     = Just (s, mkH b c)
+    normal ((k,v):kvs) (!s,b,c)
       | isPseudo k        = Nothing
       | k == "connection" = Nothing
       | k == "te"         = if v == "trailers" then
-                                normal kvs (p, b . ((mk k,v) :), c)
+                                normal kvs (s, b . ((mk k,v) :), c)
                               else
                                 Nothing
+      | k == "range"
+                          = normal kvs (s {sRange = Just v }, b . ((mk k,v) :), c)
+      | k == "referer"
+                          = normal kvs (s { sReferer = Just v }, b . ((mk k,v) :), c)
+      | k == "user-agent"
+                          = normal kvs (s { sUA = Just v }, b . ((mk k,v) :), c)
       | k == "content-length"
-                          = normal kvs (p { contentLen = Just v }, b . ((mk k,v) :), c)
-      | k == "host"       = if isJust (colonAuth p) then
-                                normal kvs (p, b, c)
+                          = normal kvs (s { contentLen = Just v }, b . ((mk k,v) :), c)
+      | k == "host"       = if isJust (colonAuth s) then
+                                normal kvs (s, b, c)
                               else
-                                normal kvs (p { colonAuth = Just v }, b, c)
-      | k == "cookie"     = normal kvs (p, b, c . (v:))
+                                normal kvs (s { colonAuth = Just v }, b, c)
+      | k == "cookie"     = normal kvs (s, b, c . (v:))
       | otherwise         = case BS.find isUpper k of
-                                 Nothing -> normal kvs (p, b . ((mk k,v) :), c)
+                                 Nothing -> normal kvs (s, b . ((mk k,v) :), c)
                                  Just _  -> Nothing
 
     mkH b c = h

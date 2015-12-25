@@ -26,6 +26,8 @@ data RequestHeaderIndex = ReqContentLength
                         | ReqIfModifiedSince
                         | ReqIfUnmodifiedSince
                         | ReqIfRange
+                        | ReqReferer
+                        | ReqUserAgent
                         deriving (Enum,Bounded)
 
 -- | The size for 'IndexedHeader' for HTTP Request.
@@ -45,6 +47,8 @@ requestKeyIndex "host"                = fromEnum ReqHost
 requestKeyIndex "if-modified-since"   = fromEnum ReqIfModifiedSince
 requestKeyIndex "if-unmodified-since" = fromEnum ReqIfUnmodifiedSince
 requestKeyIndex "if-range"            = fromEnum ReqIfRange
+requestKeyIndex "referer"             = fromEnum ReqReferer
+requestKeyIndex "user-agent"          = fromEnum ReqUserAgent
 requestKeyIndex _                     = -1
 
 defaultIndexRequestHeader :: IndexedHeader
