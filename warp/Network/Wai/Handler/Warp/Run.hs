@@ -176,9 +176,9 @@ runSettingsConnectionMakerSecure set getConnMaker app = do
     withII action =
         D.withDateCache $ \dc ->
         F.withFdCache fdCacheDurationInSeconds $ \fc ->
-        I.withFileInfoCache fdFileInfoDurationInSeconds $ \get ->
+        I.withFileInfoCache fdFileInfoDurationInSeconds $ \get get' ->
         withTimeoutManager $ \tm -> do
-            let ii0 = InternalInfo undefined tm fc get dc -- fixme: undefined
+            let ii0 = InternalInfo undefined tm fc get get' dc -- fixme: undefined
             action ii0
 
     fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000

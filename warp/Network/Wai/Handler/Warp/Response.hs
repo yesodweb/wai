@@ -36,6 +36,7 @@ import Data.ByteString.Builder (byteString, Builder)
 import Data.ByteString.Builder.Extra (flush)
 import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
+import Data.Hashable (hash)
 import Data.List (deleteBy)
 import Data.Maybe
 #if MIN_VERSION_base(4,5,0)
@@ -292,8 +293,9 @@ sendRsp conn _ _ _ _ (RspRaw withApp src tickle) = do
 -- Sophisticated WAI applications.
 -- We respect s0. s0 MUST be a proper value.
 sendRsp conn ii ver s0 hs0 (RspFile path (Just part) _ isHead hook) =
-    sendRspFile2XX conn ii ver s0 hs path beg len isHead hook
+    sendRspFile2XX conn ii ver s0 hs h path beg len isHead hook
   where
+    h = hash path
     beg = filePartOffset part
     len = filePartByteCount part
     hs = addContentHeadersForFilePart hs0 part
@@ -303,7 +305,8 @@ sendRsp conn ii ver s0 hs0 (RspFile path (Just part) _ isHead hook) =
 -- Simple WAI applications.
 -- Status is ignored
 sendRsp conn ii ver _ hs0 (RspFile path Nothing idxhdr isHead hook) = do
-    efinfo <- E.try $ fileInfo ii path
+    let h = hash path
+    efinfo <- E.try $ fileInfo' ii h path
     case efinfo of
         Left (_ex :: E.IOException) ->
 #ifdef WARP_DEBUG
@@ -312,7 +315,7 @@ sendRsp conn ii ver _ hs0 (RspFile path Nothing idxhdr isHead hook) = do
           sendRspFile404 conn ii ver hs0
         Right finfo -> case conditionalRequest finfo hs0 idxhdr of
           WithoutBody s         -> sendRsp conn ii ver s hs0 RspNoBody
-          WithBody s hs beg len -> sendRspFile2XX conn ii ver s hs path beg len isHead hook
+          WithBody s hs beg len -> sendRspFile2XX conn ii ver s hs h path beg len isHead hook
 
 ----------------------------------------------------------------
 
@@ -321,13 +324,14 @@ sendRspFile2XX :: Connection
                -> H.HttpVersion
                -> H.Status
                -> H.ResponseHeaders
+               -> Hash
                -> FilePath
                -> Integer
                -> Integer
                -> Bool
                -> IO ()
                -> IO (Maybe H.Status, Maybe Integer)
-sendRspFile2XX conn ii ver s hs path beg len isHead hook
+sendRspFile2XX conn ii ver s hs h path beg len isHead hook
   | isHead = sendRsp conn ii ver s hs RspNoBody
   | otherwise = do
       lheader <- composeHeader ver s hs
@@ -339,7 +343,7 @@ sendRspFile2XX conn ii ver s hs path beg len isHead hook
          -- settingsFdCacheDuration is 0
          Nothing  -> return (Nothing, hook)
          Just fdc -> do
-            (fd, fresher) <- F.getFd fdc path
+            (fd, fresher) <- F.getFd' fdc h path
             return (Just fd, hook >> fresher)
       let fid = FileId path mfd
 #endif

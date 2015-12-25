@@ -53,7 +53,6 @@ Library
                    , stm                       >= 2.3
                    , word8
                    , hashable
-                   , unordered-containers
                    , http-date
   if flag(network-bytestring)
       Build-Depends: network                   >= 2.2.1.5  && < 2.2.3
@@ -69,6 +68,7 @@ Library
                      Network.Wai.Handler.Warp.FdCache
                      Network.Wai.Handler.Warp.File
                      Network.Wai.Handler.Warp.FileInfoCache
+                     Network.Wai.Handler.Warp.HashMap
                      Network.Wai.Handler.Warp.HTTP2
                      Network.Wai.Handler.Warp.HTTP2.EncodeFrame
                      Network.Wai.Handler.Warp.HTTP2.HPACK
@@ -166,7 +166,6 @@ Test-Suite spec
                    , http2                     >= 1.4      && < 1.5
                    , word8
                    , hashable
-                   , unordered-containers
                    , http-date
 
   if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)

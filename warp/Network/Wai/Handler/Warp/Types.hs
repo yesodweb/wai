@@ -114,12 +114,15 @@ data Connection = Connection {
 
 ----------------------------------------------------------------
 
+type Hash = Int
+
 -- | Internal information.
 data InternalInfo = InternalInfo {
     threadHandle :: T.Handle
   , timeoutManager :: T.Manager
   , fdCacher :: Maybe F.MutableFdCache
   , fileInfo :: FilePath -> IO I.FileInfo
+  , fileInfo' :: Int -> FilePath -> IO I.FileInfo
   , dateCacher :: D.DateCache
   }
 

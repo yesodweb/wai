@@ -18,6 +18,7 @@ withFdCache _ f = f Nothing
 module Network.Wai.Handler.Warp.FdCache (
     withFdCache
   , getFd
+  , getFd'
   , MutableFdCache
   , Refresh
   ) where
@@ -139,16 +140,18 @@ terminate (Just (MutableFdCache reaper)) = do
 
 ----------------------------------------------------------------
 
--- | Getting 'Fd' and 'Refresh' from the mutable Fd cacher.
 getFd :: MutableFdCache -> FilePath -> IO (Fd, Refresh)
-getFd mfc@(MutableFdCache reaper) path = look mfc path key >>= getFd'
+getFd mfc path = getFd' mfc (hash path) path
+
+-- | Getting 'Fd' and 'Refresh' from the mutable Fd cacher.
+getFd' :: MutableFdCache -> Hash -> FilePath -> IO (Fd, Refresh)
+getFd' mfc@(MutableFdCache reaper) h path = look mfc path h >>= get
   where
-    key = hash path
-    getFd' Nothing = do
+    get Nothing = do
         ent@(FdEntry _ fd mst) <- newFdEntry path
-        reaperAdd reaper (key, ent)
+        reaperAdd reaper (h, ent)
         return (fd, refresh mst)
-    getFd' (Just (FdEntry _ fd mst)) = do
+    get (Just (FdEntry _ fd mst)) = do
         refresh mst
         return (fd, refresh mst)
 #endif

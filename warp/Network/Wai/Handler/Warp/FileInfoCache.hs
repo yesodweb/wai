@@ -2,6 +2,7 @@
 
 module Network.Wai.Handler.Warp.FileInfoCache (
     FileInfo(..)
+  , Hash
   , withFileInfoCache
   , getInfo -- test purpose only
   ) where
@@ -10,12 +11,15 @@ import Control.Exception as E
 import Control.Monad (void)
 import Control.Reaper
 import Data.ByteString (ByteString)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as M
+import Data.Hashable (hash)
 import Network.HTTP.Date
+import Network.Wai.Handler.Warp.HashMap (HashMap)
+import qualified Network.Wai.Handler.Warp.HashMap as M
 import System.PosixCompat.Files
 
 ----------------------------------------------------------------
+
+type Hash = Int
 
 -- | File information.
 data FileInfo = FileInfo {
@@ -27,7 +31,7 @@ data FileInfo = FileInfo {
 
 data Entry = Negative | Positive FileInfo
 type Cache = HashMap FilePath Entry
-type FileInfoCache = Reaper Cache (FilePath,Entry)
+type FileInfoCache = Reaper Cache (Int,FilePath,Entry)
 
 ----------------------------------------------------------------
 
@@ -51,25 +55,32 @@ getInfo path = do
       else
         throwIO (userError "FileInfoCache:getInfo")
 
+getInfo' :: Hash -> FilePath -> IO FileInfo
+getInfo' _ = getInfo
+
 ----------------------------------------------------------------
 
 getAndRegisterInfo :: FileInfoCache -> FilePath -> IO FileInfo
-getAndRegisterInfo reaper@Reaper{..} path = do
+getAndRegisterInfo reaper path = getAndRegisterInfo' reaper (hash path) path
+
+getAndRegisterInfo' :: FileInfoCache -> Hash -> FilePath -> IO FileInfo
+getAndRegisterInfo' reaper@Reaper{..} h path = do
     cache <- reaperRead
-    case M.lookup path cache of
+    case M.lookup h path cache of
         Just Negative     -> throwIO (userError "FileInfoCache:getAndRegisterInfo")
         Just (Positive x) -> return x
-        Nothing           -> positive reaper path `E.onException` negative reaper path
+        Nothing           -> positive reaper h path
+                               `E.onException` negative reaper h path
 
-positive :: FileInfoCache -> FilePath -> IO FileInfo
-positive Reaper{..} path = do
+positive :: FileInfoCache -> Hash -> FilePath -> IO FileInfo
+positive Reaper{..} h path = do
     info <- getInfo path
-    reaperAdd (path, Positive info)
+    reaperAdd (h, path, Positive info)
     return info
 
-negative :: FileInfoCache -> FilePath -> IO FileInfo
-negative Reaper{..} path = do
-    reaperAdd (path,Negative)
+negative :: FileInfoCache -> Hash -> FilePath -> IO FileInfo
+negative Reaper{..} h path = do
+    reaperAdd (h, path,Negative)
     throwIO (userError "FileInfoCache:negative")
 
 ----------------------------------------------------------------
@@ -77,19 +88,22 @@ negative Reaper{..} path = do
 -- | Creating a file information cache
 --   and executing the action in the second argument.
 --   The first argument is a cache duration in second.
-withFileInfoCache :: Int -> ((FilePath -> IO FileInfo) -> IO a) -> IO a
-withFileInfoCache 0        action = action getInfo
-withFileInfoCache duration action = E.bracket (initialize duration)
-                                              terminate
-                                              (action . getAndRegisterInfo)
+withFileInfoCache :: Int
+                  -> ((FilePath -> IO FileInfo) -> (Hash -> FilePath -> IO FileInfo) -> IO a)
+                  -> IO a
+withFileInfoCache 0        action = action getInfo getInfo'
+withFileInfoCache duration action =
+    E.bracket (initialize duration)
+              terminate
+              (\r -> action (getAndRegisterInfo r) (getAndRegisterInfo' r))
 
-initialize :: Int -> IO FileInfoCache
+initialize :: Hash -> IO FileInfoCache
 initialize duration = mkReaper settings
   where
     settings = defaultReaperSettings {
         reaperAction = override
       , reaperDelay  = duration * 1000000
-      , reaperCons   = uncurry M.insert
+      , reaperCons   = \(h,k,v) -> M.insert h k v
       , reaperNull   = M.null
       , reaperEmpty  = M.empty
       }
