@@ -17,7 +17,7 @@ import qualified Data.ByteString as BS
 import Data.IntMap.Strict (IntMap, IntMap)
 import qualified Data.IntMap.Strict as M
 import qualified Network.HTTP.Types as H
-import Network.Wai (Request, Response)
+import Network.Wai (Request, FilePart)
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.Types
@@ -51,16 +51,34 @@ type BytesFilled = Int
 
 data Next = Next !BytesFilled (Maybe DynaNext)
 
-data Output = OResponse !Stream !BodyInfo !Response
-            | ONext     !Stream !BodyInfo !DynaNext
+data Rspn = RspnNobody    H.Status H.ResponseHeaders
+          | RspnStreaming H.Status H.ResponseHeaders (TBQueue Sequence)
+          | RspnBuilder   H.Status H.ResponseHeaders Builder
+          | RspnFile      H.Status H.ResponseHeaders Int FilePath (Maybe FilePart)
+
+rspnStatus :: Rspn -> H.Status
+rspnStatus (RspnNobody    s _)        = s
+rspnStatus (RspnStreaming s _ _)      = s
+rspnStatus (RspnBuilder   s _ _)      = s
+rspnStatus (RspnFile      s _ _ _ _ ) = s
+
+rspnHeaders :: Rspn -> H.ResponseHeaders
+rspnHeaders (RspnNobody    _ h)        = h
+rspnHeaders (RspnStreaming _ h _)      = h
+rspnHeaders (RspnBuilder   _ h _)      = h
+rspnHeaders (RspnFile      _ h _ _ _ ) = h
+
+data Output = ORspn !Stream !Rspn
+            | ONext !Stream !DynaNext !(Maybe (TBQueue Sequence))
 
 outputStream :: Output -> Stream
-outputStream (OResponse strm _ _) = strm
-outputStream (ONext     strm _ _) = strm
+outputStream (ORspn strm _)   = strm
+outputStream (ONext strm _ _) = strm
 
-outputBodyInfo :: Output -> BodyInfo
-outputBodyInfo (OResponse _ binfo _) = binfo
-outputBodyInfo (ONext     _ binfo _) = binfo
+outputMaybeTBQueue :: Output -> Maybe (TBQueue Sequence)
+outputMaybeTBQueue (ORspn _ (RspnStreaming _ _ tbq)) = Just tbq
+outputMaybeTBQueue (ORspn _ _)                       = Nothing
+outputMaybeTBQueue (ONext _ _ mtbq)                  = mtbq
 
 data Control = CFinish
              | CGoaway   !ByteString
@@ -72,10 +90,6 @@ data Control = CFinish
 data Sequence = SFinish
               | SFlush
               | SBuilder Builder
-
-data BodyInfo = OneshotWithBody
-              | OneshotWithoutBody
-              | Persist (TBQueue Sequence)
 
 ----------------------------------------------------------------
 

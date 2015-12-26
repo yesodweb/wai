@@ -20,6 +20,7 @@ import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
 import Control.Monad (when)
 import Data.ByteString.Builder (byteString)
+import Data.Hashable (hash)
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.Wai
@@ -71,37 +72,44 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
     -- log message are written here even the window size of streams
     -- is 0.
 
-    responseNoBody s hs = responseBuilderCore s hs mempty OneshotWithoutBody
-
-    responseBuilderBody s hs bdy = responseBuilderCore s hs bdy OneshotWithBody
-
-    responseBuilderCore s hs bdy binfo = do
+    responseNoBody s hs = do
         logger req s Nothing
         setThreadContinue tconf True
-        let rsp' = ResponseBuilder s hs bdy
-            out = OResponse strm binfo rsp'
+        let rspn = RspnNobody s hs
+            out = ORspn strm rspn
+        enqueueOutput outputQ out
+        return ResponseReceived
+
+    responseBuilderBody s hs bdy = do
+        logger req s Nothing
+        setThreadContinue tconf True
+        let rspn = RspnBuilder s hs bdy
+            out = ORspn strm rspn
         enqueueOutput outputQ out
         return ResponseReceived
 
     responseFileXXX path Nothing = do
-        efinfo <- E.try $ fileInfo ii path
+        let !h = hash $ rawPathInfo req
+        efinfo <- E.try $ fileInfo' ii h path
         case efinfo of
             Left (_ex :: E.IOException) -> response404
             Right finfo -> case conditionalRequest finfo hs0 (indexRequestHeader (requestHeaders req)) of
                  WithoutBody s         -> responseNoBody s hs0
-                 WithBody s hs beg len -> responseFile2XX s hs path (Just (FilePart beg len (fileInfoSize finfo)))
+                 WithBody s hs beg len -> responseFile2XX s hs h path (Just (FilePart beg len (fileInfoSize finfo)))
 
-    responseFileXXX path mpart = responseFile2XX s0 hs0 path mpart
+    responseFileXXX path mpart = responseFile2XX s0 hs0 h path mpart
+      where
+        !h = hash $ rawPathInfo req
 
-    responseFile2XX s hs path mpart
+    responseFile2XX s hs h path mpart
       | isHead    = do
           logger req s Nothing
           responseNoBody s hs
       | otherwise = do
           logger req s (filePartByteCount <$> mpart)
           setThreadContinue tconf True
-          let rsp' = ResponseFile s hs path mpart
-              out = OResponse strm OneshotWithBody rsp'
+          let rspn = RspnFile s hs h path mpart
+              out = ORspn strm rspn
           enqueueOutput outputQ out
           return ResponseReceived
 
@@ -124,15 +132,16 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         setThreadContinue tconf False
         -- Since 'StreamingBody' is loop, we cannot control it.
         -- So, let's serialize 'Builder' with a designated queue.
-        sq <- newTBQueueIO 10 -- fixme: hard coding: 10
-        let out = OResponse strm (Persist sq) rsp
+        tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
+        let rspn = RspnStreaming s0 hs0 tbq
+            out = ORspn strm rspn
         enqueueOutput outputQ out
         let push b = do
-              atomically $ writeTBQueue sq (SBuilder b)
+              atomically $ writeTBQueue tbq (SBuilder b)
               T.tickle th
-            flush  = atomically $ writeTBQueue sq SFlush
+            flush  = atomically $ writeTBQueue tbq SFlush
         _ <- strmbdy push flush
-        atomically $ writeTBQueue sq SFinish
+        atomically $ writeTBQueue tbq SFinish
         deleteMyId mgr
         return ResponseReceived
 

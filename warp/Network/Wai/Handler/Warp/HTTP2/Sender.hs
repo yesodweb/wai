@@ -11,6 +11,7 @@ import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (void, when)
 import qualified Data.ByteString as BS
+import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
 import Data.Maybe (isNothing)
 import Foreign.Ptr
@@ -26,7 +27,6 @@ import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Settings as S
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Internal (Response(..))
 
 #ifdef WINDOWS
 import qualified System.IO as IO
@@ -110,54 +110,61 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 setLimitForEncoding siz dyntbl
         return True
 
-    output (ONext strm binfo curr) off0 lim = do
+    output (ONext strm curr mtbq) off0 lim = do
         -- Data frame payload
         let !buf = connWriteBuffer `plusPtr` off0
             !siz = connBufferSize - off0
         Next datPayloadLen mnext <- curr buf siz lim
         off <- fillDataHeader strm off0 datPayloadLen mnext
-        maybeEnqueueNext strm binfo mnext
+        maybeEnqueueNext strm mtbq mnext
         return off
 
-    output (OResponse strm binfo rsp) off0 lim = do
+    output (ORspn strm rspn) off0 lim = do
         -- Header frame and Continuation frame
         let sid = streamNumber strm
-            endOfStream = case binfo of
-                Persist{}          -> False
-                OneshotWithBody    -> False
-                OneshotWithoutBody -> True
-        kvlen <- headerContinue sid rsp endOfStream off0
+            endOfStream = case rspn of
+                RspnNobody _ _ -> True
+                _              -> False
+        kvlen <- headerContinue sid rspn endOfStream off0
         off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
-        case binfo of
-            OneshotWithoutBody -> do
+        case rspn of
+            RspnNobody _ _ -> do
                 closed ctx strm Finished
                 return off
-            OneshotWithBody -> do
+            RspnFile _ _ h path mpart -> do
                 -- Data frame payload
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
-                    fillResponseBodyGetNext conn ii payloadOff lim rsp
+                    fillFileBodyGetNext conn ii payloadOff lim h path mpart
                 off' <- fillDataHeader strm off datPayloadLen mnext
-                maybeEnqueueNext strm binfo mnext
+                maybeEnqueueNext strm Nothing mnext
                 return off'
-            Persist sq -> do
+            RspnBuilder _ _ builder -> do
+                -- Data frame payload
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
-                    fillStreamBodyGetNext conn payloadOff lim sq strm
+                    fillBuilderBodyGetNext conn ii payloadOff lim builder
                 off' <- fillDataHeader strm off datPayloadLen mnext
-                maybeEnqueueNext strm binfo mnext
+                maybeEnqueueNext strm Nothing mnext
+                return off'
+            RspnStreaming _ _ tbq -> do
+                let payloadOff = off + frameHeaderLength
+                Next datPayloadLen mnext <-
+                    fillStreamBodyGetNext conn payloadOff lim tbq strm
+                off' <- fillDataHeader strm off datPayloadLen mnext
+                maybeEnqueueNext strm (Just tbq) mnext
                 return off'
 
     whenReadyOrEnqueueAgain out off body = E.handle resetStream $ do
         state <- readIORef $ streamState strm
         if isClosed state then
             return off
-          else case binfo of
-            Persist tbq -> checkStreaming tbq
-            _           -> checkStreamWindowSize
+          else case mtbq of
+            Just tbq -> checkStreaming tbq
+            _        -> checkStreamWindowSize
       where
         strm = outputStream out
-        binfo = outputBodyInfo out
+        mtbq = outputMaybeTBQueue out
         checkStreaming tbq = do
             isEmpty <- atomically $ isEmptyTBQueue tbq
             if isEmpty then do
@@ -185,8 +192,10 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     flushN :: Int -> IO ()
     flushN n = bufferIO connWriteBuffer n connSendAll
 
-    headerContinue sid rsp endOfStream off = do
-        builder <- hpackEncodeHeader ctx ii settings rsp
+    headerContinue sid rspn endOfStream off = do
+        let !s = rspnStatus rspn
+            !h = rspnHeaders rspn
+        builder <- hpackEncodeHeader ctx ii settings s h
         let !offkv = off + frameHeaderLength
         let !bufkv = connWriteBuffer `plusPtr` offkv
             !limkv = connBufferSize - offkv
@@ -225,11 +234,11 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             continue sid kvlen' (B.Chunk bs2 writer)
 
     -- Re-enqueue the stream in the output queue.
-    maybeEnqueueNext :: Stream -> BodyInfo -> Maybe DynaNext -> IO ()
-    maybeEnqueueNext _    _     Nothing     = return ()
-    maybeEnqueueNext strm binfo (Just next) = enqueueOutput outputQ out
+    maybeEnqueueNext :: Stream -> Maybe (TBQueue Sequence) -> Maybe DynaNext -> IO ()
+    maybeEnqueueNext _    _    Nothing     = return ()
+    maybeEnqueueNext strm mtbq (Just next) = enqueueOutput outputQ out
       where
-        !out = ONext strm binfo next
+        !out = ONext strm next mtbq
 
     -- Send headers if there is not room for a 1-byte data frame, and return
     -- the offset of the next frame's first header byte.
@@ -270,32 +279,33 @@ ResponseStream Status ResponseHeaders StreamingBody
 ResponseRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) Response
 -}
 
-fillResponseBodyGetNext :: Connection -> InternalInfo -> Int -> WindowSize -> Response -> IO Next
-fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
-                        _ off lim (ResponseBuilder _ _ bb) = do
+fillBuilderBodyGetNext :: Connection -> InternalInfo -> Int -> WindowSize -> Builder -> IO Next
+fillBuilderBodyGetNext Connection{connWriteBuffer,connBufferSize}
+                        _ off lim bb = do
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (len, signal) <- B.runBuilder bb datBuf room
     return $ nextForBuilder len signal
 
+fillFileBodyGetNext :: Connection -> InternalInfo -> Int -> WindowSize -> Int -> FilePath -> Maybe FilePart -> IO Next
 #ifdef WINDOWS
-fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
-                        _ off lim (ResponseFile _ _ path mpart) = do
+fillFileBodyGetNext Connection{connWriteBuffer,connBufferSize}
+                        _ off lim _ path mpart = do
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (start, bytes) <- fileStartEnd path mpart
     -- fixme: how to close Handle? GC does it at this moment.
-    h <- IO.openBinaryFile path IO.ReadMode
+    hdl <- IO.openBinaryFile path IO.ReadMode
     IO.hSeek h IO.AbsoluteSeek start
-    len <- IO.hGetBufSome h datBuf (mini room bytes)
+    len <- IO.hGetBufSome hdl datBuf (mini room bytes)
     let bytes' = bytes - fromIntegral len
     -- fixme: connWriteBuffer connBufferSize
-    return $ nextForFile len h bytes' (return ())
+    return $ nextForFile len hdl bytes' (return ())
 #else
-fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
-                        ii off lim (ResponseFile _ _ path mpart) = do
+fillFileBodyGetNext Connection{connWriteBuffer,connBufferSize}
+                        ii off lim h path mpart = do
     (fd, refresh) <- case fdCacher ii of
-        Just fdcache -> getFd fdcache path
+        Just fdcache -> getFd' fdcache h path
         Nothing      -> do
             fd' <- openFd path ReadOnly Nothing defaultFileFlags{nonBlock=True}
             th <- T.register (timeoutManager ii) (closeFd fd')
@@ -308,8 +318,6 @@ fillResponseBodyGetNext Connection{connWriteBuffer,connBufferSize}
     let len' = fromIntegral len
     return $ nextForFile len fd (start + len') (bytes - len') refresh
 #endif
-
-fillResponseBodyGetNext _ _ _ _ _ = error "fillResponseBodyGetNext"
 
 fileStartEnd :: FilePath -> Maybe FilePart -> IO (Integer, Integer)
 fileStartEnd _ (Just part) =
