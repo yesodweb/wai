@@ -12,4 +12,4 @@ packages:
 - ./mime-types
 - ./auto-update
 extra-deps:
-- http2-1.4.0
+- http2-1.3.0
