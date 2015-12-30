@@ -1,5 +1,5 @@
 name:            wai-app-static
-version:         3.1.4
+version:         3.1.4.1
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -26,7 +26,7 @@ Flag print
 
 library
     build-depends:   base                      >= 4        && < 5
-                   , wai                       >= 3.0      && < 3.1
+                   , wai                       >= 3.0      && < 3.3
                    , bytestring                >= 0.9.1.4
                    , http-types                >= 0.7
                    , transformers              >= 0.2.2
@@ -51,7 +51,7 @@ library
                    , filepath
                    , wai-extra                 >= 3.0      && < 3.1
                    , optparse-applicative      >= 0.7
-                   , warp                      >= 3.0.11   && < 3.2
+                   , warp                      >= 3.0.11   && < 3.3
                    -- Used exclusively for hashFile function
                    , cryptohash-conduit
 

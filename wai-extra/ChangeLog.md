@@ -1,3 +1,7 @@
+## 3.0.13.1
+
+* Support wai 3.2
+
 ## 3.0.13
 
 * Autoflush handle [#466](https://github.com/yesodweb/wai/pull/466)

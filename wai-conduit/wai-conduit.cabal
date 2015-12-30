@@ -1,5 +1,5 @@
 name:                wai-conduit
-version:             3.0.0.2
+version:             3.0.0.3
 synopsis:            conduit wrappers for WAI
 description:         API docs and the README are available at <http://www.stackage.org/package/wai-conduit>.
 homepage:            https://github.com/yesodweb/wai
@@ -15,7 +15,7 @@ extra-source-files:  README.md ChangeLog.md
 library
   exposed-modules:     Network.Wai.Conduit
   build-depends:       base            >= 4      && < 5
-                     , wai             >= 3.0    && < 3.1
+                     , wai             >= 3.0    && < 3.3
                      , conduit
                      , transformers
                      , bytestring
