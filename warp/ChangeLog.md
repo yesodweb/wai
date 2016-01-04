@@ -1,3 +1,12 @@
+## 3.2.0
+
+* Major version up due to breaking changes. This is because the HTTP/2 code
+  was started over with Warp 3.1.3 due to performance issue [#470](https://github.com/yesodweb/wai/issues/470).
+* runHTTP2, runHTTP2Env, runHTTP2Settings and runHTTP2SettingsSocket were removed from the Network.Wai.Handler.Warp module.
+* The performance of HTTP/2 was drastically improved. Now the performance of HTTP/2 is almost the same as that of HTTP/1.1.
+* The logic to handle files in HTTP/2 is now identical to that in HTTP/1.1.
+* Internal stuff was removed from the Network.Wai.Handler.Warp module according to [the plan](http://www.yesodweb.com/blog/2015/06/cleaning-up-warp-apis).
+	
 ## 3.1.12
 
 * Setting lower bound for auto-update [#495](https://github.com/yesodweb/wai/issues/495)
