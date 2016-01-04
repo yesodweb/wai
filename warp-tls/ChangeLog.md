@@ -1,3 +1,8 @@
+## 3.2.0
+
+* Major version up due to breaking changes. 
+* runHTTP2TLS and runHTTP2TLSSocket were removed.
+
 ## 3.1.4
 
 * Add an option to disable HTTP2 [#450](https://github.com/yesodweb/wai/pull/450)
