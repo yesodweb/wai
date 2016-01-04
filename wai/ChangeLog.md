@@ -1,3 +1,13 @@
+## 3.2.0
+
+* Major version up due to breaking changes. We chose 3.2.0, not 3.1.0
+  for consistency with Warp 3.2.0.
+* The Network.Wai.HTTP2 module was removed.
+* tryGetFileSize, hContentRange, hAcceptRanges, contentRangeHeader and
+  chooseFilePart, adjustForFilePart and parseByteRanges were removed
+  from the Network.Wai.Internal module.
+* New fields for Request:  requestHeaderReferer and requestHeaderUserAgent.
+
 ## 3.0.5.0
 
 * Avoid using the IsString Builder instance
