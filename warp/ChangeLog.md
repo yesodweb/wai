@@ -1,3 +1,7 @@
+## 3.2.1
+
+* Add back `warpVersion`
+
 ## 3.2.0
 
 * Major version up due to breaking changes. This is because the HTTP/2 code

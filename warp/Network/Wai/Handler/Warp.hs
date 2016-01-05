@@ -90,6 +90,8 @@ module Network.Wai.Handler.Warp (
   , pauseTimeout
   , FileInfo(..)
   , getFileInfo
+    -- * Version
+  , warpVersion
   ) where
 
 import Control.Exception (SomeException, throwIO)
@@ -102,6 +104,7 @@ import Network.Socket (SockAddr)
 import Network.Wai (Request, Response, vault)
 import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.Request
+import Network.Wai.Handler.Warp.Response (warpVersion)
 import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Timeout
