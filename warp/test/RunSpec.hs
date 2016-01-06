@@ -202,7 +202,7 @@ spec = do
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
                 let input = S.concat
-                        [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
+                        [ "GET / HTTP/1.1\r\nHost:    bar\r\n baz\r\n\tbin\r\n\r\n"
                         ]
                 hPutStr handle input
                 hFlush handle
@@ -210,7 +210,7 @@ spec = do
                 threadDelay 1000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
-                    [ ("foo", "bar baz\tbin")
+                    [ ("host", "bar baz\tbin")
                     ]
         it "no space between colon and value" $ do
             iheaders <- I.newIORef []
@@ -220,7 +220,7 @@ spec = do
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
                 let input = S.concat
-                        [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
+                        [ "GET / HTTP/1.1\r\nHost:bar\r\n\r\n"
                         ]
                 hPutStr handle input
                 hFlush handle
@@ -228,7 +228,7 @@ spec = do
                 threadDelay 1000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
-                    [ ("foo", "bar")
+                    [ ("host", "bar")
                     ]
 
     describe "chunked bodies" $ do
@@ -241,9 +241,9 @@ spec = do
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
                 let input = S.concat
-                        [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                        [ "POST / HTTP/1.1\r\nHost:dave\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
-                        , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                        , "POST / HTTP/1.1\r\nHost:lisa\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "b\r\nHello World\r\n0\r\n\r\n"
                         ]
                 hPutStr handle input
@@ -264,7 +264,7 @@ spec = do
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
                 let input = concat $ replicate 2 $
-                        ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
+                        ["POST / HTTP/1.1\r\nHost:dave\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
                         (replicate 50 "5\r\n12345\r\n") ++
                         ["0\r\n\r\n"]
                 mapM_ (\bs -> hPutStr handle bs >> hFlush handle) input
@@ -281,9 +281,9 @@ spec = do
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
                 let input = S.concat
-                        [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                        [ "POST / HTTP/1.1\r\nHost:dave\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
-                        , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                        , "POST / HTTP/1.1\r\nHost:lisa\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "b\r\nHello World\r\n0\r\n\r\n"
                         ]
                 mapM_ (\bs -> hPutStr handle bs >> hFlush handle) $ map S.singleton $ S.unpack input
@@ -311,7 +311,7 @@ spec = do
                     bs2 = "This is short"
                     bs = S.append bs1 bs2
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-                hPutStr handle "POST / HTTP/1.1\r\n"
+                hPutStr handle "POST / HTTP/1.1\r\nHost:lisa\r\n"
                 hPutStr handle "content-length: "
                 hPutStr handle $ S8.pack $ show $ S.length bs
                 hPutStr handle "\r\n\r\n"
@@ -337,7 +337,7 @@ spec = do
                 doubleBS = S.concatMap $ \w -> S.pack [w, w]
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-                hPutStr handle "POST / HTTP/1.1\r\n\r\n12345"
+                hPutStr handle "POST / HTTP/1.1\r\nHost:dave\r\n\r\n12345"
                 hFlush handle
                 timeout 100000 (S.hGet handle 10) >>= (`shouldBe` Just "1122334455")
                 hPutStr handle "67890"
@@ -364,7 +364,7 @@ spec = do
             loop
         withApp defaultSettings app $ \port -> do
             (socket, _addr) <- getSocketTCP "127.0.0.1" port
-            sendAll socket "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"
+            sendAll socket "POST / HTTP/1.1\r\nHost:dave\r\ntransfer-encoding: chunked\r\n\r\n"
             threadDelay 10000
             sendAll socket "5\r\nhello\r\n0\r\n\r\n"
             bs <- safeRecv socket 4096

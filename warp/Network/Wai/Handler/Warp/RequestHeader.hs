@@ -12,6 +12,7 @@ import qualified Data.ByteString.Char8 as B (unpack)
 import Data.ByteString.Internal (ByteString(..), memchr)
 import qualified Data.CaseInsensitive as CI
 import Data.Word (Word8)
+import Data.List (foldl')
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr, nullPtr)
 import Foreign.Storable (peek)
@@ -35,8 +36,10 @@ parseHeaderLines [] = throwIO $ NotEnoughLines []
 parseHeaderLines (firstLine:otherLines) = do
     (method, path', query, httpversion) <- parseRequestLine firstLine
     let path = H.extractPath path'
-        hdr = map parseHeader otherLines
-    return (method, path', path, query, httpversion, hdr)
+        (hdr, hostCount) = foldl' parseValidHeader ([], 0) otherLines
+    if hostCount == 1
+        then return (method, path', path, query, httpversion, hdr)
+        else throwIO BadHostHeader
 
 ----------------------------------------------------------------
 
@@ -113,6 +116,13 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
       where
         o = p0 `minusPtr` ptr
         l = p1 `minusPtr` p0
+
+parseValidHeader :: ([H.Header], Int) -> ByteString -> ([H.Header], Int)
+parseValidHeader (hs, hostCount) s =
+    let h@(field, _) = parseHeader s in
+    (,) (h:hs) $ if field == "host"
+        then hostCount + 1
+        else hostCount
 
 ----------------------------------------------------------------
 
