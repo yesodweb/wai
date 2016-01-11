@@ -70,7 +70,7 @@ install:
       cabal unpack wai-logger;
       mv wai-logger-* wai-logger;
       cabal install hspec doctest HTTP temporary;
-      cabal-meta install --force-reinstalls;;
+      cabal-meta install --force-reinstalls --enable-tests;;
   esac
 
 script:
