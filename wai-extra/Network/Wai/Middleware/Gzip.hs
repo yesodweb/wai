@@ -65,6 +65,7 @@ defaultCheckMime bs =
         [ "application/json"
         , "application/javascript"
         , "application/ecmascript"
+        , "image/x-icon"
         ]
 
 -- | Use gzip to compress the body of the response.
