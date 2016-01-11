@@ -24,6 +24,9 @@ matrix:
   - env: ARGS= BUILD=stack
     addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 
+  - env: ARGS="--resolver lts-4" BUILD=stack
+    addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+
   - env: ARGS="--resolver lts-3" BUILD=stack
     addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 

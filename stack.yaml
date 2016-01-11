@@ -1,4 +1,4 @@
-resolver: lts-3.13
+resolver: lts-4.1
 packages:
 - ./wai
 - ./wai-extra
