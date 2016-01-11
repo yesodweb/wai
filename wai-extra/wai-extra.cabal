@@ -141,6 +141,7 @@ Library
                      Network.Wai.Middleware.Vhost
                      Network.Wai.Middleware.HttpAuth
                      Network.Wai.Middleware.StreamFile
+                     Network.Wai.Middleware.ForceDomain
                      Network.Wai.Middleware.ForceSSL
                      Network.Wai.Middleware.Routed
                      Network.Wai.Parse
