@@ -1,3 +1,7 @@
+## 3.0.14
+
+* Middleware to force domain names. [#506](https://github.com/yesodweb/wai/issues/506) [#507](https://github.com/yesodweb/wai/pull/507)
+
 ## 3.0.13.1
 
 * Support wai 3.2

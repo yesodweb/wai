@@ -1,3 +1,6 @@
+-- |
+--
+-- @since 3.0.14
 module Network.Wai.Middleware.ForceDomain where
 
 import Data.ByteString (ByteString)
@@ -11,6 +14,8 @@ import Network.Wai.Request
 -- | Force a domain by redirecting. 
 -- The `checkDomain` function takes the current domain and checks whether it is correct. 
 -- It should return `Nothing` if the domain is correct, or `Just "domain.com"` if it is incorrect. 
+--
+-- @since 3.0.14
 forceDomain :: (ByteString -> Maybe ByteString) -> Middleware
 forceDomain checkDomain app req sendResponse = 
     case requestHeaderHost req >>= checkDomain of
