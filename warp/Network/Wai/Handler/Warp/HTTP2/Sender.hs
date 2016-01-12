@@ -296,7 +296,7 @@ fillFileBodyGetNext Connection{connWriteBuffer,connBufferSize}
     (start, bytes) <- fileStartEnd path mpart
     -- fixme: how to close Handle? GC does it at this moment.
     hdl <- IO.openBinaryFile path IO.ReadMode
-    IO.hSeek h IO.AbsoluteSeek start
+    IO.hSeek hdl IO.AbsoluteSeek start
     len <- IO.hGetBufSome hdl datBuf (mini room bytes)
     let bytes' = bytes - fromIntegral len
     -- fixme: connWriteBuffer connBufferSize
