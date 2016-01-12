@@ -9,7 +9,7 @@ module Network.Wai.Handler.Warp.SendFile (
 #endif
   ) where
 
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Network.Socket (Socket)
@@ -17,7 +17,6 @@ import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Types
 
 #ifdef WINDOWS
-import Control.Monad (when)
 import Data.ByteString.Internal (ByteString(..))
 import Foreign.ForeignPtr (newForeignPtr_)
 import Foreign.Ptr (plusPtr)
@@ -27,6 +26,7 @@ import qualified System.IO as IO
 import Control.Applicative ((<$>))
 # endif
 import Control.Exception
+import Foreign.C.Error (throwErrno)
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
 import Network.Sendfile
@@ -143,8 +143,10 @@ readSendFile buf siz send fid off0 len0 hook headers =
           loop fd (len - n') (off + n')
 
 positionRead :: Fd -> Buffer -> BufSize -> Integer -> IO Int
-positionRead fd buf siz off =
-    fromIntegral <$> c_pread fd (castPtr buf) (fromIntegral siz) (fromIntegral off)
+positionRead fd buf siz off = do
+    bytes <- fromIntegral <$> c_pread fd (castPtr buf) (fromIntegral siz) (fromIntegral off)
+    when (bytes < 0) $ throwErrno "positionRead"
+    return bytes
 
 foreign import ccall unsafe "pread"
   c_pread :: Fd -> Ptr CChar -> ByteCount -> FileOffset -> IO CSsize
