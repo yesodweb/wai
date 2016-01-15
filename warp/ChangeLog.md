@@ -1,3 +1,8 @@
+## 3.2.2
+
+* Throwing errno for pread [#499](https://github.com/yesodweb/wai/issues/499).
+* Makeing compilable on Windows [#505](https://github.com/yesodweb/wai/issues/505).
+
 ## 3.2.1
 
 * Add back `warpVersion`
@@ -10,7 +15,7 @@
 * The performance of HTTP/2 was drastically improved. Now the performance of HTTP/2 is almost the same as that of HTTP/1.1.
 * The logic to handle files in HTTP/2 is now identical to that in HTTP/1.1.
 * Internal stuff was removed from the Network.Wai.Handler.Warp module according to [the plan](http://www.yesodweb.com/blog/2015/06/cleaning-up-warp-apis).
-	
+
 ## 3.1.12
 
 * Setting lower bound for auto-update [#495](https://github.com/yesodweb/wai/issues/495)
