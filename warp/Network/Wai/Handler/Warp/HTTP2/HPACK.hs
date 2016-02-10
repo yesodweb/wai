@@ -19,6 +19,9 @@ import Network.Wai.Handler.Warp.Types
 -- $setup
 -- >>> :set -XOverloadedStrings
 
+strategy :: EncodeStrategy
+strategy = EncodeStrategy { compressionAlgo = Linear, useHuffman = False }
+
 -- Set-Cookie: contains only one cookie value.
 -- So, we don't need to split it.
 hpackEncodeHeader :: Context -> Buffer -> BufSize
@@ -28,7 +31,7 @@ hpackEncodeHeader :: Context -> Buffer -> BufSize
 hpackEncodeHeader Context{..} buf siz ii settings s hdr0 = do
     hdr1 <- addServerAndDate hdr0
     let hs = (":status", status) : map (first foldedCase) hdr1
-    encodeHeaderBuffer buf siz defaultEncodeStrategy True encodeDynamicTable hs
+    encodeHeaderBuffer buf siz strategy True encodeDynamicTable hs
   where
     status = B8.pack $ show $ H.statusCode s
     dc = dateCacher ii
@@ -39,7 +42,7 @@ hpackEncodeHeader Context{..} buf siz ii settings s hdr0 = do
 hpackEncodeHeaderLoop :: Context -> Buffer -> BufSize -> HeaderList
                       -> IO (HeaderList, Int)
 hpackEncodeHeaderLoop Context{..} buf siz hs =
-    encodeHeaderBuffer buf siz defaultEncodeStrategy False encodeDynamicTable hs
+    encodeHeaderBuffer buf siz strategy False encodeDynamicTable hs
 
 ----------------------------------------------------------------
 
