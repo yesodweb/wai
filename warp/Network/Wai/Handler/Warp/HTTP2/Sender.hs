@@ -105,9 +105,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         connSendAll frame
         case lookup SettingsHeaderTableSize alist of
             Nothing  -> return ()
-            Just siz -> do
-                dyntbl <- readIORef encodeDynamicTable
-                setLimitForEncoding siz dyntbl
+            Just siz -> setLimitForEncoding siz encodeDynamicTable
         return True
 
     output (ONext strm curr mtbq) off0 lim = do
@@ -195,43 +193,31 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     headerContinue sid rspn endOfStream off = do
         let !s = rspnStatus rspn
             !h = rspnHeaders rspn
-        builder <- hpackEncodeHeader ctx ii settings s h
         let !offkv = off + frameHeaderLength
         let !bufkv = connWriteBuffer `plusPtr` offkv
             !limkv = connBufferSize - offkv
-        (kvlen, signal) <- B.runBuilder builder bufkv limkv
-        let flag0 = case signal of
-                B.Done -> setEndHeader defaultFlags
-                _      -> defaultFlags
+        (hs,kvlen) <- hpackEncodeHeader ctx bufkv limkv ii settings s h
+        let flag0 = case hs of
+                [] -> setEndHeader defaultFlags
+                _  -> defaultFlags
             flag = if endOfStream then setEndStream flag0 else flag0
         let buf = connWriteBuffer `plusPtr` off
         fillFrameHeader FrameHeaders kvlen sid flag buf
-        continue sid kvlen signal
+        continue sid kvlen hs
 
     bufHeaderPayload = connWriteBuffer `plusPtr` frameHeaderLength
     headerPayloadLim = connBufferSize - frameHeaderLength
 
-    continue _   kvlen B.Done = return kvlen
-    continue sid kvlen (B.More _ writer) = do
+    continue _   kvlen [] = return kvlen
+    continue sid kvlen hs = do
         flushN $ kvlen + frameHeaderLength
         -- Now off is 0
-        (kvlen', signal') <- writer bufHeaderPayload headerPayloadLim
-        let flag = case signal' of
-                B.Done -> setEndHeader defaultFlags
-                _      -> defaultFlags
+        (hs', kvlen') <- hpackEncodeHeaderLoop ctx bufHeaderPayload headerPayloadLim hs
+        let flag = case hs' of
+                [] -> setEndHeader defaultFlags
+                _  -> defaultFlags
         fillFrameHeader FrameContinuation kvlen' sid flag connWriteBuffer
-        continue sid kvlen' signal'
-    continue sid kvlen (B.Chunk bs writer) = do
-        flushN $ kvlen + frameHeaderLength
-        -- Now off is 0
-        let (bs1,bs2) = BS.splitAt headerPayloadLim bs
-            kvlen' = BS.length bs1
-        void $ copy bufHeaderPayload bs1
-        fillFrameHeader FrameContinuation kvlen' sid defaultFlags connWriteBuffer
-        if bs2 == "" then
-            continue sid kvlen' (B.More 0 writer)
-          else
-            continue sid kvlen' (B.Chunk bs2 writer)
+        continue sid kvlen' hs'
 
     -- Re-enqueue the stream in the output queue.
     maybeEnqueueNext :: Stream -> Maybe (TBQueue Sequence) -> Maybe DynaNext -> IO ()
