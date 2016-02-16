@@ -48,6 +48,5 @@ hpackEncodeHeaderLoop Context{..} buf siz hs =
 
 hpackDecodeHeader :: HeaderBlockFragment -> Context -> IO HeaderList
 hpackDecodeHeader hdrblk Context{..} =
-    decodeHeader decodeDynamicTable hdrblk `E.onException` cleanup
-  where
-    cleanup = E.throwIO $ ConnectionError CompressionError "cannot decompress the header"
+    decodeHeader decodeDynamicTable hdrblk `E.catch` \(E.SomeException _) ->
+        E.throwIO $ ConnectionError CompressionError "cannot decompress the header"
