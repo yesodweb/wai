@@ -213,6 +213,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         flushN $ kvlen + frameHeaderLength
         -- Now off is 0
         (hs', kvlen') <- hpackEncodeHeaderLoop ctx bufHeaderPayload headerPayloadLim hs
+        when (hs == hs') $ E.throwIO $ ConnectionError CompressionError "cannot compress the header"
         let flag = case hs' of
                 [] -> setEndHeader defaultFlags
                 _  -> defaultFlags
