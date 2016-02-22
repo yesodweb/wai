@@ -24,7 +24,7 @@ import Network.Wai.Handler.Warp.Types
 
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.HPACK
+import Network.HPACK hiding (Buffer)
 
 ----------------------------------------------------------------
 
@@ -109,8 +109,8 @@ data Context = Context {
   , inputQ             :: !(TQueue Input)
   , outputQ            :: !(PriorityTree Output)
   , controlQ           :: !(TQueue Control)
-  , encodeDynamicTable :: !(IORef DynamicTable)
-  , decodeDynamicTable :: !(IORef DynamicTable)
+  , encodeDynamicTable :: !DynamicTable
+  , decodeDynamicTable :: !DynamicTable
   , connectionWindow   :: !(TVar WindowSize)
   }
 
@@ -127,8 +127,8 @@ newContext = Context <$> newIORef defaultSettings
                      <*> newTQueueIO
                      <*> newPriorityTree
                      <*> newTQueueIO
-                     <*> (newDynamicTableForEncoding defaultDynamicTableSize >>= newIORef)
-                     <*> (newDynamicTableForDecoding defaultDynamicTableSize >>= newIORef)
+                     <*> newDynamicTableForEncoding defaultDynamicTableSize
+                     <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
                      <*> newTVarIO defaultInitialWindowSize
 
 clearContext :: Context -> IO ()
