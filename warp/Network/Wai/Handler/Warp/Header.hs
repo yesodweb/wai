@@ -4,6 +4,8 @@ module Network.Wai.Handler.Warp.Header where
 
 import Data.Array
 import Data.Array.ST
+import qualified Data.ByteString as BS
+import Data.CaseInsensitive (foldedCase)
 import Network.HTTP.Types
 import Network.Wai.Handler.Warp.Types
 
@@ -38,18 +40,22 @@ requestMaxIndex :: Int
 requestMaxIndex = fromEnum (maxBound :: RequestHeaderIndex)
 
 requestKeyIndex :: HeaderName -> Int
-requestKeyIndex "content-length"      = fromEnum ReqContentLength
-requestKeyIndex "transfer-encoding"   = fromEnum ReqTransferEncoding
-requestKeyIndex "expect"              = fromEnum ReqExpect
-requestKeyIndex "connection"          = fromEnum ReqConnection
-requestKeyIndex "range"               = fromEnum ReqRange
-requestKeyIndex "host"                = fromEnum ReqHost
-requestKeyIndex "if-modified-since"   = fromEnum ReqIfModifiedSince
-requestKeyIndex "if-unmodified-since" = fromEnum ReqIfUnmodifiedSince
-requestKeyIndex "if-range"            = fromEnum ReqIfRange
-requestKeyIndex "referer"             = fromEnum ReqReferer
-requestKeyIndex "user-agent"          = fromEnum ReqUserAgent
-requestKeyIndex _                     = -1
+requestKeyIndex hn = case BS.length bs of
+   4  -> if bs == "host" then fromEnum ReqHost else -1
+   5  -> if bs == "range" then fromEnum ReqRange else -1
+   6  -> if bs == "expect" then fromEnum ReqExpect else -1
+   7  -> if bs == "referer" then fromEnum ReqReferer else -1
+   8  -> if bs == "if-range" then fromEnum ReqIfRange else -1
+   10 -> if bs == "user-agent" then fromEnum ReqUserAgent else
+         if bs == "connection" then fromEnum ReqConnection else -1
+   14 -> if bs == "content-length" then fromEnum ReqContentLength else -1
+   17 -> if bs == "transfer-encoding" then fromEnum ReqTransferEncoding else
+         if bs == "if-modified-since" then fromEnum ReqIfModifiedSince
+         else -1
+   19 -> if bs == "if-unmodified-since" then fromEnum ReqIfUnmodifiedSince else -1
+   _  -> -1
+  where
+    bs = foldedCase hn
 
 defaultIndexRequestHeader :: IndexedHeader
 defaultIndexRequestHeader = array (0,requestMaxIndex) [(i,Nothing)|i<-[0..requestMaxIndex]]
@@ -69,10 +75,13 @@ responseMaxIndex :: Int
 responseMaxIndex = fromEnum (maxBound :: ResponseHeaderIndex)
 
 responseKeyIndex :: HeaderName -> Int
-responseKeyIndex "content-length" = fromEnum ResContentLength
-responseKeyIndex "server"         = fromEnum ResServer
-responseKeyIndex "date"           = fromEnum ResDate
-responseKeyIndex _                = -1
+responseKeyIndex hn = case BS.length bs of
+    4  -> if bs == "date" then fromEnum ResDate else -1
+    6  -> if bs == "server" then fromEnum ResServer else -1
+    14 -> if bs == "content-length" then fromEnum ResContentLength else -1
+    _  -> -1
+  where
+    bs = foldedCase hn
 
 ----------------------------------------------------------------
 
