@@ -36,7 +36,6 @@ import Data.ByteString.Builder (byteString, Builder)
 import Data.ByteString.Builder.Extra (flush)
 import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
-import Data.Hashable (hash)
 import Data.List (deleteBy)
 import Data.Maybe
 #if MIN_VERSION_base(4,5,0)
@@ -57,9 +56,6 @@ import qualified Network.HTTP.Types.Header as H
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
-#ifndef WINDOWS
-import qualified Network.Wai.Handler.Warp.FdCache as F
-#endif
 import Network.Wai.Handler.Warp.File
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.IO (toBufIOWith)
@@ -167,8 +163,8 @@ sendResponse settings conn ii req reqidxhdr src response = do
     hs0 = sanitizeHeaders $ responseHeaders response
     rspidxhdr = indexResponseHeader hs0
     th = threadHandle ii
-    dc = dateCacher ii
-    addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
+    getdate = getDate ii
+    addServerAndDate = addDate getdate rspidxhdr . addServer defServer rspidxhdr
     (isPersist,isChunked0) = infoFromRequest req reqidxhdr
     isChunked = not isHead && isChunked0
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist,isChunked)
@@ -294,9 +290,8 @@ sendRsp conn _ _ _ _ _ (RspRaw withApp src tickle) = do
 -- Sophisticated WAI applications.
 -- We respect s0. s0 MUST be a proper value.
 sendRsp conn ii req ver s0 hs0 (RspFile path (Just part) _ isHead hook) =
-    sendRspFile2XX conn ii req ver s0 hs h path beg len isHead hook
+    sendRspFile2XX conn ii req ver s0 hs path beg len isHead hook
   where
-    h = hash $ rawPathInfo req
     beg = filePartOffset part
     len = filePartByteCount part
     hs = addContentHeadersForFilePart hs0 part
@@ -306,8 +301,7 @@ sendRsp conn ii req ver s0 hs0 (RspFile path (Just part) _ isHead hook) =
 -- Simple WAI applications.
 -- Status is ignored
 sendRsp conn ii req ver _ hs0 (RspFile path Nothing idxhdr isHead hook) = do
-    let h = hash $ rawPathInfo req
-    efinfo <- E.try $ fileInfo' ii h path
+    efinfo <- E.try $ getFileInfo ii path
     case efinfo of
         Left (_ex :: E.IOException) ->
 #ifdef WARP_DEBUG
@@ -316,7 +310,7 @@ sendRsp conn ii req ver _ hs0 (RspFile path Nothing idxhdr isHead hook) = do
           sendRspFile404 conn ii req ver hs0
         Right finfo -> case conditionalRequest finfo hs0 idxhdr of
           WithoutBody s         -> sendRsp conn ii req ver s hs0 RspNoBody
-          WithBody s hs beg len -> sendRspFile2XX conn ii req ver s hs h path beg len isHead hook
+          WithBody s hs beg len -> sendRspFile2XX conn ii req ver s hs path beg len isHead hook
 
 ----------------------------------------------------------------
 
@@ -326,29 +320,19 @@ sendRspFile2XX :: Connection
                -> H.HttpVersion
                -> H.Status
                -> H.ResponseHeaders
-               -> Hash
                -> FilePath
                -> Integer
                -> Integer
                -> Bool
                -> IO ()
                -> IO (Maybe H.Status, Maybe Integer)
-sendRspFile2XX conn ii req ver s hs h path beg len isHead hook
+sendRspFile2XX conn ii req ver s hs path beg len isHead hook
   | isHead = sendRsp conn ii req ver s hs RspNoBody
   | otherwise = do
       lheader <- composeHeader ver s hs
-#ifdef WINDOWS
-      let fid = FileId path Nothing
-          hook' = hook
-#else
-      (mfd, hook') <- case fdCacher ii of
-         -- settingsFdCacheDuration is 0
-         Nothing  -> return (Nothing, hook)
-         Just fdc -> do
-            (fd, fresher) <- F.getFd' fdc h path
-            return (Just fd, hook >> fresher)
+      (mfd, fresher) <- getFd ii path
       let fid = FileId path mfd
-#endif
+          hook' = hook >> fresher
       connSendFile conn fid beg len hook' [lheader]
       return (Just s, Just len)
 
@@ -435,10 +419,10 @@ addTransferEncoding hdrs = (H.hTransferEncoding, "chunked") : hdrs
 addTransferEncoding hdrs = ("transfer-encoding", "chunked") : hdrs
 #endif
 
-addDate :: D.DateCache -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
-addDate dc rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
+addDate :: IO D.GMTDate -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
+addDate getdate rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
     Nothing -> do
-        gmtdate <- D.getDate dc
+        gmtdate <- getdate
         return $ (H.hDate, gmtdate) : hdrs
     Just _ -> return hdrs
 

@@ -30,11 +30,12 @@ import Network.HTTP.Types (RequestHeaders)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
-import Network.Wai.Internal (Request(..))
 import Network.Wai.Handler.Warp.HTTP2.Types
+import Network.Wai.Handler.Warp.HashMap (hashByteString)
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Request (pauseTimeoutKey, getFileInfoKey)
-import Network.Wai.Handler.Warp.Types (InternalInfo(..))
+import Network.Wai.Handler.Warp.Types
+import Network.Wai.Internal (Request(..))
 import qualified Network.Wai.Handler.Warp.Settings as S (Settings, settingsNoParsePath)
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 
@@ -49,23 +50,26 @@ data ValidHeaders = ValidHeaders {
   , vhHeader  :: !RequestHeaders
   } deriving Show
 
-type MkReq = ValidHeaders -> IO ByteString -> Request
+type MkReq = ValidHeaders -> IO ByteString -> (Request,InternalInfo)
 
-mkRequest :: InternalInfo -> S.Settings -> SockAddr -> MkReq
-mkRequest ii settings addr (ValidHeaders m p ma mrng mrr mua _ hdr) body = req
+mkRequest :: InternalInfo1 -> S.Settings -> SockAddr -> MkReq
+mkRequest ii1 settings addr (ValidHeaders m p ma mrng mrr mua _ hdr) body =
+    (req,ii)
   where
     (unparsedPath,query) = B8.break (=='?') p
     !path = H.extractPath unparsedPath
+    !rawPath = if S.settingsNoParsePath settings then unparsedPath else path
+    !h = hashByteString rawPath
     !req = Request {
         requestMethod = m
       , httpVersion = http2ver
-      , rawPathInfo = if S.settingsNoParsePath settings then unparsedPath else path
+      , rawPathInfo = rawPath
       , pathInfo = H.decodePathSegments path
       , rawQueryString = query
       , queryString = H.parseQuery query
       , requestHeaders = case ma of
                            Nothing -> hdr
-                           Just h  -> (mk "host", h) : hdr
+                           Just hv  -> (mk "host", hv) : hdr
       , isSecure = True
       , remoteHost = addr
       , requestBody = body
@@ -76,9 +80,10 @@ mkRequest ii settings addr (ValidHeaders m p ma mrng mrr mua _ hdr) body = req
       , requestHeaderReferer   = mrr
       , requestHeaderUserAgent = mua
       }
+    !ii = toInternalInfo ii1 h
     !th = threadHandle ii
     !vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
-                $ Vault.insert getFileInfoKey (fileInfo ii)
+                $ Vault.insert getFileInfoKey (getFileInfo ii)
                   Vault.empty
 
 ----------------------------------------------------------------

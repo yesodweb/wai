@@ -16,8 +16,8 @@ spec :: Spec
 spec = describe "withFdCache" $ do
     it "clean up Fd" $ do
         ref <- newIORef (Fd (-1))
-        withFdCache 30000000 $ \(Just mfc) -> do
-            (fd,_) <- getFd mfc "warp.cabal"
+        withFdCache 30000000 $ \getFd -> do
+            (Just fd,_) <- getFd 0 "warp.cabal"
             writeIORef ref fd
         nfd <- readIORef ref
         fdRead nfd 1 `shouldThrow` anyIOException

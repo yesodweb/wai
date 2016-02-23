@@ -108,7 +108,7 @@ import Network.Wai.Handler.Warp.Response (warpVersion)
 import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Timeout
-import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Types hiding (getFileInfo)
 
 -- | Port to listen on. Default value: 3000
 --

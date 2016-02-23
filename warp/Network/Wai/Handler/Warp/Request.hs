@@ -23,6 +23,7 @@ import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.Conduit
 import Network.Wai.Handler.Warp.FileInfoCache
+import Network.Wai.Handler.Warp.HashMap (hashByteString)
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.RequestHeader
@@ -47,19 +48,20 @@ maxTotalHeaderLength = 50 * 1024
 --   to create 'Request'.
 recvRequest :: Settings
             -> Connection
-            -> InternalInfo
+            -> InternalInfo1
             -> SockAddr -- ^ Peer's address.
             -> Source -- ^ Where HTTP request comes from.
             -> IO (Request
                   ,Maybe (I.IORef Int)
                   ,IndexedHeader
-                  ,IO ByteString) -- ^
+                  ,IO ByteString
+                  ,InternalInfo) -- ^
             -- 'Request' passed to 'Application',
             -- how many bytes remain to be consumed, if known
             -- 'IndexedHeader' of HTTP request for internal use,
             -- Body producing action used for flushing the request body
 
-recvRequest settings conn ii addr src = do
+recvRequest settings conn ii1 addr src = do
     hdrlines <- headerLines src
     (method, unparsedPath, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
@@ -67,6 +69,13 @@ recvRequest settings conn ii addr src = do
         cl = idxhdr ! fromEnum ReqContentLength
         te = idxhdr ! fromEnum ReqTransferEncoding
         handle100Continue = handleExpect conn httpversion expect
+        rawPath = if settingsNoParsePath settings then unparsedPath else path
+        h = hashByteString rawPath
+        ii = toInternalInfo ii1 h
+        th = threadHandle ii
+        vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
+                   $ Vault.insert getFileInfoKey (getFileInfo ii)
+                     Vault.empty
     (rbody, remainingRef, bodyLength) <- bodyAndSource src cl te
     -- body producing function which will produce '100-continue', if needed
     rbody' <- timeoutBody remainingRef th rbody handle100Continue
@@ -76,7 +85,7 @@ recvRequest settings conn ii addr src = do
             requestMethod     = method
           , httpVersion       = httpversion
           , pathInfo          = H.decodePathSegments path
-          , rawPathInfo       = if settingsNoParsePath settings then unparsedPath else path
+          , rawPathInfo       = rawPath
           , rawQueryString    = query
           , queryString       = H.parseQuery query
           , requestHeaders    = hdr
@@ -90,12 +99,7 @@ recvRequest settings conn ii addr src = do
           , requestHeaderReferer   = idxhdr ! fromEnum ReqReferer
           , requestHeaderUserAgent = idxhdr ! fromEnum ReqUserAgent
           }
-    return (req, remainingRef, idxhdr, rbodyFlush)
-  where
-    th = threadHandle ii
-    vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
-               $ Vault.insert getFileInfoKey (fileInfo ii)
-                 Vault.empty
+    return (req, remainingRef, idxhdr, rbodyFlush, ii)
 
 ----------------------------------------------------------------
 

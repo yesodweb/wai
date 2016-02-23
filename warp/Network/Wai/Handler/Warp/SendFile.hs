@@ -30,7 +30,7 @@ import Foreign.C.Error (throwErrno)
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
 import Network.Sendfile
-import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
+import Network.Wai.Handler.Warp.FdCache (openFile, closeFile)
 import System.Posix.Types
 #endif
 
@@ -129,10 +129,10 @@ readSendFile buf siz send fid off0 len0 hook headers =
     path = fileIdPath fid
     setup = case fileIdFd fid of
        Just fd -> return fd
-       Nothing -> openFd path ReadOnly Nothing defaultFileFlags{nonBlock=True}
+       Nothing -> openFile path
     teardown fd = case fileIdFd fid of
        Just _  -> return ()
-       Nothing -> closeFd fd
+       Nothing -> closeFile fd
     loop fd len off
       | len <= 0  = return ()
       | otherwise = do

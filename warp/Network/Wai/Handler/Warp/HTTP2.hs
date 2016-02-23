@@ -22,15 +22,15 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-http2 :: Connection -> InternalInfo -> SockAddr -> Transport -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
-http2 conn ii addr transport settings readN app = do
+http2 :: Connection -> InternalInfo1 -> SockAddr -> Transport -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
+http2 conn ii1 addr transport settings readN app = do
     checkTLS
     ok <- checkPreface
     when ok $ do
         ctx <- newContext
         -- Workers, worker manager and timer manager
         mgr <- start settings
-        let responder = response ii settings ctx mgr
+        let responder = response settings ctx mgr
             action = worker ctx settings app responder
         setAction mgr action
         -- The number of workers is 3.
@@ -40,12 +40,12 @@ http2 conn ii addr transport settings readN app = do
         -- context switches happen.
         replicateM_ 3 $ spawnAction mgr
         -- Receiver
-        let mkreq = mkRequest ii settings addr
+        let mkreq = mkRequest ii1 settings addr
         tid <- forkIO $ frameReceiver ctx mkreq readN
         -- Sender
         -- frameSender is the main thread because it ensures to send
         -- a goway frame.
-        frameSender ctx conn ii settings mgr `E.finally` do
+        frameSender ctx conn settings mgr `E.finally` do
             clearContext ctx
             stop mgr
             killThread tid

@@ -11,7 +11,6 @@ import Control.Exception as E
 import Control.Monad (void)
 import Control.Reaper
 import Data.ByteString (ByteString)
-import Data.Hashable (hash)
 import Network.HTTP.Date
 import Network.Wai.Handler.Warp.HashMap (HashMap)
 import qualified Network.Wai.Handler.Warp.HashMap as M
@@ -55,16 +54,13 @@ getInfo path = do
       else
         throwIO (userError "FileInfoCache:getInfo")
 
-getInfo' :: Hash -> FilePath -> IO FileInfo
-getInfo' _ = getInfo
+getInfoNaive :: Hash -> FilePath -> IO FileInfo
+getInfoNaive _ = getInfo
 
 ----------------------------------------------------------------
 
-getAndRegisterInfo :: FileInfoCache -> FilePath -> IO FileInfo
-getAndRegisterInfo reaper path = getAndRegisterInfo' reaper (hash path) path
-
-getAndRegisterInfo' :: FileInfoCache -> Hash -> FilePath -> IO FileInfo
-getAndRegisterInfo' reaper@Reaper{..} h path = do
+getAndRegisterInfo :: FileInfoCache -> Hash -> FilePath -> IO FileInfo
+getAndRegisterInfo reaper@Reaper{..} h path = do
     cache <- reaperRead
     case M.lookup h path cache of
         Just Negative     -> throwIO (userError "FileInfoCache:getAndRegisterInfo")
@@ -89,13 +85,13 @@ negative Reaper{..} h path = do
 --   and executing the action in the second argument.
 --   The first argument is a cache duration in second.
 withFileInfoCache :: Int
-                  -> ((FilePath -> IO FileInfo) -> (Hash -> FilePath -> IO FileInfo) -> IO a)
+                  -> ((Hash -> FilePath -> IO FileInfo) -> IO a)
                   -> IO a
-withFileInfoCache 0        action = action getInfo getInfo'
+withFileInfoCache 0        action = action getInfoNaive
 withFileInfoCache duration action =
     E.bracket (initialize duration)
               terminate
-              (\r -> action (getAndRegisterInfo r) (getAndRegisterInfo' r))
+              (\r -> action (getAndRegisterInfo r))
 
 initialize :: Hash -> IO FileInfoCache
 initialize duration = mkReaper settings

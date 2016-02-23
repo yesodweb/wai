@@ -34,10 +34,10 @@ hpackEncodeHeader Context{..} buf siz ii settings s hdr0 = do
     encodeHeaderBuffer buf siz strategy True encodeDynamicTable hs
   where
     status = B8.pack $ show $ H.statusCode s
-    dc = dateCacher ii
+    getdate = getDate ii
     rspidxhdr = indexResponseHeader hdr0
     defServer = S.settingsServerName settings
-    addServerAndDate = addDate dc rspidxhdr . addServer defServer rspidxhdr
+    addServerAndDate = addDate getdate rspidxhdr . addServer defServer rspidxhdr
 
 hpackEncodeHeaderLoop :: Context -> Buffer -> BufSize -> HeaderList
                       -> IO (HeaderList, Int)

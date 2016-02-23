@@ -2,46 +2,58 @@
 
 -- | File descriptor cache to avoid locks in kernel.
 
+module Network.Wai.Handler.Warp.FdCache (
+    withFdCache
+  , Fd
+  , Refresh
+#ifndef WINDOWS
+  , openFile
+  , closeFile
+#endif
+  ) where
+
 #ifdef WINDOWS
-module Network.Wai.Handler.Warp.FdCache (
-    withFdCache
-  , MutableFdCache
-  , Refresh
-  ) where
-
-type Refresh = IO ()
-type MutableFdCache = ()
-
-withFdCache :: Int -> (Maybe MutableFdCache -> IO a) -> IO a
-withFdCache _ f = f Nothing
+type Fd = ()
 #else
-module Network.Wai.Handler.Warp.FdCache (
-    withFdCache
-  , getFd
-  , getFd'
-  , MutableFdCache
-  , Refresh
-  ) where
-
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>), (<*>))
 #endif
 import Control.Exception (bracket)
-import Data.Hashable (hash)
 import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.MultiMap
+import Control.Reaper
 import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
 import System.Posix.Types (Fd)
-import Control.Reaper
+#endif
+
+----------------------------------------------------------------
+
+type Hash = Int
+
+-- | An action to activate a Fd cache entry.
+type Refresh = IO ()
+
+getFdNothing :: Hash -> FilePath -> IO (Maybe Fd, Refresh)
+getFdNothing _ _ = return (Nothing, return ())
+
+----------------------------------------------------------------
+
+-- | Creating 'MutableFdCache' and executing the action in the second
+--   argument. The first argument is a cache duration in second.
+withFdCache :: Int -> ((Hash -> FilePath -> IO (Maybe Fd, Refresh)) -> IO a) -> IO a
+#ifdef WINDOWS
+withFdCache _        action = action getFdNothing
+#else
+withFdCache 0        action = action getFdNothing
+withFdCache duration action = bracket (initialize duration)
+                                      terminate
+                                      (\mfc -> action (getFd mfc))
 
 ----------------------------------------------------------------
 
 data Status = Active | Inactive
 
 newtype MutableStatus = MutableStatus (IORef Status)
-
--- | An action to activate a Fd cache entry.
-type Refresh = IO ()
 
 status :: MutableStatus -> IO Status
 status (MutableStatus ref) = readIORef ref
@@ -59,14 +71,17 @@ inactive (MutableStatus ref) = writeIORef ref Inactive
 
 data FdEntry = FdEntry !FilePath !Fd !MutableStatus
 
+openFile :: FilePath -> IO Fd
+openFile path = openFd path ReadOnly Nothing defaultFileFlags{nonBlock=True}
+
+closeFile :: Fd -> IO ()
+closeFile = closeFd
+
 newFdEntry :: FilePath -> IO FdEntry
-newFdEntry path = FdEntry path
-              <$> openFd path ReadOnly Nothing defaultFileFlags{nonBlock=True}
-              <*> newActiveStatus
+newFdEntry path = FdEntry path <$> openFile path <*> newActiveStatus
 
 ----------------------------------------------------------------
 
-type Hash = Int
 type FdCache = MMap Hash FdEntry
 
 -- | Mutable Fd cacher.
@@ -87,25 +102,17 @@ look mfc path key = searchWith key check <$> fdCache mfc
 
 ----------------------------------------------------------------
 
--- | Creating 'MutableFdCache' and executing the action in the second
---   argument. The first argument is a cache duration in second.
-withFdCache :: Int -> (Maybe MutableFdCache -> IO a) -> IO a
-withFdCache duration action = bracket (initialize duration)
-                                      terminate
-                                      action
-
-----------------------------------------------------------------
-
 -- The first argument is a cache duration in second.
-initialize :: Int -> IO (Maybe MutableFdCache)
-initialize 0 = return Nothing
-initialize duration = Just . MutableFdCache <$> mkReaper defaultReaperSettings
-    { reaperAction = clean
-    , reaperDelay = duration
-    , reaperCons = uncurry insert
-    , reaperNull = isEmpty
-    , reaperEmpty = empty
-    }
+initialize :: Int -> IO MutableFdCache
+initialize duration = MutableFdCache <$> mkReaper settings
+  where
+    settings = defaultReaperSettings {
+        reaperAction = clean
+      , reaperDelay = duration
+      , reaperCons = uncurry insert
+      , reaperNull = isEmpty
+      , reaperEmpty = empty
+      }
 
 clean :: FdCache -> IO (FdCache -> FdCache)
 clean old = do
@@ -130,9 +137,8 @@ prune k (Tom ent@(FdEntry _ fd mst) vs) = status mst >>= prune'
 
 ----------------------------------------------------------------
 
-terminate :: Maybe MutableFdCache -> IO ()
-terminate Nothing = return ()
-terminate (Just (MutableFdCache reaper)) = do
+terminate :: MutableFdCache -> IO ()
+terminate (MutableFdCache reaper) = do
     !t <- reaperStop reaper
     mapM_ closeIt $ toList t
   where
@@ -140,18 +146,15 @@ terminate (Just (MutableFdCache reaper)) = do
 
 ----------------------------------------------------------------
 
-getFd :: MutableFdCache -> FilePath -> IO (Fd, Refresh)
-getFd mfc path = getFd' mfc (hash path) path
-
 -- | Getting 'Fd' and 'Refresh' from the mutable Fd cacher.
-getFd' :: MutableFdCache -> Hash -> FilePath -> IO (Fd, Refresh)
-getFd' mfc@(MutableFdCache reaper) h path = look mfc path h >>= get
+getFd :: MutableFdCache -> Hash -> FilePath -> IO (Maybe Fd, Refresh)
+getFd mfc@(MutableFdCache reaper) h path = look mfc path h >>= get
   where
     get Nothing = do
         ent@(FdEntry _ fd mst) <- newFdEntry path
         reaperAdd reaper (h, ent)
-        return (fd, refresh mst)
+        return (Just fd, refresh mst)
     get (Just (FdEntry _ fd mst)) = do
         refresh mst
-        return (fd, refresh mst)
+        return (Just fd, refresh mst)
 #endif

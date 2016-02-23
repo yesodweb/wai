@@ -34,8 +34,6 @@ import qualified System.IO as IO
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.SendFile (positionRead)
 import qualified Network.Wai.Handler.Warp.Timeout as T
-import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
-import System.Posix.Types
 #endif
 
 ----------------------------------------------------------------
@@ -63,10 +61,10 @@ data Switch = C Control
             | O (StreamId,Precedence,Output)
             | Flush
 
-frameSender :: Context -> Connection -> InternalInfo -> S.Settings -> Manager -> IO ()
+frameSender :: Context -> Connection -> S.Settings -> Manager -> IO ()
 frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             conn@Connection{connWriteBuffer,connBufferSize,connSendAll}
-            ii settings mgr = loop 0 `E.catch` ignore
+            settings mgr = loop 0 `E.catch` ignore
   where
     dequeue off = do
         isEmpty <- isEmptyTQueue controlQ
@@ -117,23 +115,23 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         maybeEnqueueNext strm mtbq mnext
         return off
 
-    output (ORspn strm rspn) off0 lim = do
+    output (ORspn strm rspn ii) off0 lim = do
         -- Header frame and Continuation frame
         let sid = streamNumber strm
             endOfStream = case rspn of
                 RspnNobody _ _ -> True
                 _              -> False
-        kvlen <- headerContinue sid rspn endOfStream off0
+        kvlen <- headerContinue sid rspn endOfStream off0 ii
         off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
         case rspn of
             RspnNobody _ _ -> do
                 closed ctx strm Finished
                 return off
-            RspnFile _ _ h path mpart -> do
+            RspnFile _ _ path mpart -> do
                 -- Data frame payload
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
-                    fillFileBodyGetNext conn ii payloadOff lim h path mpart
+                    fillFileBodyGetNext conn ii payloadOff lim path mpart
                 off' <- fillDataHeader strm off datPayloadLen mnext
                 maybeEnqueueNext strm Nothing mnext
                 return off'
@@ -190,7 +188,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     flushN :: Int -> IO ()
     flushN n = bufferIO connWriteBuffer n connSendAll
 
-    headerContinue sid rspn endOfStream off = do
+    headerContinue sid rspn endOfStream off ii = do
         let !s = rspnStatus rspn
             !h = rspnHeaders rspn
         let !offkv = off + frameHeaderLength
@@ -274,10 +272,10 @@ fillBuilderBodyGetNext Connection{connWriteBuffer,connBufferSize}
     (len, signal) <- B.runBuilder bb datBuf room
     return $ nextForBuilder len signal
 
-fillFileBodyGetNext :: Connection -> InternalInfo -> Int -> WindowSize -> Int -> FilePath -> Maybe FilePart -> IO Next
+fillFileBodyGetNext :: Connection -> InternalInfo -> Int -> WindowSize -> FilePath -> Maybe FilePart -> IO Next
 #ifdef WINDOWS
 fillFileBodyGetNext Connection{connWriteBuffer,connBufferSize}
-                        _ off lim _ path mpart = do
+                        _ off lim path mpart = do
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (start, bytes) <- fileStartEnd path mpart
@@ -290,13 +288,14 @@ fillFileBodyGetNext Connection{connWriteBuffer,connBufferSize}
     return $ nextForFile len hdl bytes' (return ())
 #else
 fillFileBodyGetNext Connection{connWriteBuffer,connBufferSize}
-                        ii off lim h path mpart = do
-    (fd, refresh) <- case fdCacher ii of
-        Just fdcache -> getFd' fdcache h path
-        Nothing      -> do
-            fd' <- openFd path ReadOnly Nothing defaultFileFlags{nonBlock=True}
-            th <- T.register (timeoutManager ii) (closeFd fd')
+                        ii off lim path mpart = do
+    (mfd, refresh') <- getFd ii path
+    (fd, refresh) <- case mfd of
+        Nothing -> do
+            fd' <- openFile path
+            th <- T.register (timeoutManager ii) (closeFile fd')
             return (fd', T.tickle th)
+        Just fd  -> return (fd, refresh')
     let datBuf = connWriteBuffer `plusPtr` off
         room = min (connBufferSize - off) lim
     (start, bytes) <- fileStartEnd path mpart

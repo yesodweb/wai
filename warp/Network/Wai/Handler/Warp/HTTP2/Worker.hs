@@ -20,7 +20,6 @@ import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
 import Control.Monad (when)
 import Data.ByteString.Builder (byteString)
-import Data.Hashable (hash)
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.Wai
@@ -42,14 +41,14 @@ import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceive
 -- | The wai definition is 'type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived'.
 --   This type implements the second argument (Response -> IO ResponseReceived)
 --   with extra arguments.
-type Responder = ThreadContinue -> T.Handle -> Stream -> Request ->
+type Responder = InternalInfo -> ThreadContinue -> Stream -> Request ->
                  Response -> IO ResponseReceived
 
 -- | This function is passed to workers.
 --   They also pass 'Response's from 'Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
-response :: InternalInfo -> S.Settings -> Context -> Manager -> Responder
-response ii settings Context{outputQ} mgr tconf th strm req rsp
+response :: S.Settings -> Context -> Manager -> Responder
+response settings Context{outputQ} mgr ii tconf strm req rsp
   | R.hasBody s0 = case rsp of
     ResponseStream _ _ strmbdy
       | isHead             -> responseNoBody s0 hs0
@@ -65,6 +64,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
     !s0 = responseStatus rsp
     !hs0 = responseHeaders rsp
     !logger = S.settingsLogger settings
+    !th = threadHandle ii
 
     -- Ideally, log messages should be written when responses are
     -- actually sent. But there is no way to keep good memory usage
@@ -76,7 +76,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         logger req s Nothing
         setThreadContinue tconf True
         let rspn = RspnNobody s hs
-            out = ORspn strm rspn
+            out = ORspn strm rspn ii
         enqueueOutput outputQ out
         return ResponseReceived
 
@@ -84,32 +84,29 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         logger req s Nothing
         setThreadContinue tconf True
         let rspn = RspnBuilder s hs bdy
-            out = ORspn strm rspn
+            out = ORspn strm rspn ii
         enqueueOutput outputQ out
         return ResponseReceived
 
     responseFileXXX path Nothing = do
-        let !h = hash $ rawPathInfo req
-        efinfo <- E.try $ fileInfo' ii h path
+        efinfo <- E.try $ getFileInfo ii path
         case efinfo of
             Left (_ex :: E.IOException) -> response404
             Right finfo -> case conditionalRequest finfo hs0 (indexRequestHeader (requestHeaders req)) of
                  WithoutBody s         -> responseNoBody s hs0
-                 WithBody s hs beg len -> responseFile2XX s hs h path (Just (FilePart beg len (fileInfoSize finfo)))
+                 WithBody s hs beg len -> responseFile2XX s hs path (Just (FilePart beg len (fileInfoSize finfo)))
 
-    responseFileXXX path mpart = responseFile2XX s0 hs0 h path mpart
-      where
-        !h = hash $ rawPathInfo req
+    responseFileXXX path mpart = responseFile2XX s0 hs0 path mpart
 
-    responseFile2XX s hs h path mpart
+    responseFile2XX s hs path mpart
       | isHead    = do
           logger req s Nothing
           responseNoBody s hs
       | otherwise = do
           logger req s (filePartByteCount <$> mpart)
           setThreadContinue tconf True
-          let rspn = RspnFile s hs h path mpart
-              out = ORspn strm rspn
+          let rspn = RspnFile s hs path mpart
+              out = ORspn strm rspn ii
           enqueueOutput outputQ out
           return ResponseReceived
 
@@ -134,7 +131,7 @@ response ii settings Context{outputQ} mgr tconf th strm req rsp
         -- So, let's serialize 'Builder' with a designated queue.
         tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
         let rspn = RspnStreaming s0 hs0 tbq
-            out = ORspn strm rspn
+            out = ORspn strm rspn ii
         enqueueOutput outputQ out
         let push b = do
               atomically $ writeTBQueue tbq (SBuilder b)
@@ -155,11 +152,11 @@ worker ctx@Context{inputQ,controlQ} set app responder tm = do
         setThreadContinue tcont True
         ex <- E.try $ do
             T.pause th
-            inp@(Input strm req) <- atomically $ readTQueue inputQ
+            inp@(Input strm req ii) <- atomically $ readTQueue inputQ
             setStreamInfo sinfo inp
             T.resume th
             T.tickle th
-            app req $ responder tcont th strm req
+            app req $ responder ii tcont strm req
         cont1 <- case ex of
             Right ResponseReceived -> return True
             Left  e@(SomeException _)
@@ -179,7 +176,7 @@ worker ctx@Context{inputQ,controlQ} set app responder tm = do
         minp <- getStreamInfo sinfo
         case minp of
             Nothing               -> return ()
-            Just (Input strm req) -> do
+            Just (Input strm req _ii) -> do
                 closed ctx strm Killed
                 let frame = resetFrame InternalError (streamNumber strm)
                 enqueueControl controlQ $ CFrame frame

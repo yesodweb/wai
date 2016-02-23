@@ -41,7 +41,7 @@ isHTTP2 tls = useHTTP2
 
 ----------------------------------------------------------------
 
-data Input = Input Stream Request
+data Input = Input Stream Request InternalInfo
 
 ----------------------------------------------------------------
 
@@ -54,31 +54,31 @@ data Next = Next !BytesFilled (Maybe DynaNext)
 data Rspn = RspnNobody    H.Status H.ResponseHeaders
           | RspnStreaming H.Status H.ResponseHeaders (TBQueue Sequence)
           | RspnBuilder   H.Status H.ResponseHeaders Builder
-          | RspnFile      H.Status H.ResponseHeaders Int FilePath (Maybe FilePart)
+          | RspnFile      H.Status H.ResponseHeaders FilePath (Maybe FilePart)
 
 rspnStatus :: Rspn -> H.Status
-rspnStatus (RspnNobody    s _)        = s
-rspnStatus (RspnStreaming s _ _)      = s
-rspnStatus (RspnBuilder   s _ _)      = s
-rspnStatus (RspnFile      s _ _ _ _ ) = s
+rspnStatus (RspnNobody    s _)      = s
+rspnStatus (RspnStreaming s _ _)    = s
+rspnStatus (RspnBuilder   s _ _)    = s
+rspnStatus (RspnFile      s _ _ _ ) = s
 
 rspnHeaders :: Rspn -> H.ResponseHeaders
-rspnHeaders (RspnNobody    _ h)        = h
-rspnHeaders (RspnStreaming _ h _)      = h
-rspnHeaders (RspnBuilder   _ h _)      = h
-rspnHeaders (RspnFile      _ h _ _ _ ) = h
+rspnHeaders (RspnNobody    _ h)      = h
+rspnHeaders (RspnStreaming _ h _)    = h
+rspnHeaders (RspnBuilder   _ h _)    = h
+rspnHeaders (RspnFile      _ h _ _ ) = h
 
-data Output = ORspn !Stream !Rspn
+data Output = ORspn !Stream !Rspn !InternalInfo
             | ONext !Stream !DynaNext !(Maybe (TBQueue Sequence))
 
 outputStream :: Output -> Stream
-outputStream (ORspn strm _)   = strm
+outputStream (ORspn strm _ _) = strm
 outputStream (ONext strm _ _) = strm
 
 outputMaybeTBQueue :: Output -> Maybe (TBQueue Sequence)
-outputMaybeTBQueue (ORspn _ (RspnStreaming _ _ tbq)) = Just tbq
-outputMaybeTBQueue (ORspn _ _)                       = Nothing
-outputMaybeTBQueue (ONext _ _ mtbq)                  = mtbq
+outputMaybeTBQueue (ORspn _ (RspnStreaming _ _ tbq) _) = Just tbq
+outputMaybeTBQueue (ORspn _ _ _)                       = Nothing
+outputMaybeTBQueue (ONext _ _ mtbq)                    = mtbq
 
 data Control = CFinish
              | CGoaway   !ByteString

@@ -111,8 +111,8 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                               E.throwIO $ StreamError ProtocolError streamId
                           writeIORef streamPrecedence $ toPrecedence pri
                           writeIORef streamState HalfClosed
-                          let !req = mkreq vh (return "")
-                          atomically $ writeTQueue inputQ $ Input strm req
+                          let (!req, !ii) = mkreq vh (return "")
+                          atomically $ writeTQueue inputQ $ Input strm req ii
                       Nothing -> E.throwIO $ StreamError ProtocolError streamId
               Open (HasBody hdr pri) -> do
                   resetContinued
@@ -124,8 +124,8 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                           writeIORef streamContentLength $ vhCL vh
                           readQ <- newReadBody q
                           bodySource <- mkSource readQ
-                          let !req = mkreq vh (readSource bodySource)
-                          atomically $ writeTQueue inputQ $ Input strm req
+                          let (!req, !ii) = mkreq vh (readSource bodySource)
+                          atomically $ writeTQueue inputQ $ Input strm req ii
                       Nothing -> E.throwIO $ StreamError ProtocolError streamId
               s@(Open Continued{}) -> do
                   setContinued
