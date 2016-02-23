@@ -1,3 +1,9 @@
+## 3.2.3
+
+* Using http2 v1.5.x which much improves the performance of HTTP/2.
+* To get rid of the bottleneck of ByteString's (==), a new logic to
+  compare header names is introduced.
+
 ## 3.2.2
 
 * Throwing errno for pread [#499](https://github.com/yesodweb/wai/issues/499).
