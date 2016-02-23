@@ -1,1 +1,1 @@
-:set -itest -idist/build/autogen -optP-include -optPdist/build/autogen/cabal_macros.h
+:set -itest -idist/build/autogen -i.stack-work/dist/x86_64-linux/Cabal-1.22.5.0/build/autogen
