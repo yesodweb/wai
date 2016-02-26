@@ -1,6 +1,10 @@
+## 3.2.1
+
+* Removing dependency to cprng-aes.
+
 ## 3.2.0
 
-* Major version up due to breaking changes. 
+* Major version up due to breaking changes.
 * runHTTP2TLS and runHTTP2TLSSocket were removed.
 
 ## 3.1.4
