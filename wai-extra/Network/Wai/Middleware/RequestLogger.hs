@@ -140,14 +140,16 @@ customMiddlewareWithDetails cb getdate formatter app req sendResponse = do
     return rspRcv
 
 -- | Production request logger middleware.
+--
+-- This uses the 'Apache' logging format, and takes IP addresses for clients from
+-- the socket (see 'IPAddrSource' for more information). It logs to 'stdout'.
 {-# NOINLINE logStdout #-}
 logStdout :: Middleware
 logStdout = unsafePerformIO $ mkRequestLogger def { outputFormat = Apache FromSocket }
 
 -- | Development request logger middleware.
 --
--- Flushes 'stdout' on each request, which would be inefficient in production use.
--- Use "logStdout" in production.
+-- This uses the 'Detailed' 'True' logging format and logs to 'stdout'.
 {-# NOINLINE logStdoutDev #-}
 logStdoutDev :: Middleware
 logStdoutDev = unsafePerformIO $ mkRequestLogger def

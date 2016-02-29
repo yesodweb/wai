@@ -1,3 +1,7 @@
+## 3.0.14.1
+
+* Doc update for logStdout and logStdoutDev [#515](https://github.com/yesodweb/wai/issues/515)
+
 ## 3.0.14
 
 * Middleware to force domain names. [#506](https://github.com/yesodweb/wai/issues/506) [#507](https://github.com/yesodweb/wai/pull/507)
