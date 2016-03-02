@@ -22,7 +22,7 @@ import Data.IP (toHostAddress, toHostAddress6)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Network (sClose, Socket)
-import Network.Socket (accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6))
+import Network.Socket (accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6), setSocketOption, SocketOption(..))
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer
@@ -105,6 +105,7 @@ runSettings set app = withSocketsDo $
         sClose
         (\socket -> do
             setSocketCloseOnExec socket
+            setSocketOption socket NoDelay 1
             runSettingsSocket set socket app)
 
 -- | This installs a shutdown handler for the given socket and
