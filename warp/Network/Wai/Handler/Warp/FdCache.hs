@@ -72,7 +72,7 @@ inactive (MutableStatus ref) = writeIORef ref Inactive
 data FdEntry = FdEntry !FilePath !Fd !MutableStatus
 
 openFile :: FilePath -> IO Fd
-openFile path = openFd path ReadOnly Nothing defaultFileFlags{nonBlock=True}
+openFile path = openFd path ReadOnly Nothing defaultFileFlags{nonBlock=False}
 
 closeFile :: Fd -> IO ()
 closeFile = closeFd
