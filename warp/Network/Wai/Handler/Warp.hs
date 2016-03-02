@@ -90,6 +90,8 @@ module Network.Wai.Handler.Warp (
   , pauseTimeout
   , FileInfo(..)
   , getFileInfo
+  , withApplication
+  , openFreePort
     -- * Version
   , warpVersion
   ) where
@@ -109,6 +111,7 @@ import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types hiding (getFileInfo)
+import Network.Wai.Handler.Warp.WithApplication
 
 -- | Port to listen on. Default value: 3000
 --
