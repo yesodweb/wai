@@ -105,7 +105,6 @@ runSettings set app = withSocketsDo $
         sClose
         (\socket -> do
             setSocketCloseOnExec socket
-            setSocketOption socket NoDelay 1
             runSettingsSocket set socket app)
 
 -- | This installs a shutdown handler for the given socket and
@@ -131,6 +130,7 @@ runSettingsSocket set socket app = do
         (s, sa) <- accept socket
 #endif
         setSocketCloseOnExec s
+        setSocketOption s NoDelay 1
         conn <- socketConnection s
         return (conn, sa)
 
