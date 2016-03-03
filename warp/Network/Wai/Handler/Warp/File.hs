@@ -161,19 +161,21 @@ contentRangeHeader beg end total = (
       ( '/'
       : showInt total "")
 
-addContentHeaders :: H.ResponseHeaders -> Integer -> Integer -> Integer -> H.ResponseHeaders
-addContentHeaders hs off len size = hs''
-  where
-    contentRange = contentRangeHeader off (off + len - 1) size
-    !lengthBS = B.pack $ show len
-    hs' = (H.hContentLength, lengthBS):(
+acceptRange :: H.HeaderName
 #if MIN_VERSION_http_types(0,9,0)
-        H.hAcceptRanges
+acceptRange = H.hAcceptRanges
 #else
-        "Accept-Ranges"
+acceptRange = "Accept-Ranges"
 #endif
-        , "bytes"):hs
-    hs'' = if len == size then hs' else contentRange:hs'
+
+addContentHeaders :: H.ResponseHeaders -> Integer -> Integer -> Integer -> H.ResponseHeaders
+addContentHeaders hs off len size
+  | len == size = hs'
+  | otherwise   = let !contentRange = contentRangeHeader off (off + len - 1) size
+                  in contentRange:hs'
+  where
+    !lengthBS = B.pack $ show len -- fixme
+    !hs' = (H.hContentLength, lengthBS) : (acceptRange,"bytes") : hs
 
 -- |
 --
