@@ -40,17 +40,17 @@ conditionalRequest :: I.FileInfo
                    -> RspFileInfo
 conditionalRequest finfo hs0 reqidx = case condition of
     nobody@(WithoutBody _) -> nobody
-    WithBody s _ off len   -> let hs = (H.hLastModified,date) :
-                                       addContentHeaders hs0 off len size
+    WithBody s _ off len   -> let !hs = (H.hLastModified,date) :
+                                        addContentHeaders hs0 off len size
                               in WithBody s hs off len
   where
-    mtime = I.fileInfoTime finfo
-    size  = I.fileInfoSize finfo
-    date  = I.fileInfoDate finfo
-    mcondition = ifmodified    reqidx size mtime
-             <|> ifunmodified  reqidx size mtime
-             <|> ifrange       reqidx size mtime
-    condition = fromMaybe (unconditional reqidx size) mcondition
+    !mtime = I.fileInfoTime finfo
+    !size  = I.fileInfoSize finfo
+    !date  = I.fileInfoDate finfo
+    !mcondition = ifmodified    reqidx size mtime
+              <|> ifunmodified  reqidx size mtime
+              <|> ifrange       reqidx size mtime
+    !condition = fromMaybe (unconditional reqidx size) mcondition
 
 ----------------------------------------------------------------
 
@@ -140,16 +140,17 @@ parseByteRanges bs1 = do
 
 ----------------------------------------------------------------
 
+contentRange :: H.HeaderName
+#if MIN_VERSION_http_types(0,9,0)
+contentRange = H.hContentRange
+#else
+contentRange = "Content-Range"
+#endif
+
 -- | @contentRangeHeader beg end total@ constructs a Content-Range 'H.Header'
 -- for the range specified.
 contentRangeHeader :: Integer -> Integer -> Integer -> H.Header
-contentRangeHeader beg end total = (
-#if MIN_VERSION_http_types(0,9,0)
-        H.hContentRange
-#else
-        "Content-Range"
-#endif
-    , range)
+contentRangeHeader beg end total = (contentRange, range)
   where
     range = B.pack
       -- building with ShowS
@@ -171,8 +172,8 @@ acceptRange = "Accept-Ranges"
 addContentHeaders :: H.ResponseHeaders -> Integer -> Integer -> Integer -> H.ResponseHeaders
 addContentHeaders hs off len size
   | len == size = hs'
-  | otherwise   = let !contentRange = contentRangeHeader off (off + len - 1) size
-                  in contentRange:hs'
+  | otherwise   = let !ctrng = contentRangeHeader off (off + len - 1) size
+                  in ctrng:hs'
   where
     !lengthBS = B.pack $ show len -- fixme
     !hs' = (H.hContentLength, lengthBS) : (acceptRange,"bytes") : hs
