@@ -9,6 +9,7 @@ module Network.Wai.Handler.Warp.FdCache (
 #ifndef WINDOWS
   , openFile
   , closeFile
+  , setFileCloseOnExec
 #endif
   ) where
 
@@ -20,7 +21,7 @@ import Control.Exception (bracket)
 import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.MultiMap
 import Control.Reaper
-import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
+import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd, FdOption(CloseOnExec), setFdOption)
 #endif
 import System.Posix.Types (Fd)
 
@@ -70,13 +71,19 @@ inactive (MutableStatus ref) = writeIORef ref Inactive
 data FdEntry = FdEntry !FilePath !Fd !MutableStatus
 
 openFile :: FilePath -> IO Fd
-openFile path = openFd path ReadOnly Nothing defaultFileFlags{nonBlock=False}
+openFile path = do
+    fd <- openFd path ReadOnly Nothing defaultFileFlags{nonBlock=False}
+    setFileCloseOnExec fd
+    return fd
 
 closeFile :: Fd -> IO ()
 closeFile = closeFd
 
 newFdEntry :: FilePath -> IO FdEntry
 newFdEntry path = FdEntry path <$> openFile path <*> newActiveStatus
+
+setFileCloseOnExec :: Fd -> IO ()
+setFileCloseOnExec fd = setFdOption fd CloseOnExec True
 
 ----------------------------------------------------------------
 

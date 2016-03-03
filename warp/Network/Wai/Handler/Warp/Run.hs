@@ -47,7 +47,6 @@ import System.IO.Error (isFullErrorType, ioeGetErrorType)
 #if WINDOWS
 import Network.Wai.Handler.Warp.Windows
 #else
-import System.Posix.IO (FdOption(CloseOnExec), setFdOption)
 import Network.Socket (fdSocket)
 #endif
 
@@ -492,8 +491,7 @@ setSocketCloseOnExec :: Socket -> IO ()
 #if WINDOWS
 setSocketCloseOnExec _ = return ()
 #else
-setSocketCloseOnExec socket =
-    setFdOption (fromIntegral $ fdSocket socket) CloseOnExec True
+setSocketCloseOnExec socket = F.setFileCloseOnExec $ fromIntegral $ fdSocket socket
 #endif
 
 gracefulShutdown :: Counter -> IO ()
