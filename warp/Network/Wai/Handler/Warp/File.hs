@@ -70,7 +70,7 @@ ifmodified reqidx size mtime = do
     date <- ifModifiedSince reqidx
     return $ if date /= mtime
              then unconditional reqidx size
-             else  WithoutBody H.notModified304
+             else WithoutBody H.notModified304
 
 ifunmodified :: IndexedHeader -> Integer -> HTTPDate -> Maybe RspFileInfo
 ifunmodified reqidx size mtime = do
