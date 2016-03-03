@@ -15,10 +15,7 @@ import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import qualified Network.Wai.Handler.Warp.Timeout as T
-
-#ifndef WINDOWS
 import System.Posix.Types (Fd)
-#endif
 
 ----------------------------------------------------------------
 
@@ -54,10 +51,6 @@ instance Show InvalidRequest where
 instance Exception InvalidRequest
 
 ----------------------------------------------------------------
-
-#ifdef WINDOWS
-type Fd = ()
-#endif
 
 -- | Data type to abstract file identifiers.
 --   On Unix, a file descriptor would be specified to make use of

@@ -12,9 +12,7 @@ module Network.Wai.Handler.Warp.FdCache (
 #endif
   ) where
 
-#ifdef WINDOWS
-type Fd = ()
-#else
+#ifndef WINDOWS
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>), (<*>))
 #endif
@@ -23,8 +21,8 @@ import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.MultiMap
 import Control.Reaper
 import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd)
-import System.Posix.Types (Fd)
 #endif
+import System.Posix.Types (Fd)
 
 ----------------------------------------------------------------
 
