@@ -94,7 +94,7 @@ lbsBackEnd _ _ popper =
 tempFileBackEnd :: InternalState -> ignored1 -> ignored2 -> IO S.ByteString -> IO FilePath
 tempFileBackEnd = tempFileBackEndOpts getTemporaryDirectory "webenc.buf"
 
--- | Same as 'tempFileSink', but use configurable temp folders and patterns.
+-- | Same as 'tempFileBackEnd', but use configurable temp folders and patterns.
 tempFileBackEndOpts :: IO FilePath -- ^ get temporary directory
                     -> String -- ^ filename pattern
                     -> InternalState
