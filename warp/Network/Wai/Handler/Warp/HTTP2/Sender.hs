@@ -84,8 +84,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         case x of
             C ctl -> do
                 when (off /= 0) $ flushN off
-                cont <- control ctl
-                when cont $ loop 0
+                off' <- control ctl off
+                when (off' >= 0) $ loop off'
             O (_,pre,out) -> do
                 let strm = outputStream out
                 writeIORef (streamPrecedence strm) pre
@@ -96,15 +96,24 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                       | otherwise    -> loop off'
             Flush -> flushN off >> loop 0
 
-    control CFinish         = return False
-    control (CGoaway frame) = connSendAll frame >> return False
-    control (CFrame frame)  = connSendAll frame >> return True
-    control (CSettings frame alist) = do
+    control CFinish         _ = return (-1)
+    control (CGoaway frame) _ = connSendAll frame >> return (-1)
+    control (CFrame frame)  _ = connSendAll frame >> return 0
+    control (CSettings frame alist) _ = do
         connSendAll frame
-        case lookup SettingsHeaderTableSize alist of
-            Nothing  -> return ()
-            Just siz -> setLimitForEncoding siz encodeDynamicTable
-        return True
+        setLimit alist
+        return 0
+    control (CSettings0 frame1 frame2 alist) off = do -- off == 0, just in case
+        let !buf = connWriteBuffer `plusPtr` off
+            !off' = off + BS.length frame1 + BS.length frame2
+        buf' <- copy buf frame1
+        void $ copy buf' frame2
+        setLimit alist
+        return off'
+
+    setLimit alist = case lookup SettingsHeaderTableSize alist of
+        Nothing  -> return ()
+        Just siz -> setLimitForEncoding siz encodeDynamicTable
 
     output (ONext strm curr mtbq) off0 lim = do
         -- Data frame payload

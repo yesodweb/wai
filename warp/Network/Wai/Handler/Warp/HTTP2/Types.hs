@@ -81,9 +81,10 @@ outputMaybeTBQueue (ORspn _ _ _)                       = Nothing
 outputMaybeTBQueue (ONext _ _ mtbq)                    = mtbq
 
 data Control = CFinish
-             | CGoaway   !ByteString
-             | CFrame    !ByteString
-             | CSettings !ByteString !SettingsList
+             | CGoaway    !ByteString
+             | CFrame     !ByteString
+             | CSettings  !ByteString !SettingsList
+             | CSettings0 !ByteString !ByteString !SettingsList
 
 ----------------------------------------------------------------
 

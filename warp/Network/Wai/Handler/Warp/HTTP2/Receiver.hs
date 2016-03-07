@@ -187,9 +187,11 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, contro
         modifyIORef' http2settings $ \old -> updateSettings old alist
         let !frame = settingsFrame setAck []
         sent <- readIORef firstSettings
-        let !frame' = if sent then frame else BS.append initialFrame frame
+        let !setframe
+              | sent      = CSettings               frame alist
+              | otherwise = CSettings0 initialFrame frame alist
         unless sent $ writeIORef firstSettings True
-        enqueueControl controlQ $ CSettings frame' alist
+        enqueueControl controlQ setframe
     return True
 
 control FramePing FrameHeader{flags} bs Context{controlQ} =
