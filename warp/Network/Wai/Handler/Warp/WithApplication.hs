@@ -1,6 +1,7 @@
 
 module Network.Wai.Handler.Warp.WithApplication (
   withApplication,
+  testWithApplication,
   openFreePort,
 ) where
 
@@ -16,15 +17,12 @@ data App
   = App {
     appThread :: ThreadId,
     appKilled :: Waiter (),
-    appExceptionMVar :: MVar (Maybe SomeException),
     appPort :: Int
   }
 
 -- | Runs the given 'Application' on a free port. Passes the port to the given
 -- operation and executes it, while the 'Application' is running. Shuts down the
 -- server before returning.
---
--- Handy for e.g. testing 'Application's over a real network port.
 withApplication :: IO Application -> (Port -> IO a) -> IO a
 withApplication mkApp action = do
   app <- mkApp
@@ -34,33 +32,42 @@ withApplication mkApp action = do
     acquire app = do
       start <- mkWaiter
       killed <- mkWaiter
-      exceptionMVar_ <- newMVar Nothing
       thread <- forkIO $ do
         (port, sock) <- openFreePort
         let settings =
               defaultSettings{
                 settingsBeforeMainLoop = notify start port
               }
-        runSettingsSocket settings sock (handleApp exceptionMVar_ app)
+        runSettingsSocket settings sock app
           `finally` notify killed ()
       port <- waitFor start
-      return $ App thread killed exceptionMVar_ port
+      return $ App thread killed port
 
     free :: App -> IO ()
     free runningApp = do
       killThread $ appThread runningApp
       waitFor $ appKilled runningApp
-      exception <- readMVar (appExceptionMVar runningApp)
-      case exception of
-        Nothing -> return ()
-        Just e -> throwIO e
 
-handleApp :: MVar (Maybe SomeException) -> Application -> Application
-handleApp mvar app request respond = do
-  catch (app request respond) $ \ e -> do
-    modifyMVar_ mvar $ \ _ ->
-      return (Just e)
-    throwIO e
+-- | Same as 'withApplication' but with different exception handling: If the
+-- given 'Application' throws an exception, 'testWithApplication' will re-throw
+-- the exception to the calling thread, possibly interrupting the execution of
+-- the given operation.
+--
+-- This is handy for running tests against an 'Application' over a real network
+-- port. When running tests, it's useful to let exceptions thrown by your
+-- 'Application' propagate to the main thread of the test-suite.
+--
+-- __The exception handling makes this function unsuitable for use in production.__
+-- Use 'withApplication' instead.
+testWithApplication :: IO Application -> (Port -> IO a) -> IO a
+testWithApplication mkApp action = do
+  callingThread <- myThreadId
+  app <- mkApp
+  let wrappedApp request respond =
+        app request respond `catch` \ e -> do
+          throwTo callingThread (e :: SomeException)
+          throwIO e
+  withApplication (return wrappedApp) action
 
 data Waiter a
   = Waiter {
