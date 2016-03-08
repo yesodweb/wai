@@ -92,7 +92,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 off' <- whenReadyOrEnqueueAgain out off $ output out off
                 case off' of
                     0                -> loop 0
-                    _ | off' > 12288 -> flushN off' >> loop 0 -- fixme: hard-coding
+                    _ | off' > 15872 -> flushN off' >> loop 0 -- fixme: hard-coding
                       | otherwise    -> loop off'
             Flush -> flushN off >> loop 0
 
