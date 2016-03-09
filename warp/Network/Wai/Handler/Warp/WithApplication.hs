@@ -3,6 +3,7 @@ module Network.Wai.Handler.Warp.WithApplication (
   withApplication,
   testWithApplication,
   openFreePort,
+  withFreePort,
 ) where
 
 import           Control.Concurrent
@@ -16,8 +17,7 @@ import           Network.Wai.Handler.Warp.Types
 data App
   = App {
     appThread :: ThreadId,
-    appKilled :: Waiter (),
-    appPort :: Int
+    appKilled :: Waiter ()
   }
 
 -- | Runs the given 'Application' on a free port. Passes the port to the given
@@ -26,25 +26,26 @@ data App
 withApplication :: IO Application -> (Port -> IO a) -> IO a
 withApplication mkApp action = do
   app <- mkApp
-  bracket (acquire app) free (\ runningApp -> action (appPort runningApp))
+  withFreePort $ \ (port, sock) -> do
+    bracket (start app sock) stop $ \ _ ->
+      action port
   where
-    acquire :: Application -> IO App
-    acquire app = do
-      start <- mkWaiter
+    start :: Application -> Socket -> IO App
+    start app sock = do
+      started <- mkWaiter
       killed <- mkWaiter
       thread <- forkIO $ do
-        (port, sock) <- openFreePort
         let settings =
               defaultSettings{
-                settingsBeforeMainLoop = notify start port
+                settingsBeforeMainLoop = notify started ()
               }
         runSettingsSocket settings sock app
           `finally` notify killed ()
-      port <- waitFor start
-      return $ App thread killed port
+      waitFor started
+      return $ App thread killed
 
-    free :: App -> IO ()
-    free runningApp = do
+    stop :: App -> IO ()
+    stop runningApp = do
       killThread $ appThread runningApp
       waitFor $ appKilled runningApp
 
@@ -92,3 +93,7 @@ openFreePort = do
   listen s 1
   port <- socketPort s
   return (fromIntegral port, s)
+
+-- | Like 'openFreePort' but closes the socket before exiting.
+withFreePort :: ((Port, Socket) -> IO a) -> IO a
+withFreePort = bracket openFreePort (close . snd)

@@ -2,8 +2,10 @@
 
 module WithApplicationSpec where
 
+import           Control.Concurrent
 import           Control.Exception
 import           Network.HTTP.Types
+import           Network.Socket
 import           Network.Wai
 import           System.IO
 import           System.IO.Silently
@@ -35,3 +37,9 @@ spec = do
         (testWithApplication mkApp $ \ port -> do
             readProcess "curl" ["-s", "localhost:" ++ show port] "")
           `shouldThrow` (errorCall "foo")
+
+  describe "withFreePort" $ do
+    it "closes the socket before exiting" $ do
+      MkSocket _ _ _ _ statusMVar <- withFreePort $ \ (_, sock) -> do
+        return sock
+      readMVar statusMVar `shouldReturn` Closed
