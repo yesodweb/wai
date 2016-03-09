@@ -7,18 +7,13 @@ module Network.Wai.Handler.Warp.WithApplication (
 ) where
 
 import           Control.Concurrent
+import           Control.Concurrent.Async
 import           Control.Exception
 import           Network.Socket
 import           Network.Wai
 import           Network.Wai.Handler.Warp.Run
 import           Network.Wai.Handler.Warp.Settings
 import           Network.Wai.Handler.Warp.Types
-
-data App
-  = App {
-    appThread :: ThreadId,
-    appKilled :: Waiter ()
-  }
 
 -- | Runs the given 'Application' on a free port. Passes the port to the given
 -- operation and executes it, while the 'Application' is running. Shuts down the
@@ -27,27 +22,17 @@ withApplication :: IO Application -> (Port -> IO a) -> IO a
 withApplication mkApp action = do
   app <- mkApp
   withFreePort $ \ (port, sock) -> do
-    bracket (start app sock) stop $ \ _ ->
-      action port
-  where
-    start :: Application -> Socket -> IO App
-    start app sock = do
-      started <- mkWaiter
-      killed <- mkWaiter
-      thread <- forkIO $ do
-        let settings =
-              defaultSettings{
-                settingsBeforeMainLoop = notify started ()
-              }
-        runSettingsSocket settings sock app
-          `finally` notify killed ()
-      waitFor started
-      return $ App thread killed
-
-    stop :: App -> IO ()
-    stop runningApp = do
-      killThread $ appThread runningApp
-      waitFor $ appKilled runningApp
+    started <- mkWaiter
+    let settings =
+          defaultSettings{
+            settingsBeforeMainLoop = notify started ()
+          }
+    result <- race
+      (runSettingsSocket settings sock app)
+      (waitFor started >> action port)
+    case result of
+      Left () -> throwIO $ ErrorCall "Unexpected: runSettingsSocket exited"
+      Right x -> return x
 
 -- | Same as 'withApplication' but with different exception handling: If the
 -- given 'Application' throws an exception, 'testWithApplication' will re-throw
