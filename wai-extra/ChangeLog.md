@@ -1,3 +1,7 @@
+## 3.0.14.2
+
+* Case insensitive multipart request header lookup [#518](https://github.com/yesodweb/wai/pull/518)
+
 ## 3.0.14.1
 
 * Doc update for logStdout and logStdoutDev [#515](https://github.com/yesodweb/wai/issues/515)
