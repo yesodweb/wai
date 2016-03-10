@@ -7,14 +7,19 @@ module Network.Wai.Handler.Warp.File (
   , conditionalRequest
   , addContentHeadersForFilePart
   , parseByteRanges
+  , packInteger -- testing
   ) where
 
 import Control.Applicative ((<|>))
+import Control.Monad
 import Data.Array ((!))
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as B hiding (pack)
 import qualified Data.ByteString.Char8 as B (pack, readInteger)
+import Data.ByteString.Internal (ByteString(..), unsafeCreate)
 import Data.Maybe (fromMaybe)
+import Data.Word8 (Word8)
+import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.Storable (poke)
 import Network.HTTP.Date
 import qualified Network.HTTP.Types as H
 import qualified Network.HTTP.Types.Header as H
@@ -26,6 +31,9 @@ import Numeric (showInt)
 #ifndef MIN_VERSION_http_types
 #define MIN_VERSION_http_types(x,y,z) 1
 #endif
+
+-- $setup
+-- >>> import Test.QuickCheck
 
 ----------------------------------------------------------------
 
@@ -175,8 +183,27 @@ addContentHeaders hs off len size
   | otherwise   = let !ctrng = contentRangeHeader off (off + len - 1) size
                   in ctrng:hs'
   where
-    !lengthBS = B.pack $ show len -- fixme
+    !lengthBS = packInteger len
     !hs' = (H.hContentLength, lengthBS) : (acceptRange,"bytes") : hs
+
+-- |
+--
+-- prop> packInteger (abs n) == B.pack (show (abs n))
+-- prop> \(Large n) -> let n' = fromIntegral (abs n :: Int) in packInteger n' == B.pack (show n')
+
+packInteger :: Integer -> ByteString
+packInteger 0 = "0"
+packInteger n | n < 0 = error "packInteger"
+packInteger n = unsafeCreate len go0
+  where
+    n' = fromIntegral n + 1 :: Double
+    len = ceiling $ logBase 10 n'
+    go0 p = go n $ p `plusPtr` (len - 1)
+    go :: Integer -> Ptr Word8 -> IO ()
+    go i p = do
+        let (d,r) = i `divMod` 10
+        poke p (48 + fromIntegral r)
+        when (d /= 0) $ go d (p `plusPtr` (-1))
 
 -- |
 --
