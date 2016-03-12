@@ -38,9 +38,8 @@ library
                    , file-embed                >= 0.0.3.1
                    , text                      >= 0.7
                    , blaze-builder             >= 0.2.1.4
-                   , base64-bytestring         >= 0.1
-                   , byteable
-                   , cryptohash                >= 0.11
+                   , cryptonite                >= 0.10
+                   , memory                >= 0.10
                    , http-date
                    , blaze-html                >= 0.5
                    , blaze-markup              >= 0.5.1
@@ -52,8 +51,6 @@ library
                    , wai-extra                 >= 3.0      && < 3.1
                    , optparse-applicative      >= 0.7
                    , warp                      >= 3.0.11   && < 3.3
-                   -- Used exclusively for hashFile function
-                   , cryptohash-conduit
 
     exposed-modules: Network.Wai.Application.Static
                      WaiAppStatic.Storage.Filesystem
