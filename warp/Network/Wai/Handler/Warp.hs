@@ -246,7 +246,7 @@ getOnException = settingsOnException
 --
 -- For instance, this code should set up a UNIX signal
 -- handler. The handler should call the first argument,
--- which close the listen socket, at shutdown.
+-- which closes the listen socket, at shutdown.
 --
 -- Default: does not install any code.
 --
