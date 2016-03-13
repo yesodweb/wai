@@ -38,8 +38,8 @@ library
                    , file-embed                >= 0.0.3.1
                    , text                      >= 0.7
                    , blaze-builder             >= 0.2.1.4
-                   , cryptonite                >= 0.10
-                   , memory                >= 0.10
+                   , cryptonite                >= 0.6
+                   , memory                    >= 0.7
                    , http-date
                    , blaze-html                >= 0.5
                    , blaze-markup              >= 0.5.1
