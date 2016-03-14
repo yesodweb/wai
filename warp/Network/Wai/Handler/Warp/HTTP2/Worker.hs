@@ -48,21 +48,22 @@ type Responder = InternalInfo -> ThreadContinue -> Stream -> Request ->
 --   They also pass 'Response's from 'Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: S.Settings -> Context -> Manager -> Responder
-response settings Context{outputQ} mgr ii tconf strm req rsp
-  | R.hasBody s0 = case rsp of
-    ResponseStream _ _ strmbdy
-      | isHead             -> responseNoBody s0 hs0
-      | otherwise          -> responseStreaming strmbdy
-    ResponseBuilder _ _ b
-      | isHead             -> responseNoBody s0 hs0
-      | otherwise          -> responseBuilderBody s0 hs0 b
-    ResponseFile _ _ p mp  -> responseFileXXX p mp
-    ResponseRaw _ _        -> error "HTTP/2 does not support ResponseRaw"
-  | otherwise               = responseNoBody s0 hs0
+response settings Context{outputQ} mgr ii tconf strm req rsp = case rsp of
+  ResponseStream s0 hs0 strmbdy
+    | noBody s0          -> responseNoBody s0 hs0
+    | isHead             -> responseNoBody s0 hs0
+    | otherwise          -> responseStreaming s0 hs0 strmbdy
+  ResponseBuilder s0 hs0 b
+    | noBody s0          -> responseNoBody s0 hs0
+    | isHead             -> responseNoBody s0 hs0
+    | otherwise          -> responseBuilderBody s0 hs0 b
+  ResponseFile s0 hs0 p mp
+    | noBody s0          -> responseNoBody s0 hs0
+    | otherwise          -> responseFileXXX s0 hs0 p mp
+  ResponseRaw _ _        -> error "HTTP/2 does not support ResponseRaw"
   where
+    noBody = not . R.hasBody
     !isHead = requestMethod req == H.methodHead
-    !s0 = responseStatus rsp
-    !hs0 = responseHeaders rsp
     !logger = S.settingsLogger settings
     !th = threadHandle ii
 
@@ -88,15 +89,15 @@ response settings Context{outputQ} mgr ii tconf strm req rsp
         enqueueOutput outputQ out
         return ResponseReceived
 
-    responseFileXXX path Nothing = do
+    responseFileXXX _ hs0 path Nothing = do
         efinfo <- E.try $ getFileInfo ii path
         case efinfo of
-            Left (_ex :: E.IOException) -> response404
+            Left (_ex :: E.IOException) -> response404 hs0
             Right finfo -> case conditionalRequest finfo hs0 (indexRequestHeader (requestHeaders req)) of
                  WithoutBody s         -> responseNoBody s hs0
                  WithBody s hs beg len -> responseFile2XX s hs path (Just (FilePart beg len (fileInfoSize finfo)))
 
-    responseFileXXX path mpart = responseFile2XX s0 hs0 path mpart
+    responseFileXXX s0 hs0 path mpart = responseFile2XX s0 hs0 path mpart
 
     responseFile2XX s hs path mpart
       | isHead    = do
@@ -110,13 +111,13 @@ response settings Context{outputQ} mgr ii tconf strm req rsp
           enqueueOutput outputQ out
           return ResponseReceived
 
-    response404 = responseBuilderBody s hs body
+    response404 hs0 = responseBuilderBody s hs body
       where
         s = H.notFound404
         hs = R.replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
         body = byteString "File not found"
 
-    responseStreaming strmbdy = do
+    responseStreaming s0 hs0 strmbdy = do
         logger req s0 Nothing
         -- We must not exit this WAI application.
         -- If the application exits, streaming would be also closed.
