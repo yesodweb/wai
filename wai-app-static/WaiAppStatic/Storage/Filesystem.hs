@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 -- | Access files on the filesystem.
 module WaiAppStatic.Storage.Filesystem
     ( -- * Types
@@ -12,6 +13,7 @@ module WaiAppStatic.Storage.Filesystem
 
 import WaiAppStatic.Types
 import System.FilePath ((</>))
+import System.IO (withBinaryFile, IOMode(..))
 import System.Directory (doesFileExist, doesDirectoryExist, getDirectoryContents)
 import Data.List (foldl')
 import Control.Monad (forM)
@@ -23,10 +25,9 @@ import WaiAppStatic.Listing
 import Network.Mime
 import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime, isRegularFile)
 import Data.Maybe (catMaybes)
-import qualified Crypto.Hash.Conduit (hashFile)
-import Data.Byteable (toBytes)
-import Crypto.Hash (MD5, Digest)
-import qualified Data.ByteString.Base64 as B64
+import Data.ByteArray.Encoding
+import Crypto.Hash (hashlazy, MD5, Digest)
+import qualified Data.ByteString.Lazy as BL (hGetContents)
 import qualified Data.Text as T
 
 -- | Construct a new path from a root and some @Pieces@.
@@ -119,9 +120,10 @@ webAppLookup hashFunc prefix pieces =
 -- | MD5 hash and base64-encode the file contents. Does not check if the file
 -- exists.
 hashFile :: FilePath -> IO ByteString
-hashFile fp = do
-    h <- Crypto.Hash.Conduit.hashFile fp
-    return $ B64.encode $ toBytes (h :: Digest MD5)
+hashFile fp = withBinaryFile fp ReadMode $ \h -> do
+    f <- BL.hGetContents h
+    let !hash = hashlazy f :: Digest MD5
+    return $ convertToBase Base64 hash
 
 hashFileIfExists :: ETagLookup
 hashFileIfExists fp = do

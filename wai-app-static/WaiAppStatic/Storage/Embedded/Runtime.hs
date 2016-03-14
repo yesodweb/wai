@@ -16,8 +16,7 @@ import qualified Data.Text as T
 import Data.Ord
 import qualified Data.ByteString as S
 import Crypto.Hash (hash, MD5, Digest)
-import Data.Byteable (toBytes)
-import qualified Data.ByteString.Base64 as B64
+import Data.ByteArray.Encoding
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import System.FilePath (isPathSeparator)
 
@@ -95,4 +94,4 @@ bsToFile name bs = File
     }
 
 runHash :: ByteString -> ByteString
-runHash = B64.encode . toBytes . (hash :: S.ByteString -> Digest MD5)
+runHash = convertToBase Base64 . (hash :: S.ByteString -> Digest MD5)
