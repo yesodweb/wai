@@ -13,3 +13,8 @@ packages:
 - ./auto-update
 extra-deps:
 - http2-1.5.0
+nix:
+  enable: false
+  packages:
+  - fcgi
+  - zlib
