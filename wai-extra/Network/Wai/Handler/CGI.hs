@@ -118,6 +118,10 @@ runGeneric vars inputH outputH xsendfile app = do
             , requestBodyLength = KnownLength $ fromIntegral contentLength
             , requestHeaderHost = lookup "host" reqHeaders
             , requestHeaderRange = lookup hRange reqHeaders
+#if MIN_VERSION_wai(3,2,0)
+            , requestHeaderReferer = lookup "referer" reqHeaders
+            , requestHeaderUserAgent = lookup "user-agent" reqHeaders
+#endif
             }
     void $ app env $ \res ->
         case (xsendfile, res) of
