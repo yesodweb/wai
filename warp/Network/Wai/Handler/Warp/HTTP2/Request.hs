@@ -3,7 +3,6 @@
 
 module Network.Wai.Handler.Warp.HTTP2.Request (
     mkRequest
-  , newReadBody
   , MkReq
   , ValidHeaders(..)
   , validateHeaders
@@ -12,13 +11,10 @@ module Network.Wai.Handler.Warp.HTTP2.Request (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Concurrent.STM
-import Control.Monad (when)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.CaseInsensitive (mk)
-import Data.IORef (IORef, readIORef, newIORef, writeIORef)
 import Data.Maybe (isJust)
 import qualified Data.Vault.Lazy as Vault
 #if __GLASGOW_HASKELL__ < 709
@@ -168,21 +164,3 @@ validateHeaders hs = case pseudo hs emptySpecial of
                               in [("cookie",v)]
     isPseudo "" = False
     isPseudo k  = BS.head k == _colon
-
-
-----------------------------------------------------------------
-
-newReadBody :: TQueue ByteString -> IO (IO ByteString)
-newReadBody q = do
-    ref <- newIORef False
-    return $ readBody q ref
-
-readBody :: TQueue ByteString -> IORef Bool -> IO ByteString
-readBody q ref = do
-    eof <- readIORef ref
-    if eof then
-        return ""
-      else do
-        bs <- atomically $ readTQueue q
-        when (bs == "") $ writeIORef ref True
-        return bs

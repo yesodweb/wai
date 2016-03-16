@@ -347,3 +347,20 @@ stream _ _ _ _ (Open Continued{}) _ = E.throwIO $ ConnectionError ProtocolError 
 stream _ _ _ _ st@(Closed (ResetByMe _)) _ = return st
 stream FrameData FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError StreamClosed streamId
 stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError ProtocolError streamId
+
+----------------------------------------------------------------
+
+newReadBody :: TQueue ByteString -> IO (IO ByteString)
+newReadBody q = do
+    ref <- newIORef False
+    return $ readBody q ref
+
+readBody :: TQueue ByteString -> IORef Bool -> IO ByteString
+readBody q ref = do
+    eof <- readIORef ref
+    if eof then
+        return ""
+      else do
+        bs <- atomically $ readTQueue q
+        when (bs == "") $ writeIORef ref True
+        return bs
