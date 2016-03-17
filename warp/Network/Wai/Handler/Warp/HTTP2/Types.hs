@@ -41,7 +41,7 @@ isHTTP2 tls = useHTTP2
 
 ----------------------------------------------------------------
 
-data Input = Input Stream Request InternalInfo
+data Input = Input Stream Request ValueTable InternalInfo
 
 ----------------------------------------------------------------
 
@@ -51,10 +51,10 @@ type BytesFilled = Int
 
 data Next = Next !BytesFilled (Maybe DynaNext)
 
-data Rspn = RspnNobody    H.Status H.ResponseHeaders
-          | RspnStreaming H.Status H.ResponseHeaders (TBQueue Sequence)
-          | RspnBuilder   H.Status H.ResponseHeaders Builder
-          | RspnFile      H.Status H.ResponseHeaders FilePath (Maybe FilePart)
+data Rspn = RspnNobody    H.Status (TokenHeaderList, ValueTable)
+          | RspnStreaming H.Status (TokenHeaderList, ValueTable) (TBQueue Sequence)
+          | RspnBuilder   H.Status (TokenHeaderList, ValueTable) Builder
+          | RspnFile      H.Status (TokenHeaderList, ValueTable) FilePath (Maybe FilePart)
 
 rspnStatus :: Rspn -> H.Status
 rspnStatus (RspnNobody    s _)      = s
@@ -62,11 +62,11 @@ rspnStatus (RspnStreaming s _ _)    = s
 rspnStatus (RspnBuilder   s _ _)    = s
 rspnStatus (RspnFile      s _ _ _ ) = s
 
-rspnHeaders :: Rspn -> H.ResponseHeaders
-rspnHeaders (RspnNobody    _ h)      = h
-rspnHeaders (RspnStreaming _ h _)    = h
-rspnHeaders (RspnBuilder   _ h _)    = h
-rspnHeaders (RspnFile      _ h _ _ ) = h
+rspnHeaders :: Rspn -> (TokenHeaderList, ValueTable)
+rspnHeaders (RspnNobody    _ t)      = t
+rspnHeaders (RspnStreaming _ t _)    = t
+rspnHeaders (RspnBuilder   _ t _)    = t
+rspnHeaders (RspnFile      _ t _ _ ) = t
 
 data Output = ORspn !Stream !Rspn !InternalInfo
             | ONext !Stream !DynaNext !(Maybe (TBQueue Sequence))
@@ -144,8 +144,8 @@ data OpenState =
               !Int  -- The number of continuation frames
               !Bool -- End of stream
               !Priority
-  | NoBody HeaderList !Priority
-  | HasBody HeaderList !Priority
+  | NoBody (TokenHeaderList,ValueTable) !Priority
+  | HasBody (TokenHeaderList,ValueTable) !Priority
   | Body !(TQueue ByteString)
 
 data ClosedCode = Finished

@@ -72,6 +72,7 @@ Library
                      Network.Wai.Handler.Warp.HashMap
                      Network.Wai.Handler.Warp.HTTP2
                      Network.Wai.Handler.Warp.HTTP2.EncodeFrame
+                     Network.Wai.Handler.Warp.HTTP2.File
                      Network.Wai.Handler.Warp.HTTP2.HPACK
                      Network.Wai.Handler.Warp.HTTP2.Manager
                      Network.Wai.Handler.Warp.HTTP2.Receiver
@@ -82,6 +83,7 @@ Library
                      Network.Wai.Handler.Warp.Header
                      Network.Wai.Handler.Warp.IO
                      Network.Wai.Handler.Warp.IORef
+                     Network.Wai.Handler.Warp.PackInt
                      Network.Wai.Handler.Warp.ReadInt
                      Network.Wai.Handler.Warp.Recv
                      Network.Wai.Handler.Warp.Request

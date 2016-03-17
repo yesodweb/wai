@@ -44,14 +44,17 @@ data Leftover = LZero
 
 ----------------------------------------------------------------
 
+{-# INLINE getStreamWindowSize #-}
 getStreamWindowSize :: Stream -> IO WindowSize
 getStreamWindowSize Stream{streamWindow} = atomically $ readTVar streamWindow
 
+{-# INLINE waitStreamWindowSize #-}
 waitStreamWindowSize :: Stream -> STM ()
 waitStreamWindowSize Stream{streamWindow} = do
     w <- readTVar streamWindow
     check (w > 0)
 
+{-# INLINE waitStreaming #-}
 waitStreaming :: TBQueue a -> STM ()
 waitStreaming tbq = do
     isEmpty <- isEmptyTBQueue tbq
@@ -111,6 +114,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         setLimit alist
         return off'
 
+    {-# INLINE setLimit #-}
     setLimit alist = case lookup SettingsHeaderTableSize alist of
         Nothing  -> return ()
         Just siz -> setLimitForEncoding siz encodeDynamicTable
@@ -192,6 +196,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             enqueueControl controlQ $ CFrame rst
             return off
 
+    {-# INLINE flushN #-}
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
     -- the buffer are filled.
     flushN :: Int -> IO ()
@@ -212,8 +217,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         fillFrameHeader FrameHeaders kvlen sid flag buf
         continue sid kvlen hs
 
-    bufHeaderPayload = connWriteBuffer `plusPtr` frameHeaderLength
-    headerPayloadLim = connBufferSize - frameHeaderLength
+    !bufHeaderPayload = connWriteBuffer `plusPtr` frameHeaderLength
+    !headerPayloadLim = connBufferSize - frameHeaderLength
 
     continue _   kvlen [] = return kvlen
     continue sid kvlen hs = do
@@ -227,6 +232,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         fillFrameHeader FrameContinuation kvlen' sid flag connWriteBuffer
         continue sid kvlen' hs'
 
+    {-# INLINE maybeEnqueueNext #-}
     -- Re-enqueue the stream in the output queue.
     maybeEnqueueNext :: Stream -> Maybe (TBQueue Sequence) -> Maybe DynaNext -> IO ()
     maybeEnqueueNext _    _    Nothing     = return ()
@@ -234,6 +240,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
       where
         !out = ONext strm next mtbq
 
+    {-# INLINE sendHeadersIfNecessary #-}
     -- Send headers if there is not room for a 1-byte data frame, and return
     -- the offset of the next frame's first header byte.
     sendHeadersIfNecessary off
@@ -248,19 +255,21 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         let !sid = streamNumber strm
             !buf = connWriteBuffer `plusPtr` off
             !off' = off + frameHeaderLength + datPayloadLen
-            flag = case mnext of
-                Nothing -> setEndStream defaultFlags
-                _       -> defaultFlags
+            !done = isNothing mnext
+            flag | done      = setEndStream defaultFlags
+                 | otherwise = defaultFlags
         fillFrameHeader FrameData datPayloadLen sid flag buf
-        when (isNothing mnext) $ closed ctx strm Finished
+        when done $ closed ctx strm Finished
         atomically $ modifyTVar' connectionWindow (subtract datPayloadLen)
         atomically $ modifyTVar' (streamWindow strm) (subtract datPayloadLen)
         return off'
 
+    {-# INLINE fillFrameHeader #-}
     fillFrameHeader ftyp len sid flag buf = encodeFrameHeaderBuf ftyp hinfo buf
       where
         hinfo = FrameHeader len flag sid
 
+    {-# INLINE ignore #-}
     ignore :: E.SomeException -> IO ()
     ignore _ = return ()
 
@@ -456,6 +465,7 @@ nextForFile len fd start bytes refresh =
     Next len $ Just (fillBufFile fd start bytes refresh)
 #endif
 
+{-# INLINE mini #-}
 mini :: Int -> Integer -> Int
 mini i n
   | fromIntegral i < n = i

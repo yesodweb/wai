@@ -1,8 +1,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, RecordWildCards #-}
 
-module Network.Wai.Handler.Warp.File (
+module Network.Wai.Handler.Warp.HTTP2.File (
     RspFileInfo(..)
   , conditionalRequest
   , addContentHeadersForFilePart
@@ -10,19 +10,18 @@ module Network.Wai.Handler.Warp.File (
   ) where
 
 import Control.Applicative ((<|>))
-import Data.Array ((!))
 import qualified Data.ByteString as B hiding (pack)
 import qualified Data.ByteString.Char8 as B (pack, readInteger)
 import Data.ByteString (ByteString)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Date
 import qualified Network.HTTP.Types as H
-import qualified Network.HTTP.Types.Header as H
 import Network.Wai
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
-import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.PackInt
 import Numeric (showInt)
+import Network.HPACK
+import Network.HPACK.Token
 
 #ifndef MIN_VERSION_http_types
 #define MIN_VERSION_http_types(x,y,z) 1
@@ -33,71 +32,77 @@ import Numeric (showInt)
 
 ----------------------------------------------------------------
 
-data RspFileInfo = WithoutBody H.Status
-                 | WithBody H.Status H.ResponseHeaders Integer Integer
+data RspFileInfo = WithoutBody !H.Status
+                 | WithBody !H.Status !TokenHeaderList !Integer !Integer
                  deriving (Eq,Show)
 
 ----------------------------------------------------------------
 
 conditionalRequest :: I.FileInfo
-                   -> H.ResponseHeaders -> IndexedHeader
+                   -> TokenHeaderList -- Response
+                   -> ValueTable -- Request
                    -> RspFileInfo
-conditionalRequest finfo hs0 reqidx = case condition of
+conditionalRequest (I.FileInfo _ size mtime date) ths0 reqtbl = case condition of
     nobody@(WithoutBody _) -> nobody
-    WithBody s _ off len   -> let !hs = (H.hLastModified,date) :
-                                        addContentHeaders hs0 off len size
+    WithBody s _ off len   -> let !hs = (tokenLastModified,date) :
+                                        addContentHeaders ths0 off len size
                               in WithBody s hs off len
   where
-    !mtime = I.fileInfoTime finfo
-    !size  = I.fileInfoSize finfo
-    !date  = I.fileInfoDate finfo
-    !mcondition = ifmodified    reqidx size mtime
-              <|> ifunmodified  reqidx size mtime
-              <|> ifrange       reqidx size mtime
-    !condition = fromMaybe (unconditional reqidx size) mcondition
+    !mcondition = ifmodified    reqtbl size mtime
+              <|> ifunmodified  reqtbl size mtime
+              <|> ifrange       reqtbl size mtime
+    !condition = fromMaybe (unconditional reqtbl size) mcondition
 
 ----------------------------------------------------------------
 
-ifModifiedSince :: IndexedHeader -> Maybe HTTPDate
-ifModifiedSince reqidx = reqidx ! fromEnum ReqIfModifiedSince >>= parseHTTPDate
+{-# INLINE ifModifiedSince #-}
+ifModifiedSince :: ValueTable -> Maybe HTTPDate
+ifModifiedSince reqtbl = getHeaderValue tokenIfModifiedSince reqtbl >>= parseHTTPDate
 
-ifUnmodifiedSince :: IndexedHeader -> Maybe HTTPDate
-ifUnmodifiedSince reqidx = reqidx ! fromEnum ReqIfUnmodifiedSince >>= parseHTTPDate
+{-# INLINE ifUnmodifiedSince #-}
+ifUnmodifiedSince :: ValueTable -> Maybe HTTPDate
+ifUnmodifiedSince reqtbl = getHeaderValue tokenIfUnmodifiedSince reqtbl >>= parseHTTPDate
 
-ifRange :: IndexedHeader -> Maybe HTTPDate
-ifRange reqidx = reqidx ! fromEnum ReqIfRange >>= parseHTTPDate
+{-# INLINE ifRange #-}
+ifRange :: ValueTable -> Maybe HTTPDate
+ifRange reqtbl = getHeaderValue tokenIfRange reqtbl >>= parseHTTPDate
 
 ----------------------------------------------------------------
 
-ifmodified :: IndexedHeader -> Integer -> HTTPDate -> Maybe RspFileInfo
-ifmodified reqidx size mtime = do
-    date <- ifModifiedSince reqidx
+{-# INLINE ifmodified #-}
+ifmodified :: ValueTable -> Integer -> HTTPDate -> Maybe RspFileInfo
+ifmodified reqtbl size mtime = do
+    date <- ifModifiedSince reqtbl
     return $ if date /= mtime
-             then unconditional reqidx size
+             then unconditional reqtbl size
              else WithoutBody H.notModified304
 
-ifunmodified :: IndexedHeader -> Integer -> HTTPDate -> Maybe RspFileInfo
-ifunmodified reqidx size mtime = do
-    date <- ifUnmodifiedSince reqidx
+{-# INLINE ifunmodified #-}
+ifunmodified :: ValueTable -> Integer -> HTTPDate -> Maybe RspFileInfo
+ifunmodified reqtbl size mtime = do
+    date <- ifUnmodifiedSince reqtbl
     return $ if date == mtime
-             then unconditional reqidx size
+             then unconditional reqtbl size
              else WithoutBody H.preconditionFailed412
 
-ifrange :: IndexedHeader -> Integer -> HTTPDate -> Maybe RspFileInfo
-ifrange reqidx size mtime = do
-    date <- ifRange reqidx
-    rng  <- reqidx ! fromEnum ReqRange
+{-# INLINE ifrange #-}
+ifrange :: ValueTable -> Integer -> HTTPDate -> Maybe RspFileInfo
+ifrange reqtbl size mtime = do
+    date <- ifRange reqtbl
+    rng  <- getHeaderValue tokenRange reqtbl
     return $ if date == mtime
              then parseRange rng size
              else WithBody H.ok200 [] 0 size
 
-unconditional :: IndexedHeader -> Integer -> RspFileInfo
-unconditional reqidx size = case reqidx ! fromEnum ReqRange of
+{-# INLINE unconditional #-}
+unconditional :: ValueTable -> Integer -> RspFileInfo
+unconditional reqtbl size = case getHeaderValue tokenRange reqtbl of
     Nothing  -> WithBody H.ok200 [] 0 size
     Just rng -> parseRange rng size
 
 ----------------------------------------------------------------
 
+{-# INLINE parseRange #-}
 parseRange :: ByteString -> Integer -> RspFileInfo
 parseRange rng size = case parseByteRanges rng of
     Nothing    -> WithoutBody H.requestedRangeNotSatisfiable416
@@ -110,11 +115,13 @@ parseRange rng size = case parseByteRanges rng of
                               H.partialContent206
                   in WithBody s [] beg len
 
+{-# INLINE checkRange #-}
 checkRange :: H.ByteRange -> Integer -> (Integer, Integer)
 checkRange (H.ByteRangeFrom   beg)     size = (beg, size - 1)
 checkRange (H.ByteRangeFromTo beg end) size = (beg,  min (size - 1) end)
 checkRange (H.ByteRangeSuffix count)   size = (max 0 (size - count), size - 1)
 
+{-# INLINE parseByteRanges #-}
 -- | Parse the value of a Range header into a 'H.ByteRanges'.
 parseByteRanges :: B.ByteString -> Maybe H.ByteRanges
 parseByteRanges bs1 = do
@@ -144,17 +151,11 @@ parseByteRanges bs1 = do
 
 ----------------------------------------------------------------
 
-contentRange :: H.HeaderName
-#if MIN_VERSION_http_types(0,9,0)
-contentRange = H.hContentRange
-#else
-contentRange = "Content-Range"
-#endif
-
+{-# INLINE contentRangeHeader #-}
 -- | @contentRangeHeader beg end total@ constructs a Content-Range 'H.Header'
 -- for the range specified.
-contentRangeHeader :: Integer -> Integer -> Integer -> H.Header
-contentRangeHeader beg end total = (contentRange, range)
+contentRangeHeader :: Integer -> Integer -> Integer -> TokenHeader
+contentRangeHeader beg end total = (tokenContentRange, range)
   where
     range = B.pack
       -- building with ShowS
@@ -166,29 +167,24 @@ contentRangeHeader beg end total = (contentRange, range)
       ( '/'
       : showInt total "")
 
-acceptRange :: H.HeaderName
-#if MIN_VERSION_http_types(0,9,0)
-acceptRange = H.hAcceptRanges
-#else
-acceptRange = "Accept-Ranges"
-#endif
-
-addContentHeaders :: H.ResponseHeaders -> Integer -> Integer -> Integer -> H.ResponseHeaders
-addContentHeaders hs off len size
-  | len == size = hs'
+{-# INLINE addContentHeaders #-}
+addContentHeaders :: TokenHeaderList -> Integer -> Integer -> Integer -> TokenHeaderList
+addContentHeaders ths off len size
+  | len == size = ths'
   | otherwise   = let !ctrng = contentRangeHeader off (off + len - 1) size
-                  in ctrng:hs'
+                  in ctrng:ths'
   where
     !lengthBS = packIntegral len
-    !hs' = (H.hContentLength, lengthBS) : (acceptRange,"bytes") : hs
+    !ths' = (tokenContentLength, lengthBS) : (tokenAcceptRanges,"bytes") : ths
 
+{-# INLINE addContentHeadersForFilePart #-}
 -- |
 --
 -- >>> addContentHeadersForFilePart [] (FilePart 2 10 16)
 -- [("Content-Range","bytes 2-11/16"),("Content-Length","10"),("Accept-Ranges","bytes")]
 -- >>> addContentHeadersForFilePart [] (FilePart 0 16 16)
 -- [("Content-Length","16"),("Accept-Ranges","bytes")]
-addContentHeadersForFilePart :: H.ResponseHeaders -> FilePart -> H.ResponseHeaders
+addContentHeadersForFilePart :: TokenHeaderList -> FilePart -> TokenHeaderList
 addContentHeadersForFilePart hs part = addContentHeaders hs off len size
   where
     off = filePartOffset part
