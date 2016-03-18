@@ -1,18 +1,15 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, BangPatterns #-}
 
 module Network.Wai.Handler.Warp.MultiMap (
     MMap
-  , Some(..)
+  , isEmpty
   , empty
   , singleton
   , insert
   , search
   , searchWith
-  , isEmpty
   , pruneWith
   , toList
-  , fromSortedList
-  , toSortedList
   , merge
   ) where
 
@@ -21,44 +18,11 @@ import Control.Applicative ((<$>))
 #endif
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as I
+import qualified Network.Wai.Handler.Warp.Some as S
 
 ----------------------------------------------------------------
 
--- | One ore more list to implement multimap.
-data Some a = One !a
-            | Tom !a !(Some a) -- Two or more
-            deriving (Eq,Show)
-
-{-
-cons :: Some a -> a -> Some a
-cons s x = Tom x s
--}
-
-top :: Some a -> a
-top (One x)   = x
-top (Tom x _) = x
-
-union :: Some a -> Some a -> Some a
-union (One x) s = Tom x s
-union (Tom x xs) s = union xs (Tom x s)
-
-----------------------------------------------------------------
-
-type MMap v = IntMap (Some v)
-
-----------------------------------------------------------------
-
--- | O(log n)
-search :: Int -> MMap v -> Maybe v
-search k m = case I.lookup k m of
-    Nothing -> Nothing
-    Just s  -> Just $! top s
-
--- | O(log n)
-searchWith :: Int -> (Some v -> Maybe v) -> MMap v -> Maybe v
-searchWith k f m = case I.lookup k m of
-    Nothing -> Nothing
-    Just s  -> f s
+type MMap v = IntMap (S.Some v)
 
 ----------------------------------------------------------------
 
@@ -74,13 +38,27 @@ empty = I.empty
 
 -- | O(1)
 singleton :: Int -> v -> MMap v
-singleton k v = I.singleton k (One v)
+singleton k v = I.singleton k (S.singleton v)
+
+----------------------------------------------------------------
+
+-- | O(log n)
+search :: Int -> MMap v -> Maybe v
+search k m = case I.lookup k m of
+    Nothing -> Nothing
+    Just s  -> Just $! S.top s
+
+-- | O(log n)
+searchWith :: Int -> (v -> Bool) -> MMap v -> Maybe v
+searchWith k f m = case I.lookup k m of
+    Nothing -> Nothing
+    Just s  -> S.lookupWith f s
 
 ----------------------------------------------------------------
 
 -- | O(log n)
 insert :: Int -> v -> MMap v -> MMap v
-insert k v m = I.insertWith union k (One v) m
+insert k v m = I.insertWith S.union k (S.singleton v) m
 
 ----------------------------------------------------------------
 
@@ -88,33 +66,26 @@ insert k v m = I.insertWith union k (One v) m
 toList :: MMap v -> [v]
 toList m = concatMap f $ I.toAscList m
   where
-    f (_,s) = go s []
-      where
-        go (One x)    acc = x : acc
-        go (Tom x xs) acc = go xs (x : acc)
-
-----------------------------------------------------------------
-
--- | O(n)
-fromSortedList :: [(Int,Some v)] -> MMap v
-fromSortedList = I.fromAscList
-
-----------------------------------------------------------------
-
--- | O(n)
-toSortedList :: MMap v -> [(Int,Some v)]
-toSortedList = I.toAscList
+    f (_,s) = S.toList s
 
 ----------------------------------------------------------------
 
 -- | O(n)
 pruneWith :: MMap v
-          -> ((Int,Some v) -> IO [(Int, Some v)])
+          -> (v -> IO Bool)
           -> IO (MMap v)
-pruneWith m action = fromSortedList . concat <$> mapM action (toSortedList m)
+pruneWith m action = I.fromAscList <$> go (I.toAscList m)
+  where
+    go [] = return []
+    go ((k,s):kss) = do
+        mt <- S.prune action s
+        lst <- go kss
+        case mt of
+            Nothing -> return lst
+            Just t  -> return $ (k,t) : lst
 
 ----------------------------------------------------------------
 
 -- O(n + m) where N is the size of the second argument
 merge :: MMap v -> MMap v -> MMap v
-merge m1 m2 = I.unionWith union m1 m2
+merge m1 m2 = I.unionWith S.union m1 m2

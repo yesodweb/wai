@@ -91,6 +91,7 @@ Library
                      Network.Wai.Handler.Warp.Run
                      Network.Wai.Handler.Warp.SendFile
                      Network.Wai.Handler.Warp.Settings
+                     Network.Wai.Handler.Warp.Some
                      Network.Wai.Handler.Warp.Timeout
                      Network.Wai.Handler.Warp.Types
                      Network.Wai.Handler.Warp.Windows
@@ -124,7 +125,6 @@ Test-Suite spec
                      ExceptionSpec
                      FdCacheSpec
                      FileSpec
-                     MultiMapSpec
                      ReadIntSpec
                      RequestSpec
                      ResponseHeaderSpec

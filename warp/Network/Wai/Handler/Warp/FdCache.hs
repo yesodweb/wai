@@ -98,12 +98,7 @@ fdCache (MutableFdCache reaper) = reaperRead reaper
 look :: MutableFdCache -> FilePath -> Hash -> IO (Maybe FdEntry)
 look mfc path key = searchWith key check <$> fdCache mfc
   where
-    check (One ent@(FdEntry path' _ _))
-      | path == path' = Just ent
-      | otherwise     = Nothing
-    check (Tom ent@(FdEntry path' _ _) vs)
-      | path == path' = Just ent
-      | otherwise     = check vs
+    check (FdEntry path' _ _) = path == path'
 
 ----------------------------------------------------------------
 
@@ -123,22 +118,11 @@ clean :: FdCache -> IO (FdCache -> FdCache)
 clean old = do
     new <- pruneWith old prune
     return $ merge new
-
-prune :: (t,Some FdEntry) -> IO [(t, Some FdEntry)]
-prune (k,v@(One (FdEntry _ fd mst))) = status mst >>= prune'
   where
-    prune' Active   = inactive mst >> return [(k,v)]
-    prune' Inactive = closeFd fd   >> return []
-prune (k,(Tom ent@(FdEntry _ fd mst) vs)) = status mst >>= prune'
-  where
-    prune' Active = do
-        inactive mst
-        zs <- prune (k,vs)
-        case zs of
-            []        -> return [(k,One ent)]
-            [(_,zvs)] -> return [(k,Tom ent zvs)]
-            _         -> error "prune"
-    prune' Inactive = closeFd fd >> prune (k,vs)
+    prune (FdEntry _ fd mst) = status mst >>= act
+      where
+        act Active   = inactive mst >> return True
+        act Inactive = closeFd fd   >> return False
 
 ----------------------------------------------------------------
 
