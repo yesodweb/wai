@@ -87,7 +87,7 @@ setFileCloseOnExec fd = setFdOption fd CloseOnExec True
 
 ----------------------------------------------------------------
 
-type FdCache = MMap Hash FdEntry
+type FdCache = MMap FdEntry
 
 -- | Mutable Fd cacher.
 newtype MutableFdCache = MutableFdCache (Reaper FdCache (Hash, FdEntry))
@@ -124,21 +124,21 @@ clean old = do
     new <- pruneWith old prune
     return $ merge new
 
-prune :: t -> Some FdEntry -> IO [(t, Some FdEntry)]
-prune k v@(One (FdEntry _ fd mst)) = status mst >>= prune'
+prune :: (t,Some FdEntry) -> IO [(t, Some FdEntry)]
+prune (k,v@(One (FdEntry _ fd mst))) = status mst >>= prune'
   where
     prune' Active   = inactive mst >> return [(k,v)]
     prune' Inactive = closeFd fd   >> return []
-prune k (Tom ent@(FdEntry _ fd mst) vs) = status mst >>= prune'
+prune (k,(Tom ent@(FdEntry _ fd mst) vs)) = status mst >>= prune'
   where
     prune' Active = do
         inactive mst
-        zs <- prune k vs
+        zs <- prune (k,vs)
         case zs of
             []        -> return [(k,One ent)]
             [(_,zvs)] -> return [(k,Tom ent zvs)]
             _         -> error "prune"
-    prune' Inactive = closeFd fd >> prune k vs
+    prune' Inactive = closeFd fd >> prune (k,vs)
 
 ----------------------------------------------------------------
 
@@ -147,7 +147,7 @@ terminate (MutableFdCache reaper) = do
     !t <- reaperStop reaper
     mapM_ closeIt $ toList t
   where
-    closeIt (_, FdEntry _ fd _) = closeFd fd
+    closeIt (FdEntry _ fd _) = closeFd fd
 
 ----------------------------------------------------------------
 
