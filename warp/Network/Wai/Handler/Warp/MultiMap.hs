@@ -16,8 +16,8 @@ module Network.Wai.Handler.Warp.MultiMap (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as I
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as I
 import qualified Network.Wai.Handler.Warp.Some as S
 
 ----------------------------------------------------------------
@@ -74,15 +74,14 @@ toList m = concatMap f $ I.toAscList m
 pruneWith :: MMap v
           -> (v -> IO Bool)
           -> IO (MMap v)
-pruneWith m action = I.fromAscList <$> go (I.toAscList m)
+pruneWith m action = I.fromAscList <$> go (I.toDescList m) []
   where
-    go [] = return []
-    go ((k,s):kss) = do
+    go []          acc = return acc
+    go ((k,s):kss) acc = do
         mt <- S.prune action s
-        lst <- go kss
         case mt of
-            Nothing -> return lst
-            Just t  -> return $ (k,t) : lst
+            Nothing -> go kss acc
+            Just t  -> go kss ((k,t) : acc)
 
 ----------------------------------------------------------------
 
