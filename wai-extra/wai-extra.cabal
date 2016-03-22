@@ -71,7 +71,7 @@ Maintainer:          michael@snoyman.com
 Homepage:            http://github.com/yesodweb/wai
 Category:            Web
 Build-Type:          Simple
-Cabal-Version:       >=1.8
+Cabal-Version:       >=1.10
 Stability:           Stable
 extra-source-files:
   test/requests/dalvik-request
@@ -119,7 +119,7 @@ Library
   else
       build-depends: unix
 
-  extensions:        OverloadedStrings
+  default-extensions:        OverloadedStrings
 
   Exposed-modules:   Network.Wai.Handler.CGI
                      Network.Wai.Handler.SCGI
@@ -183,6 +183,7 @@ test-suite spec
                    , time
                    , case-insensitive
     ghc-options:     -Wall
+    default-language:          Haskell2010
 
 source-repository head
   type:     git
