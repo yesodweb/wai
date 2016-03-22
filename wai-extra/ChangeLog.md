@@ -1,3 +1,7 @@
+## 3.0.15
+
+* add requestSizeCheck [#525](https://github.com/yesodweb/wai/pull/525)
+
 ## 3.0.14.3
 
 * Add missing `requestHeaderReferer` and `requestHeaderUserAgent` fields to CGI [yesod#1186](https://github.com/yesodweb/yesod/issues/1186)

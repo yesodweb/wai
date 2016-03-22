@@ -32,7 +32,7 @@ import Data.IORef (atomicModifyIORef', newIORef)
 -- force a non-SSL request to SSL by redirect. One can safely choose not to
 -- redirect when the request /appears/ secure, even if it's actually not.
 --
--- Since 3.0.7
+-- @since 3.0.7
 appearsSecure :: Request -> Bool
 appearsSecure request = isSecure request || any (uncurry matchHeader)
     [ ("HTTPS"                  , (== "on"))
@@ -52,13 +52,15 @@ appearsSecure request = isSecure request || any (uncurry matchHeader)
 -- application. For more information and relevant caveats, please see
 -- "Network.Wai.Middleware.Approot".
 --
--- Since 3.0.7
+-- @since 3.0.7
 guessApproot :: Request -> ByteString
 guessApproot req =
     (if appearsSecure req then "https://" else "http://") `S.append`
     (fromMaybe "localhost" $ requestHeaderHost req)
 
 -- | see 'requestSizeCheck'
+--
+-- @since 3.0.15
 data RequestSizeException
     = RequestSizeException Word64
     deriving (Eq, Ord, Typeable)
@@ -75,14 +77,16 @@ instance Show RequestSizeException where
 -- but larger than limit, or it's unknown but we have received too many chunks,
 -- a 'RequestSizeException' are thrown when user use @'requestBody'@ to extract
 -- request body inside IO.
+--
+-- @since 3.0.15
 requestSizeCheck :: Word64 -> Request -> IO Request
 requestSizeCheck maxSize req =
     case requestBodyLength req of
-        KnownLength len   ->
+        KnownLength len  ->
             if len > maxSize
                 then return $ req { requestBody = throwIO (RequestSizeException maxSize) }
                 else return req
-        ChunkedBody	      -> do
+        ChunkedBody      -> do
             currentSize <- newIORef 0
             return $ req
                 { requestBody = do
