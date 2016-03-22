@@ -79,7 +79,7 @@ data Folder = Folder
 -- | Information on an individual file.
 data File = File
     { -- | Size of file in bytes
-      fileGetSize :: Int
+      fileGetSize :: Integer
       -- | How to construct a WAI response for this file. Some files are stored
       -- on the filesystem and can use @ResponseFile@, while others are stored
       -- in memory and should use @ResponseBuilder@.

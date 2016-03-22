@@ -49,7 +49,7 @@ embeddedLookup root pieces =
 toEntry :: (Piece, EmbeddedEntry) -> Either FolderName File
 toEntry (name, EEFolder{}) = Left name
 toEntry (name, EEFile bs) = Right File
-    { fileGetSize = S.length bs
+    { fileGetSize = fromIntegral $ S.length bs
     , fileToResponse = \s h -> W.responseBuilder s h $ fromByteString bs
     , fileName = name
     , fileGetHash = return $ Just $ runHash bs
@@ -86,7 +86,7 @@ toEmbedded fps =
 
 bsToFile :: Piece -> ByteString -> File
 bsToFile name bs = File
-    { fileGetSize = S.length bs
+    { fileGetSize = fromIntegral $ S.length bs
     , fileToResponse = \s h -> W.responseBuilder s h $ fromByteString bs
     , fileName = name
     , fileGetHash = return $ Just $ runHash bs
