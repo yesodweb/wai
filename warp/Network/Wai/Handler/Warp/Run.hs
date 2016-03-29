@@ -3,6 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 module Network.Wai.Handler.Warp.Run where
@@ -181,12 +182,13 @@ runSettingsConnectionMakerSecure set getConnMaker app = do
             let ii0 = InternalInfo0 tm dc fdc fic
             action ii0
 
-    fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
-    fdFileInfoDurationInSeconds = settingsFileInfoCacheDuration set * 1000000
+    !fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
+    !fdFileInfoDurationInSeconds = settingsFileInfoCacheDuration set * 1000000
+    !timeoutInSeconds = settingsTimeout set * 1000000
     withTimeoutManager f = case settingsManager set of
         Just tm -> f tm
         Nothing -> bracket
-                   (T.initialize $ settingsTimeout set * 1000000)
+                   (T.initialize timeoutInSeconds)
                    T.stopManager
                    f
 
