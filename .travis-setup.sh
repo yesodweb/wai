@@ -9,7 +9,10 @@ mkdir -p ~/.local/bin
 if [ `uname` = "Darwin" ]
 then
   curl --insecure -L https://www.stackage.org/stack/osx-x86_64 | tar xz --strip-components=1 --include '*/stack' -C ~/.local/bin
-  brew install fcgi
+  # brew no longer has fcgi
+  # brew install fcgi
+  grep -v wai-handler-fastcgi < stack.yaml > tmp
+  mv tmp stack.yaml
 else
   curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
   curl -L http://download.fpcomplete.com/michael/cabal-meta.tar.gz | tar xz -C $HOME/.local/bin
