@@ -1,3 +1,7 @@
+## 3.2.0.1
+
+* Add missing changelog entry
+
 ## 3.2.0
 
 * Major version up due to breaking changes. We chose 3.2.0, not 3.1.0
