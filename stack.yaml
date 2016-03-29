@@ -13,6 +13,8 @@ packages:
 - ./auto-update
 extra-deps:
 - http2-1.5.0
+- cryptonite-0.13
+- memory-0.11
 nix:
   enable: false
   packages:
