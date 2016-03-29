@@ -98,7 +98,7 @@ initialize duration = mkReaper settings
   where
     settings = defaultReaperSettings {
         reaperAction = override
-      , reaperDelay  = duration * 1000000
+      , reaperDelay  = duration
       , reaperCons   = \(h,k,v) -> M.insert h k v
       , reaperNull   = M.null
       , reaperEmpty  = M.empty
