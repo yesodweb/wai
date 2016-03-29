@@ -1,3 +1,7 @@
+## 3.2.4
+
+* Added `withApplication`, `testWithApplication`, and `openFreePort`
+
 ## 3.2.3
 
 * Using http2 v1.5.x which much improves the performance of HTTP/2.

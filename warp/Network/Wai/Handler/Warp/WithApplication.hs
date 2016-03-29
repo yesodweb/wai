@@ -18,6 +18,8 @@ import           Network.Wai.Handler.Warp.Types
 -- | Runs the given 'Application' on a free port. Passes the port to the given
 -- operation and executes it, while the 'Application' is running. Shuts down the
 -- server before returning.
+--
+-- @since 3.2.4
 withApplication :: IO Application -> (Port -> IO a) -> IO a
 withApplication mkApp action = do
   app <- mkApp
@@ -45,6 +47,8 @@ withApplication mkApp action = do
 --
 -- __The exception handling makes this function unsuitable for use in production.__
 -- Use 'withApplication' instead.
+--
+-- @since 3.2.4
 testWithApplication :: IO Application -> (Port -> IO a) -> IO a
 testWithApplication mkApp action = do
   callingThread <- myThreadId
@@ -70,6 +74,8 @@ mkWaiter = do
   }
 
 -- | Opens a socket on a free port and returns both port and socket.
+--
+-- @since 3.2.4
 openFreePort :: IO (Port, Socket)
 openFreePort = do
   s <- socket AF_INET Stream defaultProtocol
