@@ -1,3 +1,7 @@
+## 3.1.5
+
+* Switch to cryponite
+
 ## 3.1.4.1
 
 * Support wai/warp 3.2
