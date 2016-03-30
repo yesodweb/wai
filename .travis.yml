@@ -133,6 +133,7 @@ install:
 - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
 - if [ -f configure.ac ]; then autoreconf -i; fi
 - |
+  set -ex
   case "$BUILD" in
     stack)
       stack --no-terminal --install-ghc $ARGS test --only-dependencies
@@ -148,6 +149,7 @@ install:
       cabal install hspec-discover
       ;;
   esac
+  set +ex
 
 script:
 - |
