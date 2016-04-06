@@ -338,7 +338,7 @@ setSlowlorisSize x y = y { settingsSlowlorisSize = x }
 setHTTP2Disabled :: Settings -> Settings
 setHTTP2Disabled y = y { settingsHTTP2Enabled = False }
 
--- | Setting a log function.
+-- | Setting a log function. `Integer` is the body length of a response.
 --
 -- Since 3.X.X
 setLogger :: (Request -> H.Status -> Maybe Integer -> IO ())
