@@ -130,7 +130,8 @@ runSettingsSocket set socket app = do
         (s, sa) <- accept socket
 #endif
         setSocketCloseOnExec s
-        setSocketOption s NoDelay 1
+        -- NoDelay causes an error for AF_UNIX.
+        setSocketOption s NoDelay 1 `E.catch` \(E.SomeException _) -> return ()
         conn <- socketConnection s
         return (conn, sa)
 
