@@ -181,9 +181,9 @@ addContentHeaders ths off len size
 -- |
 --
 -- >>> addContentHeadersForFilePart [] (FilePart 2 10 16)
--- [("Content-Range","bytes 2-11/16"),("Content-Length","10"),("Accept-Ranges","bytes")]
+-- [(Token {ix = 20, shouldBeIndexed = True, isPseudo = False, tokenKey = "Content-Range"},"bytes 2-11/16"),(Token {ix = 18, shouldBeIndexed = False, isPseudo = False, tokenKey = "Content-Length"},"10"),(Token {ix = 8, shouldBeIndexed = True, isPseudo = False, tokenKey = "Accept-Ranges"},"bytes")]
 -- >>> addContentHeadersForFilePart [] (FilePart 0 16 16)
--- [("Content-Length","16"),("Accept-Ranges","bytes")]
+-- [(Token {ix = 18, shouldBeIndexed = False, isPseudo = False, tokenKey = "Content-Length"},"16"),(Token {ix = 8, shouldBeIndexed = True, isPseudo = False, tokenKey = "Accept-Ranges"},"bytes")]
 addContentHeadersForFilePart :: TokenHeaderList -> FilePart -> TokenHeaderList
 addContentHeadersForFilePart hs part = addContentHeaders hs off len size
   where
