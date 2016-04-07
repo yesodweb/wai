@@ -1,3 +1,7 @@
+## 3.2.6
+
+* Using token based APIs of http2 1.6.
+
 ## 3.2.5
 
 * Ignoring errors from setSocketOption. [#526](https://github.com/yesodweb/wai/issues/526).
