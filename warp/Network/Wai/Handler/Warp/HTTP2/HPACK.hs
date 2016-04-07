@@ -37,7 +37,7 @@ hpackEncodeHeader Context{..} buf siz ii settings s (ths0,tbl) = do
         !ths1 = addHeader tokenServer defServer tbl ths0
     date <- getDate ii
     let !ths2 = addHeader tokenDate date tbl ths1
-        !status = packIntegral $ H.statusCode s
+        !status = packStatus s
         !ths3 = (tokenStatus, status) : ths2
     encodeTokenHeader buf siz strategy True encodeDynamicTable ths3
 

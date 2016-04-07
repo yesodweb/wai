@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns #-}
 
 module Network.Wai.Handler.Warp.PackInt where
 
@@ -7,6 +7,11 @@ import Data.ByteString.Internal (ByteString(..), unsafeCreate)
 import Data.Word8 (Word8)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (poke)
+import qualified Network.HTTP.Types as H
+
+-- $setup
+-- >>> import Data.ByteString.Char8 as B
+-- >>> import Test.QuickCheck (Large(..))
 
 -- |
 --
@@ -29,3 +34,23 @@ packIntegral n = unsafeCreate len go0
 
 {-# SPECIALIZE packIntegral :: Int -> ByteString #-}
 {-# SPECIALIZE packIntegral :: Integer -> ByteString #-}
+
+-- |
+--
+-- >>> packStatus H.status200
+-- "200"
+-- >>> packStatus H.preconditionFailed412
+-- "412"
+
+packStatus :: H.Status -> ByteString
+packStatus status = unsafeCreate 3 $ \p -> do
+    poke p               (toW8 r2)
+    poke (p `plusPtr` 1) (toW8 r1)
+    poke (p `plusPtr` 2) (toW8 r0)
+  where
+    toW8 :: Int -> Word8
+    toW8 n = 48 + fromIntegral n
+    !s = fromIntegral $ H.statusCode status
+    (!q0,!r0) = s `divMod` 10
+    (!q1,!r1) = q0 `divMod` 10
+    !r2 = q1 `mod` 10
