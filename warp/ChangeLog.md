@@ -1,6 +1,11 @@
+## 3.2.5
+
+* Ignoring errors from setSocketOption. [#526](https://github.com/yesodweb/wai/issues/526).
+
 ## 3.2.4
 
 * Added `withApplication`, `testWithApplication`, and `openFreePort`
+* Fixing reaper delay value of file info cache.
 
 ## 3.2.3
 
