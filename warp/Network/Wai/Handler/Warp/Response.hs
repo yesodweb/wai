@@ -8,8 +8,6 @@ module Network.Wai.Handler.Warp.Response (
     sendResponse
   , sanitizeHeaderValue -- for testing
   , warpVersion
-  , addDate
-  , addServer
   , hasBody
   , replaceHeader
   ) where
