@@ -82,7 +82,7 @@ extra-source-files:
   README.md
 
 Library
-  Build-Depends:     base                      >= 4 && < 5
+  Build-Depends:     base                      >= 4.6 && < 5
                    , bytestring                >= 0.9.1.4
                    , wai                       >= 3.0.3.0  && < 3.3
                    , old-locale                >= 1.0.0.2  && < 1.1
