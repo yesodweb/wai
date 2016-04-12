@@ -1,0 +1,23 @@
+% Warp-MW.tex
+\begin{hcarentry}{Warp}
+\label{warp}
+\report{Michael Snoyman}%11/14
+%\status{stable}
+\makeheader
+
+Warp is a high performance, easy to deploy HTTP server backend for
+WAI \cref{wai}.  Since the last HCAR, Warp has followed WAI in its move from conduit to a lower level streaming data abstraction. We've additionally continued work on more optimizations, and improved support for power efficiency by using the auto-update package.
+
+Due to the combined use of ByteStrings, blaze-builder, conduit, and GHC's improved I/O manager, WAI+Warp has consistently proven to be Haskell's most performant web deployment option.
+
+Warp is actively used to serve up most of the users of WAI (and Yesod).
+
+``Warp: A Haskell Web Server'' by Michael Snoyman was published
+in the May/June 2011 issue of IEEE Internet Computing:
+\begin{compactitem}
+\item
+ Issue page: \url{http://www.computer.org/portal/web/csdl/abs/mags/ic/2011/03/mic201103toc.htm}
+\item
+ PDF: \url{http://steve.vinoski.net/pdf/IC-Warp\_a\_Haskell\_Web\_Server.pdf}
+\end{compactitem}
+\end{hcarentry}

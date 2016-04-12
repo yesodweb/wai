@@ -1,0 +1,35 @@
+% WAI-MW.tex
+\begin{hcarentry}{WAI}
+\label{wai}
+\report{Michael Snoyman}%11/14
+\participants{Greg Weber}
+\status{stable}
+\makeheader
+
+The Web Application Interface (WAI) is an interface between Haskell web
+applications and Haskell web servers. By targeting the WAI, a web framework or web application gets access to multiple deployment platforms. Platforms in use include CGI, the Warp web server, and desktop webkit.
+
+WAI is also a platform for re-using code between web applications and web frameworks through WAI middleware and WAI applications. WAI middleware can inspect and transform a request, for example by automatically gzipping a response or logging a request. The Yesod~\cref{yesod} web framework provides the ability to embed arbitrary WAI applications as subsites, making them a part of a larger web application.
+
+By targeting WAI, every web framework can share WAI code instead of wasting
+effort re-implementing the same functionality. There are also some new web
+frameworks that take a completely different approach to web development that
+use WAI, such as webwire (FRP), MFlow (continuation-based) and dingo (GUI).
+The Scotty~\cref{scotty} web framework also continues to be developed, and
+provides a lighter-weight alternative to Yesod. Other frameworks- whether
+existing or newcomers- are welcome to take advantage of the existing WAI
+architecture to focus on the more innovative features of web development.
+
+WAI applications can send a response themselves. For example, wai-app-static is used by Yesod to serve static files. However, one does not need to use a web framework, but can simply build a web application using the WAI interface alone. The Hoogle %\cref{hoogle} 
+web service targets WAI directly.
+
+Since the last HCAR, WAI has successfully released version 3.0, which removes dependency on any specific streaming data framework. A separate wai-conduit package provides conduit bindings, and such bindings can easily be provided for other streaming data frameworks.
+
+The WAI community continues to grow, with new applications and web frameworks continuing to be added. We've recently started a new mailing list to discuss WAI related topics. Interested parties are strongly encouraged to join in!
+
+\FurtherReading
+\begin{compactitem}
+\item\url{http://www.yesodweb.com/book/wai}
+\item\url{https://groups.google.com/d/forum/haskell-wai}
+\end{compactitem}
+\end{hcarentry}
