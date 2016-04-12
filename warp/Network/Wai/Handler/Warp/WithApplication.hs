@@ -1,7 +1,9 @@
 
 module Network.Wai.Handler.Warp.WithApplication (
   withApplication,
+  withApplicationSettings,
   testWithApplication,
+  testWithApplicationSettings,
   openFreePort,
   withFreePort,
 ) where
@@ -21,13 +23,21 @@ import           Network.Wai.Handler.Warp.Types
 --
 -- @since 3.2.4
 withApplication :: IO Application -> (Port -> IO a) -> IO a
-withApplication mkApp action = do
+withApplication = withApplicationSettings defaultSettings
+
+-- | 'withApplication' with given 'Settings'. This will ignore the port value
+-- set by 'setPort' in 'Settings'.
+--
+-- @since 3.2.7
+withApplicationSettings :: Settings -> IO Application -> (Port -> IO a) -> IO a
+withApplicationSettings settings' mkApp action = do
   app <- mkApp
   withFreePort $ \ (port, sock) -> do
     started <- mkWaiter
     let settings =
-          defaultSettings{
-            settingsBeforeMainLoop = notify started ()
+          settings' {
+            settingsBeforeMainLoop
+              = notify started () >> settingsBeforeMainLoop settings'
           }
     result <- race
       (runSettingsSocket settings sock app)
@@ -50,7 +60,13 @@ withApplication mkApp action = do
 --
 -- @since 3.2.4
 testWithApplication :: IO Application -> (Port -> IO a) -> IO a
-testWithApplication mkApp action = do
+testWithApplication = testWithApplicationSettings defaultSettings
+
+-- | 'testWithApplication' with given 'Settings'.
+--
+-- @since 3.2.7
+testWithApplicationSettings :: Settings -> IO Application -> (Port -> IO a) -> IO a
+testWithApplicationSettings settings mkApp action = do
   callingThread <- myThreadId
   app <- mkApp
   let wrappedApp request respond =
