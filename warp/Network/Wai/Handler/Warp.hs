@@ -91,7 +91,9 @@ module Network.Wai.Handler.Warp (
   , FileInfo(..)
   , getFileInfo
   , withApplication
+  , withApplicationSettings
   , testWithApplication
+  , testWithApplicationSettings
   , openFreePort
     -- * Version
   , warpVersion
