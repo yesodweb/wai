@@ -1,35 +1,58 @@
 % WAI-MW.tex
 \begin{hcarentry}{WAI}
 \label{wai}
-\report{Michael Snoyman}%11/14
-\participants{Greg Weber}
+\report{Kazu Yamamoto}%05/16
+\participants{Michael Snoyman, Greg Weber}
 \status{stable}
 \makeheader
 
-The Web Application Interface (WAI) is an interface between Haskell web
-applications and Haskell web servers. By targeting the WAI, a web framework or web application gets access to multiple deployment platforms. Platforms in use include CGI, the Warp web server, and desktop webkit.
+WAI (Web Application Interface) is an application interface
+between web applications and handlers in Haskell.
+The \texttt{Application} data type is defined as follows:
 
-WAI is also a platform for re-using code between web applications and web frameworks through WAI middleware and WAI applications. WAI middleware can inspect and transform a request, for example by automatically gzipping a response or logging a request. The Yesod~\cref{yesod} web framework provides the ability to embed arbitrary WAI applications as subsites, making them a part of a larger web application.
+\begin{verbatim}
+type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
+\end{verbatim}
 
-By targeting WAI, every web framework can share WAI code instead of wasting
-effort re-implementing the same functionality. There are also some new web
-frameworks that take a completely different approach to web development that
-use WAI, such as webwire (FRP), MFlow (continuation-based) and dingo (GUI).
-The Scotty~\cref{scotty} web framework also continues to be developed, and
-provides a lighter-weight alternative to Yesod. Other frameworks- whether
-existing or newcomers- are welcome to take advantage of the existing WAI
-architecture to focus on the more innovative features of web development.
+That is, a WAI application takes two arguments: a \texttt{Request} and
+a function to send a \texttt{Response}.
+So, the typical behavior of WAI application is
+processing a request,
+generating a response and
+passing the response to the function.
 
-WAI applications can send a response themselves. For example, wai-app-static is used by Yesod to serve static files. However, one does not need to use a web framework, but can simply build a web application using the WAI interface alone. The Hoogle %\cref{hoogle} 
-web service targets WAI directly.
+Historically speaking, this interface made possible to develop handlers
+other than HTTP.
+The WAI applications can run through FastCGI (wai-handler-fastcgi),
+run as stand-alone (wai-handler-webkit), etc.
+But the most popular handler is based on HTTP, of course.
+The major HTTP handler for WAI is Warp which now provides
+both HTTP/1.1 and HTTP/2. TLS (warp-tls) is also available.
+New transports such as
+WebSocket (wai-websocket) and Event Source (wai-extra)
+can be implemented, too.
 
-Since the last HCAR, WAI has successfully released version 3.0, which removes dependency on any specific streaming data framework. A separate wai-conduit package provides conduit bindings, and such bindings can easily be provided for other streaming data frameworks.
+It is possible to develop WAI applications directly.
+For instance, Hoogle and Mighttpd2~\cref{mighttpd2} take this way.
+However, you may want to use web application frameworks
+such as Apiary, MFlow~\cref{mflow}, rest, Servant, Scotty~\cref{scotty}, Spock,
+Yesod~\cref{yesod}, etc.
 
-The WAI community continues to grow, with new applications and web frameworks continuing to be added. We've recently started a new mailing list to discuss WAI related topics. Interested parties are strongly encouraged to join in!
+WAI also provides \texttt{Middleware}:
+
+\begin{verbatim}
+type Middleware = Application -> Application
+\end{verbatim}
+
+WAI middleware can inspect and transform a request, for example by automatically gzipping a response or logging a request (wai-extra).
+
+Since the last HCAR, WAI has successfully released version 3.2,
+which removes the experimental HTTP/2 module and some APIs.
+We bumped the version from 3.0 to 3.2 for consistency with
+Warp 3.2.
 
 \FurtherReading
 \begin{compactitem}
-\item\url{http://www.yesodweb.com/book/wai}
 \item\url{https://groups.google.com/d/forum/haskell-wai}
 \end{compactitem}
 \end{hcarentry}
