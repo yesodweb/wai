@@ -1,23 +1,34 @@
 % Warp-MW.tex
 \begin{hcarentry}{Warp}
 \label{warp}
-\report{Michael Snoyman}%11/14
+\report{Kazu Yamamoto}%05/16
+\participants{Michael Snoyman}
 %\status{stable}
 \makeheader
 
-Warp is a high performance, easy to deploy HTTP server backend for
-WAI \cref{wai}.  Since the last HCAR, Warp has followed WAI in its move from conduit to a lower level streaming data abstraction. We've additionally continued work on more optimizations, and improved support for power efficiency by using the auto-update package.
+Warp is a high performance, easy to deploy HTTP handler for WAI~\cref{wai}.
+Its supports both HTTP/1.1 and HTTP/2.
 
-Due to the combined use of ByteStrings, blaze-builder, conduit, and GHC's improved I/O manager, WAI+Warp has consistently proven to be Haskell's most performant web deployment option.
+Since the last HCAR, we have released Warp 3.2 which
+removes the experimental HTTP/2 APIs.
+The performance of HTTP/2 was drastically improved.
+The logic to handle static files such as \texttt{If-Modified-Since}
+was imported from Mighttpd2~\cref{mighttpd2}.
 
-Warp is actively used to serve up most of the users of WAI (and Yesod).
-
-``Warp: A Haskell Web Server'' by Michael Snoyman was published
-in the May/June 2011 issue of IEEE Internet Computing:
+\FurtherReading
 \begin{compactitem}
-\item
- Issue page: \url{http://www.computer.org/portal/web/csdl/abs/mags/ic/2011/03/mic201103toc.htm}
-\item
- PDF: \url{http://steve.vinoski.net/pdf/IC-Warp\_a\_Haskell\_Web\_Server.pdf}
+\item``Warp: A Haskell Web Server''
+  \begin{itemize}
+  \item the May/June 2011 issue of IEEE Internet Computing
+  \item Issue page: \url{http://www.computer.org/portal/web/csdl/abs/mags/ic/2011/03/mic201103toc.htm}
+  \item  PDF: \url{http://steve.vinoski.net/pdf/IC-Warp\_a\_Haskell\_Web\_Server.pdf}
+  \end{itemize}
+\item ``Warp''
+  \begin{itemize}
+  \item The Performance of Open Srouce Applications
+  \item HTML: \url{http://www.aosabook.org/en/posa/warp.html}
+  \end{itemize}
 \end{compactitem}
+\end{hcarentry}
+
 \end{hcarentry}
