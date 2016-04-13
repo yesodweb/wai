@@ -1,3 +1,7 @@
+## 3.2.7
+
+* Add {test,}withApplicationSettings [#531](https://github.com/yesodweb/wai/pull/531)
+
 ## 3.2.6
 
 * Using token based APIs of http2 1.6.
