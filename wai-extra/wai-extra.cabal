@@ -95,8 +95,8 @@ Library
                    , text                      >= 0.7
                    , case-insensitive          >= 0.2
                    , data-default-class
-                   , fast-logger               >= 2.1      && < 2.5
-                   , wai-logger                >= 2.0      && < 2.3
+                   , fast-logger               >= 2.4.5    && < 2.5
+                   , wai-logger                >= 2.2.6    && < 2.3
                    , ansi-terminal
                    , resourcet                 >= 0.4.6    && < 1.2
                    , void                      >= 0.5
