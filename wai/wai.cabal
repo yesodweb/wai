@@ -1,5 +1,5 @@
 Name:                wai
-Version:             3.2.0.1
+Version:             3.2.1
 Synopsis:            Web Application Interface.
 Description:         Provides a common protocol for communication between web applications and web servers.
 description:         API docs and the README are available at <http://www.stackage.org/package/wai>.
