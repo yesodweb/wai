@@ -468,6 +468,11 @@ defaultMimeMap = Map.fromAscList [
     , ("lbd", "application/vnd.llamagraphics.life-balance.desktop")
     , ("lbe", "application/vnd.llamagraphics.life-balance.exchange+xml")
     , ("les", "application/vnd.hhe.lesson-player")
+
+    -- Added after deliberation in PR (https://github.com/yesodweb/wai/pull/534)
+    -- Accepted mainly because of StackOverflow (http://stackoverflow.com/questions/7319555/how-to-add-less-to-iis-7-0)
+    , ("less", "text/css")
+    
     , ("lha", "application/x-lzh-compressed")
     , ("link66", "application/vnd.route66.link66+xml")
     , ("list", "text/plain")
