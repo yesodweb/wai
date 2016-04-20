@@ -16,6 +16,8 @@ extra-deps:
 - cryptonite-0.15
 - memory-0.11
 - tls-1.3.5
+- fast-logger-2.4.5
+- wai-logger-2.2.7
 nix:
   enable: false
   packages:
