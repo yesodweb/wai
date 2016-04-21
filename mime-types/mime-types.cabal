@@ -1,5 +1,5 @@
 name:                mime-types
-version:             0.1.0.6
+version:             0.1.0.7
 synopsis:            Basic mime-type handling types and functions
 description:         API docs and the README are available at <http://www.stackage.org/package/mime-types>.
 homepage:            https://github.com/yesodweb/wai
