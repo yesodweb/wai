@@ -29,6 +29,7 @@ import qualified Data.ByteString as S
 import Data.Default.Class
 import Network.HTTP.Types ( Status, Header, hContentEncoding, hUserAgent
                           , hContentType, hContentLength)
+import Network.HTTP.Types.Header (hAcceptEncoding)
 import System.Directory (doesFileExist, createDirectoryIfMissing)
 import Blaze.ByteString.Builder (fromByteString)
 import Control.Exception (try, SomeException)
@@ -93,7 +94,7 @@ gzip set app env sendResponse = app env $ \res ->
                 else sendResponse res
   where
     enc = fromMaybe [] $ (splitCommas . S8.unpack)
-                    `fmap` lookup "Accept-Encoding" (requestHeaders env)
+                    `fmap` lookup hAcceptEncoding (requestHeaders env) 
     ua = fromMaybe "" $ lookup hUserAgent $ requestHeaders env
     isMSIE6 = "MSIE 6" `S.isInfixOf` ua
     isEncoded res = isJust $ lookup hContentEncoding $ responseHeaders res
