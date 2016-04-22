@@ -172,7 +172,7 @@ test-suite spec
                    , hspec >= 1.3
                    , transformers
                    , fast-logger
-                   , http-types
+                   , http-types >= 0.9
                    , zlib
                    , text
                    , resourcet
