@@ -190,6 +190,9 @@ runUrl = runUrlPort 4587
 runUrlPort :: Int -> String -> Application -> IO ()
 runUrlPort = runHostPortUrl "*4"
 
+-- |
+--
+-- @since 3.0.1
 runHostPortUrl :: String -> Int -> String -> Application -> IO ()
 runHostPortUrl host port url app = do
     x <- newIORef True
