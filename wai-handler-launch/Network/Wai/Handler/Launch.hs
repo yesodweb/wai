@@ -15,7 +15,8 @@ import qualified Network.Wai.Handler.Warp as Warp
 import Data.IORef
 import Data.Monoid (mappend)
 import Data.String (fromString)
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent (forkIO, threadDelay, newEmptyMVar, putMVar, takeMVar)
+import Control.Concurrent.Async (race)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad (unless)
 import Control.Exception (throwIO)
@@ -192,14 +193,21 @@ runUrlPort = runHostPortUrl "*4"
 
 runHostPortUrl :: String -> Int -> String -> Application -> IO ()
 runHostPortUrl host port url app = do
-    x <- newIORef True
-    _ <- forkIO $ Warp.runSettings
-        ( Warp.setPort port
-        $ Warp.setOnException (\_ _ -> return ())
-        $ Warp.setHost (fromString host) Warp.defaultSettings)
-        $ ping x app
-    launch port url
-    loop x
+    ready <- newEmptyMVar
+    active <- newIORef True
+    let settings =
+          Warp.setPort port $
+          Warp.setOnException (\_ _ -> return ()) $
+          Warp.setHost (fromString host) $
+          Warp.setBeforeMainLoop (putMVar ready ()) $
+          Warp.defaultSettings
+    -- Run these threads concurrently; when either one terminates or
+    -- raises an exception, the same happens to the other.
+    fmap (either id id) $ race
+      -- serve app, keep updating the activity flag
+      (Warp.runSettings settings (ping active app))
+      -- wait for server startup, launch browser, poll until server idle
+      (takeMVar ready >> launch port url >> loop active)
 
 loop :: IORef Bool -> IO ()
 loop x = do
