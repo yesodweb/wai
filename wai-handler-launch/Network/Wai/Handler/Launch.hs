@@ -5,6 +5,7 @@ module Network.Wai.Handler.Launch
     ( run
     , runUrl
     , runUrlPort
+    , runHostPortUrl
     ) where
 
 import Network.Wai
@@ -13,6 +14,7 @@ import Network.HTTP.Types
 import qualified Network.Wai.Handler.Warp as Warp
 import Data.IORef
 import Data.Monoid (mappend)
+import Data.String (fromString)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad (unless)
@@ -186,12 +188,15 @@ runUrl :: String -> Application -> IO ()
 runUrl = runUrlPort 4587
 
 runUrlPort :: Int -> String -> Application -> IO ()
-runUrlPort port url app = do
+runUrlPort = runHostPortUrl "*4"
+
+runHostPortUrl :: String -> Int -> String -> Application -> IO ()
+runHostPortUrl host port url app = do
     x <- newIORef True
     _ <- forkIO $ Warp.runSettings
         ( Warp.setPort port
         $ Warp.setOnException (\_ _ -> return ())
-        $ Warp.setHost "*4" Warp.defaultSettings)
+        $ Warp.setHost (fromString host) Warp.defaultSettings)
         $ ping x app
     launch port url
     loop x
