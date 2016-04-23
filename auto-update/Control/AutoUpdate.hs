@@ -1,10 +1,17 @@
--- | In a multithreaded environment, running actions on a regularly scheduled background thread can dramatically improve performance. 
--- For example, web servers need to return the current time with each HTTP response. 
--- For a high-volume server, it's much faster for a dedicated thread to run every second, and write the current time to a shared 'IORef', than it is for each request to make its own call to 'getCurrentTime'.
+-- | In a multithreaded environment, running actions on a regularly scheduled
+-- background thread can dramatically improve performance.
+-- For example, web servers need to return the current time with each HTTP response.
+-- For a high-volume server, it's much faster for a dedicated thread to run every
+-- second, and write the current time to a shared 'IORef', than it is for each
+-- request to make its own call to 'getCurrentTime'.
 --
--- But for a low-volume server, whose request frequency is less than once per second, that approach will result in /more/ calls to 'getCurrentTime' than necessary, and worse, kills idle GC.
+-- But for a low-volume server, whose request frequency is less than once per 
+-- second, that approach will result in /more/ calls to 'getCurrentTime' than 
+-- necessary, and worse, kills idle GC.
 --
--- This library solves that problem by allowing you to define actions which will either be performed by a dedicated thread, or, in times of low volume, will be executed by the calling thread.
+-- This library solves that problem by allowing you to define actions which will
+-- either be performed by a dedicated thread, or, in times of low volume, will 
+-- be executed by the calling thread.
 --
 -- Example usage:
 --
