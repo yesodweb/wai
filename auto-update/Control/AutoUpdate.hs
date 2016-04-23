@@ -5,12 +5,12 @@
 -- second, and write the current time to a shared 'IORef', than it is for each
 -- request to make its own call to 'getCurrentTime'.
 --
--- But for a low-volume server, whose request frequency is less than once per 
--- second, that approach will result in /more/ calls to 'getCurrentTime' than 
+-- But for a low-volume server, whose request frequency is less than once per
+-- second, that approach will result in /more/ calls to 'getCurrentTime' than
 -- necessary, and worse, kills idle GC.
 --
 -- This library solves that problem by allowing you to define actions which will
--- either be performed by a dedicated thread, or, in times of low volume, will 
+-- either be performed by a dedicated thread, or, in times of low volume, will
 -- be executed by the calling thread.
 --
 -- Example usage:
@@ -42,7 +42,8 @@ module Control.AutoUpdate (
 import           Control.Concurrent      (forkIO, threadDelay)
 import           Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar,
                                           takeMVar, tryPutMVar)
-import           Control.Exception       (SomeException, catch, throw, mask_, try)
+import           Control.Exception       (SomeException, catch, mask_, throw,
+                                          try)
 import           Control.Monad           (void)
 import           Data.IORef              (newIORef, readIORef, writeIORef)
 
@@ -54,6 +55,7 @@ defaultUpdateSettings = UpdateSettings
     { updateFreq = 1000000
     , updateSpawnThreshold = 3
     , updateAction = return ()
+    , updateActionModify = Nothing
     }
 
 -- | Settings to control how values are updated.
@@ -90,6 +92,11 @@ data UpdateSettings a = UpdateSettings
     -- Default: does nothing.
     --
     -- @since 0.1.0
+    , updateActionModify   :: Maybe (a -> IO a)
+    -- ^ Optional action to be performed to get the current value
+    -- and updating it if necessary.
+    --
+    -- Default: does nothing.
     }
 
 -- | Generate an action which will either read from an automatically
@@ -140,12 +147,12 @@ mkAutoUpdate us = do
         -- This infinite loop makes up out worker thread. It takes an a
         -- responseVar value where the next value should be putMVar'ed to for
         -- the benefit of any requesters currently blocked on it.
-        let loop responseVar = do
+        let loop responseVar maybea = do
                 -- block until a value is actually needed
                 takeMVar needsRunning
 
                 -- new value requested, so run the updateAction
-                a <- catchSome $ updateAction us
+                a <- catchSome $ maybe (updateAction us) id (updateActionModify us <*> maybea)
 
                 -- we got a new value, update currRef and lastValue
                 writeIORef currRef $ Right a
@@ -160,10 +167,10 @@ mkAutoUpdate us = do
                 -- variable.
                 responseVar' <- newEmptyMVar
                 writeIORef currRef $ Left responseVar'
-                loop responseVar'
+                loop responseVar' (Just a)
 
         -- Kick off the loop, with the initial responseVar0 variable.
-        loop responseVar0
+        loop responseVar0 Nothing
 
     return $ do
         mval <- readIORef currRef
