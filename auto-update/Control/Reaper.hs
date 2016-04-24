@@ -5,14 +5,14 @@
 -- threads. These threads will automatically spawn and die based on the
 -- presence of a workload to process on. Example uses include:
 --
--- * Killing long-running jobs (see example below)
+-- * Killing long-running jobs 
 -- * Closing unused connections in a connection pool
--- * Pruning a cache of old items
+-- * Pruning a cache of old items (see example below)
 --
 -- For real-world usage, search the <https://github.com/yesodweb/wai WAI family of packages>
 -- for imports of "Control.Reaper".
 module Control.Reaper (
-      -- * Example: A small jobs system
+      -- * Example: Regularly cleaning a cache
       -- $example1
 
       -- * Settings
@@ -214,71 +214,66 @@ mkListAction f =
         go front' xs
 
 -- $example1
--- In this example code, we create a small jobs system.
--- The @main@ function first creates a 'Reaper' to manage our jobs,
--- then starts 10 jobs that each take 1 to 10 seconds to complete.
--- Each Job is added to the Reaper's workload (a list of Jobs).
+-- In this example code, we use a 'Data.Map.Strict.Map' to cache fibonacci numbers, and a 'Reaper' to prune the cache. 
 --
--- Every second, the 'Reaper' will traverse the list of jobs, removing completed ones,
--- and killing ones that have run longer than 5 seconds.
+-- The @main@ function first creates a 'Reaper', with fields to initialize the 
+-- cache ('reaperEmpty'), add items to it ('reaperCons'), and prune it ('reaperAction').
+-- The reaper will run every two seconds ('reaperDelay'), but will stop running while 
+-- 'reaperNull' is true.
 --
--- Once all jobs are completed or killed, the 'Reaper''s own thread will die.
+-- @main@ then loops infinitely ('Control.Monad.forever'). Each second it calculates the fibonacci number 
+-- for a value between 30 and 34, first trying the cache ('reaperRead' and 'Data.Map.Strict.lookup'), 
+-- then falling back to manually calculating it (@fib@) 
+-- and updating the cache with the result ('reaperAdd')
+--
+-- @clean@ simply removes items cached for more than 10 seconds.
+-- This function is where you would perform IO-related cleanup,
+-- like killing threads or closing connections, if that was the purpose of your reaper.
 --
 -- @
--- {-\# LANGUAGE MultiWayIf #-}
---
 -- module Main where
 --
--- import "Data.Time"
--- import "System.Random"
+-- import "Data.Time" (UTCTime, getCurrentTime, diffUTCTime)
 -- import "Control.Reaper"
--- import "Control.Concurrent"
--- import "Control.Monad"
--- import "Data.IORef"
+-- import "Control.Concurrent" (threadDelay)
+-- import "Data.Map.Strict" (Map)
+-- import qualified "Data.Map.Strict" as Map
+-- import "Control.Monad" (forever)
+-- import "System.Random" (getStdRandom, randomR)
 --
--- -- In this example code, we add Jobs (the individual items) to our Reaper's workload (a list of Jobs)
--- data Job = Job { jobID :: 'Int'
---                , jobStarted :: 'Data.Time.Clock.UTCTime'
---                , jobThreadId :: 'ThreadId'
---                , jobFinished :: 'IORef' 'Bool'
---                }
+-- fib :: 'Int' -> 'Int'
+-- fib 0 = 0
+-- fib 1 = 1
+-- fib n = fib (n-1) + fib (n-2)
+--
+-- type Cache = 'Data.Map.Strict.Map' 'Int' ('Int', 'Data.Time.Clock.UTCTime')
 --
 -- main :: IO ()
 -- main = do
 --   reaper <- 'mkReaper' 'defaultReaperSettings'
---             { 'reaperAction' = 'mkListAction' maybeReapJob
---             , 'reaperDelay' = 1000000 -- Check for completed/valid jobs every second.
---             }
---   'forM_' [1..10] $ \\i -> do
---     job <- startJob i
---     ('reaperAdd' reaper) job
+--     { 'reaperEmpty' = Map.'Data.Map.Strict.empty'
+--     , 'reaperCons' = \\(k, v, time) workload -> Map.'Data.Map.Strict.insert' k (v, time) workload
+--     , 'reaperAction' = clean
+--     , 'reaperDelay' = 1000000 * 2 -- Clean every 2 seconds
+--     , 'reaperNull' = Map.'Data.Map.Strict.null'
+--     }
+--   forever $ do
+--     fibArg <- 'System.Random.getStdRandom' ('System.Random.randomR' (30,34))
+--     cache <- 'reaperRead' reaper
+--     let cachedResult = Map.'Data.Map.Strict.lookup' fibArg cache
+--     case cachedResult of
+--       'Just' (fibResult, _createdAt) -> 'putStrLn' $ "Found in cache: `fib " ++ 'show' fibArg ++ "` " ++ 'show' fibResult
+--       'Nothing' -> do
+--         let fibResult = fib fibArg
+--         'putStrLn' $ "Calculating `fib " ++ 'show' fibArg ++ "` " ++ 'show' fibResult
+--         time <- 'Data.Time.Clock.getCurrentTime'
+--         ('reaperAdd' reaper) (fibArg, fibResult, time)
+--     'threadDelay' 1000000 -- 1 second
 --
---   'threadDelay' 1500000 -- Sleep 15 seconds, so that jobs can be completed or killed.
---
--- -- Start a variable-length task that takes between 1 and 10 seconds
--- startJob :: Int -> IO Job
--- startJob aJobID = do
---   startTime <- 'Data.Time.Clock.getCurrentTime'
---   finishedRef <- 'newIORef' 'False'
---   threadID <- 'forkIO' $ do
---     secondsToWait <- 'System.Random.getStdRandom' ('System.Random.randomR' (1,10))
---     'threadDelay' (secondsToWait * 1000000)
---     'Data.IORef.atomicWriteIORef' finishedRef 'True' -- Mark the job as complete.
---   'return' $ Job aJobID startTime threadID finishedRef
---
--- -- Remove completed jobs, and also kill ones that have run longer than 5 seconds.
--- maybeReapJob :: Job -> IO (Maybe Job)
--- maybeReapJob job = do
+-- -- Remove items > 10 seconds old
+-- clean :: Cache -> IO (Cache -> Cache)
+-- clean oldMap = do
 --   currentTime <- 'Data.Time.Clock.getCurrentTime'
---   let runningTime = currentTime \`diffUTCTime\` (jobStarted job)
---   jobDone <- 'readIORef' (jobFinished job)
---
---   if | jobDone -> do
---         'putStrLn' $ "Completed job #" ++ 'show' (jobID job)
---         'return' 'Nothing'
---      | runningTime > 5.0 -> do
---          'killThread' (jobThreadId job)
---          'putStrLn' $ "Killed job #" ++ 'show' (jobID job)
---          'return' 'Nothing'
---      | otherwise -> 'return' ('Just' job)
+--   let pruned = Map.'Data.Map.Strict.filter' (\\(_, createdAt) -> currentTime \`diffUTCTime\` createdAt < 10.0) oldMap
+--   return (\\newData -> Map.'Data.Map.Strict.union' pruned newData)
 -- @
