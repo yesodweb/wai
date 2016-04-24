@@ -1,21 +1,40 @@
--- | A common problem is the desire to have an action run at a scheduled
--- interval, but only if it is needed. For example, instead of having
--- every web request result in a new @getCurrentTime@ call, we'd like to
--- have a single worker thread run every second, updating an @IORef@.
--- However, if the request frequency is less than once per second, this is
--- a pessimization, and worse, kills idle GC.
+-- | In a multithreaded environment, running actions on a regularly scheduled
+-- background thread can dramatically improve performance.
+-- For example, web servers need to return the current time with each HTTP response.
+-- For a high-volume server, it's much faster for a dedicated thread to run every
+-- second, and write the current time to a shared 'IORef', than it is for each
+-- request to make its own call to 'getCurrentTime'.
 --
--- This library allows you to define actions which will either be
--- performed by a dedicated thread or, in times of low volume, will be
--- executed by the calling thread.
+-- But for a low-volume server, whose request frequency is less than once per 
+-- second, that approach will result in /more/ calls to 'getCurrentTime' than 
+-- necessary, and worse, kills idle GC.
+--
+-- This library solves that problem by allowing you to define actions which will
+-- either be performed by a dedicated thread, or, in times of low volume, will 
+-- be executed by the calling thread.
+--
+-- Example usage:
+--
+-- @
+-- import "Data.Time"
+-- import "Control.AutoUpdate"
+--
+-- getTime <- 'mkAutoUpdate' 'defaultUpdateSettings'
+--              { 'updateAction' = 'Data.Time.Clock.getCurrentTime'
+--              , 'updateFreq' = 1000000 -- The default frequency, once per second
+--              }
+-- currentTime <- getTime
+-- @
+--
+-- For more examples, <http://www.yesodweb.com/blog/2014/08/announcing-auto-update see the blog post introducing this library>.
 module Control.AutoUpdate (
       -- * Type
       UpdateSettings
     , defaultUpdateSettings
       -- * Accessors
+    , updateAction
     , updateFreq
     , updateSpawnThreshold
-    , updateAction
       -- * Creation
     , mkAutoUpdate
     ) where
@@ -27,9 +46,9 @@ import           Control.Exception       (SomeException, catch, throw, mask_, tr
 import           Control.Monad           (void)
 import           Data.IORef              (newIORef, readIORef, writeIORef)
 
--- | Default value for creating an @UpdateSettings@.
+-- | Default value for creating an 'UpdateSettings'.
 --
--- Since 0.1.0
+-- @since 0.1.0
 defaultUpdateSettings :: UpdateSettings ()
 defaultUpdateSettings = UpdateSettings
     { updateFreq = 1000000
@@ -39,44 +58,44 @@ defaultUpdateSettings = UpdateSettings
 
 -- | Settings to control how values are updated.
 --
--- This should be constructed using @defaultUpdateSettings@ and record
+-- This should be constructed using 'defaultUpdateSettings' and record
 -- update syntax, e.g.:
 --
 -- @
--- let set = defaultUpdateSettings { updateAction = getCurrentTime }
+-- let settings = 'defaultUpdateSettings' { 'updateAction' = 'Data.Time.Clock.getCurrentTime' }
 -- @
 --
--- Since 0.1.0
+-- @since 0.1.0
 data UpdateSettings a = UpdateSettings
     { updateFreq           :: Int
     -- ^ Microseconds between update calls. Same considerations as
-    -- @threadDelay@ apply.
+    -- 'threadDelay' apply.
     --
     -- Default: 1 second (1000000)
     --
-    -- Since 0.1.0
+    -- @since 0.1.0
     , updateSpawnThreshold :: Int
     -- ^ NOTE: This value no longer has any effect, since worker threads are
     -- dedicated instead of spawned on demand.
     --
-    -- Previously, this determined: How many times the data must be requested
+    -- Previously, this determined how many times the data must be requested
     -- before we decide to spawn a dedicated thread.
     --
     -- Default: 3
     --
-    -- Since 0.1.0
+    -- @since 0.1.0
     , updateAction         :: IO a
     -- ^ Action to be performed to get the current value.
     --
     -- Default: does nothing.
     --
-    -- Since 0.1.0
+    -- @since 0.1.0
     }
 
 -- | Generate an action which will either read from an automatically
 -- updated value, or run the update action in the current thread.
 --
--- Since 0.1.0
+-- @since 0.1.0
 mkAutoUpdate :: UpdateSettings a -> IO (IO a)
 mkAutoUpdate us = do
     -- A baton to tell the worker thread to generate a new value.
@@ -158,7 +177,7 @@ mkAutoUpdate us = do
             -- we have a current value, use it
             Right val -> return val
 
--- | Turn a runtime exception into an impure exception, so that all @IO@
+-- | Turn a runtime exception into an impure exception, so that all 'IO'
 -- actions will complete successfully. This simply defers the exception until
 -- the value is forced.
 catchSome :: IO a -> IO a

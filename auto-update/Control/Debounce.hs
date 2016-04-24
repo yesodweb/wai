@@ -3,10 +3,26 @@
 -- period of time.
 --
 -- This is useful as an optimization, for example to ensure that logs are only
--- flushed to disk at most once per second. See the fast-logger package for an
--- example usage.
+-- flushed to disk at most once per second.
 --
--- Since 0.1.2
+-- Example usage:
+--
+-- @
+-- printString <- 'mkDebounce' 'defaultDebounceSettings'
+--                  { 'debounceAction' = putStrLn "Running action"
+--                  , 'debounceFreq' = 5000000 -- 5 seconds
+--                  }
+-- @
+--
+-- >>> printString
+-- Running action
+-- >>> printString
+-- <Wait five seconds>
+-- Running action
+--
+-- See the fast-logger package ("System.Log.FastLogger") for real-world usage.
+--
+-- @since 0.1.2
 module Control.Debounce
     ( -- * Type
       DebounceSettings
@@ -25,14 +41,14 @@ import           Control.Monad           (forever, void)
 
 -- | Settings to control how debouncing should work.
 --
--- This should be constructed using @defaultDebounceSettings@ and record
+-- This should be constructed using 'defaultDebounceSettings' and record
 -- update syntax, e.g.:
 --
 -- @
--- let set = defaultDebounceSettings { debounceAction = flushLog }
+-- let settings = 'defaultDebounceSettings' { 'debounceAction' = flushLog }
 -- @
 --
--- Since 0.1.2
+-- @since 0.1.2
 data DebounceSettings = DebounceSettings
     { debounceFreq   :: Int
     -- ^ Microseconds lag required between subsequence calls to the debounced
@@ -40,7 +56,7 @@ data DebounceSettings = DebounceSettings
     --
     -- Default: 1 second (1000000)
     --
-    -- Since 0.1.2
+    -- @since 0.1.2
     , debounceAction :: IO ()
     -- ^ Action to be performed.
     --
@@ -48,12 +64,12 @@ data DebounceSettings = DebounceSettings
     --
     -- Default: does nothing.
     --
-    -- Since 0.1.2
+    -- @since 0.1.2
     }
 
--- | Default value for creating a @DebounceSettings@.
+-- | Default value for creating a 'DebounceSettings'.
 --
--- Since 0.1.2
+-- @since 0.1.2
 defaultDebounceSettings :: DebounceSettings
 defaultDebounceSettings = DebounceSettings
     { debounceFreq = 1000000
@@ -64,7 +80,7 @@ defaultDebounceSettings = DebounceSettings
 -- performed. The action will either be performed immediately, or after the
 -- current cooldown period has expired.
 --
--- Since 0.1.2
+-- @since 0.1.2
 mkDebounce :: DebounceSettings -> IO (IO ())
 mkDebounce (DebounceSettings freq action) = do
     baton <- newEmptyMVar
