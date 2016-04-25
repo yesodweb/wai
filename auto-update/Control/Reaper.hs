@@ -3,8 +3,18 @@
 
 -- | This module provides the ability to create reapers: dedicated cleanup
 -- threads. These threads will automatically spawn and die based on the
--- presence of a workload to process on.
+-- presence of a workload to process on. Example uses include:
+--
+-- * Killing long-running jobs 
+-- * Closing unused connections in a connection pool
+-- * Pruning a cache of old items (see example below)
+--
+-- For real-world usage, search the <https://github.com/yesodweb/wai WAI family of packages>
+-- for imports of "Control.Reaper".
 module Control.Reaper (
+      -- * Example: Regularly cleaning a cache
+      -- $example1
+
       -- * Settings
       ReaperSettings
     , defaultReaperSettings
@@ -33,7 +43,7 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 -- be a list of @item@s. This is encouraged by 'defaultReaperSettings' and
 -- 'mkListAction'.
 --
--- Since 0.1.1
+-- @since 0.1.1
 data ReaperSettings workload item = ReaperSettings
     { reaperAction :: workload -> IO (workload -> workload)
     -- ^ The action to perform on a workload. The result of this is a
@@ -46,38 +56,38 @@ data ReaperSettings workload item = ReaperSettings
     -- temporary workload. This is incredibly useless; you should
     -- definitely override this default.
     --
-    -- Since 0.1.1
+    -- @since 0.1.1
     , reaperDelay :: {-# UNPACK #-} !Int
     -- ^ Number of microseconds to delay between calls of 'reaperAction'.
     --
     -- Default: 30 seconds.
     --
-    -- Since 0.1.1
+    -- @since 0.1.1
     , reaperCons :: item -> workload -> workload
     -- ^ Add an item onto a workload.
     --
     -- Default: list consing.
     --
-    -- Since 0.1.1
+    -- @since 0.1.1
     , reaperNull :: workload -> Bool
     -- ^ Check if a workload is empty, in which case the worker thread
     -- will shut down.
     --
     -- Default: 'null'.
     --
-    -- Since 0.1.1
+    -- @since 0.1.1
     , reaperEmpty :: workload
     -- ^ An empty workload.
     --
     -- Default: empty list.
     --
-    -- Since 0.1.1
+    -- @since 0.1.1
     }
 
 -- | Default @ReaperSettings@ value, biased towards having a list of work
 -- items.
 --
--- Since 0.1.1
+-- @since 0.1.1
 defaultReaperSettings :: ReaperSettings [item] item
 defaultReaperSettings = ReaperSettings
     { reaperAction = \wl -> return (wl ++)
@@ -104,11 +114,11 @@ data Reaper workload item = Reaper {
 data State workload = NoReaper           -- ^ No reaper thread
                     | Workload workload  -- ^ The current jobs
 
--- | Create a reaper addition function. This funciton can be used to add
+-- | Create a reaper addition function. This function can be used to add
 -- new items to the workload. Spawning of reaper threads will be handled
 -- for you automatically.
 --
--- Since 0.1.1
+-- @since 0.1.1
 mkReaper :: ReaperSettings workload item -> IO (Reaper workload item)
 mkReaper settings@ReaperSettings{..} = do
     stateRef <- newIORef NoReaper
@@ -187,7 +197,7 @@ reaper settings@ReaperSettings{..} stateRef tidRef = do
 -- return either a new work item, or @Nothing@ if the work item is
 -- expired.
 --
--- Since 0.1.1
+-- @since 0.1.1
 mkListAction :: (item -> IO (Maybe item'))
              -> [item]
              -> IO ([item'] -> [item'])
@@ -202,3 +212,68 @@ mkListAction f =
                     Nothing -> front
                     Just y  -> front . (y:)
         go front' xs
+
+-- $example1
+-- In this example code, we use a 'Data.Map.Strict.Map' to cache fibonacci numbers, and a 'Reaper' to prune the cache. 
+--
+-- The @main@ function first creates a 'Reaper', with fields to initialize the 
+-- cache ('reaperEmpty'), add items to it ('reaperCons'), and prune it ('reaperAction').
+-- The reaper will run every two seconds ('reaperDelay'), but will stop running while 
+-- 'reaperNull' is true.
+--
+-- @main@ then loops infinitely ('Control.Monad.forever'). Each second it calculates the fibonacci number 
+-- for a value between 30 and 34, first trying the cache ('reaperRead' and 'Data.Map.Strict.lookup'), 
+-- then falling back to manually calculating it (@fib@) 
+-- and updating the cache with the result ('reaperAdd')
+--
+-- @clean@ simply removes items cached for more than 10 seconds.
+-- This function is where you would perform IO-related cleanup,
+-- like killing threads or closing connections, if that was the purpose of your reaper.
+--
+-- @
+-- module Main where
+--
+-- import "Data.Time" (UTCTime, getCurrentTime, diffUTCTime)
+-- import "Control.Reaper"
+-- import "Control.Concurrent" (threadDelay)
+-- import "Data.Map.Strict" (Map)
+-- import qualified "Data.Map.Strict" as Map
+-- import "Control.Monad" (forever)
+-- import "System.Random" (getStdRandom, randomR)
+--
+-- fib :: 'Int' -> 'Int'
+-- fib 0 = 0
+-- fib 1 = 1
+-- fib n = fib (n-1) + fib (n-2)
+--
+-- type Cache = 'Data.Map.Strict.Map' 'Int' ('Int', 'Data.Time.Clock.UTCTime')
+--
+-- main :: IO ()
+-- main = do
+--   reaper <- 'mkReaper' 'defaultReaperSettings'
+--     { 'reaperEmpty' = Map.'Data.Map.Strict.empty'
+--     , 'reaperCons' = \\(k, v, time) workload -> Map.'Data.Map.Strict.insert' k (v, time) workload
+--     , 'reaperAction' = clean
+--     , 'reaperDelay' = 1000000 * 2 -- Clean every 2 seconds
+--     , 'reaperNull' = Map.'Data.Map.Strict.null'
+--     }
+--   forever $ do
+--     fibArg <- 'System.Random.getStdRandom' ('System.Random.randomR' (30,34))
+--     cache <- 'reaperRead' reaper
+--     let cachedResult = Map.'Data.Map.Strict.lookup' fibArg cache
+--     case cachedResult of
+--       'Just' (fibResult, _createdAt) -> 'putStrLn' $ "Found in cache: `fib " ++ 'show' fibArg ++ "` " ++ 'show' fibResult
+--       'Nothing' -> do
+--         let fibResult = fib fibArg
+--         'putStrLn' $ "Calculating `fib " ++ 'show' fibArg ++ "` " ++ 'show' fibResult
+--         time <- 'Data.Time.Clock.getCurrentTime'
+--         ('reaperAdd' reaper) (fibArg, fibResult, time)
+--     'threadDelay' 1000000 -- 1 second
+--
+-- -- Remove items > 10 seconds old
+-- clean :: Cache -> IO (Cache -> Cache)
+-- clean oldMap = do
+--   currentTime <- 'Data.Time.Clock.getCurrentTime'
+--   let pruned = Map.'Data.Map.Strict.filter' (\\(_, createdAt) -> currentTime \`diffUTCTime\` createdAt < 10.0) oldMap
+--   return (\\newData -> Map.'Data.Map.Strict.union' pruned newData)
+-- @
