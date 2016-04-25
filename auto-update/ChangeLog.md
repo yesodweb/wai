@@ -1,3 +1,11 @@
-__0.1.3__ Adding a new AIP - reaperKill
+## 0.1.3.1
 
-__0.1.2__ Added Control.Debounce
+* Doc improvements
+
+## 0.1.3
+
+* Adding a new AIP - reaperKill
+
+## 0.1.2
+
+* Added Control.Debounce
