@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE CPP, ForeignFunctionInterface #-}
 module Network.Wai.Handler.SCGI
     ( run
     , runSendfile
@@ -86,6 +86,16 @@ readByteString socket len = do
 foreign import ccall unsafe "accept"
     c'accept :: CInt -> Ptr a -> Ptr a -> IO CInt
 
+#if WINDOWS
+foreign import ccall unsafe "_close"
+    c'close :: CInt -> IO CInt
+
+foreign import ccall unsafe "_write"
+    c'write :: CInt -> Ptr CChar -> CInt -> IO CInt
+
+foreign import ccall unsafe "_read"
+    c'read :: CInt -> Ptr CChar -> CInt -> IO CInt
+#else
 foreign import ccall unsafe "close"
     c'close :: CInt -> IO CInt
 
@@ -94,3 +104,4 @@ foreign import ccall unsafe "write"
 
 foreign import ccall unsafe "read"
     c'read :: CInt -> Ptr CChar -> CInt -> IO CInt
+#endif
