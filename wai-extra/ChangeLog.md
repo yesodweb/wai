@@ -1,3 +1,7 @@
+## 3.0.15.1
+
+* don't use deprecated CRT functions on Windows [#544](https://github.com/yesodweb/wai/pull/544)
+
 ## 3.0.15
 
 * add requestSizeCheck [#525](https://github.com/yesodweb/wai/pull/525)
