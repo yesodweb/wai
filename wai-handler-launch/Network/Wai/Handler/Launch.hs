@@ -34,9 +34,9 @@ import Data.Streaming.Blaze (newBlazeRecv, defaultStrategy)
 import qualified Data.Streaming.Zlib as Z
 
 ping :: IORef Bool -> Middleware
-ping  var app req sendResponse
+ping  active app req sendResponse
     | pathInfo req == ["_ping"] = do
-        liftIO $ writeIORef var True
+        liftIO $ writeIORef active True
         sendResponse $ responseLBS status200 [] ""
     | otherwise = app req $ \res -> do
         let isHtml hs =
@@ -210,10 +210,10 @@ runHostPortUrl host port url app = do
       (takeMVar ready >> launch port url >> loop active)
 
 loop :: IORef Bool -> IO ()
-loop x = do
+loop active = do
     let seconds = 120
     threadDelay $ 1000000 * seconds
-    b <- readIORef x
+    b <- readIORef active
     if b
-        then writeIORef x False >> loop x
+        then writeIORef active False >> loop active
         else return ()
