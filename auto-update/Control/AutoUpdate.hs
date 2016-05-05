@@ -6,12 +6,12 @@
 -- second, and write the current time to a shared 'IORef', than it is for each
 -- request to make its own call to 'getCurrentTime'.
 --
--- But for a low-volume server, whose request frequency is less than once per
--- second, that approach will result in /more/ calls to 'getCurrentTime' than
+-- But for a low-volume server, whose request frequency is less than once per 
+-- second, that approach will result in /more/ calls to 'getCurrentTime' than 
 -- necessary, and worse, kills idle GC.
 --
 -- This library solves that problem by allowing you to define actions which will
--- either be performed by a dedicated thread, or, in times of low volume, will
+-- either be performed by a dedicated thread, or, in times of low volume, will 
 -- be executed by the calling thread.
 --
 -- Example usage:
@@ -98,16 +98,19 @@ data UpdateSettings a = UpdateSettings
     -- @since 0.1.0
     }
 
-mkAutoUpdate :: UpdateSettings a -> IO (IO a)
-mkAutoUpdate us = mkAutoUpdateHelper us Nothing
-
-mkAutoUpdateWithModify :: UpdateSettings a -> (a -> IO a) -> IO (IO a)
-mkAutoUpdateWithModify us f = mkAutoUpdateHelper us (Just f)
-
 -- | Generate an action which will either read from an automatically
 -- updated value, or run the update action in the current thread.
 --
 -- @since 0.1.0
+mkAutoUpdate :: UpdateSettings a -> IO (IO a)
+mkAutoUpdate us = mkAutoUpdateHelper us Nothing
+
+-- | Generate an action which will either read from an automatically
+-- updated value, or run the update action in the current thread if
+-- the first time or the provided modify action after that.
+mkAutoUpdateWithModify :: UpdateSettings a -> (a -> IO a) -> IO (IO a)
+mkAutoUpdateWithModify us f = mkAutoUpdateHelper us (Just f)
+
 mkAutoUpdateHelper :: UpdateSettings a -> Maybe (a -> IO a) -> IO (IO a)
 mkAutoUpdateHelper us updateActionModify = do
     -- A baton to tell the worker thread to generate a new value.
