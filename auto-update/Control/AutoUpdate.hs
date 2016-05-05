@@ -34,11 +34,11 @@ module Control.AutoUpdate (
     , defaultUpdateSettings
       -- * Accessors
     , updateAction
-    , updateActionModify
     , updateFreq
     , updateSpawnThreshold
       -- * Creation
     , mkAutoUpdate
+    , mkAutoUpdateWithModify
     ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -60,7 +60,6 @@ defaultUpdateSettings = UpdateSettings
     { updateFreq = 1000000
     , updateSpawnThreshold = 3
     , updateAction = return ()
-    , updateActionModify = Nothing
     }
 
 -- | Settings to control how values are updated.
@@ -97,19 +96,20 @@ data UpdateSettings a = UpdateSettings
     -- Default: does nothing.
     --
     -- @since 0.1.0
-    , updateActionModify   :: Maybe (a -> IO a)
-    -- ^ Optional action to be performed to get the current value
-    -- and update it if necessary.
-    --
-    -- Default: does nothing.
     }
+
+mkAutoUpdate :: UpdateSettings a -> IO (IO a)
+mkAutoUpdate us = mkAutoUpdateHelper us Nothing
+
+mkAutoUpdateWithModify :: UpdateSettings a -> (a -> IO a) -> IO (IO a)
+mkAutoUpdateWithModify us f = mkAutoUpdateHelper us (Just f)
 
 -- | Generate an action which will either read from an automatically
 -- updated value, or run the update action in the current thread.
 --
 -- @since 0.1.0
-mkAutoUpdate :: UpdateSettings a -> IO (IO a)
-mkAutoUpdate us = do
+mkAutoUpdateHelper :: UpdateSettings a -> Maybe (a -> IO a) -> IO (IO a)
+mkAutoUpdateHelper us updateActionModify = do
     -- A baton to tell the worker thread to generate a new value.
     needsRunning <- newEmptyMVar
 
@@ -157,7 +157,7 @@ mkAutoUpdate us = do
                 takeMVar needsRunning
 
                 -- new value requested, so run the updateAction
-                a <- catchSome $ maybe (updateAction us) id (updateActionModify us <*> maybea)
+                a <- catchSome $ maybe (updateAction us) id (updateActionModify <*> maybea)
 
                 -- we got a new value, update currRef and lastValue
                 writeIORef currRef $ Right a
