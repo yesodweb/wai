@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- | In a multithreaded environment, running actions on a regularly scheduled
 -- background thread can dramatically improve performance.
 -- For example, web servers need to return the current time with each HTTP response.
@@ -40,6 +41,9 @@ module Control.AutoUpdate (
     , mkAutoUpdate
     ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import           Control.Applicative     ((<*>))
+#endif
 import           Control.Concurrent      (forkIO, threadDelay)
 import           Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar,
                                           takeMVar, tryPutMVar)
