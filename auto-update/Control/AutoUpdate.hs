@@ -33,6 +33,7 @@ module Control.AutoUpdate (
     , defaultUpdateSettings
       -- * Accessors
     , updateAction
+    , updateActionModify
     , updateFreq
     , updateSpawnThreshold
       -- * Creation
@@ -94,7 +95,7 @@ data UpdateSettings a = UpdateSettings
     -- @since 0.1.0
     , updateActionModify   :: Maybe (a -> IO a)
     -- ^ Optional action to be performed to get the current value
-    -- and updating it if necessary.
+    -- and update it if necessary.
     --
     -- Default: does nothing.
     }
