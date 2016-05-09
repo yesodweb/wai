@@ -1,5 +1,5 @@
 name:                auto-update
-version:             0.1.3.1
+version:             0.1.4
 synopsis:            Efficiently run periodic, on-demand actions
 description:         API docs and the README are available at <http://www.stackage.org/package/auto-update>.
 homepage:            https://github.com/yesodweb/wai

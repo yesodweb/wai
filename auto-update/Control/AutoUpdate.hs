@@ -108,6 +108,8 @@ mkAutoUpdate us = mkAutoUpdateHelper us Nothing
 -- | Generate an action which will either read from an automatically
 -- updated value, or run the update action in the current thread if
 -- the first time or the provided modify action after that.
+--
+-- @since 0.1.4
 mkAutoUpdateWithModify :: UpdateSettings a -> (a -> IO a) -> IO (IO a)
 mkAutoUpdateWithModify us f = mkAutoUpdateHelper us (Just f)
 
