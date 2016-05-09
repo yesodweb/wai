@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- | In a multithreaded environment, running actions on a regularly scheduled
 -- background thread can dramatically improve performance.
 -- For example, web servers need to return the current time with each HTTP response.
@@ -37,12 +38,17 @@ module Control.AutoUpdate (
     , updateSpawnThreshold
       -- * Creation
     , mkAutoUpdate
+    , mkAutoUpdateWithModify
     ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import           Control.Applicative     ((<*>))
+#endif
 import           Control.Concurrent      (forkIO, threadDelay)
 import           Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar,
                                           takeMVar, tryPutMVar)
-import           Control.Exception       (SomeException, catch, throw, mask_, try)
+import           Control.Exception       (SomeException, catch, mask_, throw,
+                                          try)
 import           Control.Monad           (void)
 import           Data.IORef              (newIORef, readIORef, writeIORef)
 
@@ -97,7 +103,16 @@ data UpdateSettings a = UpdateSettings
 --
 -- @since 0.1.0
 mkAutoUpdate :: UpdateSettings a -> IO (IO a)
-mkAutoUpdate us = do
+mkAutoUpdate us = mkAutoUpdateHelper us Nothing
+
+-- | Generate an action which will either read from an automatically
+-- updated value, or run the update action in the current thread if
+-- the first time or the provided modify action after that.
+mkAutoUpdateWithModify :: UpdateSettings a -> (a -> IO a) -> IO (IO a)
+mkAutoUpdateWithModify us f = mkAutoUpdateHelper us (Just f)
+
+mkAutoUpdateHelper :: UpdateSettings a -> Maybe (a -> IO a) -> IO (IO a)
+mkAutoUpdateHelper us updateActionModify = do
     -- A baton to tell the worker thread to generate a new value.
     needsRunning <- newEmptyMVar
 
@@ -140,12 +155,12 @@ mkAutoUpdate us = do
         -- This infinite loop makes up out worker thread. It takes an a
         -- responseVar value where the next value should be putMVar'ed to for
         -- the benefit of any requesters currently blocked on it.
-        let loop responseVar = do
+        let loop responseVar maybea = do
                 -- block until a value is actually needed
                 takeMVar needsRunning
 
                 -- new value requested, so run the updateAction
-                a <- catchSome $ updateAction us
+                a <- catchSome $ maybe (updateAction us) id (updateActionModify <*> maybea)
 
                 -- we got a new value, update currRef and lastValue
                 writeIORef currRef $ Right a
@@ -160,10 +175,10 @@ mkAutoUpdate us = do
                 -- variable.
                 responseVar' <- newEmptyMVar
                 writeIORef currRef $ Left responseVar'
-                loop responseVar'
+                loop responseVar' (Just a)
 
         -- Kick off the loop, with the initial responseVar0 variable.
-        loop responseVar0
+        loop responseVar0 Nothing
 
     return $ do
         mval <- readIORef currRef
