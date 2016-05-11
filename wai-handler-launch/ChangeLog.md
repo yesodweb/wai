@@ -1,3 +1,7 @@
+## 3.0.2
+
+* Don't launch if server fails; kill server on exit [#537](https://github.com/yesodweb/wai/issues/537) [#541](https://github.com/yesodweb/wai/pull/541)
+
 ## 3.0.1
 
 * make host configurable too (fixes #538) [#539](https://github.com/yesodweb/wai/pull/539)
