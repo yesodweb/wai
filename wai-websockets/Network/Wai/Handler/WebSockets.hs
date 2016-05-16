@@ -7,6 +7,7 @@ module Network.Wai.Handler.WebSockets
     , runWebSockets
     ) where
 
+import              Control.Exception               (finally)
 import              Data.ByteString                 (ByteString)
 import qualified    Data.ByteString.Char8           as BC
 import qualified    Data.ByteString.Lazy            as BL
@@ -110,4 +111,4 @@ runWebSockets opts req app src sink = do
                 , WS.pendingStream      = stream
                 }
 
-    app pc
+    app pc `finally` WS.close stream
