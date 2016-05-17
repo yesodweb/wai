@@ -1,3 +1,7 @@
+## 3.0.0.9
+
+* Clean up stream resources when websockets completes [#549](https://github.com/yesodweb/wai/pull/549)
+
 ## 3.0.0.8
 
 * Support wai 3.2
