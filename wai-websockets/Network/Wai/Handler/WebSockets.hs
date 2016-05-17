@@ -7,6 +7,7 @@ module Network.Wai.Handler.WebSockets
     , runWebSockets
     ) where
 
+import              Control.Exception               (bracket)
 import              Data.ByteString                 (ByteString)
 import qualified    Data.ByteString.Char8           as BC
 import qualified    Data.ByteString.Lazy            as BL
@@ -94,20 +95,20 @@ runWebSockets :: WS.ConnectionOptions
               -> IO ByteString
               -> (ByteString -> IO ())
               -> IO a
-runWebSockets opts req app src sink = do
-    stream <- WS.makeStream
-        (do
-            bs <- src
-            return $ if BC.null bs then Nothing else Just bs)
-        (\mbBl -> case mbBl of
-            Nothing -> return ()
-            Just bl -> mapM_ sink (BL.toChunks bl))
+runWebSockets opts req app src sink = bracket mkStream WS.close (app . pc)
+  where
+    mkStream =
+        WS.makeStream
+            (do
+                bs <- src
+                return $ if BC.null bs then Nothing else Just bs)
+            (\mbBl -> case mbBl of
+                Nothing -> return ()
+                Just bl -> mapM_ sink (BL.toChunks bl))
 
-    let pc = WS.PendingConnection
-                { WS.pendingOptions     = opts
-                , WS.pendingRequest     = req
-                , WS.pendingOnAccept    = \_ -> return ()
-                , WS.pendingStream      = stream
-                }
-
-    app pc
+    pc stream = WS.PendingConnection
+        { WS.pendingOptions     = opts
+        , WS.pendingRequest     = req
+        , WS.pendingOnAccept    = \_ -> return ()
+        , WS.pendingStream      = stream
+        }
