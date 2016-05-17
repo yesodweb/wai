@@ -32,15 +32,15 @@ main = do
     defaultMain [
         bgroup "requestLine1" [
              bench "parseRequestLine3" $ whnf parseRequestLine3 requestLine1
-           , bench "parseRequestLine2" $ parseRequestLine2 requestLine1
-           , bench "parseRequestLine1" $ parseRequestLine1 requestLine1
-           , bench "parseRequestLine0" $ parseRequestLine0 requestLine1
+           , bench "parseRequestLine2" $ whnfIO $ parseRequestLine2 requestLine1
+           , bench "parseRequestLine1" $ whnfIO $ parseRequestLine1 requestLine1
+           , bench "parseRequestLine0" $ whnfIO $ parseRequestLine0 requestLine1
            ]
       , bgroup "requestLine2" [
              bench "parseRequestLine3" $ whnf parseRequestLine3 requestLine2
-           , bench "parseRequestLine2" $ parseRequestLine2 requestLine2
-           , bench "parseRequestLine1" $ parseRequestLine1 requestLine2
-           , bench "parseRequestLine0" $ parseRequestLine0 requestLine2
+           , bench "parseRequestLine2" $ whnfIO $ parseRequestLine2 requestLine2
+           , bench "parseRequestLine1" $ whnfIO $ parseRequestLine1 requestLine2
+           , bench "parseRequestLine0" $ whnfIO $ parseRequestLine0 requestLine2
            ]
       ]
 

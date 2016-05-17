@@ -185,11 +185,22 @@ Benchmark parser
     Main-Is:        Parser.hs
     HS-Source-Dirs: bench .
     Build-Depends:  base
+                  , auto-update
                   , bytestring
-                  , criterion
+                  , containers
+                  , criterion >= 1
+                  , hashable
+                  , http-date
                   , http-types
                   , network
                   , network
+                  , unix-compat
+
+  if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
+    Cpp-Options:   -DSENDFILEFD
+    Build-Depends: unix
+  if os(windows)
+      Cpp-Options:   -DWINDOWS
 
 Source-Repository head
   Type:     git
