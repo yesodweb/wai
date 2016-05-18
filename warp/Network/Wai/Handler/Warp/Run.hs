@@ -13,7 +13,6 @@ module Network.Wai.Handler.Warp.Run where
 import Control.Applicative ((<$>))
 #endif
 import Control.Arrow (first)
-import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception as E
 import Control.Monad (when, unless, void)
@@ -44,7 +43,6 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
 import System.Environment (getEnvironment)
-import System.IO.Error (isFullErrorType, ioeGetErrorType)
 
 #if WINDOWS
 import Network.Wai.Handler.Warp.Windows
@@ -242,17 +240,9 @@ acceptConnection set getConnMaker app counter ii0 = do
         ex <- try getConnMaker
         case ex of
             Right x -> return $ Just x
-            Left  e  -> do
+            Left (e :: IOError) -> do
                 settingsOnException set Nothing $ toException e
-                if isFullErrorType (ioeGetErrorType e) then do
-                    -- "resource exhausted (Too many open files)" may
-                    -- happen by accept().  Wait a second hoping that
-                    -- resource will be available.
-                    threadDelay 1000000
-                    acceptNewConnection
-                  else
-                    -- Assuming the listen socket is closed.
-                    return Nothing
+                return Nothing
 
 -- Fork a new worker thread for this connection maker, and ask for a
 -- function to unmask (i.e., allow async exceptions to be thrown).
