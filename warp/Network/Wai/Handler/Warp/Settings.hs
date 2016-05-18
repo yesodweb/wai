@@ -101,6 +101,9 @@ data Settings = Settings
       -- ^ A log function. Default: no action.
       --
       -- Since 3.X.X.
+    , settingsGracefulShutdownTimeout :: Maybe Int
+      -- ^ An optional timeout to limit the time (in seconds) waiting for
+      -- a graceful shutdown of the web server.
     }
 
 -- | Specify usage of the PROXY protocol.
@@ -135,6 +138,7 @@ defaultSettings = Settings
     , settingsSlowlorisSize = 2048
     , settingsHTTP2Enabled = True
     , settingsLogger = \_ _ _ -> return ()
+    , settingsGracefulShutdownTimeout = Nothing
     }
 
 -- | Apply the logic provided by 'defaultOnException' to determine if an

@@ -45,6 +45,7 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
 import System.Environment (getEnvironment)
+import System.Timeout (timeout)
 
 #if WINDOWS
 import Network.Wai.Handler.Warp.Windows
@@ -218,7 +219,7 @@ acceptConnection set getConnMaker app counter ii0 = do
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
     void $ mask_ acceptLoop
-    gracefulShutdown counter
+    gracefulShutdown set counter
   where
     acceptLoop = do
         -- Allow async exceptions before receiving the next connection maker.
@@ -495,5 +496,11 @@ setSocketCloseOnExec _ = return ()
 setSocketCloseOnExec socket = F.setFileCloseOnExec $ fromIntegral $ fdSocket socket
 #endif
 
-gracefulShutdown :: Counter -> IO ()
-gracefulShutdown counter = waitForZero counter
+gracefulShutdown :: Settings -> Counter -> IO ()
+gracefulShutdown set counter =
+    case settingsGracefulShutdownTimeout set of
+        Nothing ->
+            waitForZero counter
+        (Just seconds) ->
+            void (timeout (seconds * microsPerSecond) (waitForZero counter))
+            where microsPerSecond = 1000000
