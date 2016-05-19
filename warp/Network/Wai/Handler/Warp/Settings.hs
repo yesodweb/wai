@@ -104,6 +104,8 @@ data Settings = Settings
     , settingsGracefulShutdownTimeout :: Maybe Int
       -- ^ An optional timeout to limit the time (in seconds) waiting for
       -- a graceful shutdown of the web server.
+      --
+      -- Since 3.2.8
     }
 
 -- | Specify usage of the PROXY protocol.

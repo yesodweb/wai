@@ -247,6 +247,8 @@ getOnException :: Settings -> Maybe Request -> SomeException -> IO ()
 getOnException = settingsOnException
 
 -- | Get the graceful shutdown timeout
+--
+-- Since 3.2.8
 getGracefulShutdownTimeout :: Settings -> Maybe Int
 getGracefulShutdownTimeout = settingsGracefulShutdownTimeout
 
@@ -356,6 +358,8 @@ setLogger lgr y = y { settingsLogger = lgr }
 -- | Set the graceful shutdown timeout. A timeout of `Nothing' will
 -- wait indefinitely, and a number, if provided, will be treated as seconds
 -- to wait for requests to finish, before shutting down the server entirely.
+--
+-- Since 3.2.8
 setGracefulShutdownTimeout :: Maybe Int
                            -> Settings -> Settings
 setGracefulShutdownTimeout time y = y { settingsGracefulShutdownTimeout = time }
