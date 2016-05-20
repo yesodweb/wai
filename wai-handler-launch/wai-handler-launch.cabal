@@ -28,7 +28,7 @@ Library
         cpp-options: -DWINDOWS
         extra-libraries: Shell32 msvcrt
     else
-        build-depends: process >= 1.0 && < 1.3
+        build-depends: process >= 1.0 && < 1.5
         if os(darwin)
             cpp-options: -DMAC
 
