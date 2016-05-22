@@ -30,6 +30,7 @@ module Network.Wai.Handler.WarpTLS (
     , tlsCiphers
     , tlsWantClientCert
     , tlsServerHooks
+    , tlsServerDHEParams
     , onInsecure
     , OnInsecure (..)
     -- * Runner
@@ -37,6 +38,8 @@ module Network.Wai.Handler.WarpTLS (
     , runTLSSocket
     -- * Exception
     , WarpTLSException (..)
+    , DH.Params
+    , DH.generateParams
     ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -55,6 +58,7 @@ import Data.Typeable (Typeable)
 import Network.Socket (Socket, sClose, withSocketsDo, SockAddr, accept)
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
+import qualified Crypto.PubKey.DH as DH
 import qualified Network.TLS.Extra as TLSExtra
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp
@@ -118,6 +122,13 @@ data TLSSettings = TLSSettings {
     -- Default: def
     --
     -- Since 3.0.2
+  , tlsServerDHEParams :: Maybe DH.Params
+    -- ^ Configuration for ServerDHEParams
+    -- more function lives in `cryptonite` package
+    --
+    -- Default: Nothing
+    --
+    -- Since 3.2.2
   }
 
 -- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name (aka accessors).
@@ -135,6 +146,7 @@ defaultTlsSettings = TLSSettings {
   , tlsCiphers = ciphers
   , tlsWantClientCert = False
   , tlsServerHooks = def
+  , tlsServerDHEParams = Nothing
   }
 
 -- taken from stunnel example in tls-extra
@@ -250,7 +262,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
     params = def { -- TLS.ServerParams
         TLS.serverWantClientCert = tlsWantClientCert
       , TLS.serverCACertificates = []
-      , TLS.serverDHEParams      = Nothing
+      , TLS.serverDHEParams      = tlsServerDHEParams
       , TLS.serverHooks          = hooks
       , TLS.serverShared         = shared
       , TLS.serverSupported      = supported
