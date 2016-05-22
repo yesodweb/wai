@@ -89,6 +89,7 @@ matrix:
     os: osx
 
   allow_failures:
+  - env: BUILD=cabal GHCVER=7.6.3 CABALVER=1.22 HAPPYVER=1.19.5 ALEXVER=3.1.7
   - env: BUILD=cabal GHCVER=head  CABALVER=head HAPPYVER=1.19.5 ALEXVER=3.1.7
   - env: BUILD=stack ARGS="--resolver nightly"
 
