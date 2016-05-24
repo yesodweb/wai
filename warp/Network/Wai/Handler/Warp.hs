@@ -70,12 +70,14 @@ module Network.Wai.Handler.Warp (
   , setSlowlorisSize
   , setHTTP2Disabled
   , setLogger
+  , setGracefulShutdownTimeout
     -- ** Getters
   , getPort
   , getHost
   , getOnOpen
   , getOnClose
   , getOnException
+  , getGracefulShutdownTimeout
     -- ** Exception handler
   , defaultOnException
   , defaultShouldDisplayException
@@ -244,6 +246,12 @@ getOnClose = settingsOnClose
 getOnException :: Settings -> Maybe Request -> SomeException -> IO ()
 getOnException = settingsOnException
 
+-- | Get the graceful shutdown timeout
+--
+-- Since 3.2.8
+getGracefulShutdownTimeout :: Settings -> Maybe Int
+getGracefulShutdownTimeout = settingsGracefulShutdownTimeout
+
 -- | A code to install shutdown handler.
 --
 -- For instance, this code should set up a UNIX signal
@@ -346,6 +354,15 @@ setHTTP2Disabled y = y { settingsHTTP2Enabled = False }
 setLogger :: (Request -> H.Status -> Maybe Integer -> IO ())
           -> Settings -> Settings
 setLogger lgr y = y { settingsLogger = lgr }
+
+-- | Set the graceful shutdown timeout. A timeout of `Nothing' will
+-- wait indefinitely, and a number, if provided, will be treated as seconds
+-- to wait for requests to finish, before shutting down the server entirely.
+--
+-- Since 3.2.8
+setGracefulShutdownTimeout :: Maybe Int
+                           -> Settings -> Settings
+setGracefulShutdownTimeout time y = y { settingsGracefulShutdownTimeout = time }
 
 -- | Explicitly pause the slowloris timeout.
 --

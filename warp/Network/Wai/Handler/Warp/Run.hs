@@ -13,7 +13,6 @@ module Network.Wai.Handler.Warp.Run where
 import Control.Applicative ((<$>))
 #endif
 import Control.Arrow (first)
-import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception as E
 import Control.Monad (when, unless, void)
@@ -23,6 +22,8 @@ import Data.Char (chr)
 import "iproute" Data.IP (toHostAddress, toHostAddress6)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
+import Foreign.C.Error (Errno(..), eCONNABORTED)
+import GHC.IO.Exception (IOException(..))
 import Network (sClose, Socket)
 import Network.Socket (accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6), setSocketOption, SocketOption(..))
 import qualified Network.Socket.ByteString as Sock
@@ -44,7 +45,7 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
 import System.Environment (getEnvironment)
-import System.IO.Error (isFullErrorType, ioeGetErrorType)
+import System.Timeout (timeout)
 
 #if WINDOWS
 import Network.Wai.Handler.Warp.Windows
@@ -218,7 +219,7 @@ acceptConnection set getConnMaker app counter ii0 = do
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
     void $ mask_ acceptLoop
-    gracefulShutdown counter
+    gracefulShutdown set counter
   where
     acceptLoop = do
         -- Allow async exceptions before receiving the next connection maker.
@@ -242,17 +243,14 @@ acceptConnection set getConnMaker app counter ii0 = do
         ex <- try getConnMaker
         case ex of
             Right x -> return $ Just x
-            Left  e  -> do
-                settingsOnException set Nothing $ toException e
-                if isFullErrorType (ioeGetErrorType e) then do
-                    -- "resource exhausted (Too many open files)" may
-                    -- happen by accept().  Wait a second hoping that
-                    -- resource will be available.
-                    threadDelay 1000000
-                    acceptNewConnection
-                  else
-                    -- Assuming the listen socket is closed.
-                    return Nothing
+            Left e -> do
+                let eConnAborted = getErrno eCONNABORTED
+                    getErrno (Errno cInt) = cInt
+                if ioe_errno e == Just eConnAborted
+                    then acceptNewConnection
+                    else do
+                        settingsOnException set Nothing $ toException e
+                        return Nothing
 
 -- Fork a new worker thread for this connection maker, and ask for a
 -- function to unmask (i.e., allow async exceptions to be thrown).
@@ -498,5 +496,11 @@ setSocketCloseOnExec _ = return ()
 setSocketCloseOnExec socket = F.setFileCloseOnExec $ fromIntegral $ fdSocket socket
 #endif
 
-gracefulShutdown :: Counter -> IO ()
-gracefulShutdown counter = waitForZero counter
+gracefulShutdown :: Settings -> Counter -> IO ()
+gracefulShutdown set counter =
+    case settingsGracefulShutdownTimeout set of
+        Nothing ->
+            waitForZero counter
+        (Just seconds) ->
+            void (timeout (seconds * microsPerSecond) (waitForZero counter))
+            where microsPerSecond = 1000000
