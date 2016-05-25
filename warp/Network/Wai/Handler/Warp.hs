@@ -138,8 +138,17 @@ setOnException :: (Maybe Request -> SomeException -> IO ()) -> Settings -> Setti
 setOnException x y = y { settingsOnException = x }
 
 -- | A function to create a `Response` when an exception occurs.
---
 -- Default: 'defaultOnExceptionResponse'
+--
+-- Note that an application can handle its own exceptions without interfering with Warp:
+--
+-- > myApp :: Application
+-- > myApp request respond = innerApp `catch` onError
+-- >   where
+-- >     onError = respond . response500 request
+-- >
+-- > response500 :: Request -> SomeException -> Response
+-- > response500 req someEx = responseLBS status500 -- ...
 --
 -- Since 2.1.0
 setOnExceptionResponse :: (SomeException -> Response) -> Settings -> Settings
