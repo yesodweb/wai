@@ -76,8 +76,12 @@ defaultCheckMime bs =
 -- Possible future enhancements:
 --
 -- * Only compress if the response is above a certain size.
+
 gzip :: GzipSettings -> Middleware
-gzip set app env sendResponse = app env $ \res ->
+gzip set = gzip' set { gzipFiles = GzipCompress }
+
+gzip' :: GzipSettings -> Middleware
+gzip' set app env sendResponse = app env $ \res ->
     case res of
         ResponseRaw{} -> sendResponse res
         ResponseFile{} | gzipFiles set == GzipIgnore -> sendResponse res
