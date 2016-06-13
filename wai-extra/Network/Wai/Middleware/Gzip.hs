@@ -50,12 +50,23 @@ data GzipSettings = GzipSettings
     , gzipCheckMime :: S.ByteString -> Bool
     }
 
-data GzipFiles = GzipIgnore | GzipCompress | GzipCacheFolder FilePath
+-- | Gzip behavior for files.
+data GzipFiles
+    = GzipIgnore -- ^ Do not compress file responses.
+    | GzipCompress -- ^ Compress files. Note that this may counteract
+                   -- zero-copy response optimizations on some
+                   -- platforms.
+    | GzipCacheFolder FilePath -- ^ Compress files, caching them in
+                               -- some directory.
     deriving (Show, Eq, Read)
 
+-- | Use default MIME settings; /do not/ compress files.
 instance Default GzipSettings where
     def = GzipSettings GzipIgnore defaultCheckMime
 
+-- | MIME types that will be compressed by default:
+-- @text/*@, @application/json@, @application/javascript@,
+-- @application/ecmascript@, @image/x-icon@.
 defaultCheckMime :: S.ByteString -> Bool
 defaultCheckMime bs =
     S8.isPrefixOf "text/" bs || bs' `Set.member` toCompress
@@ -73,9 +84,7 @@ defaultCheckMime bs =
 -- Analyzes the \"Accept-Encoding\" header from the client to determine
 -- if gzip is supported.
 --
--- Possible future enhancements:
---
--- * Only compress if the response is above a certain size.
+-- File responses will be compressed according to the 'GzipFiles' setting.
 gzip :: GzipSettings -> Middleware
 gzip set app env sendResponse = app env $ \res ->
     case res of
