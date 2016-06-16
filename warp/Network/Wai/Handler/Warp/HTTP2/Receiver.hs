@@ -160,7 +160,8 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                      when (ftyp == FrameHeaders) $ do
                          writeIORef currentStreamId streamId
                          cnt <- readIORef concurrency
-                         when (cnt >= recommendedConcurrency) $
+                         -- Checking the limitation of concurrency
+                         when (cnt >= maxConcurrency) $
                              E.throwIO $ StreamError RefusedStream streamId
                      ws <- initialWindowSize <$> readIORef http2settings
                      newstrm <- newStream streamId (fromIntegral ws)
@@ -170,8 +171,11 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
 
     consume = void . recvN
 
+maxConcurrency :: Int
+maxConcurrency = recommendedConcurrency
+
 initialFrame :: ByteString
-initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,recommendedConcurrency)]
+initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,maxConcurrency)]
 
 ----------------------------------------------------------------
 
@@ -181,6 +185,7 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, contro
     case checkSettingsList alist of
         Just x  -> E.throwIO x
         Nothing -> return ()
+    -- HTTP/2 Setting from a browser
     unless (testAck flags) $ do
         modifyIORef' http2settings $ \old -> updateSettings old alist
         let !frame = settingsFrame setAck []
