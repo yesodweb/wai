@@ -446,8 +446,16 @@ plainHTTP TLSSettings{..} s bs0 = case onInsecure of
                 }
         return (conn'', TCP)
     DenyInsecure lbs -> do
-        -- FIXME: what about HTTP/2?
-        -- http://tools.ietf.org/html/rfc2817#section-4.2
+        -- Listening port 443 but TLS records do not arrive.
+        -- We want to let the browser know that TLS is required.
+        -- So, we use 426.
+        --     http://tools.ietf.org/html/rfc2817#section-4.2
+        --     https://tools.ietf.org/html/rfc7231#section-6.5.15
+        -- FIXME: should we distinguish HTTP/1.1 and HTTP/2?
+        --        In the case of HTTP/2, should we send
+        --        GOAWAY + INADEQUATE_SECURITY?
+        -- FIXME: Content-Length:
+        -- FIXME: TLS/<version>
         sendAll s "HTTP/1.1 426 Upgrade Required\
         \r\nUpgrade: TLS/1.0, HTTP/1.1\
         \r\nConnection: Upgrade\
