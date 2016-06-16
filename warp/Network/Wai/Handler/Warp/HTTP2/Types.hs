@@ -96,7 +96,7 @@ data Sequence = SFinish
 
 -- | The context for HTTP/2 connection.
 data Context = Context {
-    -- HTTP/2 settings received from a browser
+  -- HTTP/2 settings received from a browser
     http2settings      :: !(IORef Settings)
   , firstSettings      :: !(IORef Bool)
   , streamTable        :: !StreamTable
@@ -113,6 +113,7 @@ data Context = Context {
   , controlQ           :: !(TQueue Control)
   , encodeDynamicTable :: !DynamicTable
   , decodeDynamicTable :: !DynamicTable
+  -- the connection window for data from a server to a browser.
   , connectionWindow   :: !(TVar WindowSize)
   }
 
