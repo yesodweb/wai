@@ -66,7 +66,7 @@ testWithApplication = testWithApplicationSettings defaultSettings
 --
 -- @since 3.2.7
 testWithApplicationSettings :: Settings -> IO Application -> (Port -> IO a) -> IO a
-testWithApplicationSettings settings mkApp action = do
+testWithApplicationSettings _settings mkApp action = do
   callingThread <- myThreadId
   app <- mkApp
   let wrappedApp request respond =
