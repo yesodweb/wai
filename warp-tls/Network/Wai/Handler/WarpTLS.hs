@@ -309,13 +309,14 @@ getter tlsset@TLSSettings{..} sock params = do
     return (mkConn tlsset s params, sa)
 
 mkConn :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (Connection, Transport)
-mkConn tlsset s params = 
-    ( do firstBS <- safeRecv s 4096
-         if not (S.null firstBS) && S.head firstBS == 0x16 then
-             httpOverTls tlsset s firstBS params
+mkConn tlsset s params = switch `onException` sClose s
+  where
+    switch = do
+        firstBS <- safeRecv s 4096
+        if not (S.null firstBS) && S.head firstBS == 0x16 then
+            httpOverTls tlsset s firstBS params
           else
-              plainHTTP tlsset s firstBS
-    ) `onException` sClose s
+            plainHTTP tlsset s firstBS
 
 ----------------------------------------------------------------
 
