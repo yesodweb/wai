@@ -100,7 +100,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
           control ftyp header pl ctx
       | otherwise = do
           checkContinued
-          !strm@Stream{streamState,streamContentLength,streamPrecedence} <- getStream
+          !strm@Stream{streamState,streamPrecedence} <- getStream
           pl <- recvN payloadLength
           state <- readIORef streamState
           state' <- stream ftyp header pl ctx state strm
@@ -117,10 +117,10 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
               Open (HasBody tbl@(_,reqvt) pri) -> do
                   resetContinued
                   q <- newTQueueIO
+                  let !mcl = readInt <$> getHeaderValue tokenContentLength reqvt
                   writeIORef streamPrecedence $ toPrecedence pri
-                  writeIORef streamState (Open (Body q))
-                  let mcl = readInt <$> getHeaderValue tokenContentLength reqvt
-                  writeIORef streamContentLength mcl
+                  bodyLength <- newIORef 0
+                  writeIORef streamState $ Open (Body q mcl bodyLength)
                   readQ <- newReadBody q
                   bodySource <- mkSource readQ
                   let (!req, !ii) = mkreq tbl (readSource bodySource)
@@ -257,7 +257,7 @@ stream FrameHeaders header@FrameHeader{flags} bs ctx (Open JustOpened) Stream{st
         let !siz = BS.length frag
         return $ Open $ Continued [frag] siz 1 endOfStream pri
 
-stream FrameHeaders header@FrameHeader{flags} bs _ (Open (Body q)) _ = do
+stream FrameHeaders header@FrameHeader{flags} bs _ (Open (Body q _ _)) _ = do
     -- trailer is not supported.
     -- let's read and ignore it.
     HeadersFrame _ _ <- guardIt $ decodeHeadersFrame header bs
@@ -272,13 +272,13 @@ stream FrameHeaders header@FrameHeader{flags} bs _ (Open (Body q)) _ = do
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
        bs
-       Context{controlQ} s@(Open (Body q))
-       Stream{streamNumber,streamBodyLength,streamContentLength} = do
+       Context{controlQ} s@(Open (Body q mcl bodyLength))
+       Stream{streamNumber} = do
     DataFrame body <- guardIt $ decodeDataFrame header bs
     let !endOfStream = testEndStream flags
-    len0 <- readIORef streamBodyLength
+    len0 <- readIORef bodyLength
     let !len = len0 + payloadLength
-    writeIORef streamBodyLength len
+    writeIORef bodyLength len
     when (payloadLength /= 0) $ do
         let !frame1 = windowUpdateFrame 0 payloadLength
             !frame2 = windowUpdateFrame streamNumber payloadLength
@@ -286,7 +286,6 @@ stream FrameData
         enqueueControl controlQ $ CFrame frame
     atomically $ writeTQueue q body
     if endOfStream then do
-        mcl <- readIORef streamContentLength
         case mcl of
             Nothing -> return ()
             Just cl -> when (cl /= len) $ E.throwIO $ StreamError ProtocolError streamId

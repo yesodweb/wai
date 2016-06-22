@@ -149,6 +149,9 @@ data OpenState =
   | NoBody (TokenHeaderList,ValueTable) !Priority
   | HasBody (TokenHeaderList,ValueTable) !Priority
   | Body !(TQueue ByteString)
+         !(Maybe Int) -- received Content-Length
+                      -- compared the body length for error checking
+         !(IORef Int) -- actual body length
 
 data ClosedCode = Finished
                 | Killed
@@ -187,13 +190,10 @@ instance Show StreamState where
 ----------------------------------------------------------------
 
 data Stream = Stream {
-    streamNumber        :: !StreamId
-  , streamState         :: !(IORef StreamState)
-  -- Next two fields are for error checking.
-  , streamContentLength :: !(IORef (Maybe Int))
-  , streamBodyLength    :: !(IORef Int)
-  , streamWindow        :: !(TVar WindowSize)
-  , streamPrecedence    :: !(IORef Precedence)
+    streamNumber     :: !StreamId
+  , streamState      :: !(IORef StreamState)
+  , streamWindow     :: !(TVar WindowSize)
+  , streamPrecedence :: !(IORef Precedence)
   }
 
 instance Show Stream where
@@ -201,8 +201,6 @@ instance Show Stream where
 
 newStream :: StreamId -> WindowSize -> IO Stream
 newStream sid win = Stream sid <$> newIORef Idle
-                               <*> newIORef Nothing
-                               <*> newIORef 0
                                <*> newTVarIO win
                                <*> newIORef defaultPrecedence
 
