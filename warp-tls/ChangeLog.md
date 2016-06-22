@@ -1,3 +1,8 @@
+## 3.2.2
+
+* New settting parameter: tlsServerDHEParams [#556](https://github.com/yesodweb/wai/pull/556)
+* Preventing socket leakage [#559](https://github.com/yesodweb/wai/pull/559)
+
 ## 3.2.1
 
 * Removing dependency to cprng-aes.
