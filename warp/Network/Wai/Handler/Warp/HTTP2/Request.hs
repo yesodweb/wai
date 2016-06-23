@@ -43,7 +43,7 @@ mkRequest ii1 settings addr (reqths,reqvt) body = (req,ii)
       , requestBody = body
       , vault = vaultValue
       , requestBodyLength = ChunkedBody -- fixme
-      , requestHeaderHost      = mHost
+      , requestHeaderHost      = mHost <|> mAuth
       , requestHeaderRange     = mRange
       , requestHeaderReferer   = mReferer
       , requestHeaderUserAgent = mUserAgent
@@ -51,13 +51,14 @@ mkRequest ii1 settings addr (reqths,reqvt) body = (req,ii)
     headers = map (first tokenKey) ths
       where
         ths = case mHost of
-            Nothing -> (tokenHost, colonAuth) : reqths
             Just _  -> reqths
-    !colonPath = fromJust $ getHeaderValue tokenPath reqvt
-    !colonMethod = fromJust $ getHeaderValue tokenMethod reqvt
-    !mAuth = getHeaderValue tokenAuthority reqvt
-    !colonAuth = fromJust $ mAuth
-    !mHost = getHeaderValue tokenHost reqvt <|> mAuth
+            Nothing -> case mAuth of
+              Just auth -> (tokenHost, auth) : reqths
+              _         -> reqths
+    !colonPath = fromJust $ getHeaderValue tokenPath reqvt -- MUST
+    !colonMethod = fromJust $ getHeaderValue tokenMethod reqvt -- MUST
+    !mAuth = getHeaderValue tokenAuthority reqvt -- SHOULD
+    !mHost = getHeaderValue tokenHost reqvt
     !mRange = getHeaderValue tokenRange reqvt
     !mReferer = getHeaderValue tokenReferer reqvt
     !mUserAgent = getHeaderValue tokenUserAgent reqvt
