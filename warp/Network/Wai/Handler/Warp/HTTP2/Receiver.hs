@@ -36,13 +36,13 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
            , streamTable
            , concurrency
            , continued
-           , currentStreamId
+           , clientStreamId
            , inputQ
            , controlQ
            } = ctx
     sendGoaway e
       | Just (ConnectionError err msg) <- E.fromException e = do
-          csid <- readIORef currentStreamId
+          csid <- readIORef clientStreamId
           let !frame = goawayFrame csid err msg
           enqueueControl controlQ $ CGoaway frame
       | otherwise = return ()
@@ -112,7 +112,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                       E.throwIO $ StreamError ProtocolError streamId
                   writeIORef streamPrecedence $ toPrecedence pri
                   writeIORef streamState HalfClosed
-                  let (!req, !ii) = mkreq tbl (return "")
+                  (!req, !ii) <- mkreq tbl (return "")
                   atomically $ writeTQueue inputQ $ Input strm req reqvt ii
               Open (HasBody tbl@(_,reqvt) pri) -> do
                   resetContinued
@@ -123,7 +123,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                   writeIORef streamState $ Open (Body q mcl bodyLength)
                   readQ <- newReadBody q
                   bodySource <- mkSource readQ
-                  let (!req, !ii) = mkreq tbl (readSource bodySource)
+                  (!req, !ii) <- mkreq tbl (readSource bodySource)
                   atomically $ writeTQueue inputQ $ Input strm req reqvt ii
               s@(Open Continued{}) -> do
                   setContinued
@@ -154,11 +154,11 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                      -- checkme
                      when (ftyp `notElem` [FrameHeaders,FramePriority]) $
                          E.throwIO $ ConnectionError ProtocolError "this frame is not allowed in an idel stream"
-                     csid <- readIORef currentStreamId
+                     csid <- readIORef clientStreamId
                      when (streamId <= csid) $
                          E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
                      when (ftyp == FrameHeaders) $ do
-                         writeIORef currentStreamId streamId
+                         writeIORef clientStreamId streamId
                          cnt <- readIORef concurrency
                          -- Checking the limitation of concurrency
                          when (cnt >= maxConcurrency) $

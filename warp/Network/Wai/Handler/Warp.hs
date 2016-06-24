@@ -99,6 +99,12 @@ module Network.Wai.Handler.Warp (
   , openFreePort
     -- * Version
   , warpVersion
+    -- * HTTP/2
+  , HTTP2Data
+  , PushPromise(..)
+  , http2data
+  , getHTTP2Data
+  , setHTTP2Data
   ) where
 
 import Control.Exception (SomeException, throwIO)
@@ -114,6 +120,8 @@ import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response (warpVersion)
 import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.Settings
+import Network.Wai.Handler.Warp.HTTP2.Request (getHTTP2Data, setHTTP2Data)
+import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types hiding (getFileInfo)
 import Network.Wai.Handler.Warp.WithApplication

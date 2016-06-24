@@ -68,17 +68,27 @@ rspnHeaders (RspnStreaming _ t _)    = t
 rspnHeaders (RspnBuilder   _ t _)    = t
 rspnHeaders (RspnFile      _ t _ _ ) = t
 
-data Output = ORspn !Stream !Rspn !InternalInfo
-            | ONext !Stream !DynaNext !(Maybe (TBQueue Sequence))
+data Output = ORspn !Stream !Rspn !InternalInfo (IO ()) -- done
+            | OWait !Stream !Rspn !InternalInfo (IO ()) -- done
+            | OPush !Stream -- stream for this push from this server
+                    TokenHeaderList
+                    !Rspn {- RspnFile only-}
+                    !InternalInfo (IO ()) -- wait for done
+                    !StreamId -- associated stream id from client
+            | ONext !Stream !DynaNext !(Maybe (TBQueue Sequence)) (IO ()) -- done
 
 outputStream :: Output -> Stream
-outputStream (ORspn strm _ _) = strm
-outputStream (ONext strm _ _) = strm
+outputStream (ORspn strm _ _ _)     = strm
+outputStream (OPush strm _ _ _ _ _) = strm
+outputStream (OWait strm _ _ _)     = strm
+outputStream (ONext strm _ _ _)     = strm
 
 outputMaybeTBQueue :: Output -> Maybe (TBQueue Sequence)
-outputMaybeTBQueue (ORspn _ (RspnStreaming _ _ tbq) _) = Just tbq
-outputMaybeTBQueue (ORspn _ _ _)                       = Nothing
-outputMaybeTBQueue (ONext _ _ mtbq)                    = mtbq
+outputMaybeTBQueue (ORspn _ (RspnStreaming _ _ tbq) _ _) = Just tbq
+outputMaybeTBQueue (ORspn _ _ _ _)                       = Nothing
+outputMaybeTBQueue (OPush _ _ _ _ _ _)                   = Nothing
+outputMaybeTBQueue (OWait _ _ _ _)                       = Nothing
+outputMaybeTBQueue (ONext _ _ mtbq _)                    = mtbq
 
 data Control = CFinish
              | CGoaway    !ByteString
@@ -107,7 +117,8 @@ data Context = Context {
   --   frames that might follow". This field is used to implement
   --   this requirement.
   , continued          :: !(IORef (Maybe StreamId))
-  , currentStreamId    :: !(IORef StreamId)
+  , clientStreamId     :: !(IORef StreamId)
+  , serverStreamId     :: !(IORef StreamId)
   , inputQ             :: !(TQueue Input)
   , outputQ            :: !(PriorityTree Output)
   , controlQ           :: !(TQueue Control)
@@ -126,6 +137,7 @@ newContext = Context <$> newIORef defaultSettings
                      <*> newIORef 0
                      <*> newIORef 0
                      <*> newIORef Nothing
+                     <*> newIORef 0
                      <*> newIORef 0
                      <*> newTQueueIO
                      <*> newPriorityTree
@@ -164,6 +176,7 @@ data StreamState =
   | Open !OpenState
   | HalfClosed
   | Closed !ClosedCode
+  | Reserved
 
 isIdle :: StreamState -> Bool
 isIdle Idle = True
@@ -186,6 +199,7 @@ instance Show StreamState where
     show Open{}      = "Open"
     show HalfClosed  = "HalfClosed"
     show (Closed e)  = "Closed: " ++ show e
+    show Reserved    = "Reserved"
 
 ----------------------------------------------------------------
 
@@ -203,6 +217,18 @@ newStream :: StreamId -> WindowSize -> IO Stream
 newStream sid win = Stream sid <$> newIORef Idle
                                <*> newTVarIO win
                                <*> newIORef defaultPrecedence
+
+newPushStream :: Context -> WindowSize -> IO Stream
+newPushStream Context{serverStreamId} win = do
+    sid <- atomicModifyIORef' serverStreamId inc2
+    Stream sid <$> newIORef Reserved
+               <*> newTVarIO win
+                   -- RFC 7540 defines this 16.
+                   -- TODO: change this value according to
+                   --       mime types.
+               <*> newIORef defaultPrecedence
+  where
+    inc2 x = let !x' = x + 2 in (x', x')
 
 ----------------------------------------------------------------
 
@@ -238,10 +264,10 @@ search :: StreamTable -> M.Key -> IO (Maybe Stream)
 search (StreamTable ref) k = M.lookup k <$> readIORef ref
 
 {-# INLINE forkAndEnqueueWhenReady #-}
-forkAndEnqueueWhenReady :: STM () -> PriorityTree Output -> Output -> Manager -> IO ()
+forkAndEnqueueWhenReady :: IO () -> PriorityTree Output -> Output -> Manager -> IO ()
 forkAndEnqueueWhenReady wait outQ out mgr = bracket setup teardown $ \_ ->
     void . forkIO $ do
-        atomically wait
+        wait
         enqueueOutput outQ out
   where
     setup = addMyId mgr
@@ -257,3 +283,19 @@ enqueueOutput outQ out = do
 {-# INLINE enqueueControl #-}
 enqueueControl :: TQueue Control -> Control -> IO ()
 enqueueControl ctlQ ctl = atomically $ writeTQueue ctlQ ctl
+
+----------------------------------------------------------------
+
+newtype HTTP2Data = HTTP2Data [PushPromise]
+
+data PushPromise = PushPromise {
+      promisedPath            :: ByteString
+    , promisedFile            :: FilePath
+    , promisedResponseHeaders :: H.ResponseHeaders
+    }
+
+http2data :: [PushPromise] -> HTTP2Data
+http2data pps = HTTP2Data pps
+
+http2dataPushPromise :: HTTP2Data -> [PushPromise]
+http2dataPushPromise (HTTP2Data pps) = pps

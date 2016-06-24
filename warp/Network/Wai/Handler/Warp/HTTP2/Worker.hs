@@ -15,6 +15,8 @@ module Network.Wai.Handler.Warp.HTTP2.Worker (
 import Control.Applicative
 import Data.Monoid (mempty)
 #endif
+import Control.Applicative ((<|>))
+import Data.Maybe (fromJust)
 import Control.Concurrent.STM
 import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
@@ -23,12 +25,14 @@ import Data.ByteString.Builder (byteString)
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HPACK
+import Network.HPACK.Token
 import Network.Wai
 import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.File
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Types
+import Network.Wai.Handler.Warp.HTTP2.Request
 import Network.Wai.Handler.Warp.IORef
 import qualified Network.Wai.Handler.Warp.Response as R
 import qualified Network.Wai.Handler.Warp.Settings as S
@@ -41,32 +45,91 @@ import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceive
 -- | The wai definition is 'type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived'.
 --   This type implements the second argument (Response -> IO ResponseReceived)
 --   with extra arguments.
-type Responder = InternalInfo -> ValueTable ->
-                 ThreadContinue -> Stream -> Request ->
-                 Response -> IO ResponseReceived
+type Responder = InternalInfo
+              -> ValueTable -- for Request
+              -> ThreadContinue
+              -> Stream
+              -> Request
+              -> Response
+              -> IO ResponseReceived
+
+pushStream :: Context -> StreamId -> ValueTable -> InternalInfo
+           -> Maybe HTTP2Data
+           -> IO (Stream -> Rspn -> InternalInfo -> IO () -> Output, IO ())
+pushStream _ _ _ _ Nothing = return (ORspn, return ())
+pushStream ctx@Context{http2settings,outputQ} pid reqvt ii (Just h2d)
+  | len == 0 = return (ORspn, return ())
+  | otherwise = do
+        tvar <- newTVarIO 0
+        lim <- push tvar pps0 0
+        if lim == 0 then
+            return (ORspn, return ())
+          else
+            return (OWait, waiter lim tvar)
+  where
+    !pps0 = http2dataPushPromise h2d
+    !len = length pps0
+    increment tvar = atomically $ modifyTVar' tvar (+1)
+    waiter lim tvar = atomically $ do
+        n <- readTVar tvar
+        check (n >= lim)
+    push _ [] !n = return (n :: Int)
+    push tvar (pp:pps) !n = do
+        let !file = promisedFile pp
+        efinfo <- E.try $ getFileInfo ii file
+        case efinfo of
+          Left (_ex :: E.IOException) -> push tvar pps n
+          Right (FileInfo _ size _ date) -> do
+              ws <- initialWindowSize <$> readIORef http2settings
+              strm <- newPushStream ctx ws
+              (ths0, vt) <- toHeaderTable (promisedResponseHeaders pp)
+              let !scheme = fromJust $ getHeaderValue tokenScheme reqvt
+                  -- fixme: this value can be Nothing
+                  !auth   = fromJust (getHeaderValue tokenHost reqvt
+                                  <|> getHeaderValue tokenAuthority reqvt)
+                  !path = promisedPath pp
+                  !promisedRequest = [(tokenMethod, H.methodGet)
+                                     ,(tokenScheme, scheme)
+                                     ,(tokenAuthority, auth)
+                                     ,(tokenPath, path)]
+                  !part = FilePart 0 size size
+                  !rsp = RspnFile H.ok200 (ths,vt) file (Just part)
+                  !ths = (tokenLastModified,date) :
+                         addContentHeadersForFilePart ths0 part
+              let out = OPush strm promisedRequest rsp ii (increment tvar) pid
+              enqueueOutput outputQ out
+              push tvar pps (n + 1)
+
 
 -- | This function is passed to workers.
 --   They also pass 'Response's from 'Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: S.Settings -> Context -> Manager -> Responder
-response settings Context{outputQ} mgr ii reqvt tconf strm req rsp = case rsp of
+response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rsp of
   ResponseStream s0 hs0 strmbdy
     | noBody s0          -> responseNoBody s0 hs0
     | isHead             -> responseNoBody s0 hs0
-    | otherwise          -> responseStreaming s0 hs0 strmbdy
+    | otherwise          -> getHTTP2Data req
+                        >>= pushStream ctx sid reqvt ii
+                        >>= responseStreaming s0 hs0 strmbdy
   ResponseBuilder s0 hs0 b
     | noBody s0          -> responseNoBody s0 hs0
     | isHead             -> responseNoBody s0 hs0
-    | otherwise          -> responseBuilderBody s0 hs0 b
+    | otherwise          -> getHTTP2Data req
+                        >>= pushStream ctx sid reqvt ii
+                        >>= responseBuilderBody s0 hs0 b
   ResponseFile s0 hs0 p mp
     | noBody s0          -> responseNoBody s0 hs0
-    | otherwise          -> responseFileXXX s0 hs0 p mp
+    | otherwise          -> getHTTP2Data req
+                        >>= pushStream ctx sid reqvt ii
+                        >>= responseFileXXX s0 hs0 p mp
   ResponseRaw _ _        -> error "HTTP/2 does not support ResponseRaw"
   where
     noBody = not . R.hasBody
     !isHead = requestMethod req == H.methodHead
     !logger = S.settingsLogger settings
     !th = threadHandle ii
+    sid = streamNumber strm
 
     -- Ideally, log messages should be written when responses are
     -- actually sent. But there is no way to keep good memory usage
@@ -80,20 +143,20 @@ response settings Context{outputQ} mgr ii reqvt tconf strm req rsp = case rsp of
         logger req s Nothing
         setThreadContinue tconf True
         let rspn = RspnNobody s tbl
-            out = ORspn strm rspn ii
+            out = ORspn strm rspn ii (return ())
         enqueueOutput outputQ out
         return ResponseReceived
 
-    responseBuilderBody s hs0 bdy = do
+    responseBuilderBody s hs0 bdy (rspnOrWait,tell) = do
         logger req s Nothing
         setThreadContinue tconf True
         tbl <- toHeaderTable hs0
         let rspn = RspnBuilder s tbl bdy
-            out = ORspn strm rspn ii
+            out = rspnOrWait strm rspn ii tell
         enqueueOutput outputQ out
         return ResponseReceived
 
-    responseFileXXX _ hs0 path Nothing = do
+    responseFileXXX _ hs0 path Nothing aux = do
         efinfo <- E.try $ getFileInfo ii path
         case efinfo of
             Left (_ex :: E.IOException) -> response404 hs0
@@ -101,13 +164,13 @@ response settings Context{outputQ} mgr ii reqvt tconf strm req rsp = case rsp of
                 (rspths0,vt) <- toHeaderTable hs0
                 case conditionalRequest finfo rspths0 reqvt of
                     WithoutBody s             -> responseNoBody s hs0
-                    WithBody s rspths beg len -> responseFile2XX s (rspths,vt) path (Just (FilePart beg len (fileInfoSize finfo)))
+                    WithBody s rspths beg len -> responseFile2XX s (rspths,vt) path (Just (FilePart beg len (fileInfoSize finfo))) aux
 
-    responseFileXXX s0 hs0 path mpart = do
+    responseFileXXX s0 hs0 path mpart aux = do
         tbl <- toHeaderTable hs0
-        responseFile2XX s0 tbl path mpart
+        responseFile2XX s0 tbl path mpart aux
 
-    responseFile2XX s tbl path mpart
+    responseFile2XX s tbl path mpart (rspnOrWait,tell)
       | isHead    = do
           logger req s Nothing
           responseNoBody' s tbl
@@ -115,17 +178,17 @@ response settings Context{outputQ} mgr ii reqvt tconf strm req rsp = case rsp of
           logger req s (filePartByteCount <$> mpart)
           setThreadContinue tconf True
           let rspn = RspnFile s tbl path mpart
-              out = ORspn strm rspn ii
+              out = rspnOrWait strm rspn ii tell
           enqueueOutput outputQ out
           return ResponseReceived
 
-    response404 hs0 = responseBuilderBody s hs body
+    response404 hs0 = responseBuilderBody s hs body (ORspn, return ())
       where
         s = H.notFound404
         hs = R.replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
         body = byteString "File not found"
 
-    responseStreaming s0 hs0 strmbdy = do
+    responseStreaming s0 hs0 strmbdy (rspnOrWait,tell) = do
         logger req s0 Nothing
         -- We must not exit this WAI application.
         -- If the application exits, streaming would be also closed.
@@ -141,7 +204,7 @@ response settings Context{outputQ} mgr ii reqvt tconf strm req rsp = case rsp of
         tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
         tbl <- toHeaderTable hs0
         let rspn = RspnStreaming s0 tbl tbq
-            out = ORspn strm rspn ii
+            out = rspnOrWait strm rspn ii tell
         enqueueOutput outputQ out
         let push b = do
               atomically $ writeTBQueue tbq (SBuilder b)
