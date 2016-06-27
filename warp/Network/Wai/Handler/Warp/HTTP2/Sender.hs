@@ -92,7 +92,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             O (_,pre,out) -> do
                 let strm = outputStream out
                 writeIORef (streamPrecedence strm) pre
-                off' <- whenReadyOrEnqueueAgain out off $ output out off
+                off' <- outputOrEnqueueAgain out off
                 case off' of
                     0                -> loop 0
                     _ | off' > 15872 -> flushN off' >> loop 0 -- fixme: hard-coding
@@ -164,7 +164,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 maybeEnqueueNext strm (Just tbq) mnext
                 return off'
 
-    whenReadyOrEnqueueAgain out off body = E.handle resetStream $ do
+    outputOrEnqueueAgain out off = E.handle resetStream $ do
         state <- readIORef $ streamState strm
         if isClosed state then
             return off
@@ -189,7 +189,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
               else do
                 cws <- atomically $ readTVar connectionWindow -- not 0
                 let !lim = min cws sws
-                body lim
+                output out off lim
         resetStream e = do
             closed ctx strm (ResetByMe e)
             let !rst = resetFrame InternalError $ streamNumber strm
