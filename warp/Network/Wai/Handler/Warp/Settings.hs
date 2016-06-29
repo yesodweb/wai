@@ -101,6 +101,10 @@ data Settings = Settings
       -- ^ A log function. Default: no action.
       --
       -- Since 3.X.X.
+    , settingsServerPushLogger :: SockAddr -> ByteString -> Integer -> ByteString -> Maybe ByteString -> IO ()
+      -- ^ A HTTP/2 server push log function. Default: no action.
+      --
+      -- Since 3.X.X.
     , settingsGracefulShutdownTimeout :: Maybe Int
       -- ^ An optional timeout to limit the time (in seconds) waiting for
       -- a graceful shutdown of the web server.
@@ -140,6 +144,7 @@ defaultSettings = Settings
     , settingsSlowlorisSize = 2048
     , settingsHTTP2Enabled = True
     , settingsLogger = \_ _ _ -> return ()
+    , settingsServerPushLogger = \_ _ _ _ _ -> return ()
     , settingsGracefulShutdownTimeout = Nothing
     }
 

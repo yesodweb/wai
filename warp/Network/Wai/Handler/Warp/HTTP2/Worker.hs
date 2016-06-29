@@ -53,11 +53,12 @@ type Responder = InternalInfo
               -> Response
               -> IO ResponseReceived
 
-pushStream :: Context -> StreamId -> ValueTable -> InternalInfo
+pushStream :: Context -> S.Settings
+           -> StreamId -> ValueTable -> Request -> InternalInfo
            -> Maybe HTTP2Data
            -> IO (Stream -> Rspn -> InternalInfo -> IO () -> Output, IO ())
-pushStream _ _ _ _ Nothing = return (ORspn, return ())
-pushStream ctx@Context{http2settings,outputQ} pid reqvt ii (Just h2d)
+pushStream _ _ _ _ _ _ Nothing = return (ORspn, return ())
+pushStream ctx@Context{http2settings,outputQ} settings pid reqvt req ii (Just h2d)
   | len == 0 = return (ORspn, return ())
   | otherwise = do
         pushable <- enablePush <$> readIORef http2settings
@@ -73,6 +74,10 @@ pushStream ctx@Context{http2settings,outputQ} pid reqvt ii (Just h2d)
   where
     !pps0 = http2dataPushPromise h2d
     !len = length pps0
+    !pushLogger = S.settingsServerPushLogger settings
+    !sa = remoteHost req
+    !mua = requestHeaderUserAgent req
+    !referer = rawPathInfo req
     increment tvar = atomically $ modifyTVar' tvar (+1)
     waiter lim tvar = atomically $ do
         n <- readTVar tvar
@@ -100,6 +105,7 @@ pushStream ctx@Context{http2settings,outputQ} pid reqvt ii (Just h2d)
                   !rsp = RspnFile H.ok200 (ths,vt) file (Just part)
                   !ths = (tokenLastModified,date) :
                          addContentHeadersForFilePart ths0 part
+              pushLogger sa path size referer mua
               let out = OPush strm promisedRequest rsp ii (increment tvar) pid
               enqueueOutput outputQ out
               push tvar pps (n + 1)
@@ -114,18 +120,18 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rs
     | noBody s0          -> responseNoBody s0 hs0
     | isHead             -> responseNoBody s0 hs0
     | otherwise          -> getHTTP2Data req
-                        >>= pushStream ctx sid reqvt ii
+                        >>= pushStream ctx settings sid reqvt req ii
                         >>= responseStreaming s0 hs0 strmbdy
   ResponseBuilder s0 hs0 b
     | noBody s0          -> responseNoBody s0 hs0
     | isHead             -> responseNoBody s0 hs0
     | otherwise          -> getHTTP2Data req
-                        >>= pushStream ctx sid reqvt ii
+                        >>= pushStream ctx settings sid reqvt req ii
                         >>= responseBuilderBody s0 hs0 b
   ResponseFile s0 hs0 p mp
     | noBody s0          -> responseNoBody s0 hs0
     | otherwise          -> getHTTP2Data req
-                        >>= pushStream ctx sid reqvt ii
+                        >>= pushStream ctx settings sid reqvt req ii
                         >>= responseFileXXX s0 hs0 p mp
   ResponseRaw _ _        -> error "HTTP/2 does not support ResponseRaw"
   where

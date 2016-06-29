@@ -70,6 +70,7 @@ module Network.Wai.Handler.Warp (
   , setSlowlorisSize
   , setHTTP2Disabled
   , setLogger
+  , setServerPushLogger
   , setGracefulShutdownTimeout
     -- ** Getters
   , getPort
@@ -371,6 +372,10 @@ setHTTP2Disabled y = y { settingsHTTP2Enabled = False }
 setLogger :: (Request -> H.Status -> Maybe Integer -> IO ())
           -> Settings -> Settings
 setLogger lgr y = y { settingsLogger = lgr }
+
+setServerPushLogger :: (SockAddr -> ByteString -> Integer -> ByteString -> Maybe ByteString -> IO ())
+          -> Settings -> Settings
+setServerPushLogger lgr y = y { settingsServerPushLogger = lgr }
 
 -- | Set the graceful shutdown timeout. A timeout of `Nothing' will
 -- wait indefinitely, and a number, if provided, will be treated as seconds
