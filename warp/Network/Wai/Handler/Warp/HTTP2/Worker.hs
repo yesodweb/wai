@@ -60,12 +60,16 @@ pushStream _ _ _ _ Nothing = return (ORspn, return ())
 pushStream ctx@Context{http2settings,outputQ} pid reqvt ii (Just h2d)
   | len == 0 = return (ORspn, return ())
   | otherwise = do
-        tvar <- newTVarIO 0
-        lim <- push tvar pps0 0
-        if lim == 0 then
-            return (ORspn, return ())
+        pushable <- enablePush <$> readIORef http2settings
+        if pushable then do
+            tvar <- newTVarIO 0
+            lim <- push tvar pps0 0
+            if lim == 0 then
+              return (ORspn, return ())
+             else
+              return (OWait, waiter lim tvar)
           else
-            return (OWait, waiter lim tvar)
+            return (ORspn, return ())
   where
     !pps0 = http2dataPushPromise h2d
     !len = length pps0
