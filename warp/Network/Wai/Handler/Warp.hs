@@ -101,11 +101,19 @@ module Network.Wai.Handler.Warp (
     -- * Version
   , warpVersion
     -- * HTTP/2
+    -- ** HTTP2 data
   , HTTP2Data
-  , PushPromise(..)
-  , http2data
+  , http2dataPushPromise
+  , defaultHTTP2Data
   , getHTTP2Data
   , setHTTP2Data
+    -- ** Push promise
+  , PushPromise
+  , promisedPath
+  , promisedFile
+  , promisedResponseHeaders
+  , promisedWeight
+  , defaultPushPromise
   ) where
 
 import Control.Exception (SomeException, throwIO)

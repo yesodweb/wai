@@ -218,15 +218,12 @@ newStream sid win = Stream sid <$> newIORef Idle
                                <*> newTVarIO win
                                <*> newIORef defaultPrecedence
 
-newPushStream :: Context -> WindowSize -> IO Stream
-newPushStream Context{serverStreamId} win = do
+newPushStream :: Context -> WindowSize -> Precedence -> IO Stream
+newPushStream Context{serverStreamId} win pre = do
     sid <- atomicModifyIORef' serverStreamId inc2
     Stream sid <$> newIORef Reserved
                <*> newTVarIO win
-                   -- RFC 7540 defines this 16.
-                   -- TODO: change this value according to
-                   --       mime types.
-               <*> newIORef defaultPrecedence
+               <*> newIORef pre
   where
     inc2 x = let !x' = x + 2 in (x', x')
 
@@ -286,16 +283,19 @@ enqueueControl ctlQ ctl = atomically $ writeTQueue ctlQ ctl
 
 ----------------------------------------------------------------
 
-newtype HTTP2Data = HTTP2Data [PushPromise]
+newtype HTTP2Data = HTTP2Data {
+      http2dataPushPromise :: [PushPromise]
+    }
+
+defaultHTTP2Data :: HTTP2Data
+defaultHTTP2Data = HTTP2Data []
 
 data PushPromise = PushPromise {
       promisedPath            :: ByteString
     , promisedFile            :: FilePath
     , promisedResponseHeaders :: H.ResponseHeaders
+    , promisedWeight          :: Weight
     }
 
-http2data :: [PushPromise] -> HTTP2Data
-http2data pps = HTTP2Data pps
-
-http2dataPushPromise :: HTTP2Data -> [PushPromise]
-http2dataPushPromise (HTTP2Data pps) = pps
+defaultPushPromise :: PushPromise
+defaultPushPromise = PushPromise "" "" [] 16

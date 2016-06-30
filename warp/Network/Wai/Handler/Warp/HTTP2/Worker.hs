@@ -24,6 +24,7 @@ import Control.Monad (when)
 import Data.ByteString.Builder (byteString)
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
+import Network.HTTP2.Priority
 import Network.HPACK
 import Network.HPACK.Token
 import Network.Wai
@@ -91,7 +92,10 @@ pushStream ctx@Context{http2settings,outputQ,streamTable}
           Left (_ex :: E.IOException) -> push tvar pps n
           Right (FileInfo _ size _ date) -> do
               ws <- initialWindowSize <$> readIORef http2settings
-              strm <- newPushStream ctx ws
+              let !w = promisedWeight pp
+                  !pri = defaultPriority { weight = w }
+                  !pre = toPrecedence pri
+              strm <- newPushStream ctx ws pre
               let !sid = streamNumber strm
               insert streamTable sid strm
               (ths0, vt) <- toHeaderTable (promisedResponseHeaders pp)
