@@ -105,7 +105,12 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
           !mstrm <- getStream
           pl <- recvN payloadLength
           case mstrm of
-            Nothing -> return True -- just ignore this frame
+            Nothing -> do
+                -- for h2spec only
+                when (ftyp == FramePriority) $ do
+                    PriorityFrame newpri <- guardIt $ decodePriorityFrame header pl
+                    checkPriority newpri streamId
+                return True -- just ignore this frame
             Just strm@Stream{streamState,streamPrecedence} -> do
               state <- readIORef streamState
               state' <- stream ftyp header pl ctx state strm
