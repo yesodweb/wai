@@ -374,15 +374,25 @@ setSlowlorisSize x y = y { settingsSlowlorisSize = x }
 setHTTP2Disabled :: Settings -> Settings
 setHTTP2Disabled y = y { settingsHTTP2Enabled = False }
 
--- | Setting a log function. `Integer` is the body length of a response.
+-- | Setting a log function.
 --
 -- Since 3.X.X
-setLogger :: (Request -> H.Status -> Maybe Integer -> IO ())
-          -> Settings -> Settings
+setLogger :: (Request -> H.Status -> Maybe Integer -> IO ()) -- ^ request, status, maybe file-size
+          -> Settings
+          -> Settings
 setLogger lgr y = y { settingsLogger = lgr }
 
-setServerPushLogger :: (SockAddr -> ByteString -> Integer -> ByteString -> Maybe ByteString -> IO ())
-          -> Settings -> Settings
+-- | Setting a log function for HTTP/2 server push.
+--
+--   Since: 3.2.7
+setServerPushLogger :: (SockAddr
+                    -> ByteString
+                    -> Integer
+                    -> ByteString
+                    -> Maybe ByteString
+                    -> IO ()) -- ^ socket address, URL path, file size, referer, maybe user-agent
+                    -> Settings
+                    -> Settings
 setServerPushLogger lgr y = y { settingsServerPushLogger = lgr }
 
 -- | Set the graceful shutdown timeout. A timeout of `Nothing' will
