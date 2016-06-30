@@ -58,7 +58,8 @@ pushStream :: Context -> S.Settings
            -> Maybe HTTP2Data
            -> IO (Stream -> Rspn -> InternalInfo -> IO () -> Output, IO ())
 pushStream _ _ _ _ _ _ Nothing = return (ORspn, return ())
-pushStream ctx@Context{http2settings,outputQ} settings pid reqvt req ii (Just h2d)
+pushStream ctx@Context{http2settings,outputQ,streamTable}
+           settings pid reqvt req ii (Just h2d)
   | len == 0 = return (ORspn, return ())
   | otherwise = do
         pushable <- enablePush <$> readIORef http2settings
@@ -91,6 +92,8 @@ pushStream ctx@Context{http2settings,outputQ} settings pid reqvt req ii (Just h2
           Right (FileInfo _ size _ date) -> do
               ws <- initialWindowSize <$> readIORef http2settings
               strm <- newPushStream ctx ws
+              let !sid = streamNumber strm
+              insert streamTable sid strm
               (ths0, vt) <- toHeaderTable (promisedResponseHeaders pp)
               let !scheme = fromJust $ getHeaderValue tokenScheme reqvt
                   -- fixme: this value can be Nothing
