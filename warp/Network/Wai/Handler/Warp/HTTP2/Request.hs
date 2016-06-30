@@ -89,6 +89,10 @@ getHTTP2DataKey :: Vault.Key (IO (Maybe HTTP2Data))
 getHTTP2DataKey = unsafePerformIO Vault.newKey
 {-# NOINLINE getHTTP2Data #-}
 
+-- | Getting 'HTTP2Data' through vault of the request.
+--   Warp uses this to receive 'HTTP2Data' from 'Middleware'.
+--
+--   Since: 3.2.7
 getHTTP2Data :: Request -> IO (Maybe HTTP2Data)
 getHTTP2Data req = case Vault.lookup getHTTP2DataKey (vault req) of
   Nothing     -> return Nothing
@@ -98,6 +102,10 @@ setHTTP2DataKey :: Vault.Key (Maybe HTTP2Data -> IO ())
 setHTTP2DataKey = unsafePerformIO Vault.newKey
 {-# NOINLINE setHTTP2Data #-}
 
+-- | Setting 'HTTP2Data' through vault of the request.
+--   'Middleware' should use this.
+--
+--   Since: 3.2.7
 setHTTP2Data :: Request -> Maybe HTTP2Data -> IO ()
 setHTTP2Data req mh2d = case Vault.lookup setHTTP2DataKey (vault req) of
   Nothing     -> return ()
