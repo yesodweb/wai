@@ -64,8 +64,10 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
             cont <- processStreamGuardingError $ decodeFrameHeader hd
             when cont $ loop (n + 1)
 
-    processStreamGuardingError (_, FrameHeader{streamId})
-      | isResponse streamId = E.throwIO $ ConnectionError ProtocolError "stream id should be odd"
+    processStreamGuardingError (fid, FrameHeader{streamId})
+      | isResponse streamId &&
+        (fid `notElem` [FramePriority,FrameRSTStream,FrameWindowUpdate]) =
+        E.throwIO $ ConnectionError ProtocolError "stream id should be odd"
     processStreamGuardingError (FrameUnknown _, FrameHeader{payloadLength}) = do
         mx <- readIORef continued
         case mx of
@@ -155,7 +157,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                      when (ftyp `notElem` [FrameHeaders,FramePriority]) $
                          E.throwIO $ ConnectionError ProtocolError "this frame is not allowed in an idel stream"
                      csid <- readIORef clientStreamId
-                     when (streamId <= csid) $
+                     when (isRequest streamId && streamId <= csid) $
                          E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
                      when (ftyp == FrameHeaders) $ do
                          writeIORef clientStreamId streamId
