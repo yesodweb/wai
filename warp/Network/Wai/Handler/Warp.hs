@@ -385,12 +385,7 @@ setLogger lgr y = y { settingsLogger = lgr }
 -- | Setting a log function for HTTP/2 server push.
 --
 --   Since: 3.2.7
-setServerPushLogger :: (SockAddr
-                    -> ByteString
-                    -> Integer
-                    -> ByteString
-                    -> Maybe ByteString
-                    -> IO ()) -- ^ socket address, URL path, file size, referer, maybe user-agent
+setServerPushLogger :: (Request -> ByteString -> Integer -> IO ()) -- ^ request, path, file-size
                     -> Settings
                     -> Settings
 setServerPushLogger lgr y = y { settingsServerPushLogger = lgr }

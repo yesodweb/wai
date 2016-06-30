@@ -77,9 +77,6 @@ pushStream ctx@Context{http2settings,outputQ,streamTable}
     !pps0 = http2dataPushPromise h2d
     !len = length pps0
     !pushLogger = S.settingsServerPushLogger settings
-    !sa = remoteHost req
-    !mua = requestHeaderUserAgent req
-    !referer = rawPathInfo req
     increment tvar = atomically $ modifyTVar' tvar (+1)
     waiter lim tvar = atomically $ do
         n <- readTVar tvar
@@ -112,7 +109,7 @@ pushStream ctx@Context{http2settings,outputQ,streamTable}
                   !rsp = RspnFile H.ok200 (ths,vt) file (Just part)
                   !ths = (tokenLastModified,date) :
                          addContentHeadersForFilePart ths0 part
-              pushLogger sa path size referer mua
+              pushLogger req path size
               let out = OPush strm promisedRequest rsp ii (increment tvar) pid
               enqueueOutput outputQ out
               push tvar pps (n + 1)
