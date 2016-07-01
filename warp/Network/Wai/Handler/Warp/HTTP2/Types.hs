@@ -291,7 +291,7 @@ newtype HTTP2Data = HTTP2Data {
     --
     --   Since: 3.2.7
       http2dataPushPromise :: [PushPromise]
-    }
+    } deriving (Eq,Show)
 
 -- | Default HTTP/2 specific data.
 --
@@ -325,7 +325,7 @@ data PushPromise = PushPromise {
     --
     --   Since: 3.2.7
     , promisedWeight          :: Weight
-    }
+    } deriving (Eq,Ord,Show)
 
 -- | Default push promise.
 --
