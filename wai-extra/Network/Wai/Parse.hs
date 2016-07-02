@@ -289,24 +289,29 @@ conduitRequestBodyEx o backend (Multipart bound) rbody add =
     parsePiecesEx o backend (S8.pack "--" `S.append` bound) rbody add
 
 
+-- | Take one header or subheader line.
+-- It makes sense to limit the maximum line length.
+-- Apache's default is 8190 (http://httpd.apache.org/docs/2.2/mod/core.html#limitrequestline)
+-- so we're using that here as well.
 takeLine :: Source -> IO (Maybe S.ByteString)
 takeLine src =
-    go id
+    go ""
   where
     go front = do
         bs <- readSource src
+        when (S.length front + S.length bs > 8190) $ error "Header line length exceeds allowed maximum."
         if S.null bs
             then close front
             else push front bs
 
-    close front = leftover src (front S.empty) >> return Nothing
+    close front = leftover src front >> return Nothing
     push front bs = do
-        let (x, y) = S.break (== 10) $ front bs -- LF
+        let (x, y) = S.break (== 10) bs -- LF
          in if S.null y
-                then go $ S.append x
+                then go $ front `S.append` x
                 else do
                     when (S.length y > 1) $ leftover src $ S.drop 1 y
-                    return $ Just $ killCR x
+                    return $ Just $ killCR $ front `S.append` x
 
 takeLines :: Source -> IO [S.ByteString]
 takeLines src = do

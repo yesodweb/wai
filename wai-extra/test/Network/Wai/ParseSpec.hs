@@ -131,6 +131,10 @@ caseParseRequestBody = do
     SRequest req4 bod4 <- toRequest'' ctype2 content2
     (parseRequestBodyEx (def { prboMaxHeaderLines = 1 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
 
+  it "exceeding header line size" $ do
+    SRequest req4 bod4 <- toRequest'' ctype2 content4
+    (parseRequestBodyEx def lbsBackEnd req4) `shouldThrow` anyErrorCall
+
   where
     content2 =
          "--AaB03x\n"
@@ -152,6 +156,16 @@ caseParseRequestBody = do
          "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
       <> "Content-Disposition: form-data; name=\"yaml\"; filename=\"README\"\r\n"
       <> "Content-Type: application/octet-stream\r\n\r\n"
+      <> "Photo blog using Hack.\n\r\n"
+      <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh--\r\n"
+    content4 =
+         "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
+      <> "Content-Disposition: form-data; name=\"yaml\"; filename=\"README\"\r\n"
+      <> "Content-Type: application/octet-stream\r\n\r\n"
+      <> "Photo blog using Hack.\n\r\n"
+      <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
+      <> "Content-Disposition: form-data; name=\"bla\"; filename=\"riedmie\"\r\n"
+      <> "Content-Type: application/octet-stream=TOOLONG=" <> S8.replicate 8192 '=' <> "\r\n\r\n"
       <> "Photo blog using Hack.\n\r\n"
       <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh--\r\n"
 
