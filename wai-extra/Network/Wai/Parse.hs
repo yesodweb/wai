@@ -51,8 +51,6 @@ import Data.IORef
 import Network.HTTP.Types (hContentType)
 import Data.CaseInsensitive (mk)
 
-import Debug.Trace
-
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
     let (x, y) = S.break (== w) s
