@@ -5,6 +5,7 @@ import           Test.Hspec
 import           Test.HUnit
 
 import           System.IO
+import           Data.Default (def)
 import           Data.Monoid
 import qualified Data.IORef as I
 import qualified Data.ByteString as S
@@ -100,6 +101,36 @@ caseParseRequestBody = do
   it "parsing actual post multipart/form-data 2" $ do
     result3' <- parseRequestBody' lbsBackEnd $ toRequest' ctype3 content3
     result3' `shouldBe` expected3
+
+  it "parsing with memory limit" $ do
+    SRequest req4 bod4 <- toRequest'' ctype3 content3
+    result4' <- parseRequestBodyEx (def { prboMaxNumFiles = 1, prboKeyLength = 32 } ) lbsBackEnd req4
+    result4' `shouldBe` expected3
+
+  it "exceeding number of files" $ do
+    SRequest req4 bod4 <- toRequest'' ctype3 content3
+    (parseRequestBodyEx (def { prboMaxNumFiles = 0 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
+  it "exceeding parameter length" $ do
+    SRequest req4 bod4 <- toRequest'' ctype3 content3
+    (parseRequestBodyEx (def { prboKeyLength = 2 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
+  it "exceeding file size" $ do
+    SRequest req4 bod4 <- toRequest'' ctype3 content3
+    (parseRequestBodyEx (def { prboMaxFileSize = Just 2 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
+  it "exceeding total file size" $ do
+    SRequest req4 bod4 <- toRequest'' ctype3 content3
+    (parseRequestBodyEx (def { prboMaxFilesSize = Just 2 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
+  it "exceeding max parm value size" $ do
+    SRequest req4 bod4 <- toRequest'' ctype2 content2
+    (parseRequestBodyEx (def { prboMaxParmsValueSize = 10 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
+  it "exceeding max header lines" $ do
+    SRequest req4 bod4 <- toRequest'' ctype2 content2
+    (parseRequestBodyEx (def { prboMaxHeaderLines = 1 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
   where
     content2 =
          "--AaB03x\n"
@@ -198,3 +229,14 @@ toRequest' :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest' ctype content = SRequest defaultRequest
     { requestHeaders = [("Content-Type", ctype)]
     } (L.fromChunks $ map S.singleton $ S.unpack content)
+
+toRequest'' :: S8.ByteString -> S8.ByteString -> IO SRequest
+toRequest'' ctype content = mkRB content >>= \b -> return $ SRequest defaultRequest
+    { requestHeaders = [("Content-Type", ctype)], requestBody = b
+    } (L.fromChunks $ map S.singleton $ S.unpack content)
+
+mkRB :: S8.ByteString -> IO (IO S8.ByteString)
+mkRB content = do
+    r <- I.newIORef content
+    return $
+        I.atomicModifyIORef r $ \a -> (S8.empty, a)
