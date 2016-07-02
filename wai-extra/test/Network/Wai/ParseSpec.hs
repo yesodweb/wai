@@ -121,7 +121,9 @@ caseParseRequestBody = do
 
   it "exceeding total file size" $ do
     SRequest req4 bod4 <- toRequest'' ctype3 content3
-    (parseRequestBodyEx (def { prboMaxFilesSize = Just 2 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx (def { prboMaxFilesSize = Just 20 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    SRequest req5 bod5 <- toRequest'' ctype3 content5
+    (parseRequestBodyEx (def { prboMaxFilesSize = Just 20 } ) lbsBackEnd req5) `shouldThrow` anyErrorCall
 
   it "exceeding max parm value size" $ do
     SRequest req4 bod4 <- toRequest'' ctype2 content2
@@ -166,6 +168,16 @@ caseParseRequestBody = do
       <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
       <> "Content-Disposition: form-data; name=\"bla\"; filename=\"riedmie\"\r\n"
       <> "Content-Type: application/octet-stream=TOOLONG=" <> S8.replicate 8192 '=' <> "\r\n\r\n"
+      <> "Photo blog using Hack.\n\r\n"
+      <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh--\r\n"
+    content5 =
+         "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
+      <> "Content-Disposition: form-data; name=\"yaml\"; filename=\"README\"\r\n"
+      <> "Content-Type: application/octet-stream\r\n\r\n"
+      <> "Photo blog using Hack.\n\r\n"
+      <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
+      <> "Content-Disposition: form-data; name=\"yaml2\"; filename=\"MEADRE\"\r\n"
+      <> "Content-Type: application/octet-stream\r\n\r\n"
       <> "Photo blog using Hack.\n\r\n"
       <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh--\r\n"
 

@@ -431,7 +431,8 @@ parsePiecesEx o sink bound rbody add =
                         error "Maximum number of files exceeded"
                     let ct = fromMaybe "application/octet-stream" mct
                         fi0 = FileInfo filename ct ()
-                        fs = catMaybes [ prboMaxFileSize o, prboMaxFilesSize o ]
+                        fs = catMaybes [ prboMaxFileSize o
+                                       , subtract filesSize <$> prboMaxFilesSize o ]
                         mfs = if fs == [] then Nothing else Just $ minimum fs
                     ((wasFound, fileSize), y) <- sinkTillBound' bound name fi0 sink src mfs
                     let newFilesSize = filesSize + fileSize
