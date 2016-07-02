@@ -38,7 +38,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Default (Default, def)
 import Data.Word (Word8)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.List (sortBy)
 import Data.Function (on, fix)
 import System.Directory (removeFile, getTemporaryDirectory)
@@ -373,13 +373,13 @@ parsePieces sink bound rbody add =
                 Just (mct, name, Just filename) -> do
                     let ct = fromMaybe "application/octet-stream" mct
                         fi0 = FileInfo filename ct ()
-                    ((wasFound, _fileSize), y) <- sinkTillBound' bound name fi0 sink src
+                    ((wasFound, _fileSize), y) <- sinkTillBound' bound name fi0 sink src Nothing
                     add $ Right (name, fi0 { fileContent = y })
                     when wasFound (loop src)
                 Just (_ct, name, Nothing) -> do
                     let seed = id
                     let iter front bs = return $ front . (:) bs
-                    ((wasFound, _fileSize), front) <- sinkTillBound bound iter seed src
+                    ((wasFound, _fileSize), front) <- sinkTillBound bound iter seed src Nothing
                     let bs = S.concat $ front []
                     let x' = (name, bs)
                     add $ Left x'
@@ -388,7 +388,7 @@ parsePieces sink bound rbody add =
                     -- ignore this part
                     let seed = ()
                         iter () _ = return ()
-                    ((wasFound, _fileSize), ()) <- sinkTillBound bound iter seed src
+                    ((wasFound, _fileSize), ()) <- sinkTillBound bound iter seed src Nothing
                     when wasFound (loop src)
       where
         contDisp = mk $ S8.pack "Content-Disposition"
@@ -426,17 +426,10 @@ parsePiecesEx o sink bound rbody add =
                         error "Maximum number of files exceeded"
                     let ct = fromMaybe "application/octet-stream" mct
                         fi0 = FileInfo filename ct ()
-                    ((wasFound, fileSize), y) <- sinkTillBound' bound name fi0 sink src
-                    case prboMaxFileSize o of
-                        Just maxFileSize -> when (fileSize > maxFileSize ) $
-                            error "Maximum file size exceeded"
-                        Nothing -> return ()
+                        fs = catMaybes [ prboMaxFileSize o, prboMaxFilesSize o ]
+                        mfs = if fs == [] then Nothing else Just $ minimum fs
+                    ((wasFound, fileSize), y) <- sinkTillBound' bound name fi0 sink src mfs
                     let newFilesSize = filesSize + fileSize
-                    case prboMaxFilesSize o of
-                        Just maxFilesSize ->
-                            when (newFilesSize > maxFilesSize) $
-                                error "Maximum size of uploaded files exceeded"
-                        Nothing -> return ()
                     add $ Right (name, fi0 { fileContent = y })
                     when wasFound $ loop numParms (numFiles + 1) parmSize newFilesSize src
                 Just (_ct, name, Nothing) -> do
@@ -444,7 +437,8 @@ parsePiecesEx o sink bound rbody add =
                         error "Parameter name is too long"
                     let seed = id
                     let iter front bs = return $ front . (:) bs
-                    ((wasFound, _fileSize), front) <- sinkTillBound bound iter seed src
+                    ((wasFound, _fileSize), front) <- sinkTillBound bound iter seed src $
+                        Just . fromIntegral . prboMaxParmsValueSize $ o
                     let bs = S.concat $ front []
                     let x' = (name, bs)
                     let newParmSize = parmSize + S.length name + S.length bs
@@ -457,7 +451,7 @@ parsePiecesEx o sink bound rbody add =
                     -- ignore this part
                     let seed = ()
                         iter () _ = return ()
-                    ((wasFound, _fileSize), ()) <- sinkTillBound bound iter seed src
+                    ((wasFound, _fileSize), ()) <- sinkTillBound bound iter seed src Nothing
                     when wasFound $ loop numParms numFiles parmSize filesSize src
       where
         contDisp = mk $ S8.pack "Content-Disposition"
@@ -500,9 +494,10 @@ sinkTillBound' :: S.ByteString
                -> FileInfo ()
                -> BackEnd y
                -> Source
+               -> Maybe Int64
                -> IO ((Bool, Int64), y)
-sinkTillBound' bound name fi sink src = do
-    (next, final) <- wrapTillBound bound src
+sinkTillBound' bound name fi sink src max = do
+    (next, final) <- wrapTillBound bound src max
     y <- sink name fi next
     b <- final
     return (b, y)
@@ -511,8 +506,9 @@ data WTB = WTBWorking (S.ByteString -> S.ByteString)
          | WTBDone Bool
 wrapTillBound :: S.ByteString -- ^ bound
               -> Source
+              -> Maybe Int64
               -> IO (IO S.ByteString, IO (Bool, Int64)) -- ^ Bool indicates if the bound was found
-wrapTillBound bound src = do
+wrapTillBound bound src max = do
     ref <- newIORef $ WTBWorking id
     sref <- newIORef (0 :: Int64)
     return (go ref sref, final ref sref)
@@ -531,7 +527,11 @@ wrapTillBound bound src = do
             WTBDone _ -> return S.empty
             WTBWorking front -> do
                 bs <- readSource src
-                modifyIORef sref $ (+) (fromIntegral $S.length bs)
+                cur <- atomicModifyIORef sref $ \ cur ->
+                    let new = cur + fromIntegral (S.length bs) in (new, new)
+                case max of
+                    Just max' | cur > max' -> error "Maximum size exceeded"
+                    _ -> return ()
                 if S.null bs
                     then do
                         writeIORef ref $ WTBDone False
@@ -564,9 +564,10 @@ sinkTillBound :: S.ByteString
               -> (x -> S.ByteString -> IO x)
               -> x
               -> Source
+              -> Maybe Int64
               -> IO ((Bool, Int64), x)
-sinkTillBound bound iter seed0 src = do
-    (next, final) <- wrapTillBound bound src
+sinkTillBound bound iter seed0 src max = do
+    (next, final) <- wrapTillBound bound src max
     let loop seed = do
             bs <- next
             if S.null bs
