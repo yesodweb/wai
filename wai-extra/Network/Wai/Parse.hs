@@ -45,6 +45,7 @@ import System.Directory (removeFile, getTemporaryDirectory)
 import System.IO (hClose, openBinaryTempFile)
 import Network.Wai
 import qualified Network.HTTP.Types as H
+import Control.Applicative ((<$>))
 import Control.Monad (when, unless)
 import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
 import Data.IORef
