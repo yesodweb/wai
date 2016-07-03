@@ -169,8 +169,16 @@ type BackEnd a = S.ByteString -- ^ parameter name
               -> IO S.ByteString
               -> IO a
 
-data RequestBodyType = UrlEncoded | Multipart S.ByteString
+-- | The mimetype of the http body.
+-- Depending on whether just parameters or parameters and files
+-- are passed, one or the other mimetype should be used.
+data RequestBodyType
+    = -- | application/x-www-form-urlencoded (parameters only)
+      UrlEncoded
+    | -- | multipart/form-data (parameters and files)
+      Multipart S.ByteString
 
+-- | Get the mimetype of the body of an http request.
 getRequestBodyType :: Request -> Maybe RequestBodyType
 getRequestBodyType req = do
     ctype' <- lookup hContentType $ requestHeaders req
@@ -204,6 +212,12 @@ parseContentType a = do
          in (strip k, strip v)
     strip = S.dropWhile (== space) . fst . S.breakEnd (/= space)
 
+-- | Parse the body of an HTTP request.
+-- See parseRequestBodyEx for details.
+-- Note: This function does not limit the memory it allocates.
+-- When dealing with untrusted data (as is usually the case when
+-- receiving input from the internet), it is recommended to
+-- use the parseRequestBodyEx function instead.
 parseRequestBody :: BackEnd y
                  -> Request
                  -> IO ([Param], [File y])
@@ -212,6 +226,12 @@ parseRequestBody s r =
         Nothing -> return ([], [])
         Just rbt -> sinkRequestBody s rbt (requestBody r)
 
+-- | Parse the body of an HTTP request, limit resource usage.
+-- The HTTP body can contain both parameters and files.
+-- This function will return a list of key,value pairs
+-- for all parameters, and a list of key,a pairs
+-- for filenames. The a depends on the used backend that
+-- is responsible for storing the received files.
 parseRequestBodyEx :: ParseRequestBodyOptions
                    -> BackEnd y
                    -> Request
