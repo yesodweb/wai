@@ -137,6 +137,19 @@ caseParseRequestBody = do
     SRequest req4 bod4 <- toRequest'' ctype2 content4
     (parseRequestBodyEx def lbsBackEnd req4) `shouldThrow` anyErrorCall
 
+  it "Testing parseRequestBodyEx with application/x-www-form-urlencoded" $ do
+    let content = "thisisalongparameterkey=andthisbeanevenlongerparametervaluehelloworldhowareyou"
+    let ctype = "application/x-www-form-urlencoded"
+    SRequest req _bod <- toRequest'' ctype content
+    result <- parseRequestBodyEx def lbsBackEnd req
+    result `shouldBe` ([( "thisisalongparameterkey"
+                        , "andthisbeanevenlongerparametervaluehelloworldhowareyou" )], [])
+  it "exceeding max parm value size with x-www-form-urlencoded mimetype" $ do
+    let content = "thisisalongparameterkey=andthisbeanevenlongerparametervaluehelloworldhowareyou"
+    let ctype = "application/x-www-form-urlencoded"
+    SRequest req _bod <- toRequest'' ctype content
+    (parseRequestBodyEx (def { prboMaxParmsValueSize = 10 }) lbsBackEnd req) `shouldThrow` anyErrorCall
+
   where
     content2 =
          "--AaB03x\n"

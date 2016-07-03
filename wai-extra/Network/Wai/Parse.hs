@@ -278,11 +278,17 @@ conduitRequestBodyEx o _ UrlEncoded rbody add = do
     -- NOTE: in general, url-encoded data will be in a single chunk.
     -- Therefore, I'm optimizing for the usual case by sticking with
     -- strict byte strings here.
+    size <- newIORef 0
     let loop front = do
             bs <- rbody
             if S.null bs
                 then return $ S.concat $ front []
-                else loop $ front . (bs:)
+                else do
+                    newsize <- atomicModifyIORef size $
+                        \cursize -> let newsize = cursize + S.length bs in (newsize, newsize)
+                    when (newsize > prboMaxParmsValueSize o) $
+                        error "Maximum size of parameters exceeded"
+                    loop $ front . (bs:)
     bs <- loop id
     mapM_ (add . Left) $ H.parseSimpleQuery bs
 conduitRequestBodyEx o backend (Multipart bound) rbody add =
