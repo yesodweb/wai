@@ -1,0 +1,35 @@
+Name:                wai-http2-extra
+Version:             0.0.0
+Synopsis:            WAI utilities for HTTP/2
+License:             MIT
+License-file:        LICENSE
+Author:              Kazu Yamamoto
+Maintainer:          kazu@iij.ad.jp
+Homepage:            http://github.com/yesodweb/wai
+Category:            Web
+Build-Type:          Simple
+Cabal-Version:       >=1.8
+Stability:           Stable
+Description:         WAI utilities for HTTP/2
+
+Library
+  Build-Depends:     base                      >= 3        && < 5
+                   , auto-update               >= 0.1.3    && < 0.2
+                   , bytestring
+                   , containers
+                   , wai
+                   , warp
+                   , word8
+  Exposed-modules:   Network.Wai.Middleware.Push.Referer
+  Ghc-Options:       -Wall
+
+Test-Suite doctest
+  Type:                 exitcode-stdio-1.0
+  HS-Source-Dirs:       test
+  Ghc-Options:          -threaded -Wall
+  Main-Is:              doctests.hs
+  Build-Depends:        base
+                      , doctest >= 0.10.1
+Source-Repository head
+  Type:     git
+  Location: git://github.com/yesodweb/wai.git
