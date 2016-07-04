@@ -1,8 +1,11 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
+-- | Middleware for server push learning dependency based on Referer:.
 module Network.Wai.Middleware.Push.Referer (
     pushOnReferer
+  , MakePushPromise
   , defaultMakePushPromise
+  , URLPath
   ) where
 
 import Control.Monad (when)
@@ -28,6 +31,19 @@ import System.IO.Unsafe (unsafePerformIO)
 -- $setup
 -- >>> :set -XOverloadedStrings
 
+-- | Making a push promise based on Referer:,
+--   path to be pushed and file to be pushed.
+--   If the middleware should push this file in the next time when
+--   the page of Referer: is accessed,
+--   this function should return 'Just'.
+--   If 'Nothing' is returned,
+--   the middleware learns nothing.
+type MakePushPromise = URLPath  -- ^ path in referer
+                    -> URLPath  -- ^ path to be pushed
+                    -> FilePath -- ^ file to be pushed
+                    -> IO (Maybe PushPromise)
+
+-- | Type for URL path.
 type URLPath = ByteString
 
 type Cache = Map URLPath (Set PushPromise)
@@ -45,6 +61,7 @@ settings = defaultReaperSettings {
     , reaperCons   = insert
     , reaperNull   = M.null
     , reaperEmpty  = emptyCache
+--  , reaperDelay  = 30000000 -- FIXME hard-coding
     }
 
 insert :: (URLPath,PushPromise) -> Cache -> Cache
@@ -53,8 +70,10 @@ insert (path,pp) m = M.alter ins path m
     ins Nothing    = Just $ S.singleton pp
     ins (Just set) = Just $ S.insert pp set
 
-pushOnReferer :: (URLPath -> URLPath -> FilePath -> IO (Maybe PushPromise))
-              -> Middleware
+-- | The middleware to push files based on Referer:.
+--   Learning strategy is implemented in the first argument.
+--   Learning information is kept for 30 seconds.
+pushOnReferer :: MakePushPromise -> Middleware
 pushOnReferer func app req sendResponse = app req $ \res -> do
     let !path = rawPathInfo req
     m <- reaperRead cacheReaper
@@ -78,10 +97,9 @@ pushOnReferer func app req sendResponse = app req $ \res -> do
             setHTTP2Data req (Just h2d)
     sendResponse res
 
-defaultMakePushPromise :: URLPath  -- ^ path in referer
-                       -> URLPath  -- ^ path to be pushed
-                       -> FilePath -- ^ file to be pushed
-                       -> IO (Maybe PushPromise)
+-- | Learn if the file to be pushed is CSS (.css) or JavaScript (.js) file
+--   AND the Referer: ends with \"/\" or \".html\" or \".htm\".
+defaultMakePushPromise :: MakePushPromise
 defaultMakePushPromise refPath path file
   | isHTML refPath = case getCT path of
       Nothing -> return Nothing
