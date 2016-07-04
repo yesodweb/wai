@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.0.15.2
+Version:             3.0.15.3
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
@@ -96,7 +96,7 @@ Library
                    , case-insensitive          >= 0.2
                    , data-default-class
                    , fast-logger               >= 2.4.5    && < 2.5
-                   , wai-logger                >= 2.2.6    && < 2.3
+                   , wai-logger                >= 2.2.6    && < 2.4
                    , ansi-terminal
                    , resourcet                 >= 0.4.6    && < 1.2
                    , void                      >= 0.5

@@ -1,3 +1,7 @@
+## 3.0.15.3
+
+* Allow wai-logger 2.3
+
 ## 3.0.15.2
 
 * Doc improvements
