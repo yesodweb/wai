@@ -1,5 +1,8 @@
 ## 3.2.7
 
+* Adding new APIs for HTTP/2 server push: getHTTP2Data and setHTTP2Data [#510](https://github.com/yesodweb/wai/pull/510)
+* Better accept(2) error handling [#553](https://github.com/yesodweb/wai/pull/553)
+* Adding getGracefulShutdownTimeout.
 * Add {test,}withApplicationSettings [#531](https://github.com/yesodweb/wai/pull/531)
 
 ## 3.2.6
