@@ -5,7 +5,6 @@ import           Test.Hspec
 import           Test.HUnit
 
 import           System.IO
-import           Data.Default (def)
 import           Data.Monoid
 import qualified Data.IORef as I
 import qualified Data.ByteString as S
@@ -94,6 +93,8 @@ caseParseRequestBody = do
   let expectedfile3 = [("yaml", FileInfo "README" "application/octet-stream" "Photo blog using Hack.\n")]
   let expected3 = (expectedsmap3, expectedfile3)
 
+
+  let def = defaultParseRequestBodyOptions
   it "parsing actual post multipart/form-data" $ do
     result3 <- parseRequestBody' lbsBackEnd $ toRequest ctype3 content3
     result3 `shouldBe` expected3
@@ -104,38 +105,38 @@ caseParseRequestBody = do
 
   it "parsing with memory limit" $ do
     SRequest req4 bod4 <- toRequest'' ctype3 content3
-    result4' <- parseRequestBodyEx (def { prboMaxNumFiles = 1, prboKeyLength = 32 } ) lbsBackEnd req4
+    result4' <- parseRequestBodyEx ( setMaxRequestNumFiles 1 $ setMaxRequestKeyLength 14 def ) lbsBackEnd req4
     result4' `shouldBe` expected3
 
   it "exceeding number of files" $ do
     SRequest req4 bod4 <- toRequest'' ctype3 content3
-    (parseRequestBodyEx (def { prboMaxNumFiles = 0 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxRequestNumFiles 0 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
 
   it "exceeding parameter length" $ do
     SRequest req4 bod4 <- toRequest'' ctype3 content3
-    (parseRequestBodyEx (def { prboKeyLength = 2 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxRequestKeyLength 2 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
 
   it "exceeding file size" $ do
     SRequest req4 bod4 <- toRequest'' ctype3 content3
-    (parseRequestBodyEx (def { prboMaxFileSize = Just 2 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxRequestFileSize 2 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
 
   it "exceeding total file size" $ do
     SRequest req4 bod4 <- toRequest'' ctype3 content3
-    (parseRequestBodyEx (def { prboMaxFilesSize = Just 20 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxRequestFilesSize 20 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
     SRequest req5 bod5 <- toRequest'' ctype3 content5
-    (parseRequestBodyEx (def { prboMaxFilesSize = Just 20 } ) lbsBackEnd req5) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxRequestFilesSize 20 def ) lbsBackEnd req5) `shouldThrow` anyErrorCall
 
   it "exceeding max parm value size" $ do
     SRequest req4 bod4 <- toRequest'' ctype2 content2
-    (parseRequestBodyEx (def { prboMaxParmsValueSize = 10 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxRequestParmsSize 10 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
 
   it "exceeding max header lines" $ do
     SRequest req4 bod4 <- toRequest'' ctype2 content2
-    (parseRequestBodyEx (def { prboMaxHeaderLines = 1 } ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxHeaderLines 1 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
 
   it "exceeding header line size" $ do
     SRequest req4 bod4 <- toRequest'' ctype2 content4
-    (parseRequestBodyEx def lbsBackEnd req4) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxHeaderLineLength 8190 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
 
   it "Testing parseRequestBodyEx with application/x-www-form-urlencoded" $ do
     let content = "thisisalongparameterkey=andthisbeanevenlongerparametervaluehelloworldhowareyou"
@@ -144,11 +145,12 @@ caseParseRequestBody = do
     result <- parseRequestBodyEx def lbsBackEnd req
     result `shouldBe` ([( "thisisalongparameterkey"
                         , "andthisbeanevenlongerparametervaluehelloworldhowareyou" )], [])
+
   it "exceeding max parm value size with x-www-form-urlencoded mimetype" $ do
     let content = "thisisalongparameterkey=andthisbeanevenlongerparametervaluehelloworldhowareyou"
     let ctype = "application/x-www-form-urlencoded"
     SRequest req _bod <- toRequest'' ctype content
-    (parseRequestBodyEx (def { prboMaxParmsValueSize = 10 }) lbsBackEnd req) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxRequestParmsSize 10 def ) lbsBackEnd req) `shouldThrow` anyErrorCall
 
   where
     content2 =

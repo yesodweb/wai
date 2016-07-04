@@ -113,7 +113,6 @@ Library
                    , zlib
                    , aeson
                    , iproute
-                   , data-default
 
   if os(windows)
       cpp-options:   -DWINDOWS
@@ -183,7 +182,6 @@ test-suite spec
                    , cookie
                    , time
                    , case-insensitive
-                   , data-default
     ghc-options:     -Wall
     default-language:          Haskell2010
 
