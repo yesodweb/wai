@@ -1,3 +1,7 @@
+## 3.0.16.0
+
+* Add a new function "parseRequestBodyEx" that allows various size limits to be set.
+
 ## 3.0.15.3
 
 * Allow wai-logger 2.3

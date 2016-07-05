@@ -11,6 +11,7 @@ module Network.Wai.Parse
     , RequestBodyType (..)
     , getRequestBodyType
     , sinkRequestBody
+    , sinkRequestBodyEx
     , BackEnd
     , lbsBackEnd
     , tempFileBackEnd
@@ -19,6 +20,23 @@ module Network.Wai.Parse
     , File
     , FileInfo (..)
     , parseContentType
+    , ParseRequestBodyOptions
+    , defaultParseRequestBodyOptions
+    , parseRequestBodyEx
+    , setMaxRequestKeyLength
+    , clearMaxRequestKeyLength
+    , setMaxRequestNumFiles
+    , clearMaxRequestNumFiles
+    , setMaxRequestFileSize
+    , clearMaxRequestFileSize
+    , setMaxRequestFilesSize
+    , clearMaxRequestFilesSize
+    , setMaxRequestParmsSize
+    , clearMaxRequestParmsSize
+    , setMaxHeaderLines
+    , clearMaxHeaderLines
+    , setMaxHeaderLineLength
+    , clearMaxHeaderLineLength
 #if TEST
     , Bound (..)
     , findBound
@@ -34,18 +52,22 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
 import Data.Word (Word8)
-import Data.Maybe (fromMaybe)
+import Data.Int (Int64)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.List (sortBy)
 import Data.Function (on, fix)
 import System.Directory (removeFile, getTemporaryDirectory)
 import System.IO (hClose, openBinaryTempFile)
 import Network.Wai
 import qualified Network.HTTP.Types as H
+import Control.Applicative ((<$>))
 import Control.Monad (when, unless)
 import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
 import Data.IORef
 import Network.HTTP.Types (hContentType)
 import Data.CaseInsensitive (mk)
+
+import Prelude hiding (lines)
 
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
@@ -103,10 +125,8 @@ tempFileBackEndOpts :: IO FilePath -- ^ get temporary directory
                     -> ignored2
                     -> IO S.ByteString
                     -> IO FilePath
-tempFileBackEndOpts getTmpDir pattern internalState _ _ popper = do
-    (key, (fp, h)) <- flip runInternalState internalState $ allocate (do
-        tempDir <- getTmpDir
-        openBinaryTempFile tempDir pattern) (\(_, h) -> hClose h)
+tempFileBackEndOpts getTmpDir pattrn internalState _ _ popper = do
+    (key, (fp, h)) <- flip runInternalState internalState $ allocate it (hClose . snd)
     _ <- runInternalState (register $ removeFile fp) internalState
     fix $ \loop -> do
         bs <- popper
@@ -115,6 +135,113 @@ tempFileBackEndOpts getTmpDir pattern internalState _ _ popper = do
             loop
     release key
     return fp
+    where
+        it = do
+            tempDir <- getTmpDir
+            openBinaryTempFile tempDir pattrn
+
+-- | A data structure that describes the behavior of
+-- the parseRequestBodyEx function.
+data ParseRequestBodyOptions = ParseRequestBodyOptions
+    { -- | The maximum length of a filename
+      prboKeyLength             :: Maybe Int
+    , -- | The maximum number of files.
+      prboMaxNumFiles           :: Maybe Int
+    , -- | The maximum filesize per file.
+      prboMaxFileSize           :: Maybe Int64
+    , -- | The maximum total filesize.
+      prboMaxFilesSize          :: Maybe Int64
+    , -- | The maximum size of the sum of all parameters
+      prboMaxParmsSize          :: Maybe Int
+    , -- | The maximum header lines per mime/multipart entry
+      prboMaxHeaderLines        :: Maybe Int
+    , -- | The maximum header line length per mime/multipart entry
+      prboMaxHeaderLineLength   :: Maybe Int }
+
+-- | Set the maximum length of a filename.
+setMaxRequestKeyLength :: Int -> ParseRequestBodyOptions -> ParseRequestBodyOptions
+setMaxRequestKeyLength l p = p { prboKeyLength=Just l }
+
+-- | Do not limit the length of filenames.
+clearMaxRequestKeyLength :: ParseRequestBodyOptions -> ParseRequestBodyOptions
+clearMaxRequestKeyLength p = p { prboKeyLength=Nothing }
+
+-- | Set the maximum number of files per request.
+setMaxRequestNumFiles :: Int -> ParseRequestBodyOptions -> ParseRequestBodyOptions
+setMaxRequestNumFiles l p = p { prboMaxNumFiles=Just l }
+
+-- | Do not limit the maximum number of files per request.
+clearMaxRequestNumFiles :: ParseRequestBodyOptions -> ParseRequestBodyOptions
+clearMaxRequestNumFiles p = p { prboMaxNumFiles=Nothing }
+
+-- | Set the maximum filesize per file.
+setMaxRequestFileSize :: Int64 -> ParseRequestBodyOptions -> ParseRequestBodyOptions
+setMaxRequestFileSize l p = p { prboMaxFileSize=Just l }
+
+-- | Do not limit the maximum filesize per file.
+clearMaxRequestFileSize :: ParseRequestBodyOptions -> ParseRequestBodyOptions
+clearMaxRequestFileSize p = p { prboMaxFileSize=Nothing }
+
+-- | Set the maximum size of all files per request.
+setMaxRequestFilesSize :: Int64 -> ParseRequestBodyOptions -> ParseRequestBodyOptions
+setMaxRequestFilesSize l p = p { prboMaxFilesSize=Just l }
+
+-- | Do not limit the maximum size of all files per request.
+clearMaxRequestFilesSize :: ParseRequestBodyOptions -> ParseRequestBodyOptions
+clearMaxRequestFilesSize p = p { prboMaxFilesSize=Nothing }
+
+-- | Set the maximum size of the sum of all parameters.
+setMaxRequestParmsSize :: Int -> ParseRequestBodyOptions -> ParseRequestBodyOptions
+setMaxRequestParmsSize l p = p { prboMaxParmsSize=Just l }
+
+-- | Do not limit the maximum size of the sum of all parameters.
+clearMaxRequestParmsSize :: ParseRequestBodyOptions -> ParseRequestBodyOptions
+clearMaxRequestParmsSize p = p { prboMaxParmsSize=Nothing }
+
+-- | Set the maximum header lines per mime/multipart entry.
+setMaxHeaderLines :: Int -> ParseRequestBodyOptions -> ParseRequestBodyOptions
+setMaxHeaderLines l p = p { prboMaxHeaderLines=Just l }
+
+-- | Do not limit the maximum header lines per mime/multipart entry.
+clearMaxHeaderLines:: ParseRequestBodyOptions -> ParseRequestBodyOptions
+clearMaxHeaderLines p = p { prboMaxHeaderLines=Nothing }
+
+-- | Set the maximum header line length per mime/multipart entry.
+setMaxHeaderLineLength :: Int -> ParseRequestBodyOptions -> ParseRequestBodyOptions
+setMaxHeaderLineLength l p = p { prboMaxHeaderLineLength=Just l }
+
+-- | Do not limit the maximum header lines per mime/multipart entry.
+clearMaxHeaderLineLength :: ParseRequestBodyOptions -> ParseRequestBodyOptions
+clearMaxHeaderLineLength p = p { prboMaxHeaderLineLength=Nothing }
+
+-- | A reasonable default set of parsing options.
+-- Maximum key/filename length: 32 bytes;
+-- maximum files: 10; filesize unlimited; maximum
+-- size for parameters: 64kbytes; maximum number of header
+-- lines: 32 bytes (applies only to headers of a mime/multipart message);
+-- maximum header line length: Apache's default for that is 8190 bytes
+-- (http://httpd.apache.org/docs/2.2/mod/core.html#limitrequestline)
+-- so we're using that here as well.
+defaultParseRequestBodyOptions :: ParseRequestBodyOptions
+defaultParseRequestBodyOptions = ParseRequestBodyOptions
+    { prboKeyLength=Just 32
+    , prboMaxNumFiles=Just 10
+    , prboMaxFileSize=Nothing
+    , prboMaxFilesSize=Nothing
+    , prboMaxParmsSize=Just 65336
+    , prboMaxHeaderLines=Just 32
+    , prboMaxHeaderLineLength=Just 8190 }
+
+-- | Do not impose any memory limits.
+noLimitParseRequestBodyOptions :: ParseRequestBodyOptions
+noLimitParseRequestBodyOptions = ParseRequestBodyOptions
+    { prboKeyLength=Nothing
+    , prboMaxNumFiles=Nothing
+    , prboMaxFileSize=Nothing
+    , prboMaxFilesSize=Nothing
+    , prboMaxParmsSize=Nothing
+    , prboMaxHeaderLines=Nothing
+    , prboMaxHeaderLineLength=Nothing }
 
 -- | Information on an uploaded file.
 data FileInfo c = FileInfo
@@ -137,8 +264,16 @@ type BackEnd a = S.ByteString -- ^ parameter name
               -> IO S.ByteString
               -> IO a
 
-data RequestBodyType = UrlEncoded | Multipart S.ByteString
+-- | The mimetype of the http body.
+-- Depending on whether just parameters or parameters and files
+-- are passed, one or the other mimetype should be used.
+data RequestBodyType
+    = -- | application/x-www-form-urlencoded (parameters only)
+      UrlEncoded
+    | -- | multipart/form-data (parameters and files)
+      Multipart S.ByteString
 
+-- | Get the mimetype of the body of an http request.
 getRequestBodyType :: Request -> Maybe RequestBodyType
 getRequestBodyType req = do
     ctype' <- lookup hContentType $ requestHeaders req
@@ -172,76 +307,125 @@ parseContentType a = do
          in (strip k, strip v)
     strip = S.dropWhile (== space) . fst . S.breakEnd (/= space)
 
+-- | Parse the body of an HTTP request.
+-- See parseRequestBodyEx for details.
+-- Note: This function does not limit the memory it allocates.
+-- When dealing with untrusted data (as is usually the case when
+-- receiving input from the internet), it is recommended to
+-- use the parseRequestBodyEx function instead.
 parseRequestBody :: BackEnd y
                  -> Request
                  -> IO ([Param], [File y])
-parseRequestBody s r =
+parseRequestBody = parseRequestBodyEx noLimitParseRequestBodyOptions
+
+-- | Parse the body of an HTTP request, limit resource usage.
+-- The HTTP body can contain both parameters and files.
+-- This function will return a list of key,value pairs
+-- for all parameters, and a list of key,a pairs
+-- for filenames. The a depends on the used backend that
+-- is responsible for storing the received files.
+parseRequestBodyEx :: ParseRequestBodyOptions
+                   -> BackEnd y
+                   -> Request
+                   -> IO ([Param], [File y])
+parseRequestBodyEx o s r =
     case getRequestBodyType r of
         Nothing -> return ([], [])
-        Just rbt -> sinkRequestBody s rbt (requestBody r)
+        Just rbt -> sinkRequestBodyEx o s rbt (requestBody r)
 
 sinkRequestBody :: BackEnd y
                 -> RequestBodyType
                 -> IO S.ByteString
                 -> IO ([Param], [File y])
-sinkRequestBody s r body = do
-    ref <- newIORef (id, id)
+sinkRequestBody = sinkRequestBodyEx noLimitParseRequestBodyOptions
+
+sinkRequestBodyEx :: ParseRequestBodyOptions
+                  -> BackEnd y
+                  -> RequestBodyType
+                  -> IO S.ByteString
+                  -> IO ([Param], [File y])
+sinkRequestBodyEx o s r body = do
+    ref <- newIORef ([], [])
     let add x = atomicModifyIORef ref $ \(y, z) ->
             case x of
-                Left y' -> ((y . (y':), z), ())
-                Right z' -> ((y, z . (z':)), ())
-    conduitRequestBody s r body add
-    (x, y) <- readIORef ref
-    return (x [], y [])
+                Left y'  -> ((y':y, z), ())
+                Right z' -> ((y, z':z), ())
+    conduitRequestBodyEx o s r body add
+    (\(a, b) -> (reverse a, reverse b)) <$> readIORef ref
 
-conduitRequestBody :: BackEnd y
-                   -> RequestBodyType
-                   -> IO S.ByteString
-                   -> (Either Param (File y) -> IO ())
-                   -> IO ()
-conduitRequestBody _ UrlEncoded rbody add = do
+conduitRequestBodyEx :: ParseRequestBodyOptions
+                     -> BackEnd y
+                     -> RequestBodyType
+                     -> IO S.ByteString
+                     -> (Either Param (File y) -> IO ())
+                     -> IO ()
+conduitRequestBodyEx o _ UrlEncoded rbody add = do
     -- NOTE: in general, url-encoded data will be in a single chunk.
     -- Therefore, I'm optimizing for the usual case by sticking with
     -- strict byte strings here.
-    let loop front = do
+    let loop size front = do
             bs <- rbody
             if S.null bs
                 then return $ S.concat $ front []
-                else loop $ front . (bs:)
-    bs <- loop id
+                else do
+                    let newsize = size + S.length bs
+                    case prboMaxParmsSize o of
+                        Just maxSize -> when (newsize > maxSize) $
+                            error "Maximum size of parameters exceeded"
+                        Nothing -> return ()
+                    loop newsize $ front . (bs:)
+    bs <- loop 0 id
     mapM_ (add . Left) $ H.parseSimpleQuery bs
-conduitRequestBody backend (Multipart bound) rbody add =
-    parsePieces backend (S8.pack "--" `S.append` bound) rbody add
+conduitRequestBodyEx o backend (Multipart bound) rbody add =
+    parsePiecesEx o backend (S8.pack "--" `S.append` bound) rbody add
 
-takeLine :: Source -> IO (Maybe S.ByteString)
-takeLine src =
-    go id
+
+-- | Take one header or subheader line.
+takeLine :: Maybe Int -> Source -> IO (Maybe S.ByteString)
+takeLine maxlen src =
+    go ""
   where
     go front = do
         bs <- readSource src
+        case maxlen of
+            Just maxlen' -> when (S.length front + S.length bs > maxlen') $
+                error "Header line length exceeds allowed maximum."
+            Nothing -> return ()
         if S.null bs
             then close front
             else push front bs
 
-    close front = leftover src (front S.empty) >> return Nothing
+    close front = leftover src front >> return Nothing
     push front bs = do
-        let (x, y) = S.break (== 10) $ front bs -- LF
+        let (x, y) = S.break (== 10) bs -- LF
          in if S.null y
-                then go $ S.append x
+                then go $ front `S.append` x
                 else do
                     when (S.length y > 1) $ leftover src $ S.drop 1 y
-                    return $ Just $ killCR x
+                    return $ Just $ killCR $ front `S.append` x
 
-takeLines :: Source -> IO [S.ByteString]
-takeLines src = do
-    res <- takeLine src
+takeLines' :: Maybe Int -> Maybe Int -> Source -> IO [S.ByteString]
+takeLines' lineLength maxLines source =
+    reverse <$> takeLines'' [] lineLength maxLines source
+
+takeLines''
+    :: [S.ByteString]
+    -> Maybe Int
+    -> Maybe Int
+    -> Source
+    -> IO [S.ByteString]
+takeLines'' lines lineLength maxLines src = do
+    case maxLines of
+        Just maxLines' ->
+            when (length lines > maxLines') $
+                error "Too many lines in mime/multipart header"
+        Nothing -> return ()
+    res <- takeLine lineLength src
     case res of
-        Nothing -> return []
+        Nothing -> return lines
         Just l
-            | S.null l -> return []
-            | otherwise -> do
-                ls <- takeLines src
-                return $ l : ls
+            | S.null l -> return lines
+            | otherwise -> takeLines'' (l:lines) lineLength maxLines src
 
 data Source = Source (IO S.ByteString) (IORef S.ByteString)
 
@@ -260,17 +444,20 @@ readSource (Source f ref) = do
 leftover :: Source -> S.ByteString -> IO ()
 leftover (Source _ ref) bs = writeIORef ref bs
 
-parsePieces :: BackEnd y
-            -> S.ByteString
-            -> IO S.ByteString
-            -> (Either Param (File y) -> IO ())
-            -> IO ()
-parsePieces sink bound rbody add =
-    mkSource rbody >>= loop
+parsePiecesEx :: ParseRequestBodyOptions
+              -> BackEnd y
+              -> S.ByteString
+              -> IO S.ByteString
+              -> (Either Param (File y) -> IO ())
+              -> IO ()
+parsePiecesEx o sink bound rbody add =
+    mkSource rbody >>= loop 0 0 0 0
   where
-    loop src = do
-        _boundLine <- takeLine src
-        res' <- takeLines src
+    loop :: Int -> Int -> Int -> Int64 -> Source -> IO ()
+    loop numParms numFiles parmSize filesSize src = do
+        _boundLine <- takeLine (prboMaxHeaderLineLength o) src
+        res' <- takeLines' (prboMaxHeaderLineLength o)
+            (prboMaxHeaderLines o) src
         unless (null res') $ do
             let ls' = map parsePair res'
             let x = do
@@ -281,31 +468,57 @@ parsePieces sink bound rbody add =
                     return (ct, name, lookup "filename" attrs)
             case x of
                 Just (mct, name, Just filename) -> do
+                    case prboKeyLength o of
+                        Just maxKeyLength ->
+                            when (S.length name > maxKeyLength) $
+                                error "Filename is too long"
+                        Nothing -> return ()
+                    case prboMaxNumFiles o of
+                        Just maxFiles -> when (numFiles >= maxFiles) $
+                            error "Maximum number of files exceeded"
+                        Nothing -> return ()
                     let ct = fromMaybe "application/octet-stream" mct
                         fi0 = FileInfo filename ct ()
-                    (wasFound, y) <- sinkTillBound' bound name fi0 sink src
+                        fs = catMaybes [ prboMaxFileSize o
+                                       , subtract filesSize <$> prboMaxFilesSize o ]
+                        mfs = if fs == [] then Nothing else Just $ minimum fs
+                    ((wasFound, fileSize), y) <- sinkTillBound' bound name fi0 sink src mfs
+                    let newFilesSize = filesSize + fileSize
                     add $ Right (name, fi0 { fileContent = y })
-                    when wasFound (loop src)
+                    when wasFound $ loop numParms (numFiles + 1) parmSize newFilesSize src
                 Just (_ct, name, Nothing) -> do
+                    case prboKeyLength o of
+                        Just maxKeyLength ->
+                            when (S.length name > maxKeyLength) $
+                                error "Parameter name is too long"
+                        Nothing -> return ()
                     let seed = id
                     let iter front bs = return $ front . (:) bs
-                    (wasFound, front) <- sinkTillBound bound iter seed src
+                    ((wasFound, _fileSize), front) <- sinkTillBound bound iter seed src
+                        (fromIntegral <$> prboMaxParmsSize o)
                     let bs = S.concat $ front []
                     let x' = (name, bs)
+                    let newParmSize = parmSize + S.length name + S.length bs
+                    case prboMaxParmsSize o of
+                        Just maxParmSize -> when (newParmSize > maxParmSize) $
+                            error "Maximum size of parameters exceeded"
+                        Nothing -> return ()
                     add $ Left x'
-                    when wasFound (loop src)
+                    when wasFound $ loop (numParms + 1) numFiles
+                        newParmSize filesSize src
                 _ -> do
                     -- ignore this part
                     let seed = ()
                         iter () _ = return ()
-                    (wasFound, ()) <- sinkTillBound bound iter seed src
-                    when wasFound (loop src)
+                    ((wasFound, _fileSize), ()) <- sinkTillBound bound iter seed src Nothing
+                    when wasFound $ loop numParms numFiles parmSize filesSize src
       where
         contDisp = mk $ S8.pack "Content-Disposition"
         contType = mk $ S8.pack "Content-Type"
         parsePair s =
             let (x, y) = breakDiscard 58 s -- colon
              in (mk $ x, S.dropWhile (== 32) y) -- space
+
 
 data Bound = FoundBound S.ByteString S.ByteString
            | NoBound
@@ -340,9 +553,10 @@ sinkTillBound' :: S.ByteString
                -> FileInfo ()
                -> BackEnd y
                -> Source
-               -> IO (Bool, y)
-sinkTillBound' bound name fi sink src = do
-    (next, final) <- wrapTillBound bound src
+               -> Maybe Int64
+               -> IO ((Bool, Int64), y)
+sinkTillBound' bound name fi sink src max' = do
+    (next, final) <- wrapTillBound bound src max'
     y <- sink name fi next
     b <- final
     return (b, y)
@@ -351,23 +565,32 @@ data WTB = WTBWorking (S.ByteString -> S.ByteString)
          | WTBDone Bool
 wrapTillBound :: S.ByteString -- ^ bound
               -> Source
-              -> IO (IO S.ByteString, IO Bool) -- ^ Bool indicates if the bound was found
-wrapTillBound bound src = do
+              -> Maybe Int64
+              -> IO (IO S.ByteString, IO (Bool, Int64)) -- ^ Bool indicates if the bound was found
+wrapTillBound bound src max' = do
     ref <- newIORef $ WTBWorking id
-    return (go ref, final ref)
+    sref <- newIORef (0 :: Int64)
+    return (go ref sref, final ref sref)
   where
-    final ref = do
+    final ref sref = do
         x <- readIORef ref
         case x of
             WTBWorking _ -> error "wrapTillBound did not finish"
-            WTBDone y -> return y
+            WTBDone y -> do
+                siz <- readIORef sref
+                return (y, siz)
 
-    go ref = do
+    go ref sref = do
         state <- readIORef ref
         case state of
             WTBDone _ -> return S.empty
             WTBWorking front -> do
                 bs <- readSource src
+                cur <- atomicModifyIORef' sref $ \ cur ->
+                    let new = cur + fromIntegral (S.length bs) in (new, new)
+                case max' of
+                    Just max'' | cur > max'' -> error "Maximum size exceeded"
+                    _ -> return ()
                 if S.null bs
                     then do
                         writeIORef ref $ WTBDone False
@@ -390,19 +613,20 @@ wrapTillBound bound src = do
                                 else (bs, id)
                     writeIORef ref $ WTBWorking front'
                     if S.null toEmit
-                        then go ref
+                        then go ref sref
                         else return toEmit
                 PartialBound -> do
                     writeIORef ref $ WTBWorking $ S.append bs
-                    go ref
+                    go ref sref
 
 sinkTillBound :: S.ByteString
               -> (x -> S.ByteString -> IO x)
               -> x
               -> Source
-              -> IO (Bool, x)
-sinkTillBound bound iter seed0 src = do
-    (next, final) <- wrapTillBound bound src
+              -> Maybe Int64
+              -> IO ((Bool, Int64), x)
+sinkTillBound bound iter seed0 src max' = do
+    (next, final) <- wrapTillBound bound src max'
     let loop seed = do
             bs <- next
             if S.null bs

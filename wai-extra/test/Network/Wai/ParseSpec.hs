@@ -93,6 +93,8 @@ caseParseRequestBody = do
   let expectedfile3 = [("yaml", FileInfo "README" "application/octet-stream" "Photo blog using Hack.\n")]
   let expected3 = (expectedsmap3, expectedfile3)
 
+
+  let def = defaultParseRequestBodyOptions
   it "parsing actual post multipart/form-data" $ do
     result3 <- parseRequestBody' lbsBackEnd $ toRequest ctype3 content3
     result3 `shouldBe` expected3
@@ -100,6 +102,56 @@ caseParseRequestBody = do
   it "parsing actual post multipart/form-data 2" $ do
     result3' <- parseRequestBody' lbsBackEnd $ toRequest' ctype3 content3
     result3' `shouldBe` expected3
+
+  it "parsing with memory limit" $ do
+    SRequest req4 bod4 <- toRequest'' ctype3 content3
+    result4' <- parseRequestBodyEx ( setMaxRequestNumFiles 1 $ setMaxRequestKeyLength 14 def ) lbsBackEnd req4
+    result4' `shouldBe` expected3
+
+  it "exceeding number of files" $ do
+    SRequest req4 bod4 <- toRequest'' ctype3 content3
+    (parseRequestBodyEx ( setMaxRequestNumFiles 0 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
+  it "exceeding parameter length" $ do
+    SRequest req4 bod4 <- toRequest'' ctype3 content3
+    (parseRequestBodyEx ( setMaxRequestKeyLength 2 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
+  it "exceeding file size" $ do
+    SRequest req4 bod4 <- toRequest'' ctype3 content3
+    (parseRequestBodyEx ( setMaxRequestFileSize 2 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
+  it "exceeding total file size" $ do
+    SRequest req4 bod4 <- toRequest'' ctype3 content3
+    (parseRequestBodyEx ( setMaxRequestFilesSize 20 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    SRequest req5 bod5 <- toRequest'' ctype3 content5
+    (parseRequestBodyEx ( setMaxRequestFilesSize 20 def ) lbsBackEnd req5) `shouldThrow` anyErrorCall
+
+  it "exceeding max parm value size" $ do
+    SRequest req4 bod4 <- toRequest'' ctype2 content2
+    (parseRequestBodyEx ( setMaxRequestParmsSize 10 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
+  it "exceeding max header lines" $ do
+    SRequest req4 bod4 <- toRequest'' ctype2 content2
+    (parseRequestBodyEx ( setMaxHeaderLines 1 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
+  it "exceeding header line size" $ do
+    SRequest req4 bod4 <- toRequest'' ctype2 content4
+    (parseRequestBodyEx ( setMaxHeaderLineLength 8190 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+
+  it "Testing parseRequestBodyEx with application/x-www-form-urlencoded" $ do
+    let content = "thisisalongparameterkey=andthisbeanevenlongerparametervaluehelloworldhowareyou"
+    let ctype = "application/x-www-form-urlencoded"
+    SRequest req _bod <- toRequest'' ctype content
+    result <- parseRequestBodyEx def lbsBackEnd req
+    result `shouldBe` ([( "thisisalongparameterkey"
+                        , "andthisbeanevenlongerparametervaluehelloworldhowareyou" )], [])
+
+  it "exceeding max parm value size with x-www-form-urlencoded mimetype" $ do
+    let content = "thisisalongparameterkey=andthisbeanevenlongerparametervaluehelloworldhowareyou"
+    let ctype = "application/x-www-form-urlencoded"
+    SRequest req _bod <- toRequest'' ctype content
+    (parseRequestBodyEx ( setMaxRequestParmsSize 10 def ) lbsBackEnd req) `shouldThrow` anyErrorCall
+
   where
     content2 =
          "--AaB03x\n"
@@ -120,6 +172,26 @@ caseParseRequestBody = do
     content3 =
          "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
       <> "Content-Disposition: form-data; name=\"yaml\"; filename=\"README\"\r\n"
+      <> "Content-Type: application/octet-stream\r\n\r\n"
+      <> "Photo blog using Hack.\n\r\n"
+      <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh--\r\n"
+    content4 =
+         "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
+      <> "Content-Disposition: form-data; name=\"yaml\"; filename=\"README\"\r\n"
+      <> "Content-Type: application/octet-stream\r\n\r\n"
+      <> "Photo blog using Hack.\n\r\n"
+      <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
+      <> "Content-Disposition: form-data; name=\"bla\"; filename=\"riedmie\"\r\n"
+      <> "Content-Type: application/octet-stream=TOOLONG=" <> S8.replicate 8192 '=' <> "\r\n\r\n"
+      <> "Photo blog using Hack.\n\r\n"
+      <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh--\r\n"
+    content5 =
+         "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
+      <> "Content-Disposition: form-data; name=\"yaml\"; filename=\"README\"\r\n"
+      <> "Content-Type: application/octet-stream\r\n\r\n"
+      <> "Photo blog using Hack.\n\r\n"
+      <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
+      <> "Content-Disposition: form-data; name=\"yaml2\"; filename=\"MEADRE\"\r\n"
       <> "Content-Type: application/octet-stream\r\n\r\n"
       <> "Photo blog using Hack.\n\r\n"
       <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh--\r\n"
@@ -198,3 +270,14 @@ toRequest' :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest' ctype content = SRequest defaultRequest
     { requestHeaders = [("Content-Type", ctype)]
     } (L.fromChunks $ map S.singleton $ S.unpack content)
+
+toRequest'' :: S8.ByteString -> S8.ByteString -> IO SRequest
+toRequest'' ctype content = mkRB content >>= \b -> return $ SRequest defaultRequest
+    { requestHeaders = [("Content-Type", ctype)], requestBody = b
+    } (L.fromChunks $ map S.singleton $ S.unpack content)
+
+mkRB :: S8.ByteString -> IO (IO S8.ByteString)
+mkRB content = do
+    r <- I.newIORef content
+    return $
+        I.atomicModifyIORef r $ \a -> (S8.empty, a)
