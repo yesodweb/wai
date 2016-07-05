@@ -1,3 +1,7 @@
+## 3.0.16.1
+
+* Fix the way the header length is checked (for limiting the max header length)
+
 ## 3.0.16.0
 
 * Add a new function "parseRequestBodyEx" that allows various size limits to be set.

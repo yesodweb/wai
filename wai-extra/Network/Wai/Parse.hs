@@ -425,7 +425,7 @@ takeLine maxlen src =
     go front = do
         bs <- readSource src
         case maxlen of
-            Just maxlen' -> when (S.length front + S.length bs > maxlen') $
+            Just maxlen' -> when (S.length front > maxlen') $
                 error "Header line length exceeds allowed maximum."
             Nothing -> return ()
         if S.null bs
