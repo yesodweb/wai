@@ -586,7 +586,7 @@ wrapTillBound bound src max' = do
             WTBDone _ -> return S.empty
             WTBWorking front -> do
                 bs <- readSource src
-                cur <- atomicModifyIORef sref $ \ cur ->
+                cur <- atomicModifyIORef' sref $ \ cur ->
                     let new = cur + fromIntegral (S.length bs) in (new, new)
                 case max' of
                     Just max'' | cur > max'' -> error "Maximum size exceeded"
