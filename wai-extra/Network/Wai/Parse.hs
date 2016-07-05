@@ -219,8 +219,9 @@ clearMaxHeaderLineLength p = p { prboMaxHeaderLineLength=Nothing }
 -- maximum files: 10; filesize unlimited; maximum
 -- size for parameters: 64kbytes; maximum number of header
 -- lines: 32 bytes (applies only to headers of a mime/multipart message);
--- maximum header line length: 8190 bytes (applies only to headers of
--- a mime/multipart message)
+-- maximum header line length: Apache's default for that is 8190 bytes
+-- (http://httpd.apache.org/docs/2.2/mod/core.html#limitrequestline)
+-- so we're using that here as well.
 defaultParseRequestBodyOptions :: ParseRequestBodyOptions
 defaultParseRequestBodyOptions = ParseRequestBodyOptions
     { prboKeyLength=Just 32
@@ -380,9 +381,6 @@ conduitRequestBodyEx o backend (Multipart bound) rbody add =
 
 
 -- | Take one header or subheader line.
--- It makes sense to limit the maximum line length.
--- Apache's default is 8190 (http://httpd.apache.org/docs/2.2/mod/core.html#limitrequestline)
--- so we're using that here as well.
 takeLine :: Maybe Int -> Source -> IO (Maybe S.ByteString)
 takeLine maxlen src =
     go ""
