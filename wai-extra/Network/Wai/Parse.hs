@@ -142,6 +142,8 @@ tempFileBackEndOpts getTmpDir pattrn internalState _ _ popper = do
 
 -- | A data structure that describes the behavior of
 -- the parseRequestBodyEx function.
+--
+-- @since 3.0.16.0
 data ParseRequestBodyOptions = ParseRequestBodyOptions
     { -- | The maximum length of a filename
       prboKeyLength             :: Maybe Int
@@ -159,58 +161,86 @@ data ParseRequestBodyOptions = ParseRequestBodyOptions
       prboMaxHeaderLineLength   :: Maybe Int }
 
 -- | Set the maximum length of a filename.
+--
+-- @since 3.0.16.0
 setMaxRequestKeyLength :: Int -> ParseRequestBodyOptions -> ParseRequestBodyOptions
 setMaxRequestKeyLength l p = p { prboKeyLength=Just l }
 
 -- | Do not limit the length of filenames.
+--
+-- @since 3.0.16.0
 clearMaxRequestKeyLength :: ParseRequestBodyOptions -> ParseRequestBodyOptions
 clearMaxRequestKeyLength p = p { prboKeyLength=Nothing }
 
 -- | Set the maximum number of files per request.
+--
+-- @since 3.0.16.0
 setMaxRequestNumFiles :: Int -> ParseRequestBodyOptions -> ParseRequestBodyOptions
 setMaxRequestNumFiles l p = p { prboMaxNumFiles=Just l }
 
 -- | Do not limit the maximum number of files per request.
+--
+-- @since 3.0.16.0
 clearMaxRequestNumFiles :: ParseRequestBodyOptions -> ParseRequestBodyOptions
 clearMaxRequestNumFiles p = p { prboMaxNumFiles=Nothing }
 
 -- | Set the maximum filesize per file.
+--
+-- @since 3.0.16.0
 setMaxRequestFileSize :: Int64 -> ParseRequestBodyOptions -> ParseRequestBodyOptions
 setMaxRequestFileSize l p = p { prboMaxFileSize=Just l }
 
 -- | Do not limit the maximum filesize per file.
+--
+-- @since 3.0.16.0
 clearMaxRequestFileSize :: ParseRequestBodyOptions -> ParseRequestBodyOptions
 clearMaxRequestFileSize p = p { prboMaxFileSize=Nothing }
 
 -- | Set the maximum size of all files per request.
+--
+-- @since 3.0.16.0
 setMaxRequestFilesSize :: Int64 -> ParseRequestBodyOptions -> ParseRequestBodyOptions
 setMaxRequestFilesSize l p = p { prboMaxFilesSize=Just l }
 
 -- | Do not limit the maximum size of all files per request.
+--
+-- @since 3.0.16.0
 clearMaxRequestFilesSize :: ParseRequestBodyOptions -> ParseRequestBodyOptions
 clearMaxRequestFilesSize p = p { prboMaxFilesSize=Nothing }
 
 -- | Set the maximum size of the sum of all parameters.
+--
+-- @since 3.0.16.0
 setMaxRequestParmsSize :: Int -> ParseRequestBodyOptions -> ParseRequestBodyOptions
 setMaxRequestParmsSize l p = p { prboMaxParmsSize=Just l }
 
 -- | Do not limit the maximum size of the sum of all parameters.
+--
+-- @since 3.0.16.0
 clearMaxRequestParmsSize :: ParseRequestBodyOptions -> ParseRequestBodyOptions
 clearMaxRequestParmsSize p = p { prboMaxParmsSize=Nothing }
 
 -- | Set the maximum header lines per mime/multipart entry.
+--
+-- @since 3.0.16.0
 setMaxHeaderLines :: Int -> ParseRequestBodyOptions -> ParseRequestBodyOptions
 setMaxHeaderLines l p = p { prboMaxHeaderLines=Just l }
 
 -- | Do not limit the maximum header lines per mime/multipart entry.
+--
+-- @since 3.0.16.0
 clearMaxHeaderLines:: ParseRequestBodyOptions -> ParseRequestBodyOptions
 clearMaxHeaderLines p = p { prboMaxHeaderLines=Nothing }
 
 -- | Set the maximum header line length per mime/multipart entry.
+--
+-- @since 3.0.16.0
 setMaxHeaderLineLength :: Int -> ParseRequestBodyOptions -> ParseRequestBodyOptions
 setMaxHeaderLineLength l p = p { prboMaxHeaderLineLength=Just l }
 
 -- | Do not limit the maximum header lines per mime/multipart entry.
+--
+-- @since 3.0.16.0
 clearMaxHeaderLineLength :: ParseRequestBodyOptions -> ParseRequestBodyOptions
 clearMaxHeaderLineLength p = p { prboMaxHeaderLineLength=Nothing }
 
@@ -222,6 +252,8 @@ clearMaxHeaderLineLength p = p { prboMaxHeaderLineLength=Nothing }
 -- maximum header line length: Apache's default for that is 8190 bytes
 -- (http://httpd.apache.org/docs/2.2/mod/core.html#limitrequestline)
 -- so we're using that here as well.
+--
+-- @since 3.0.16.0
 defaultParseRequestBodyOptions :: ParseRequestBodyOptions
 defaultParseRequestBodyOptions = ParseRequestBodyOptions
     { prboKeyLength=Just 32
@@ -233,6 +265,8 @@ defaultParseRequestBodyOptions = ParseRequestBodyOptions
     , prboMaxHeaderLineLength=Just 8190 }
 
 -- | Do not impose any memory limits.
+--
+-- @since 3.0.16.0
 noLimitParseRequestBodyOptions :: ParseRequestBodyOptions
 noLimitParseRequestBodyOptions = ParseRequestBodyOptions
     { prboKeyLength=Nothing
@@ -339,6 +373,9 @@ sinkRequestBody :: BackEnd y
                 -> IO ([Param], [File y])
 sinkRequestBody = sinkRequestBodyEx noLimitParseRequestBodyOptions
 
+-- |
+--
+-- @since 3.0.16.0
 sinkRequestBodyEx :: ParseRequestBodyOptions
                   -> BackEnd y
                   -> RequestBodyType
