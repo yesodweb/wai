@@ -639,7 +639,7 @@ wrapTillBound bound src max' = do
                         return $ front bs
                     else push $ front bs
       where
-        push bs =
+        push bs = do
             case findBound bound bs of
                 FoundBound before after -> do
                     let before' = killCRLF before
