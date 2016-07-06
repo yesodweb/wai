@@ -439,7 +439,12 @@ takeLine maxlen src =
                 then go $ front `S.append` x
                 else do
                     when (S.length y > 1) $ leftover src $ S.drop 1 y
-                    return $ Just $ killCR $ front `S.append` x
+                    let res = front `S.append` x
+                    case maxlen of
+                        Just maxlen' -> when (S.length res > maxlen') $
+                            error "Header line length exceeds allowed maximum."
+                        Nothing -> return ()
+                    return $ Just $ killCR $ res
 
 takeLines' :: Maybe Int -> Maybe Int -> Source -> IO [S.ByteString]
 takeLines' lineLength maxLines source =
