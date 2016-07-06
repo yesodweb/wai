@@ -425,7 +425,7 @@ takeLine maxlen src =
     go front = do
         bs <- readSource src
         case maxlen of
-            Just maxlen' -> when (S.length front + S.length bs > maxlen') $
+            Just maxlen' -> when (S.length front > maxlen') $
                 error "Header line length exceeds allowed maximum."
             Nothing -> return ()
         if S.null bs
@@ -439,7 +439,12 @@ takeLine maxlen src =
                 then go $ front `S.append` x
                 else do
                     when (S.length y > 1) $ leftover src $ S.drop 1 y
-                    return $ Just $ killCR $ front `S.append` x
+                    let res = front `S.append` x
+                    case maxlen of
+                        Just maxlen' -> when (S.length res > maxlen') $
+                            error "Header line length exceeds allowed maximum."
+                        Nothing -> return ()
+                    return $ Just $ killCR $ res
 
 takeLines' :: Maybe Int -> Maybe Int -> Source -> IO [S.ByteString]
 takeLines' lineLength maxLines source =
@@ -634,7 +639,7 @@ wrapTillBound bound src max' = do
                         return $ front bs
                     else push $ front bs
       where
-        push bs =
+        push bs = do
             case findBound bound bs of
                 FoundBound before after -> do
                     let before' = killCRLF before
