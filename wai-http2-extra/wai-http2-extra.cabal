@@ -17,6 +17,7 @@ Library
                    , auto-update               >= 0.1.3    && < 0.2
                    , bytestring
                    , containers
+                   , http-types
                    , wai
                    , warp
                    , word8

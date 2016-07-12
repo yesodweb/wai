@@ -23,6 +23,7 @@ import Data.Word8
 import Foreign.ForeignPtr (withForeignPtr, ForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr, nullPtr)
 import Foreign.Storable (peek)
+import Network.HTTP.Types (Status(..))
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Internal (Response(..))
@@ -81,7 +82,7 @@ pushOnReferer func app req sendResponse = app req $ \res -> do
         Nothing -> case requestHeaderReferer req of
             Nothing      -> return ()
             Just referer -> case res of
-                ResponseFile _ _ file Nothing -> do
+                ResponseFile (Status 200 "OK") _ file Nothing -> do
                     (mauth,refPath) <- parseUrl referer
                     when (isNothing mauth
                        || requestHeaderHost req == mauth) $ do
