@@ -1,5 +1,5 @@
 Name:                wai-http2-extra
-Version:             0.0.0
+Version:             0.0.1
 Synopsis:            WAI utilities for HTTP/2
 License:             MIT
 License-file:        LICENSE
