@@ -68,27 +68,22 @@ rspnHeaders (RspnStreaming _ t _)    = t
 rspnHeaders (RspnBuilder   _ t _)    = t
 rspnHeaders (RspnFile      _ t _ _ ) = t
 
-data Output = ORspn !Stream !Rspn !InternalInfo (IO ()) -- done
-            | OWait !Stream !Rspn !InternalInfo (IO ()) -- done
-            | OPush !Stream -- stream for this push from this server
-                    TokenHeaderList
-                    !Rspn {- RspnFile only-}
-                    !InternalInfo (IO ()) -- wait for done
-                    !StreamId -- associated stream id from client
-            | ONext !Stream !DynaNext !(Maybe (TBQueue Sequence)) (IO ()) -- done
+data Output = Output {
+    outputStream :: !Stream
+  , outputRspn   :: !Rspn
+  , outputII     :: !InternalInfo
+  , outputHook   :: IO () -- OPush: wait for done, O*: telling done
+  , outputType   :: !OutputType
+  }
 
-outputStream :: Output -> Stream
-outputStream (ORspn strm _ _ _)     = strm
-outputStream (OPush strm _ _ _ _ _) = strm
-outputStream (OWait strm _ _ _)     = strm
-outputStream (ONext strm _ _ _)     = strm
+data OutputType = ORspn
+                | OWait
+                | OPush !TokenHeaderList !StreamId -- associated stream id from client
+                | ONext !DynaNext
 
 outputMaybeTBQueue :: Output -> Maybe (TBQueue Sequence)
-outputMaybeTBQueue (ORspn _ (RspnStreaming _ _ tbq) _ _) = Just tbq
-outputMaybeTBQueue (ORspn _ _ _ _)                       = Nothing
-outputMaybeTBQueue (OPush _ _ _ _ _ _)                   = Nothing
-outputMaybeTBQueue (OWait _ _ _ _)                       = Nothing
-outputMaybeTBQueue (ONext _ _ mtbq _)                    = mtbq
+outputMaybeTBQueue (Output _ (RspnStreaming _ _ tbq) _ _ _) = Just tbq
+outputMaybeTBQueue _                                        = Nothing
 
 data Control = CFinish
              | CGoaway    !ByteString

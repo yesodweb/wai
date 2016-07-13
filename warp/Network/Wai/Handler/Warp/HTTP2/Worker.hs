@@ -57,7 +57,7 @@ type Responder = InternalInfo
 pushStream :: Context -> S.Settings
            -> StreamId -> ValueTable -> Request -> InternalInfo
            -> Maybe HTTP2Data
-           -> IO (Stream -> Rspn -> InternalInfo -> IO () -> Output, IO ())
+           -> IO (OutputType, IO ())
 pushStream _ _ _ _ _ _ Nothing = return (ORspn, return ())
 pushStream ctx@Context{http2settings,outputQ,streamTable}
            settings pid reqvt req ii (Just h2d)
@@ -110,7 +110,8 @@ pushStream ctx@Context{http2settings,outputQ,streamTable}
                   !ths = (tokenLastModified,date) :
                          addContentHeadersForFilePart ths0 part
               pushLogger req path size
-              let out = OPush strm promisedRequest rsp ii (increment tvar) pid
+              let !ot = OPush promisedRequest pid
+                  !out = Output strm rsp ii (increment tvar) ot
               enqueueOutput outputQ out
               push tvar pps (n + 1)
 
@@ -156,8 +157,8 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rs
     responseNoBody' s tbl = do
         logger req s Nothing
         setThreadContinue tconf True
-        let rspn = RspnNobody s tbl
-            out = ORspn strm rspn ii (return ())
+        let !rspn = RspnNobody s tbl
+            !out = Output strm rspn ii (return ()) ORspn
         enqueueOutput outputQ out
         return ResponseReceived
 
@@ -165,8 +166,8 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rs
         logger req s Nothing
         setThreadContinue tconf True
         tbl <- toHeaderTable hs0
-        let rspn = RspnBuilder s tbl bdy
-            out = rspnOrWait strm rspn ii tell
+        let !rspn = RspnBuilder s tbl bdy
+            !out = Output strm rspn ii tell rspnOrWait
         enqueueOutput outputQ out
         return ResponseReceived
 
@@ -191,8 +192,8 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rs
       | otherwise = do
           logger req s (filePartByteCount <$> mpart)
           setThreadContinue tconf True
-          let rspn = RspnFile s tbl path mpart
-              out = rspnOrWait strm rspn ii tell
+          let !rspn = RspnFile s tbl path mpart
+              !out = Output strm rspn ii tell rspnOrWait
           enqueueOutput outputQ out
           return ResponseReceived
 
@@ -217,8 +218,8 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rs
         -- So, let's serialize 'Builder' with a designated queue.
         tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
         tbl <- toHeaderTable hs0
-        let rspn = RspnStreaming s0 tbl tbq
-            out = rspnOrWait strm rspn ii tell
+        let !rspn = RspnStreaming s0 tbl tbq
+            !out = Output strm rspn ii tell rspnOrWait
         enqueueOutput outputQ out
         let push b = do
               atomically $ writeTBQueue tbq (SBuilder b)
@@ -265,7 +266,7 @@ worker ctx@Context{inputQ,controlQ} set app responder tm = do
             Nothing               -> return ()
             Just (Input strm req _reqvt _ii) -> do
                 closed ctx strm Killed
-                let frame = resetFrame InternalError (streamNumber strm)
+                let !frame = resetFrame InternalError (streamNumber strm)
                 enqueueControl controlQ $ CFrame frame
                 case me of
                     Nothing -> return ()

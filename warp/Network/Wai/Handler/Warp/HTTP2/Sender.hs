@@ -122,16 +122,16 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         Nothing  -> return ()
         Just siz -> setLimitForEncoding siz encodeDynamicTable
 
-    output (ONext strm curr mtbq tell) off0 lim = do
+    output out@(Output strm _ _ tell (ONext curr)) off0 lim = do
         -- Data frame payload
         let !buf = connWriteBuffer `plusPtr` off0
             !siz = connBufferSize - off0
         Next datPayloadLen mnext <- curr buf siz lim
         off <- fillDataHeader strm off0 datPayloadLen mnext tell
-        maybeEnqueueNext strm mtbq mnext tell
+        maybeEnqueueNext out mnext
         return off
 
-    output (ORspn strm rspn ii tell) off0 lim = do
+    output out@(Output strm rspn ii tell ORspn) off0 lim = do
         -- Header frame and Continuation frame
         let !sid = streamNumber strm
             !endOfStream = case rspn of
@@ -150,7 +150,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 Next datPayloadLen mnext <-
                     fillFileBodyGetNext conn ii payloadOff lim path mpart
                 off' <- fillDataHeader strm off datPayloadLen mnext tell
-                maybeEnqueueNext strm Nothing mnext tell
+                maybeEnqueueNext out mnext
                 return off'
             RspnBuilder _ _ builder -> do
                 -- Data frame payload
@@ -158,23 +158,23 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 Next datPayloadLen mnext <-
                     fillBuilderBodyGetNext conn ii payloadOff lim builder
                 off' <- fillDataHeader strm off datPayloadLen mnext tell
-                maybeEnqueueNext strm Nothing mnext tell
+                maybeEnqueueNext out mnext
                 return off'
             RspnStreaming _ _ tbq -> do
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillStreamBodyGetNext conn payloadOff lim tbq strm
                 off' <- fillDataHeader strm off datPayloadLen mnext tell
-                maybeEnqueueNext strm (Just tbq) mnext tell
+                maybeEnqueueNext out mnext
                 return off'
 
-    output (OPush strm ths rspn ii tell pid) off0 lim = do
+    output (Output strm rspn ii tell (OPush ths pid)) off0 lim = do
         -- Creating a push promise header
         -- Frame id should be associated stream id from the client.
         let !sid = streamNumber strm
         len <- pushPromise pid sid ths off0
         off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + len
-        output (ORspn strm rspn ii tell) off lim
+        output (Output strm rspn ii tell ORspn) off lim
 
     output _ _ _ = undefined -- never reach
 
@@ -183,9 +183,9 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         if isClosed state then
             return off
           else case out of
-                 OWait strm' rsp ii wait -> do
+                 Output strm' rsp ii wait OWait -> do
                      -- Checking if all push are done.
-                     let out' = ORspn strm' rsp ii (return ())
+                     let out' = Output strm' rsp ii (return ()) ORspn
                      forkAndEnqueueWhenReady wait outputQ out' mgr
                      return off
                  _ -> case mtbq of
@@ -252,12 +252,11 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
 
     {-# INLINE maybeEnqueueNext #-}
     -- Re-enqueue the stream in the output queue.
-    maybeEnqueueNext :: Stream -> Maybe (TBQueue Sequence)
-                     -> Maybe DynaNext -> IO () -> IO ()
-    maybeEnqueueNext _    _    Nothing     _    = return ()
-    maybeEnqueueNext strm mtbq (Just next) tell = enqueueOutput outputQ out
+    maybeEnqueueNext :: Output -> Maybe DynaNext -> IO ()
+    maybeEnqueueNext _   Nothing     = return ()
+    maybeEnqueueNext out (Just next) = enqueueOutput outputQ out'
       where
-        !out = ONext strm next mtbq tell
+        !out' = out { outputType = ONext next }
 
     {-# INLINE sendHeadersIfNecessary #-}
     -- Send headers if there is not room for a 1-byte data frame, and return
