@@ -18,7 +18,7 @@ import Data.Maybe (isNothing)
 import Data.Word (Word8, Word32)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (poke)
-import Network.HPACK (setLimitForEncoding)
+import Network.HPACK (setLimitForEncoding, toHeaderTable)
 import Network.HTTP2
 import Network.HTTP2.Priority (isEmptySTM, dequeueSTM, Precedence)
 import Network.Wai
@@ -122,16 +122,16 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         Nothing  -> return ()
         Just siz -> setLimitForEncoding siz encodeDynamicTable
 
-    output out@(Output strm _ _ tell (ONext curr)) off0 lim = do
+    output out@(Output strm _ _ tell getH2D (ONext curr)) off0 lim = do
         -- Data frame payload
         let !buf = connWriteBuffer `plusPtr` off0
             !siz = connBufferSize - off0
         Next datPayloadLen mnext <- curr buf siz lim
-        off <- fillDataHeader strm off0 datPayloadLen mnext tell
+        off <- fillDataHeader strm off0 datPayloadLen mnext tell getH2D
         maybeEnqueueNext out mnext
         return off
 
-    output out@(Output strm rspn ii tell ORspn) off0 lim = do
+    output out@(Output strm rspn ii tell getH2D ORspn) off0 lim = do
         -- Header frame and Continuation frame
         let !sid = streamNumber strm
             !endOfStream = case rspn of
@@ -149,7 +149,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillFileBodyGetNext conn ii payloadOff lim path mpart
-                off' <- fillDataHeader strm off datPayloadLen mnext tell
+                off' <- fillDataHeader strm off datPayloadLen mnext tell getH2D
                 maybeEnqueueNext out mnext
                 return off'
             RspnBuilder _ _ builder -> do
@@ -157,24 +157,24 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillBuilderBodyGetNext conn ii payloadOff lim builder
-                off' <- fillDataHeader strm off datPayloadLen mnext tell
+                off' <- fillDataHeader strm off datPayloadLen mnext tell getH2D
                 maybeEnqueueNext out mnext
                 return off'
             RspnStreaming _ _ tbq -> do
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillStreamBodyGetNext conn payloadOff lim tbq strm
-                off' <- fillDataHeader strm off datPayloadLen mnext tell
+                off' <- fillDataHeader strm off datPayloadLen mnext tell getH2D
                 maybeEnqueueNext out mnext
                 return off'
 
-    output (Output strm rspn ii tell (OPush ths pid)) off0 lim = do
+    output out@(Output strm _ _ _ _ (OPush ths pid)) off0 lim = do
         -- Creating a push promise header
         -- Frame id should be associated stream id from the client.
         let !sid = streamNumber strm
         len <- pushPromise pid sid ths off0
         off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + len
-        output (Output strm rspn ii tell ORspn) off lim
+        output out{ outputType = ORspn }  off lim
 
     output _ _ _ = undefined -- never reach
 
@@ -183,9 +183,12 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         if isClosed state then
             return off
           else case out of
-                 Output strm' rsp ii wait OWait -> do
+                 Output _ _ _ wait _ OWait -> do
                      -- Checking if all push are done.
-                     let out' = Output strm' rsp ii (return ()) ORspn
+                     let out' = out {
+                             outputHook = return ()
+                           , outputType = ORspn
+                           }
                      forkAndEnqueueWhenReady wait outputQ out' mgr
                      return off
                  _ -> case mtbq of
@@ -268,21 +271,36 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
           flushN off
           return 0
 
-    fillDataHeader strm off datPayloadLen mnext tell = do
+    fillDataHeader strm@Stream{streamWindow,streamNumber}
+                   off datPayloadLen mnext tell getH2D = do
         -- Data frame header
-        let !sid = streamNumber strm
+        mh2d <- getH2D
+        let (!trailers,!noTrailers) = case http2dataTrailers <$> mh2d of
+              Nothing -> ([], True)
+              Just ts -> (ts, null ts)
             !buf = connWriteBuffer `plusPtr` off
             !off' = off + frameHeaderLength + datPayloadLen
-            !done = isNothing mnext
-            flag | done      = setEndStream defaultFlags
-                 | otherwise = defaultFlags
-        fillFrameHeader FrameData datPayloadLen sid flag buf
-        when done $ do
+            !noMoreBody = isNothing mnext
+            flag | noMoreBody && noTrailers = setEndStream defaultFlags
+                 | otherwise                = defaultFlags
+        fillFrameHeader FrameData datPayloadLen streamNumber flag buf
+        off'' <- handleEndOfBody noMoreBody off' noTrailers trailers
+        atomically $ modifyTVar' connectionWindow (subtract datPayloadLen)
+        atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
+        return off''
+      where
+        handleTrailers True off0 _        = return off0
+        handleTrailers _    off0 trailers = do
+            (ths,_) <- toHeaderTable trailers
+            kvlen <- headerContinue streamNumber ths True off0
+            sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
+        handleEndOfBody True off0 noTrailers trailers = do
+            off1 <- handleTrailers noTrailers off0 trailers
             void $ tell
             closed ctx strm Finished
-        atomically $ modifyTVar' connectionWindow (subtract datPayloadLen)
-        atomically $ modifyTVar' (streamWindow strm) (subtract datPayloadLen)
-        return off'
+            return off1
+        handleEndOfBody False off0 _ _ = return off0
+
 
     pushPromise pid sid ths off = do
         let !offsid = off + frameHeaderLength

@@ -73,6 +73,7 @@ data Output = Output {
   , outputRspn   :: !Rspn
   , outputII     :: !InternalInfo
   , outputHook   :: IO () -- OPush: wait for done, O*: telling done
+  , outputH2Data :: IO (Maybe HTTP2Data)
   , outputType   :: !OutputType
   }
 
@@ -82,8 +83,8 @@ data OutputType = ORspn
                 | ONext !DynaNext
 
 outputMaybeTBQueue :: Output -> Maybe (TBQueue Sequence)
-outputMaybeTBQueue (Output _ (RspnStreaming _ _ tbq) _ _ _) = Just tbq
-outputMaybeTBQueue _                                        = Nothing
+outputMaybeTBQueue (Output _ (RspnStreaming _ _ tbq) _ _ _ _) = Just tbq
+outputMaybeTBQueue _                                          = Nothing
 
 data Control = CFinish
              | CGoaway    !ByteString
@@ -281,18 +282,20 @@ enqueueControl ctlQ ctl = atomically $ writeTQueue ctlQ ctl
 -- | HTTP/2 specific data.
 --
 --   Since: 3.2.7
-newtype HTTP2Data = HTTP2Data {
+data HTTP2Data = HTTP2Data {
     -- | Accessor for 'PushPromise' in 'HTTP2Data'.
     --
     --   Since: 3.2.7
       http2dataPushPromise :: [PushPromise]
+    --   Since: 3.2.8
+    , http2dataTrailers :: H.ResponseHeaders
     } deriving (Eq,Show)
 
 -- | Default HTTP/2 specific data.
 --
 --   Since: 3.2.7
 defaultHTTP2Data :: HTTP2Data
-defaultHTTP2Data = HTTP2Data []
+defaultHTTP2Data = HTTP2Data [] []
 
 -- | HTTP/2 push promise or sever push.
 --

@@ -6,6 +6,7 @@ module Network.Wai.Handler.Warp.HTTP2.Request (
   , MkReq
   , getHTTP2Data
   , setHTTP2Data
+  , modifyHTTP2Data
   ) where
 
 import Control.Applicative ((<|>))
@@ -83,6 +84,7 @@ mkRequest' ii1 settings addr ref (reqths,reqvt) body = return (req,ii)
                 $ Vault.insert getFileInfoKey (getFileInfo ii)
                 $ Vault.insert getHTTP2DataKey (readIORef ref)
                 $ Vault.insert setHTTP2DataKey (writeIORef ref)
+                $ Vault.insert modifyHTTP2DataKey (modifyIORef' ref)
                   Vault.empty
 
 getHTTP2DataKey :: Vault.Key (IO (Maybe HTTP2Data))
@@ -103,10 +105,23 @@ setHTTP2DataKey = unsafePerformIO Vault.newKey
 {-# NOINLINE setHTTP2Data #-}
 
 -- | Setting 'HTTP2Data' through vault of the request.
---   'Middleware' should use this.
+--   'Application' or 'Middleware' should use this.
 --
 --   Since: 3.2.7
 setHTTP2Data :: Request -> Maybe HTTP2Data -> IO ()
 setHTTP2Data req mh2d = case Vault.lookup setHTTP2DataKey (vault req) of
   Nothing     -> return ()
   Just setter -> setter mh2d
+
+modifyHTTP2DataKey :: Vault.Key ((Maybe HTTP2Data -> Maybe HTTP2Data) -> IO ())
+modifyHTTP2DataKey = unsafePerformIO Vault.newKey
+{-# NOINLINE modifyHTTP2Data #-}
+
+-- | Modifying 'HTTP2Data' through vault of the request.
+--   'Application' or 'Middleware' should use this.
+--
+--   Since: 3.2.8
+modifyHTTP2Data :: Request -> (Maybe HTTP2Data -> Maybe HTTP2Data) -> IO ()
+modifyHTTP2Data req func = case Vault.lookup modifyHTTP2DataKey (vault req) of
+  Nothing     -> return ()
+  Just modify -> modify func

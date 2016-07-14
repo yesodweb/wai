@@ -81,6 +81,7 @@ pushStream ctx@Context{http2settings,outputQ,streamTable}
     waiter lim tvar = atomically $ do
         n <- readTVar tvar
         check (n >= lim)
+    !h2data = getHTTP2Data req
     push _ [] !n = return (n :: Int)
     push tvar (pp:pps) !n = do
         let !file = promisedFile pp
@@ -111,7 +112,7 @@ pushStream ctx@Context{http2settings,outputQ,streamTable}
                          addContentHeadersForFilePart ths0 part
               pushLogger req path size
               let !ot = OPush promisedRequest pid
-                  !out = Output strm rsp ii (increment tvar) ot
+                  !out = Output strm rsp ii (increment tvar) h2data ot
               enqueueOutput outputQ out
               push tvar pps (n + 1)
 
@@ -145,6 +146,7 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rs
     !logger = S.settingsLogger settings
     !th = threadHandle ii
     sid = streamNumber strm
+    !h2data = getHTTP2Data req
 
     -- Ideally, log messages should be written when responses are
     -- actually sent. But there is no way to keep good memory usage
@@ -158,7 +160,7 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rs
         logger req s Nothing
         setThreadContinue tconf True
         let !rspn = RspnNobody s tbl
-            !out = Output strm rspn ii (return ()) ORspn
+            !out = Output strm rspn ii (return ()) h2data ORspn
         enqueueOutput outputQ out
         return ResponseReceived
 
@@ -167,7 +169,7 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rs
         setThreadContinue tconf True
         tbl <- toHeaderTable hs0
         let !rspn = RspnBuilder s tbl bdy
-            !out = Output strm rspn ii tell rspnOrWait
+            !out = Output strm rspn ii tell h2data rspnOrWait
         enqueueOutput outputQ out
         return ResponseReceived
 
@@ -193,7 +195,7 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rs
           logger req s (filePartByteCount <$> mpart)
           setThreadContinue tconf True
           let !rspn = RspnFile s tbl path mpart
-              !out = Output strm rspn ii tell rspnOrWait
+              !out = Output strm rspn ii tell h2data rspnOrWait
           enqueueOutput outputQ out
           return ResponseReceived
 
@@ -219,7 +221,7 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rs
         tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
         tbl <- toHeaderTable hs0
         let !rspn = RspnStreaming s0 tbl tbq
-            !out = Output strm rspn ii tell rspnOrWait
+            !out = Output strm rspn ii tell h2data rspnOrWait
         enqueueOutput outputQ out
         let push b = do
               atomically $ writeTBQueue tbq (SBuilder b)

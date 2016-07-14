@@ -104,9 +104,11 @@ module Network.Wai.Handler.Warp (
     -- ** HTTP2 data
   , HTTP2Data
   , http2dataPushPromise
+  , http2dataTrailers
   , defaultHTTP2Data
   , getHTTP2Data
   , setHTTP2Data
+  , modifyHTTP2Data
     -- ** Push promise
   , PushPromise
   , promisedPath
@@ -129,7 +131,7 @@ import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response (warpVersion)
 import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.Settings
-import Network.Wai.Handler.Warp.HTTP2.Request (getHTTP2Data, setHTTP2Data)
+import Network.Wai.Handler.Warp.HTTP2.Request (getHTTP2Data, setHTTP2Data, modifyHTTP2Data)
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types hiding (getFileInfo)
