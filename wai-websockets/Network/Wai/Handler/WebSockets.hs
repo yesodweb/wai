@@ -7,7 +7,7 @@ module Network.Wai.Handler.WebSockets
     , runWebSockets
     ) where
 
-import              Control.Exception               (bracket)
+import              Control.Exception               (bracket, tryJust)
 import              Data.ByteString                 (ByteString)
 import qualified    Data.ByteString.Char8           as BC
 import qualified    Data.ByteString.Lazy            as BL
@@ -95,8 +95,12 @@ runWebSockets :: WS.ConnectionOptions
               -> IO ByteString
               -> (ByteString -> IO ())
               -> IO a
-runWebSockets opts req app src sink = bracket mkStream WS.close (app . pc)
+runWebSockets opts req app src sink = bracket mkStream ensureClose (app . pc)
   where
+    ensureClose = tryJust onConnectionException . WS.close
+    onConnectionException :: WS.ConnectionException -> Maybe ()
+    onConnectionException WS.ConnectionClosed = Just ()
+    onConnectionException _                   = Nothing
     mkStream =
         WS.makeStream
             (do
