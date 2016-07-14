@@ -5,7 +5,7 @@
 -- threads. These threads will automatically spawn and die based on the
 -- presence of a workload to process on. Example uses include:
 --
--- * Killing long-running jobs 
+-- * Killing long-running jobs
 -- * Closing unused connections in a connection pool
 -- * Pruning a cache of old items (see example below)
 --
@@ -214,16 +214,16 @@ mkListAction f =
         go front' xs
 
 -- $example1
--- In this example code, we use a 'Data.Map.Strict.Map' to cache fibonacci numbers, and a 'Reaper' to prune the cache. 
+-- In this example code, we use a 'Data.Map.Strict.Map' to cache fibonacci numbers, and a 'Reaper' to prune the cache.
 --
--- The @main@ function first creates a 'Reaper', with fields to initialize the 
+-- The @main@ function first creates a 'Reaper', with fields to initialize the
 -- cache ('reaperEmpty'), add items to it ('reaperCons'), and prune it ('reaperAction').
--- The reaper will run every two seconds ('reaperDelay'), but will stop running while 
+-- The reaper will run every two seconds ('reaperDelay'), but will stop running while
 -- 'reaperNull' is true.
 --
--- @main@ then loops infinitely ('Control.Monad.forever'). Each second it calculates the fibonacci number 
--- for a value between 30 and 34, first trying the cache ('reaperRead' and 'Data.Map.Strict.lookup'), 
--- then falling back to manually calculating it (@fib@) 
+-- @main@ then loops infinitely ('Control.Monad.forever'). Each second it calculates the fibonacci number
+-- for a value between 30 and 34, first trying the cache ('reaperRead' and 'Data.Map.Strict.lookup'),
+-- then falling back to manually calculating it (@fib@)
 -- and updating the cache with the result ('reaperAdd')
 --
 -- @clean@ simply removes items cached for more than 10 seconds.
