@@ -19,6 +19,7 @@ extra-source-files:  attic/hex
                      ChangeLog.md
                      README.md
                      test/head-response
+                     test/inputFile
 
 Flag network-bytestring
     Default: False
