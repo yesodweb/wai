@@ -37,9 +37,9 @@ import qualified Network.Wai.Middleware.Push.Referer.LimitMultiMap as M
 --   this function should return 'Just'.
 --   If 'Nothing' is returned,
 --   the middleware learns nothing.
-type MakePushPromise = URLPath  -- ^ path in referer
-                    -> URLPath  -- ^ path to be pushed
-                    -> FilePath -- ^ file to be pushed
+type MakePushPromise = URLPath  -- ^ path in referer  (key: /index.html)
+                    -> URLPath  -- ^ path to be pushed (value: /style.css)
+                    -> FilePath -- ^ file to be pushed (file_path/style.css)
                     -> IO (Maybe PushPromise)
 
 -- | Type for URL path.
@@ -65,7 +65,12 @@ settings = defaultReaperSettings {
 
 -- | The middleware to push files based on Referer:.
 --   Learning strategy is implemented in the first argument.
---   Learning information is kept for 30 seconds.
+--
+--   Cache of learning information is kept for 30 seconds
+--   and cleared completely.
+--   Max number of keys (e.g. index.html) is 20.
+--   Max number of values (e.g. style.css) for each key is 20.
+--   These numbers are hard-coded at this moment.
 pushOnReferer :: MakePushPromise -> Middleware
 pushOnReferer func app req sendResponse = app req push
   where
