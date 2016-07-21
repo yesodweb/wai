@@ -22,6 +22,7 @@ Library
                    , warp
                    , word8
   Exposed-modules:   Network.Wai.Middleware.Push.Referer
+  Other-modules:     Network.Wai.Middleware.Push.Referer.LimitMultiMap
   Ghc-Options:       -Wall
 
 Test-Suite doctest

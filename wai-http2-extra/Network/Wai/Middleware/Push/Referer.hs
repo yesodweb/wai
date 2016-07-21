@@ -13,11 +13,7 @@ import Control.Reaper
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..), memchr)
-import Data.Map (Map)
-import qualified Data.Map.Strict as M
 import Data.Maybe (isNothing)
-import Data.Set (Set)
-import qualified Data.Set as S
 import Data.Word (Word8)
 import Data.Word8
 import Foreign.ForeignPtr (withForeignPtr, ForeignPtr)
@@ -28,6 +24,8 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Internal (Response(..))
 import System.IO.Unsafe (unsafePerformIO)
+
+import qualified Network.Wai.Middleware.Push.Referer.LimitMultiMap as M
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -47,10 +45,10 @@ type MakePushPromise = URLPath  -- ^ path in referer
 -- | Type for URL path.
 type URLPath = ByteString
 
-type Cache = Map URLPath (Set PushPromise)
+type Cache = M.LimitMultiMap URLPath PushPromise
 
 emptyCache :: Cache
-emptyCache = M.empty
+emptyCache = M.empty 20 20 -- FIXME hard-coding
 
 cacheReaper :: Reaper Cache (URLPath,PushPromise)
 cacheReaper = unsafePerformIO $ mkReaper settings
@@ -59,17 +57,11 @@ cacheReaper = unsafePerformIO $ mkReaper settings
 settings :: ReaperSettings Cache (URLPath,PushPromise)
 settings = defaultReaperSettings {
       reaperAction = \_ -> return (\_ -> emptyCache)
-    , reaperCons   = insert
-    , reaperNull   = M.null
+    , reaperCons   = M.insert
+    , reaperNull   = M.isEmpty
     , reaperEmpty  = emptyCache
 --  , reaperDelay  = 30000000 -- FIXME hard-coding
     }
-
-insert :: (URLPath,PushPromise) -> Cache -> Cache
-insert (path,pp) m = M.alter ins path m
-  where
-    ins Nothing    = Just $ S.singleton pp
-    ins (Just set) = Just $ S.insert pp set
 
 -- | The middleware to push files based on Referer:.
 --   Learning strategy is implemented in the first argument.
@@ -81,7 +73,7 @@ pushOnReferer func app req sendResponse = app req push
         let !path = rawPathInfo req
         m <- reaperRead cacheReaper
         case M.lookup path m of
-            Nothing -> case requestHeaderReferer req of
+            [] -> case requestHeaderReferer req of
                 Nothing      -> return ()
                 Just referer -> do
                     (mauth,refPath) <- parseUrl referer
@@ -92,9 +84,8 @@ pushOnReferer func app req sendResponse = app req push
                             case mpp of
                                 Nothing -> return ()
                                 Just pp -> reaperAdd cacheReaper (refPath,pp)
-            Just pset -> do
-                let !ps = S.toList pset
-                    !h2d = defaultHTTP2Data { http2dataPushPromise = ps}
+            ps -> do
+                let !h2d = defaultHTTP2Data { http2dataPushPromise = ps}
                 setHTTP2Data req (Just h2d)
         sendResponse res
     push res = sendResponse res
