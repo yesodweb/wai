@@ -75,14 +75,15 @@ insert (path,pp) m = M.alter ins path m
 --   Learning strategy is implemented in the first argument.
 --   Learning information is kept for 30 seconds.
 pushOnReferer :: MakePushPromise -> Middleware
-pushOnReferer func app req sendResponse = app req $ \res -> do
-    let !path = rawPathInfo req
-    m <- reaperRead cacheReaper
-    case M.lookup path m of
-        Nothing -> case requestHeaderReferer req of
-            Nothing      -> return ()
-            Just referer -> case res of
-                ResponseFile (Status 200 "OK") _ file Nothing -> do
+pushOnReferer func app req sendResponse = app req push
+  where
+    push res@(ResponseFile (Status 200 "OK") _ file Nothing) = do
+        let !path = rawPathInfo req
+        m <- reaperRead cacheReaper
+        case M.lookup path m of
+            Nothing -> case requestHeaderReferer req of
+                Nothing      -> return ()
+                Just referer -> do
                     (mauth,refPath) <- parseUrl referer
                     when (isNothing mauth
                        || requestHeaderHost req == mauth) $ do
@@ -91,12 +92,13 @@ pushOnReferer func app req sendResponse = app req $ \res -> do
                             case mpp of
                                 Nothing -> return ()
                                 Just pp -> reaperAdd cacheReaper (refPath,pp)
-                _ -> return ()
-        Just pset -> do
-            let !ps = S.toList pset
-                !h2d = defaultHTTP2Data { http2dataPushPromise = ps}
-            setHTTP2Data req (Just h2d)
-    sendResponse res
+            Just pset -> do
+                let !ps = S.toList pset
+                    !h2d = defaultHTTP2Data { http2dataPushPromise = ps}
+                setHTTP2Data req (Just h2d)
+        sendResponse res
+    push res = sendResponse res
+
 
 -- | Learn if the file to be pushed is CSS (.css) or JavaScript (.js) file
 --   AND the Referer: ends with \"/\" or \".html\" or \".htm\".
