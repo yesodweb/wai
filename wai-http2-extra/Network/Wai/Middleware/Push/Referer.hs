@@ -1,18 +1,28 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, RecordWildCards #-}
 
 -- | Middleware for server push learning dependency based on Referer:.
 module Network.Wai.Middleware.Push.Referer (
+  -- * Middleware
     pushOnReferer
+  -- * Making push promise
+  , URLPath
   , MakePushPromise
   , defaultMakePushPromise
-  , URLPath
+  -- * Settings
+  , Settings
+  , defaultSettings
+  , makePushPromise
+  , duration
+  , keyLimit
+  , valueLimit
   ) where
 
-import Control.Monad (when)
+import Control.Monad (when, unless)
 import Control.Reaper
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..), memchr)
+import Data.IORef
 import Data.Maybe (isNothing)
 import Data.Word (Word8)
 import Data.Word8
@@ -21,7 +31,7 @@ import Foreign.Ptr (Ptr, plusPtr, minusPtr, nullPtr)
 import Foreign.Storable (peek)
 import Network.HTTP.Types (Status(..))
 import Network.Wai
-import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp hiding (Settings, defaultSettings)
 import Network.Wai.Internal (Response(..))
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -47,36 +57,61 @@ type URLPath = ByteString
 
 type Cache = M.LimitMultiMap URLPath PushPromise
 
-emptyCache :: Cache
-emptyCache = M.empty 20 20 -- FIXME hard-coding
+initialized :: IORef Bool
+initialized = unsafePerformIO $ newIORef False
+{-# NOINLINE initialized #-}
 
-cacheReaper :: Reaper Cache (URLPath,PushPromise)
-cacheReaper = unsafePerformIO $ mkReaper settings
+cacheReaper :: IORef (Maybe (Reaper Cache (URLPath,PushPromise)))
+cacheReaper = unsafePerformIO $ newIORef Nothing
 {-# NOINLINE cacheReaper #-}
 
-settings :: ReaperSettings Cache (URLPath,PushPromise)
-settings = defaultReaperSettings {
-      reaperAction = \_ -> return (\_ -> emptyCache)
-    , reaperCons   = M.insert
-    , reaperNull   = M.isEmpty
-    , reaperEmpty  = emptyCache
---  , reaperDelay  = 30000000 -- FIXME hard-coding
-    }
+-- | Settings for server push based on Referer:.
+data Settings = Settings {
+    makePushPromise :: MakePushPromise -- ^ Default: 'defaultMakePushPromise'
+  , duration :: Int -- ^ Duration (in micro seconds) to keep the learning information. The information completely cleared every this duration. Default: 30000000
+  , keyLimit :: Int -- ^ Max number of keys (e.g. index.html) in the learning information. Default: 20
+  , valueLimit :: Int -- ^ Max number of values (e.g. style.css) in the learning information. Default: 20
+  }
+
+-- | Default settings.
+defaultSettings :: Settings
+defaultSettings = Settings {
+    makePushPromise = defaultMakePushPromise
+  , duration = 30000000
+  , keyLimit = 20
+  , valueLimit = 20
+  }
+
+tryInitialize :: Settings -> IO ()
+tryInitialize Settings{..} = do
+    isInitialized <- atomicModifyIORef' initialized $ \x -> (True, x)
+    unless isInitialized $ do
+        reaper <- mkReaper settings
+        writeIORef cacheReaper (Just reaper)
+  where
+    emptyCache = M.empty keyLimit valueLimit
+    settings :: ReaperSettings Cache (URLPath,PushPromise)
+    settings = defaultReaperSettings {
+        reaperAction = \_ -> return (\_ -> emptyCache)
+      , reaperCons   = M.insert
+      , reaperNull   = M.isEmpty
+      , reaperEmpty  = emptyCache
+      , reaperDelay  = duration
+      }
 
 -- | The middleware to push files based on Referer:.
 --   Learning strategy is implemented in the first argument.
---
---   Cache of learning information is kept for 30 seconds
---   and cleared completely.
---   Max number of keys (e.g. index.html) is 20.
---   Max number of values (e.g. style.css) for each key is 20.
---   These numbers are hard-coded at this moment.
-pushOnReferer :: MakePushPromise -> Middleware
-pushOnReferer func app req sendResponse = app req push
+pushOnReferer :: Settings -> Middleware
+pushOnReferer settings@Settings{..} app req sendResponse = do
+    tryInitialize settings
+    mreaper <- readIORef cacheReaper
+    case mreaper of
+        Nothing     -> app req sendResponse
+        Just reaper -> app req (push reaper)
   where
-    push res@(ResponseFile (Status 200 "OK") _ file Nothing) = do
+    push reaper res@(ResponseFile (Status 200 "OK") _ file Nothing) = do
         let !path = rawPathInfo req
-        m <- reaperRead cacheReaper
+        m <- reaperRead reaper
         case M.lookup path m of
             [] -> case requestHeaderReferer req of
                 Nothing      -> return ()
@@ -85,15 +120,15 @@ pushOnReferer func app req sendResponse = app req push
                     when (isNothing mauth
                        || requestHeaderHost req == mauth) $ do
                         when (path /= refPath) $ do -- just in case
-                            mpp <- func refPath path file
+                            mpp <- makePushPromise refPath path file
                             case mpp of
                                 Nothing -> return ()
-                                Just pp -> reaperAdd cacheReaper (refPath,pp)
+                                Just pp -> reaperAdd reaper (refPath,pp)
             ps -> do
                 let !h2d = defaultHTTP2Data { http2dataPushPromise = ps}
                 setHTTP2Data req (Just h2d)
         sendResponse res
-    push res = sendResponse res
+    push _ res = sendResponse res
 
 
 -- | Learn if the file to be pushed is CSS (.css) or JavaScript (.js) file
@@ -197,4 +232,3 @@ parseUrl' fptr0 ptr0 begptr limptr len0 = do
         !off = p1 `minusPtr` p0
         !siz = p2 `minusPtr` p1
         !path = PS fptr0 off siz
-
