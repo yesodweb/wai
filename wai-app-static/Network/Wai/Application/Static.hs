@@ -119,7 +119,7 @@ checkPieces ss@StaticSettings {..} pieces req = do
       case nonIndexResult of
           LRFile{} -> return $ Right nonIndexResult
           _ -> do
-              indexResult <- lookupIndices (map (\ index -> pieces ++ [index]) ssIndices)
+              indexResult <- lookupIndices (map (\ index -> dropLastIfNull pieces ++ [index]) ssIndices)
               return $ case indexResult of
                   LRNotFound -> Right nonIndexResult
                   LRFile file | ssRedirectToIndex ->

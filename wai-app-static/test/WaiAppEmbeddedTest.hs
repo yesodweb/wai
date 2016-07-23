@@ -32,7 +32,7 @@ embSpec = do
                              { requestHeaders = [("If-None-Match", "Etag 1")] }
             assertStatus 304 req
 
-        it "ssIndices works" $ do
+        it "ssIndices work" $ do
             let testSettings = $(mkSettings mkEntries){
                     ssIndices = [unsafeToPiece "index.html"]
                 }
@@ -40,6 +40,15 @@ embSpec = do
               req <- request defRequest
               assertStatus 200 req
               assertBody "index file" req
+
+        it "ssIndices work with trailing slashes" $ do
+            let testSettings = $(mkSettings mkEntries){
+                    ssIndices = [unsafeToPiece "index.html"]
+                }
+            embedSettings testSettings $ do
+              req <- request (setRawPathInfo defRequest "/foo/")
+              assertStatus 200 req
+              assertBody "index file in subdir" req
 
     describe "embedded, uncompressed entry" $ do
         it "too short" $ embed $ do
