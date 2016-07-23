@@ -5,6 +5,7 @@ import Network.Wai.Application.Static
 import WaiAppStatic.Types
 
 import Test.Hspec
+import Test.Mockery.Directory
 import qualified Data.ByteString.Char8 as S8
 -- import qualified Data.ByteString.Lazy.Char8 as L8
 import System.PosixCompat.Files (getFileStatus, modificationTime)
@@ -135,6 +136,16 @@ spec = do
         req <- request (setRawPathInfo defRequest "/a")
         assertStatus 301 req
         assertHeader "Location" "/a/" req
+
+      it "works when an index.html is delivered" $ do
+        let settings = (defaultFileServerSettings "."){
+              ssAddTrailingSlash = True
+            }
+        inTempDirectory $ fileServerAppWithSettings settings $ do
+          liftIO $ touch "foo/index.html"
+          req <- request (setRawPathInfo defRequest "/foo")
+          assertStatus 301 req
+          assertHeader "Location" "/foo/" req
 
       let urlMapApp = flip runSession $ \req send ->
             case pathInfo req of

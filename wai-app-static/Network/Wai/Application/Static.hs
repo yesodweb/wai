@@ -87,14 +87,14 @@ serveFolder StaticSettings {..} pieces req folder@Folder {..} =
         Nothing -> return $ WaiResponse $ W.responseLBS H.status403
             [ ("Content-Type", "text/plain")
             ] "Directory listings disabled"
+
+addTrailingSlash :: W.Request -> Maybe ByteString
+addTrailingSlash req
+    | S8.null rp = Just "/"
+    | S8.last rp == '/' = Nothing
+    | otherwise = Just $ S8.snoc rp '/'
   where
-    addTrailingSlash :: W.Request -> Maybe ByteString
-    addTrailingSlash req
-        | S8.null rp = Just "/"
-        | S8.last rp == '/' = Nothing
-        | otherwise = Just $ S8.snoc rp '/'
-      where
-        rp = W.rawPathInfo req
+    rp = W.rawPathInfo req
 
 checkPieces :: StaticSettings
             -> Pieces                    -- ^ parsed request
@@ -108,45 +108,49 @@ checkPieces _ pieces _ | any (T.null . fromPiece) $ safeInit pieces =
 checkPieces ss@StaticSettings {..} pieces req = do
     res <- lookupResult
     case res of
-        Left location -> return $ RawRedirect $ TE.encodeUtf8 location
+        Left location -> return $ RawRedirect location
         Right LRNotFound -> return NotFound
         Right (LRFile file) -> serveFile ss req file
         Right (LRFolder folder) -> serveFolder ss pieces req folder
   where
-    lookupResult :: IO (Either Text LookupResult)
+    lookupResult :: IO (Either ByteString LookupResult)
     lookupResult = do
       nonIndexResult <- ssLookupFile pieces
       case nonIndexResult of
           LRFile{} -> return $ Right nonIndexResult
           _ -> do
-              indexResult <- lookupIndices (map (\ index -> dropLastIfNull pieces ++ [index]) ssIndices)
-              return $ case indexResult of
-                  LRNotFound -> Right nonIndexResult
-                  LRFile file | ssRedirectToIndex ->
-                      let relPath =
-                              case reverse pieces of
-                                  -- Served at root
-                                  [] -> fromPiece $ fileName file
-                                  lastSegment:_ ->
-                                      case fromPiece lastSegment of
-                                          -- Ends with a trailing slash
-                                          "" -> fromPiece $ fileName file
-                                          -- Lacks a trailing slash
-                                          lastSegment' -> T.concat
-                                              [ lastSegment'
-                                              , "/"
-                                              , fromPiece $ fileName file
-                                              ]
-                       in Left relPath
-                  _ -> Right indexResult
+              eIndexResult <- lookupIndices (map (\ index -> dropLastIfNull pieces ++ [index]) ssIndices)
+              return $ case eIndexResult of
+                  Left redirect -> Left redirect
+                  Right indexResult -> case indexResult of
+                      LRNotFound -> Right nonIndexResult
+                      LRFile file | ssRedirectToIndex ->
+                          let relPath =
+                                  case reverse pieces of
+                                      -- Served at root
+                                      [] -> fromPiece $ fileName file
+                                      lastSegment:_ ->
+                                          case fromPiece lastSegment of
+                                              -- Ends with a trailing slash
+                                              "" -> fromPiece $ fileName file
+                                              -- Lacks a trailing slash
+                                              lastSegment' -> T.concat
+                                                  [ lastSegment'
+                                                  , "/"
+                                                  , fromPiece $ fileName file
+                                                  ]
+                           in Left $ TE.encodeUtf8 relPath
+                      _ -> Right indexResult
 
-    lookupIndices :: [Pieces] -> IO LookupResult
+    lookupIndices :: [Pieces] -> IO (Either ByteString LookupResult)
     lookupIndices (x : xs) = do
         res <- ssLookupFile x
         case res of
             LRNotFound -> lookupIndices xs
-            _ -> return res
-    lookupIndices [] = return LRNotFound
+            _ -> return $ case (ssAddTrailingSlash, addTrailingSlash req) of
+                (True, Just redirect) -> Left redirect
+                _ -> Right res
+    lookupIndices [] = return $ Right LRNotFound
 
 serveFile :: StaticSettings -> W.Request -> File -> IO StaticResponse
 serveFile StaticSettings {..} req file
