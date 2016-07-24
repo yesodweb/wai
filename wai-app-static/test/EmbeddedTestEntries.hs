@@ -47,4 +47,9 @@ mkEntries = return
   , EmbeddableEntry "index.html"
                     "text/html"
                     (Right [| return ("" :: T.Text, "index file") |] )
+
+    -- An index file in a subdir
+  , EmbeddableEntry "foo/index.html"
+                    "text/html"
+                    (Right [| return ("" :: T.Text, "index file in subdir") |] )
   ]

@@ -1,9 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ViewPatterns #-}
 module Util
     ( relativeDirFromPieces
     , defaultMkRedirect
     , replace
     , remove
+    , dropLastIfNull
     ) where
 
 import WaiAppStatic.Types
@@ -36,3 +37,9 @@ defaultMkRedirect pieces newPath
     | otherwise = relDir `S8.append` S8.tail newPath
   where
     relDir = TE.encodeUtf8 (relativeDirFromPieces pieces)
+
+dropLastIfNull :: [Piece] -> [Piece]
+dropLastIfNull pieces = case pieces of
+    [fromPiece -> ""] -> []
+    (a : r) -> a : dropLastIfNull r
+    [] -> []
