@@ -67,14 +67,16 @@ mkRequest' ii1 settings addr ref (reqths,reqvt) body = return (req,ii)
             Nothing -> case mAuth of
               Just auth -> (tokenHost, auth) : reqths
               _         -> reqths
-    !colonPath = fromJust $ getHeaderValue tokenPath reqvt -- MUST
+    !mPath = getHeaderValue tokenPath reqvt -- SHOULD
     !colonMethod = fromJust $ getHeaderValue tokenMethod reqvt -- MUST
     !mAuth = getHeaderValue tokenAuthority reqvt -- SHOULD
     !mHost = getHeaderValue tokenHost reqvt
     !mRange = getHeaderValue tokenRange reqvt
     !mReferer = getHeaderValue tokenReferer reqvt
     !mUserAgent = getHeaderValue tokenUserAgent reqvt
-    (unparsedPath,query) = B8.break (=='?') colonPath
+    -- CONNECT request will have ":path" omitted, use ":authority" as unparsed
+    -- path instead so that it will have consistent behavior compare to HTTP 1.0
+    (unparsedPath,query) = B8.break (=='?') $ fromJust (mPath <|> mAuth)
     !path = H.extractPath unparsedPath
     !rawPath = if S.settingsNoParsePath settings then unparsedPath else path
     !h = hashByteString rawPath
