@@ -1,3 +1,8 @@
+## 3.2.8
+
+* Making HTTP/2 :path optional for the CONNECT method. [#572](https://github.com/yesodweb/wai/pull/572)
+* Adding new APIs for HTTP/2 trailers: http2dataTrailers and modifyHTTP2Data [#566](https://github.com/yesodweb/wai/pull/566)
+
 ## 3.2.7
 
 * Adding new APIs for HTTP/2 server push: getHTTP2Data and setHTTP2Data [#510](https://github.com/yesodweb/wai/pull/510)
