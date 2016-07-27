@@ -122,7 +122,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                           E.throwIO $ StreamError ProtocolError streamId
                       writeIORef streamPrecedence $ toPrecedence pri
                       writeIORef streamState HalfClosed
-                      (!req, !ii) <- mkreq tbl (return "")
+                      (!req, !ii) <- mkreq tbl (Just 0, return "")
                       atomically $ writeTQueue inputQ $ Input strm req reqvt ii
                   Open (HasBody tbl@(_,reqvt) pri) -> do
                       resetContinued
@@ -133,7 +133,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                       writeIORef streamState $ Open (Body q mcl bodyLength)
                       readQ <- newReadBody q
                       bodySource <- mkSource readQ
-                      (!req, !ii) <- mkreq tbl (readSource bodySource)
+                      (!req, !ii) <- mkreq tbl (mcl, readSource bodySource)
                       atomically $ writeTQueue inputQ $ Input strm req reqvt ii
                   s@(Open Continued{}) -> do
                       setContinued
