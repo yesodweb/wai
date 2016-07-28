@@ -32,7 +32,7 @@ embSpec = do
                              { requestHeaders = [("If-None-Match", "Etag 1")] }
             assertStatus 304 req
 
-        it "ssIndices work" $ do
+        it "ssIndices works" $ do
             let testSettings = $(mkSettings mkEntries){
                     ssIndices = [unsafeToPiece "index.html"]
                 }
@@ -41,7 +41,7 @@ embSpec = do
               assertStatus 200 req
               assertBody "index file" req
 
-        it "ssIndices work with trailing slashes" $ do
+        it "ssIndices works with trailing slashes" $ do
             let testSettings = $(mkSettings mkEntries){
                     ssIndices = [unsafeToPiece "index.html"]
                 }
