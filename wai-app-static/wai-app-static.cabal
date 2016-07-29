@@ -101,6 +101,7 @@ test-suite runtests
                    , zlib
                    , filepath
                    , temporary
+                   , mockery
                    -- , containers
   ghc-options:   -Wall
 
