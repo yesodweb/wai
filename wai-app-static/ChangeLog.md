@@ -1,3 +1,8 @@
+## 3.1.6
+
+* Make ssAddTrailingSlash work in combination with ssIndices [#569](https://github.com/yesodweb/wai/pull/569)
+* Make ssIndices work with ssLookupFile and trailing slashes [#570](https://github.com/yesodweb/wai/pull/570)
+
 ## 3.1.5
 
 * Switch to cryponite
