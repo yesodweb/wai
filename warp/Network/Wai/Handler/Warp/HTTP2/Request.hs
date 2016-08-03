@@ -30,17 +30,17 @@ import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal (Request(..))
 import System.IO.Unsafe (unsafePerformIO)
 
-type MkReq = (TokenHeaderList,ValueTable) -> IO ByteString -> IO (Request,InternalInfo)
+type MkReq = (TokenHeaderList,ValueTable) -> (Maybe Int,IO ByteString) -> IO (Request,InternalInfo)
 
 mkRequest :: InternalInfo1 -> S.Settings -> SockAddr -> MkReq
-mkRequest ii1 settings addr (reqths,reqvt) body = do
+mkRequest ii1 settings addr (reqths,reqvt) (bodylen,body) = do
     ref <- newIORef Nothing
-    mkRequest' ii1 settings addr ref (reqths,reqvt) body
+    mkRequest' ii1 settings addr ref (reqths,reqvt) (bodylen,body)
 
 mkRequest' :: InternalInfo1 -> S.Settings -> SockAddr
            -> IORef (Maybe HTTP2Data)
            -> MkReq
-mkRequest' ii1 settings addr ref (reqths,reqvt) body = return (req,ii)
+mkRequest' ii1 settings addr ref (reqths,reqvt) (bodylen,body) = return (req,ii)
   where
     !req = Request {
         requestMethod = colonMethod
@@ -54,7 +54,7 @@ mkRequest' ii1 settings addr ref (reqths,reqvt) body = return (req,ii)
       , remoteHost = addr
       , requestBody = body
       , vault = vaultValue
-      , requestBodyLength = ChunkedBody -- fixme
+      , requestBodyLength = maybe ChunkedBody (KnownLength . fromIntegral) bodylen
       , requestHeaderHost      = mHost <|> mAuth
       , requestHeaderRange     = mRange
       , requestHeaderReferer   = mReferer
