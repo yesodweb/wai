@@ -2,10 +2,38 @@
 {-# LANGUAGE CPP #-}
 
 module Network.Wai.Middleware.Rewrite
-    ( rewrite
-    , rewritePure
+    ( -- * How to use this module
+      -- $howto
+
+      -- ** A note on semantics
+
+      -- $semantics
+
+      -- ** Paths and Queries
+
+      -- $pathsandqueries
+      PathsAndQueries
+
+      -- ** An example rewriting paths with queries
+
+      -- $takeover
+
+      -- ** Upgrading from wai-extra ≤ 3.0.16.1
+
+      -- $upgrading
+
+      -- * 'Middleware'
+
+      -- ** Recommended functions
     , rewriteWithQueries
     , rewritePureWithQueries
+
+      -- ** Deprecated
+    , rewrite
+    , rewritePure
+
+      -- * Operating on 'Request's
+
     , rewriteRequest
     , rewriteRequestPure
     ) where
@@ -23,56 +51,216 @@ import Network.HTTP.Types as H
 import Control.Applicative
 #endif
 
--- | A tuple of the path sections as '[Text]' and query parameters as
--- 'H.QueryText'.
+-- $howto
+-- This module provides 'Middleware' to rewrite URL paths. It also provides
+-- functions that will convert a 'Request' to a modified 'Request'.
+-- Both operations require a function that takes URL parameters and
+-- headers, and returns new URL parameters. Parameters are pieces of URL
+-- paths and query parameters.
+--
+-- If you are a new user of the library, use 'rewriteWithQueries' or
+-- 'rewritePureWithQueries' for middleware. For modifying 'Request's
+-- directly, use 'rewriteRequest' or 'rewriteRequestPure'.
+
+-- $semantics
+--
+-- Versions of this library in wai-extra ≤ 3.0.16.1 exported only
+-- 'rewrite' and 'rewritePure' and both modified 'rawPathInfo' of the
+-- underlying requests. Such modification has been proscribed. The
+-- semantics of these functions have not changed; instead the recommended
+-- approach is to use 'rewriteWithQueries' and 'rewritePureWithQueries'.
+-- The new functions are slightly different, as described in the section
+-- on upgrading; code for previous library versions can be upgraded with
+-- a single change, and as the type of the new function is different the
+-- compiler will indicate where this change must be made.
+--
+-- The 'rewriteRequest' and 'rewriteRequestPure' functions use the new
+-- semantics, too.
+
+-- $pathsandqueries
+--
+-- This library defines the type synonym `PathsAndQueries` to make code
+-- handling paths and queries easier to read.
+--
+-- /e.g./ /\/foo\/bar/ would look like
+--
+-- > ["foo", "bar"] :: Text
+--
+-- /?bar=baz/ would look like
+--
+-- > [("bar", Just "baz")] :: QueryText
+--
+-- Together,
+--
+-- /\/foo?bar=baz/ would look like
+--
+-- > (["foo"],[("bar", Just "baz")]) :: PathsAndQueries
+
+-- $takeover
+-- Let’s say we want to replace a website written in PHP with one written
+-- using WAI. We’ll use the
+-- <https://hackage.haskell.org/package/http-reverse-proxy http-reverse-proxy>
+-- package to serve the old
+-- site from the new site, but there’s a problem. The old site uses pages like
+--
+-- @
+-- index.php?page=/page/
+-- @
+--
+-- whereas the new site would look like
+--
+-- @
+-- index\//page/
+-- @
+--
+-- In doing this, we want to separate the migration code from our new
+-- website. So we’d like to handle links internally using the path
+-- formulation, but externally have the old links still work.
+--
+-- Therefore, we will use middleware ('rewritePureWithQueries') from this
+-- module to rewrite incoming requests from the query formulation to the
+-- paths formulation.
+--
+-- > {-# LANGUAGE ViewPatterns #-}
+-- >
+-- > rewritePathFromPhp :: Middleware
+-- > rewritePathFromPhp = rewritePureWithQueries pathFromPhp
+-- >
+-- > pathFromPhp :: PathsAndQueries -> RequestHeaders -> PathsAndQueries
+-- > pathFromPhp (pieces, queries) _ = piecesConvert pieces queries
+-- >     where
+-- >         piecesConvert :: [Text] -> QueryText -> PathsAndQueries
+-- >         piecesConvert ["index.php"] qs@(join . lookup "page" -> Just page) =
+-- >             ( ["index", page]
+-- >             , delete ("page", pure page) qs
+-- >             )
+-- >         piecesConvert ps qs = (ps, qs)
+--
+-- On the other side, we will use 'rewriteRequestPure' to rewrite outgoing
+-- requests to the original website from the reverse proxy code (using the
+-- 'Network.HTTP.ReverseProxy.WPRModifiedRequest' or
+-- 'Network.HTTP.ReverseProxy.WPRModifiedRequestSecure' constructors. Note,
+-- these links will only work if the haddock documentation for
+-- <https://hackage.haskell.org/package/http-reverse-proxy http-reverse-proxy>
+-- is installed).
+--
+-- > rewritePhpFromPath :: Request -> Request
+-- > rewritePhpFromPath = rewriteRequestPure phpFromPath
+-- >
+-- > phpFromPath :: PathsAndQueries -> RequestHeaders -> PathsAndQueries
+-- > phpFromPath (pieces, queries) _ = piecesConvert pieces queries
+-- >     where
+-- >         piecesConvert :: [Text] -> QueryText -> PathsAndQueries
+-- >         piecesConvert ("index":page:[]) qs = ( ["index.php"], ("page", pure page) : qs )
+-- >         piecesConvert ps qs = (ps, qs)
+--
+-- For the whole example, see
+-- <https://gist.github.com/dbaynard/c844d0df124f68ec8b6da152c581ce6d>.
+
+-- $upgrading
+-- It is quite simple to upgrade from 'rewrite' and 'rewritePure', to
+-- 'rewriteWithQueries' and 'rewritePureWithQueries'.
+-- Insert 'Data.Bifunctor.first', which specialises to
+--
+-- @
+-- 'Data.Bifunctor.first' :: (['Text'] -> ['Text']) -> 'PathsAndQueries' -> 'PathsAndQueries'
+-- @
+--
+-- as the following example demonstrates.
+--
+-- Old versions of the libary could only handle path pieces, not queries.
+-- This could have been supplied to 'rewritePure'.
+--
+-- @
+-- staticConvert' :: [Text] -> H.RequestHeaders -> [Text]
+-- staticConvert' pieces _ = piecesConvert pieces
+--   where
+--    piecesConvert [] = ["static", "html", "pages.html"]
+--    piecesConvert route@("pages":_) = "static":"html":route
+-- @
+--
+-- Instead, use this function, supplied to 'rewritePureWithQueries'.
+--
+-- @
+-- staticConvert :: 'PathsAndQueries' -> H.RequestHeaders -> 'PathsAndQueries'
+-- staticConvert pathsAndQueries _ = 'Data.Bifunctor.first' piecesConvert pathsAndQueries
+--   where
+--    piecesConvert [] = ["static", "html", "pages.html"]
+--    piecesConvert route@("pages":_) = "static":"html":route
+-- @
+--
+-- The former formulation is deprecated for two reasons:
+--
+--   1. The original formulation of 'rewrite' modified 'rawPathInfo', which
+--   is deprecated behaviour.
+--
+--   2. The original formulation did not allow query parameters to
+--   influence the path.
+--
+-- Concerning the first point, take care with semantics of your program when
+-- upgrading as the upgraded functions no longer modify 'rawPathInfo'.
+
+--------------------------------------------------
+-- * Types
+--------------------------------------------------
+
+-- | A tuple of the path sections as ['Text'] and query parameters as
+-- 'H.QueryText'. This makes writing type signatures for the conversion
+-- function far more pleasant.
 type PathsAndQueries = ([Text], H.QueryText)
 
--- | rewrite based on your own conversion rules
+--------------------------------------------------
+-- * Rewriting 'Middleware'
+--------------------------------------------------
+
+-- | Rewrite based on your own conversion function for paths only, to be
+-- supplied by users of this library (with the conversion operating in 'IO').
+--
+-- For new code, use 'rewriteWithQueries' instead.
 rewrite :: ([Text] -> H.RequestHeaders -> IO [Text]) -> Middleware
 rewrite convert app req sendResponse = do
   let convertIO = pathsOnly . curry $ liftIO . uncurry convert
   newReq <- rewriteRequestRawM convertIO req
   app newReq sendResponse
+{-# WARNING rewrite [
+          "This modifies the 'rawPathInfo' field of a 'Request'."
+        , " This is not recommended behaviour; it is however how"
+        , " this function has worked in the past."
+        , " Use 'rewriteWithQueries' instead"] #-}
 
--- | rewrite based on your own conversion rules
--- Example convert function:
-
--- staticConvert :: [Text] -> H.RequestHeaders -> [Text]
--- staticConvert pieces _ = piecesConvert pieces
---   where
---    piecesConvert [] = ["static", "html", "pages.html"]
---    piecesConvert route@("pages":_) = "static":"html":route
+-- | Rewrite based on pure conversion function for paths only, to be
+-- supplied by users of this library.
+--
+-- For new code, use 'rewritePureWithQueries' instead.
 rewritePure :: ([Text] -> H.RequestHeaders -> [Text]) -> Middleware
 rewritePure convert app req =
   let convertPure = pathsOnly . curry $ Identity . uncurry convert
       newReq = runIdentity $ rewriteRequestRawM convertPure req
   in  app newReq
+{-# WARNING rewritePure [
+          "This modifies the 'rawPathInfo' field of a 'Request'."
+        , " This is not recommended behaviour; it is however how"
+        , " this function has worked in the past."
+        , " Use 'rewritePureWithQueries' instead"] #-}
 
--- | rewrite based on your own conversion rules
--- Example convert function:
-
--- staticConvert :: [Text] -> H.RequestHeaders -> [Text]
--- staticConvert pieces _ = piecesConvert pieces
---   where
---    piecesConvert [] = ["static", "html", "pages.html"]
---    piecesConvert route@("pages":_) = "static":"html":route
+-- | Rewrite based on your own conversion function for paths and queries.
+-- This function is to be supplied by users of this library, and operates
+-- in 'IO'.
 rewriteWithQueries :: (PathsAndQueries -> H.RequestHeaders -> IO PathsAndQueries)
                    -> Middleware
 rewriteWithQueries convert app req sendResponse = do
   newReq <- rewriteRequestM convert req
   app newReq sendResponse
 
--- | rewrite based on your own conversion rules
--- Example convert function:
-
--- staticConvert :: [Text] -> H.RequestHeaders -> [Text]
--- staticConvert pieces _ = piecesConvert pieces
---   where
---    piecesConvert [] = ["static", "html", "pages.html"]
---    piecesConvert route@("pages":_) = "static":"html":route
+-- | Rewrite based on pure conversion function for paths and queries. This
+-- function is to be supplied by users of this library.
 rewritePureWithQueries :: (PathsAndQueries -> H.RequestHeaders -> PathsAndQueries)
                        -> Middleware
 rewritePureWithQueries convert app req = app $ rewriteRequestPure convert req
+
+--------------------------------------------------
+-- * Modifying 'Request's directly
+--------------------------------------------------
 
 -- | Modify a 'Request' using the supplied function in 'IO'. This is suitable for
 -- the reverse proxy example.
@@ -90,6 +278,10 @@ rewriteRequestPure convert req =
   let convertPure = curry $ Identity . uncurry convert
   in  runIdentity $ rewriteRequestRawM convertPure req
 
+--------------------------------------------------
+-- * Helper functions
+--------------------------------------------------
+
 -- | This helper function factors out the common behaviour of rewriting requests.
 rewriteRequestM :: (Applicative m, Monad m)
                 => (PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries)
@@ -97,12 +289,10 @@ rewriteRequestM :: (Applicative m, Monad m)
 rewriteRequestM convert req = do
   (pInfo, qText) <- curry convert (pathInfo req) (H.queryToQueryText . queryString $ req) (requestHeaders req)
   pure req {pathInfo = pInfo, queryString = H.queryTextToQuery qText}
-        -- rawPInfo = toS . toLazyByteString $ encodePathSegmentsRelative pInfo
-        -- rawQString = toS . toLazyByteString $ renderQueryText True qText
 
--- | This helper function preserves the semantics of wai-extra <= 3.0, in
--- which the rewrite functions modify the `rawPathInfo` parameter. Note
--- that this has not been extended to modify the `rawQueryInfo` as
+-- | This helper function preserves the semantics of wai-extra ≤ 3.0, in
+-- which the rewrite functions modify the 'rawPathInfo' parameter. Note
+-- that this has not been extended to modify the 'rawQueryInfo' as
 -- modifying either of these values has been deprecated.
 rewriteRequestRawM :: (Applicative m, Monad m)
                     => (PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries)
@@ -111,11 +301,18 @@ rewriteRequestRawM convert req = do
   newReq <- rewriteRequestM convert req
   let rawPInfo = TE.encodeUtf8 . T.intercalate "/" . pathInfo $ newReq
   pure newReq { rawPathInfo = rawPInfo }
+{-# WARNING rewriteRequestRawM [
+          "This modifies the 'rawPathInfo' field of a 'Request'."
+        , " This is not recommended behaviour; it is however how"
+        , " this function has worked in the past."
+        , " Use 'rewriteRequestM' instead"] #-}
 
--- | Produce a function that works on 'PathsandQueries' from one working
--- only on paths.
+-- | Produce a function that works on 'PathsAndQueries' from one working
+-- only on paths. This is not exported, as it is only needed to handle
+-- code written for versions ≤ 3.0 of the library; see the
+-- example above using 'Data.Bifunctor.first' to do something similar.
 pathsOnly :: (Applicative m, Monad m)
           => ([Text] -> H.RequestHeaders -> m [Text])
           -> PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries
-pathsOnly convert paths headers = (,[]) <$> convert (fst paths) headers
+pathsOnly convert psAndQs headers = (,[]) <$> convert (fst psAndQs) headers
 {-# INLINE pathsOnly #-}
