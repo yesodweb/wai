@@ -126,12 +126,12 @@ import Control.Applicative
 -- > rewritePathFromPhp :: Middleware
 -- > rewritePathFromPhp = rewritePureWithQueries pathFromPhp
 -- >
--- > pathFromPhp :: PathsAndQueries -> RequestHeaders -> PathsAndQueries
+-- > pathFromPhp :: PathsAndQueries -> H.RequestHeaders -> PathsAndQueries
 -- > pathFromPhp (pieces, queries) _ = piecesConvert pieces queries
 -- >     where
--- >         piecesConvert :: [Text] -> QueryText -> PathsAndQueries
+-- >         piecesConvert :: [Text] -> H.Query -> PathsAndQueries
 -- >         piecesConvert ["index.php"] qs@(join . lookup "page" -> Just page) =
--- >             ( ["index", page]
+-- >             ( ["index", TE.decodeUtf8With TE.lenientDecode page]
 -- >             , delete ("page", pure page) qs
 -- >             )
 -- >         piecesConvert ps qs = (ps, qs)
@@ -147,11 +147,11 @@ import Control.Applicative
 -- > rewritePhpFromPath :: Request -> Request
 -- > rewritePhpFromPath = rewriteRequestPure phpFromPath
 -- >
--- > phpFromPath :: PathsAndQueries -> RequestHeaders -> PathsAndQueries
+-- > phpFromPath :: PathsAndQueries -> H.RequestHeaders -> PathsAndQueries
 -- > phpFromPath (pieces, queries) _ = piecesConvert pieces queries
 -- >     where
--- >         piecesConvert :: [Text] -> QueryText -> PathsAndQueries
--- >         piecesConvert ("index":page:[]) qs = ( ["index.php"], ("page", pure page) : qs )
+-- >         piecesConvert :: [Text] -> H.Query -> PathsAndQueries
+-- >         piecesConvert ["index", page] qs = ( ["index.php"], ("page", pure . TE.encodeUtf8 $ page) : qs )
 -- >         piecesConvert ps qs = (ps, qs)
 --
 -- For the whole example, see
@@ -205,9 +205,14 @@ import Control.Applicative
 --------------------------------------------------
 
 -- | A tuple of the path sections as ['Text'] and query parameters as
--- 'H.QueryText'. This makes writing type signatures for the conversion
+-- 'H.Query'. This makes writing type signatures for the conversion
 -- function far more pleasant.
-type PathsAndQueries = ([Text], H.QueryText)
+--
+-- Note that this uses 'H.Query' not 'H.QueryText' to more accurately
+-- reflect the paramaters that can be supplied in URLs. It may be safe to
+-- treat parameters as text; use the 'H.queryToQueryText' and
+-- 'H.queryTextToQuery' functions to interconvert.
+type PathsAndQueries = ([Text], H.Query)
 
 --------------------------------------------------
 -- * Rewriting 'Middleware'
@@ -287,8 +292,8 @@ rewriteRequestM :: (Applicative m, Monad m)
                 => (PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries)
                 -> Request -> m Request
 rewriteRequestM convert req = do
-  (pInfo, qText) <- curry convert (pathInfo req) (H.queryToQueryText . queryString $ req) (requestHeaders req)
-  pure req {pathInfo = pInfo, queryString = H.queryTextToQuery qText}
+  (pInfo, qByteStrings) <- curry convert (pathInfo req) (queryString req) (requestHeaders req)
+  pure req {pathInfo = pInfo, queryString = qByteStrings}
 
 -- | This helper function preserves the semantics of wai-extra ≤ 3.0, in
 -- which the rewrite functions modify the 'rawPathInfo' parameter. Note
