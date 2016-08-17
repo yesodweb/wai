@@ -25,6 +25,7 @@ import Network.Mime (defaultMimeMap, mimeByExt, defaultMimeType)
 import WaiAppStatic.Types (ssIndices, toPiece, ssGetMimeType, fileName, fromPiece)
 import Data.Maybe (mapMaybe)
 import Control.Arrow (second)
+import Data.Monoid ((<>))
 
 data Args = Args
     { docroot :: FilePath
