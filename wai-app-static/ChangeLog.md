@@ -1,3 +1,7 @@
+## 3.1.6.1
+
+* Add `<>` import
+
 ## 3.1.6
 
 * Make ssAddTrailingSlash work in combination with ssIndices [#569](https://github.com/yesodweb/wai/pull/569)
