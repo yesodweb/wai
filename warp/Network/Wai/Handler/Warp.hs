@@ -364,7 +364,7 @@ setProxyProtocolRequired y = y { settingsProxyProtocol = ProxyProtocolRequired }
 setProxyProtocolOptional :: Settings -> Settings
 setProxyProtocolOptional y = y { settingsProxyProtocol = ProxyProtocolOptional }
 
--- | Size in bytes read to prevent Slowloris protection. Default value: 2048
+-- | Size in bytes read to prevent Slowloris attacks. Default value: 2048
 --
 -- Since 3.1.2
 setSlowlorisSize :: Int -> Settings -> Settings
