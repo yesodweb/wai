@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Middleware.Rewrite
     ( rewrite
@@ -16,6 +17,11 @@ import Data.Functor.Identity (Identity(..))
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text as T
 import Network.HTTP.Types as H
+
+-- GHC ≤ 7.10 does not export Applicative functions from the prelude.
+#if __GLASGOW_HASKELL__ <= 710
+import Control.Applicative
+#endif
 
 -- | A tuple of the path sections as '[Text]' and query parameters as
 -- 'H.QueryText'.
@@ -85,7 +91,7 @@ rewriteRequestPure convert req =
   in  runIdentity $ rewriteRequestRawM convertPure req
 
 -- | This helper function factors out the common behaviour of rewriting requests.
-rewriteRequestM :: Monad m
+rewriteRequestM :: (Applicative m, Monad m)
                 => (PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries)
                 -> Request -> m Request
 rewriteRequestM convert req = do
@@ -98,7 +104,7 @@ rewriteRequestM convert req = do
 -- which the rewrite functions modify the `rawPathInfo` parameter. Note
 -- that this has not been extended to modify the `rawQueryInfo` as
 -- modifying either of these values has been deprecated.
-rewriteRequestRawM :: Monad m
+rewriteRequestRawM :: (Applicative m, Monad m)
                     => (PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries)
                     -> Request -> m Request
 rewriteRequestRawM convert req = do
@@ -108,7 +114,7 @@ rewriteRequestRawM convert req = do
 
 -- | Produce a function that works on 'PathsandQueries' from one working
 -- only on paths.
-pathsOnly :: Monad m
+pathsOnly :: (Applicative m, Monad m)
           => ([Text] -> H.RequestHeaders -> m [Text])
           -> PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries
 pathsOnly convert paths headers = (,[]) <$> convert (fst paths) headers
