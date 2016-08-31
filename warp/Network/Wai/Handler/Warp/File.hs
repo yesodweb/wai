@@ -14,7 +14,7 @@ import Data.Array ((!))
 import qualified Data.ByteString as B hiding (pack)
 import qualified Data.ByteString.Char8 as B (pack, readInteger)
 import Data.ByteString (ByteString)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import Network.HTTP.Date
 import qualified Network.HTTP.Types as H
 import qualified Network.HTTP.Types.Header as H
@@ -44,8 +44,9 @@ conditionalRequest :: I.FileInfo
                    -> RspFileInfo
 conditionalRequest finfo hs0 reqidx = case condition of
     nobody@(WithoutBody _) -> nobody
-    WithBody s _ off len   -> let !hs = (H.hLastModified,date) :
-                                        addContentHeaders hs0 off len size
+    WithBody s _ off len   -> let !hs = if isJust (lookup H.hLastModified hs0)
+                                          then addContentHeaders hs0 off len size
+                                          else (H.hLastModified,date) : addContentHeaders hs0 off len size
                               in WithBody s hs off len
   where
     !mtime = I.fileInfoTime finfo
