@@ -187,7 +187,7 @@ serveFile StaticSettings {..} req file
                 | mdate == lastSent -> return NotModified
 
             -- Did not match, but we have a new last-modified header
-            (Just mdate, _) -> respond [("last-modified", formatHTTPDate mdate)]
+            (Just mdate, _) -> respond [("Last-Modified", formatHTTPDate mdate)]
 
             -- No modification time available
             (Nothing, _) -> respond []
