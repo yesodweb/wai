@@ -58,8 +58,8 @@ data GzipFiles
                    -- platforms.
     | GzipCacheFolder FilePath -- ^ Compress files, caching them in
                                -- some directory.
-    | GzipPreCompressed GzipFiles -- ^ If we use compression use the file with ".gz"
-                                  -- appended to the name requested file if it exists
+    | GzipPreCompressed GzipFiles -- ^ If we use compression then try to use the filename with ".gz"
+                                  -- appended to it, if the file is missing then try next action
     deriving (Show, Eq, Read)
 
 -- | Use default MIME settings; /do not/ compress files.
