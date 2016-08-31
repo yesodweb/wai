@@ -58,6 +58,8 @@ data GzipFiles
                    -- platforms.
     | GzipCacheFolder FilePath -- ^ Compress files, caching them in
                                -- some directory.
+    | GzipPreCompressed GzipFiles -- ^ If we use compression use the file with ".gz"
+                                  -- appended to the name requested file if it exists
     deriving (Show, Eq, Read)
 
 -- | Use default MIME settings; /do not/ compress files.
@@ -92,13 +94,23 @@ gzip set app env sendResponse = app env $ \res ->
         ResponseFile{} | gzipFiles set == GzipIgnore -> sendResponse res
         _ -> if "gzip" `elem` enc && not isMSIE6 && not (isEncoded res) && (bigEnough res)
                 then
-                    case (res, gzipFiles set) of
-                        (ResponseFile s hs file Nothing, GzipCacheFolder cache) ->
-                            case lookup hContentType hs of
-                                Just m
-                                    | gzipCheckMime set m -> compressFile s hs file cache sendResponse
-                                _ -> sendResponse res
-                        _ -> compressE set res sendResponse
+                    let runAction x = case x of
+                            (_ , GzipPreCompressed (GzipPreCompressed _)) -> sendResponse res
+                            (ResponseFile s hs file Nothing, GzipPreCompressed nextAction) ->
+                                 let
+                                    compressedVersion = file ++ ".gz"
+                                 in
+                                    doesFileExist compressedVersion >>= \x ->
+                                       if x
+                                         then (sendResponse $ ResponseFile s (fixHeaders hs) compressedVersion Nothing)
+                                         else (runAction (ResponseFile s hs file Nothing, nextAction))
+                            (ResponseFile s hs file Nothing, GzipCacheFolder cache) ->
+                                case lookup hContentType hs of
+                                    Just m
+                                        | gzipCheckMime set m -> compressFile s hs file cache sendResponse
+                                    _ -> sendResponse res
+                            _ -> compressE set res sendResponse
+                    in runAction (res, gzipFiles set)
                 else sendResponse res
   where
     enc = fromMaybe [] $ (splitCommas . S8.unpack)
