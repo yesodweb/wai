@@ -95,7 +95,6 @@ gzip set app env sendResponse = app env $ \res ->
         _ -> if "gzip" `elem` enc && not isMSIE6 && not (isEncoded res) && (bigEnough res)
                 then
                     let runAction x = case x of
-                            (_ , GzipPreCompressed (GzipPreCompressed _)) -> sendResponse res
                             (ResponseFile s hs file Nothing, GzipPreCompressed nextAction) ->
                                  let
                                     compressedVersion = file ++ ".gz"
@@ -109,6 +108,7 @@ gzip set app env sendResponse = app env $ \res ->
                                     Just m
                                         | gzipCheckMime set m -> compressFile s hs file cache sendResponse
                                     _ -> sendResponse res
+                            (_ , GzipIgnore) -> sendResponse res
                             _ -> compressE set res sendResponse
                     in runAction (res, gzipFiles set)
                 else sendResponse res
