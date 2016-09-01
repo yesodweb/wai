@@ -108,7 +108,7 @@ gzip set app env sendResponse = app env $ \res ->
                                     Just m
                                         | gzipCheckMime set m -> compressFile s hs file cache sendResponse
                                     _ -> sendResponse res
-                            (_ , GzipIgnore) -> sendResponse res
+                            (ResponseFile {}, GzipIgnore) -> sendResponse res
                             _ -> compressE set res sendResponse
                     in runAction (res, gzipFiles set)
                 else sendResponse res
