@@ -49,7 +49,7 @@ isWebSocketsReq req =
 --         'WS.sendTextData' conn ("Hello, client!" :: 'Data.Text.Text')
 --
 --     backupApp :: 'Wai.Application'
---     backupApp = 'Wai.respondLBS' 'Network.HTTP.Types.status400' [] "Not a WebSocket request"
+--     backupApp = 'Wai.responseLBS' 'Network.HTTP.Types.status400' [] "Not a WebSocket request"
 -- @
 websocketsOr :: WS.ConnectionOptions
              -> WS.ServerApp
