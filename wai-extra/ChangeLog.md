@@ -1,3 +1,7 @@
+## 3.0.17
+
+* Gzip pre compressed [#580](https://github.com/yesodweb/wai/pull/580)
+
 ## 3.0.16.1
 
 * Fix the way the header length is checked (for limiting the max header length)

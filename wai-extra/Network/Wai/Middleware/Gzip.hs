@@ -60,6 +60,8 @@ data GzipFiles
                                -- some directory.
     | GzipPreCompressed GzipFiles -- ^ If we use compression then try to use the filename with ".gz"
                                   -- appended to it, if the file is missing then try next action
+                                  --
+                                  -- @since 3.0.17
     deriving (Show, Eq, Read)
 
 -- | Use default MIME settings; /do not/ compress files.
