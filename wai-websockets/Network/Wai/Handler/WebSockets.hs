@@ -30,10 +30,10 @@ isWebSocketsReq req =
 -- WebSocket requests.
 --
 -- @
--- websocketsOr opts ws_app backup_app = \\req send_response ->
+-- websocketsOr opts ws_app backup_app = \\req respond ->
 --     __case__ 'websocketsApp' opts ws_app req __of__
 --         'Nothing'  -> backup_app req send_response
---         'Just' res -> send_response res
+--         'Just' res -> respond res
 -- @
 --
 -- For example, below is an 'Wai.Application' that sends @"Hello, client!"@ to
@@ -49,7 +49,7 @@ isWebSocketsReq req =
 --         'WS.sendTextData' conn ("Hello, client!" :: 'Data.Text.Text')
 --
 --     backupApp :: 'Wai.Application'
---     backupApp _ response = response $ 'Wai.responseLBS' 'Network.HTTP.Types.status400' [] "Not a WebSocket request"
+--     backupApp _ respond = respond $ 'Wai.responseLBS' 'Network.HTTP.Types.status400' [] "Not a WebSocket request"
 -- @
 websocketsOr :: WS.ConnectionOptions
              -> WS.ServerApp
