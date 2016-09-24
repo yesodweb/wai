@@ -17,7 +17,6 @@ import Data.Monoid (mempty)
 import Data.Monoid ((<>))
 import Network.HTTP.Types (hLocation, methodGet, status301, status307)
 
-import qualified Data.ByteString as S
 import Data.Word8 (_colon)
 
 -- | For requests that don't appear secure, redirect to https
@@ -31,13 +30,10 @@ forceSSL app req sendResponse =
 
 redirectResponse :: Request -> Maybe Response
 redirectResponse req = do
-    (host, _) <- S.break (== _colon) <$> requestHeaderHost req
-
-    return $ responseBuilder status [(hLocation, location host)] mempty
-
+  host <- requestHeaderHost req
+  return $ responseBuilder status [(hLocation, location host)] mempty
   where
     location h = "https://" <> h <> rawPathInfo req <> rawQueryString req
-
     status
         | requestMethod req == methodGet = status301
         | otherwise = status307
