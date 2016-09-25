@@ -8,6 +8,7 @@ import Test.Hspec
 
 import Network.Wai.Middleware.ForceSSL
 
+import Control.Monad
 import Data.ByteString (ByteString)
 import Data.Monoid ((<>))
 import Network.HTTP.Types (methodPost, status200, status301, status307)
@@ -18,8 +19,12 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = describe "forceSSL" $ do
-    let host = "example.com"
+spec = describe "forceSSL" (forM_ hosts $ \host -> hostSpec host)
+  where
+    hosts = ["example.com", "example.com:80", "example.com:8080"]
+
+hostSpec :: ByteString -> Spec
+hostSpec host = describe ("forceSSL on host " <> show host <> "") $ do
 
     it "redirects non-https requests to https" $ do
         resp <- runApp host forceSSL defaultRequest
@@ -39,7 +44,7 @@ spec = describe "forceSSL" $ do
 
         simpleStatus resp `shouldBe` status200
 
-    it "preserves the original path and query string" $ do
+    it "preserves the original host, path, and query string" $ do
         resp <- runApp host forceSSL defaultRequest
             { rawPathInfo = "/foo/bar"
             , rawQueryString = "?baz=bat"
@@ -50,7 +55,6 @@ spec = describe "forceSSL" $ do
 
 runApp :: ByteString -> Middleware -> Request -> IO SResponse
 runApp host mw req = runSession
-    (request req { requestHeaderHost = Just $ host <> ":80" }) $ mw app
-
+    (request req { requestHeaderHost = Just host }) $ mw app
   where
     app _ respond = respond $ responseLBS status200 [] ""
