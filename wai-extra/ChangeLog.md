@@ -1,3 +1,7 @@
+## 3.0.18
+
+* ForceSSL: preserve port number when redirecting to https. [#582](https://github.com/yesodweb/wai/pull/582)
+
 ## 3.0.17
 
 * Gzip pre compressed [#580](https://github.com/yesodweb/wai/pull/580)
