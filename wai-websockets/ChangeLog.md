@@ -1,3 +1,7 @@
+## 3.0.1.1
+
+* Doc improvement
+
 ## 3.0.1
 
 * Improved connection close logic
