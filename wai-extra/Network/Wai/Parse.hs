@@ -346,7 +346,7 @@ parseContentType a = do
 -- Note: This function does not limit the memory it allocates.
 -- When dealing with untrusted data (as is usually the case when
 -- receiving input from the internet), it is recommended to
--- use the parseRequestBodyEx function instead.
+-- use the 'parseRequestBodyEx' function instead.
 parseRequestBody :: BackEnd y
                  -> Request
                  -> IO ([Param], [File y])
