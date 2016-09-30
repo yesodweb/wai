@@ -184,7 +184,7 @@ setMaxRequestNumFiles l p = p { prboMaxNumFiles=Just l }
 clearMaxRequestNumFiles :: ParseRequestBodyOptions -> ParseRequestBodyOptions
 clearMaxRequestNumFiles p = p { prboMaxNumFiles=Nothing }
 
--- | Set the maximum filesize per file.
+-- | Set the maximum filesize per file (in bytes).
 --
 -- @since 3.0.16.0
 setMaxRequestFileSize :: Int64 -> ParseRequestBodyOptions -> ParseRequestBodyOptions
@@ -320,7 +320,7 @@ getRequestBodyType req = do
 -- | Parse a content type value, turning a single @ByteString@ into the actual
 -- content type and a list of pairs of attributes.
 --
--- Since 1.3.2
+-- @since 1.3.2
 parseContentType :: S.ByteString -> (S.ByteString, [(S.ByteString, S.ByteString)])
 parseContentType a = do
     let (ctype, b) = S.break (== semicolon) a
@@ -346,7 +346,7 @@ parseContentType a = do
 -- Note: This function does not limit the memory it allocates.
 -- When dealing with untrusted data (as is usually the case when
 -- receiving input from the internet), it is recommended to
--- use the parseRequestBodyEx function instead.
+-- use the 'parseRequestBodyEx' function instead.
 parseRequestBody :: BackEnd y
                  -> Request
                  -> IO ([Param], [File y])
