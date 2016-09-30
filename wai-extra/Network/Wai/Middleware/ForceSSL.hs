@@ -17,8 +17,6 @@ import Data.Monoid (mempty)
 import Data.Monoid ((<>))
 import Network.HTTP.Types (hLocation, methodGet, status301, status307)
 
-import Data.Word8 (_colon)
-
 -- | For requests that don't appear secure, redirect to https
 --
 -- Since 3.0.7
