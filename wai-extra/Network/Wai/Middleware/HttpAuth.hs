@@ -5,6 +5,7 @@
 module Network.Wai.Middleware.HttpAuth
     ( -- * Middleware
       basicAuth
+    , basicAuth'
     , CheckCreds
     , AuthSettings
     , authRealm
@@ -36,11 +37,19 @@ type CheckCreds = ByteString
 --
 -- > basicAuth (\u p -> return $ u == "michael" && p == "mypass") "My Realm"
 --
--- Since 1.3.4
+-- @since 1.3.4
 basicAuth :: CheckCreds
           -> AuthSettings
           -> Middleware
-basicAuth checkCreds AuthSettings {..} app req sendResponse = do
+basicAuth checkCreds = basicAuth' (\_ -> checkCreds)
+
+-- | Like 'basicAuth', but also passes a request to the authentication function.
+--
+-- @since 3.0.19
+basicAuth' :: (Request -> CheckCreds)
+           -> AuthSettings
+           -> Middleware
+basicAuth' checkCreds AuthSettings {..} app req sendResponse = do
     isProtected <- authIsProtected req
     allowed <- if isProtected then check else return True
     if allowed
@@ -51,8 +60,7 @@ basicAuth checkCreds AuthSettings {..} app req sendResponse = do
         case (lookup hAuthorization $ requestHeaders req)
              >>= extractBasicAuth of
             Nothing -> return False
-            Just (username, password) -> checkCreds username password
-
+            Just (username, password) -> checkCreds req username password
 
 -- | Basic authentication settings. This value is an instance of
 -- @IsString@, so the recommended approach to create a value is to
@@ -61,23 +69,23 @@ basicAuth checkCreds AuthSettings {..} app req sendResponse = do
 --
 -- > "My Realm" { authIsProtected = someFunc } :: AuthSettings
 --
--- Since 1.3.4
+-- @since 1.3.4
 data AuthSettings = AuthSettings
     { authRealm :: !ByteString
     -- ^
     --
-    -- Since 1.3.4
+    -- @since 1.3.4
     , authOnNoAuth :: !(ByteString -> Application)
     -- ^ Takes the realm and returns an appropriate 401 response when
     -- authentication is not provided.
     --
-    -- Since 1.3.4
+    -- @since 1.3.4
     , authIsProtected :: !(Request -> IO Bool)
     -- ^ Determine if access to the requested resource is restricted.
     --
     -- Default: always returns @True@.
     --
-    -- Since 1.3.4
+    -- @since 1.3.4
     }
 
 instance IsString AuthSettings where
@@ -99,7 +107,7 @@ instance IsString AuthSettings where
 -- | Extract basic authentication data from usually __Authorization__
 -- header value. Returns username and password
 --
--- Since 3.0.5
+-- @since 3.0.5
 extractBasicAuth :: ByteString -> Maybe (ByteString, ByteString)
 extractBasicAuth bs =
     let (x, y) = S.break isSpace bs
@@ -115,7 +123,7 @@ extractBasicAuth bs =
 -- | Extract bearer authentication data from __Authorization__ header
 -- value. Returns bearer token
 --
--- Since 3.0.5
+-- @since 3.0.5
 extractBearerAuth :: ByteString -> Maybe ByteString
 extractBearerAuth bs =
     let (x, y) = S.break isSpace bs
