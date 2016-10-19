@@ -1,3 +1,7 @@
+## 3.0.19
+
+* Add a new function basicAuth', which passes request to the CheckCreds argument.
+
 ## 3.0.18
 
 * ForceSSL: preserve port number when redirecting to https. [#582](https://github.com/yesodweb/wai/pull/582)
