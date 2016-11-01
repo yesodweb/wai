@@ -1,7 +1,7 @@
-% WAI-MW.tex
-\begin{hcarentry}{WAI}
+% WAI-KW.tex
+\begin{hcarentry}[updated]{WAI}
 \label{wai}
-\report{Kazu Yamamoto}%05/16
+\report{Kazu Yamamoto}%11/16
 \participants{Michael Snoyman, Greg Weber}
 \status{stable}
 \makeheader
@@ -11,7 +11,10 @@ between web applications and handlers in Haskell.
 The \texttt{Application} data type is defined as follows:
 
 \begin{verbatim}
-type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
+type Application
+  =  Request
+  -> (Response -> IO ResponseReceived)
+  -> IO ResponseReceived
 \end{verbatim}
 
 That is, a WAI application takes two arguments: a \texttt{Request} and
@@ -33,10 +36,10 @@ WebSocket (wai-websocket) and Event Source (wai-extra)
 can be implemented, too.
 
 It is possible to develop WAI applications directly.
-For instance, Hoogle and Mighttpd2~\cref{mighttpd2} take this way.
+For instance, Hoogle and Mighttpd2 take this way.
 However, you may want to use web application frameworks
-such as Apiary, MFlow~\cref{mflow}, rest, Servant, Scotty~\cref{scotty}, Spock,
-Yesod~\cref{yesod}, etc.
+such as Apiary, MFlow, rest, Servant, Scotty, Spock,
+Yesod, etc.
 
 WAI also provides \texttt{Middleware}:
 
@@ -46,10 +49,7 @@ type Middleware = Application -> Application
 
 WAI middleware can inspect and transform a request, for example by automatically gzipping a response or logging a request (wai-extra).
 
-Since the last HCAR, WAI has successfully released version 3.2,
-which removes the experimental HTTP/2 module and some APIs.
-We bumped the version from 3.0 to 3.2 for consistency with
-Warp 3.2.
+Since the last HCAR, no major changes were made.
 
 \FurtherReading
 \begin{compactitem}
