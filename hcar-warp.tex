@@ -1,19 +1,16 @@
-% Warp-MW.tex
+% Warp-KW.tex
 \begin{hcarentry}{Warp}
 \label{warp}
-\report{Kazu Yamamoto}%05/16
+\report{Kazu Yamamoto}%11/16
 \participants{Michael Snoyman}
-%\status{stable}
+\status{stable}
 \makeheader
 
 Warp is a high performance, easy to deploy HTTP handler for WAI~\cref{wai}.
 Its supports both HTTP/1.1 and HTTP/2.
 
-Since the last HCAR, we have released Warp 3.2 which
-removes the experimental HTTP/2 APIs.
-The performance of HTTP/2 was drastically improved.
-The logic to handle static files such as \texttt{If-Modified-Since}
-was imported from Mighttpd2~\cref{mighttpd2}.
+Since the last HCAR, Warp provided new APIs for HTTP/2 server push.
+If you are interested, please read ``Implementing HTTP/2 server push'' below.
 
 \FurtherReading
 \begin{compactitem}
@@ -25,10 +22,12 @@ was imported from Mighttpd2~\cref{mighttpd2}.
   \end{itemize}
 \item ``Warp''
   \begin{itemize}
-  \item The Performance of Open Srouce Applications
+  \item The Performance of Open Source Applications
   \item HTML: \url{http://www.aosabook.org/en/posa/warp.html}
   \end{itemize}
+\item ``Implementing HTTP/2 server push''
+  \begin{itemize}
+  \item HTML: \url{http://www.yesodweb.com/blog/2016/07/http2-server-push}
+  \end{itemize}
 \end{compactitem}
-\end{hcarentry}
-
 \end{hcarentry}
