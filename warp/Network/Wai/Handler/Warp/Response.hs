@@ -136,6 +136,8 @@ sendResponse :: Settings
 sendResponse settings conn ii req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s then do
+        -- Make sure we don't hang on to 'response' (avoid space leak)
+        ret' <- E.evaluate ret
         -- The response to HEAD does not have body.
         -- But to handle the conditional requests defined RFC 7232 and
         -- to generate appropriate content-length, content-range,
@@ -147,7 +149,7 @@ sendResponse settings conn ii req reqidxhdr src response = do
             Nothing         -> return ()
             Just realStatus -> logger req realStatus mlen
         T.tickle th
-        return ret
+        return ret'
       else do
         _ <- sendRsp conn ii ver s hs RspNoBody
         logger req s Nothing
