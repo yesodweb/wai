@@ -1,3 +1,7 @@
+## 3.2.9
+
+* Fixing a space leak. [#586] https://github.com/yesodweb/wai/pull/586
+
 ## 3.2.8
 
 * Fixing HTTP2 requestBodyLength. [#573](https://github.com/yesodweb/wai/pull/573)
