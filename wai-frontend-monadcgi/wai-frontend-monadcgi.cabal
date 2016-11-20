@@ -1,5 +1,5 @@
 name:            wai-frontend-monadcgi
-version:         3.0.0.2
+version:         3.0.0.3
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>

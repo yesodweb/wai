@@ -64,5 +64,8 @@ getCgiVars :: Request -> [(String, String)]
 getCgiVars e =
     [ ("PATH_INFO", S8.unpack $ rawPathInfo e)
     , ("REQUEST_METHOD", show $ requestMethod e)
-    , ("QUERY_STRING", S8.unpack $ rawQueryString e)
+    , ("QUERY_STRING",
+        case S8.unpack $ rawQueryString e of
+          '?':rest -> rest
+          x -> x)
     ]
