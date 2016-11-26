@@ -22,7 +22,7 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as HU
 
 -- | Provides a default directory listing, suitable for most apps.
 --
--- Code below taken from Happstack: <http://patch-tag.com/r/mae/happstack/snapshot/current/content/pretty/happstack-server/src/Happstack/Server/FileServe/BuildingBlocks.hs>
+-- Code below taken from Happstack: <https://github.com/Happstack/happstack-server/blob/87e6c01a65c687d06c61345430a112fc9a444a95/src/Happstack/Server/FileServe/BuildingBlocks.hs>
 defaultListing :: Listing
 defaultListing pieces (Folder contents) = do
     let isTop = null pieces || map Just pieces == [toPiece ""]
