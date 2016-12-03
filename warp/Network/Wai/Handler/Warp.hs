@@ -286,6 +286,16 @@ getGracefulShutdownTimeout = settingsGracefulShutdownTimeout
 -- handler. The handler should call the first argument,
 -- which closes the listen socket, at shutdown.
 --
+-- Example usage:
+--
+-- @
+-- settings :: IO () -> 'Settings'
+-- settings shutdownAction = 'setInstallShutdownHandler' shutdownHandler 'defaultSettings'
+--   __where__
+--     shutdownHandler closeSocket =
+--       void $ 'System.Posix.Signals.installHandler' 'System.Posix.Signals.sigTERM' ('System.Posix.Signals.Catch' $ shutdownAction >> closeSocket) 'Nothing'
+-- @
+--
 -- Default: does not install any code.
 --
 -- Since 3.0.1
