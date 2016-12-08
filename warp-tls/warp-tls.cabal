@@ -10,7 +10,8 @@ Category:            Web, Yesod
 Build-Type:          Simple
 Cabal-Version:       >=1.6
 Stability:           Stable
-description:         Support for SSL is now obsoleted.
+description:         SSLv1 and SSLv2 are obsoleted by IETF.
+                     We should use TLS 1.2 (or TLS 1.1 or TLS 1.0 if necessary).
                      HTTP/2 can be negotiated by ALPN.
                      API docs and the README are available at
                      <http://www.stackage.org/package/warp-tls>.
