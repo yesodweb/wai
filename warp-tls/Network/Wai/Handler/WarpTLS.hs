@@ -55,7 +55,7 @@ import Data.Default.Class (def)
 import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, safeRecv)
 import Data.Typeable (Typeable)
-import Network.Socket (Socket, close, withSocketsDo, SockAddr, accept)
+import qualified Network.Socket as NS (Socket, close, withSocketsDo, SockAddr, accept)
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
 import qualified Crypto.PubKey.DH as DH
@@ -231,17 +231,17 @@ tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings
 
 -- | Running 'Application' with 'TLSSettings' and 'Settings'.
 runTLS :: TLSSettings -> Settings -> Application -> IO ()
-runTLS tset set app = withSocketsDo $
+runTLS tset set app = NS.withSocketsDo $
     bracket
         (bindPortTCP (getPort set) (getHost set))
-        close
+        NS.close
         (\sock -> runTLSSocket tset set sock app)
 
 ----------------------------------------------------------------
 
 -- | Running 'Application' with 'TLSSettings' and 'Settings' using
 --   specified 'Socket'.
-runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
+runTLSSocket :: TLSSettings -> Settings -> NS.Socket -> Application -> IO ()
 runTLSSocket tlsset@TLSSettings{..} set sock app = do
     credential <- case (certMemory, keyMemory) of
         (Nothing, Nothing) ->
@@ -254,9 +254,9 @@ runTLSSocket tlsset@TLSSettings{..} set sock app = do
               TLS.credentialLoadX509ChainFromMemory cert chainCertsMemory key
     runTLSSocket' tlsset set credential sock app
 
-runTLSSocket' :: TLSSettings -> Settings -> TLS.Credential -> Socket -> Application -> IO ()
-runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
-    runSettingsConnectionMakerSecure set get app
+runTLSSocket' :: TLSSettings -> Settings -> TLS.Credential -> NS.Socket -> Application -> IO ()
+runTLSSocket' tlsset@TLSSettings{..} set credential sock =
+    runSettingsConnectionMakerSecure set get
   where
     get = getter tlsset sock params
     params = def { -- TLS.ServerParams
@@ -303,13 +303,13 @@ alpn xs
 
 ----------------------------------------------------------------
 
-getter :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (IO (Connection, Transport), SockAddr)
+getter :: TLS.TLSParams params => TLSSettings -> NS.Socket -> params -> IO (IO (Connection, Transport), NS.SockAddr)
 getter tlsset@TLSSettings{..} sock params = do
-    (s, sa) <- accept sock
+    (s, sa) <- NS.accept sock
     return (mkConn tlsset s params, sa)
 
-mkConn :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (Connection, Transport)
-mkConn tlsset s params = switch `onException` close s
+mkConn :: TLS.TLSParams params => TLSSettings -> NS.Socket -> params -> IO (Connection, Transport)
+mkConn tlsset s params = switch `onException` NS.close s
   where
     switch = do
         firstBS <- safeRecv s 4096
@@ -320,7 +320,7 @@ mkConn tlsset s params = switch `onException` close s
 
 ----------------------------------------------------------------
 
-httpOverTls :: TLS.TLSParams params => TLSSettings -> Socket -> S.ByteString -> params -> IO (Connection, Transport)
+httpOverTls :: TLS.TLSParams params => TLSSettings -> NS.Socket -> S.ByteString -> params -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} s bs0 params = do
     recvN <- makePlainReceiveN s bs0
     ctx <- TLS.contextNew (backend recvN) params
@@ -334,7 +334,7 @@ httpOverTls TLSSettings{..} s bs0 params = do
   where
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
-      , TLS.backendClose = close s
+      , TLS.backendClose = NS.close s
       , TLS.backendSend  = sendAll' s
       , TLS.backendRecv  = recvN
       }
@@ -352,8 +352,8 @@ httpOverTls TLSSettings{..} s bs0 params = do
       }
       where
         sendall = TLS.sendData ctx . L.fromChunks . return
-        sendfile fid offset len hook headers =
-            readSendFile writeBuf bufferSize sendall fid offset len hook headers
+        sendfile =
+            readSendFile writeBuf bufferSize sendall
 
         close = freeBuffer writeBuf `finally`
                 void (tryIO $ TLS.bye ctx) `finally`
@@ -438,7 +438,7 @@ tryIO = try
 
 ----------------------------------------------------------------
 
-plainHTTP :: TLSSettings -> Socket -> S.ByteString -> IO (Connection, Transport)
+plainHTTP :: TLSSettings -> NS.Socket -> S.ByteString -> IO (Connection, Transport)
 plainHTTP TLSSettings{..} s bs0 = case onInsecure of
     AllowInsecure -> do
         conn' <- socketConnection s
@@ -463,7 +463,7 @@ plainHTTP TLSSettings{..} s bs0 = case onInsecure of
         \r\nConnection: Upgrade\
         \r\nContent-Type: text/plain\r\n\r\n"
         mapM_ (sendAll s) $ L.toChunks lbs
-        close s
+        NS.close s
         throwIO InsecureConnectionDenied
 
 ----------------------------------------------------------------
