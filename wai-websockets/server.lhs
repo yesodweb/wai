@@ -11,9 +11,9 @@ nearby to check out the functions we use.
 > import Data.Char (isPunctuation, isSpace)
 > import Data.Monoid (mappend)
 > import Data.Text (Text)
-> import Control.Exception (finally)   
+> import Control.Exception (finally)
 > import Control.Monad (forM_, forever)
-> import Control.Concurrent (MVar, newMVar, modifyMVar_, readMVar, forkIO, modifyMVar)
+> import Control.Concurrent (MVar, newMVar, modifyMVar_, readMVar, modifyMVar)
 > import Control.Monad.IO.Class (liftIO)
 > import qualified Data.Text as T
 > import qualified Data.Text.IO as T
