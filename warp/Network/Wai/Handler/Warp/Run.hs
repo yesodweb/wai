@@ -24,8 +24,8 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno(..), eCONNABORTED)
 import GHC.IO.Exception (IOException(..))
-import Network (sClose, Socket)
-import Network.Socket (accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6), setSocketOption, SocketOption(..))
+import Network (Socket)
+import Network.Socket (close, accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6), setSocketOption, SocketOption(..))
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import Network.Wai.Handler.Warp.Buffer
@@ -63,7 +63,7 @@ socketConnection s = do
         connSendMany = Sock.sendMany s
       , connSendAll = sendall
       , connSendFile = sendFile s writeBuf bufferSize sendall
-      , connClose = sClose s >> freeBuffer writeBuf
+      , connClose = close s >> freeBuffer writeBuf
       , connRecv = receive s bufferPool
       , connRecvBuf = receiveBuf s
       , connWriteBuffer = writeBuf
@@ -104,7 +104,7 @@ runSettings :: Settings -> Application -> IO ()
 runSettings set app = withSocketsDo $
     bracket
         (bindPortTCP (settingsPort set) (settingsHost set))
-        sClose
+        close
         (\socket -> do
             setSocketCloseOnExec socket
             runSettingsSocket set socket app)
@@ -137,7 +137,7 @@ runSettingsSocket set socket app = do
         conn <- socketConnection s
         return (conn, sa)
 
-    closeListenSocket = sClose socket
+    closeListenSocket = close socket
 
 -- | The connection setup action would be expensive. A good example
 -- is initialization of TLS.

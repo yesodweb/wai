@@ -55,7 +55,7 @@ import Data.Default.Class (def)
 import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, safeRecv)
 import Data.Typeable (Typeable)
-import Network.Socket (Socket, sClose, withSocketsDo, SockAddr, accept)
+import Network.Socket (Socket, close, withSocketsDo, SockAddr, accept)
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
 import qualified Crypto.PubKey.DH as DH
@@ -234,7 +234,7 @@ runTLS :: TLSSettings -> Settings -> Application -> IO ()
 runTLS tset set app = withSocketsDo $
     bracket
         (bindPortTCP (getPort set) (getHost set))
-        sClose
+        close
         (\sock -> runTLSSocket tset set sock app)
 
 ----------------------------------------------------------------
@@ -309,7 +309,7 @@ getter tlsset@TLSSettings{..} sock params = do
     return (mkConn tlsset s params, sa)
 
 mkConn :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (Connection, Transport)
-mkConn tlsset s params = switch `onException` sClose s
+mkConn tlsset s params = switch `onException` close s
   where
     switch = do
         firstBS <- safeRecv s 4096
@@ -334,7 +334,7 @@ httpOverTls TLSSettings{..} s bs0 params = do
   where
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
-      , TLS.backendClose = sClose s
+      , TLS.backendClose = close s
       , TLS.backendSend  = sendAll' s
       , TLS.backendRecv  = recvN
       }
@@ -344,7 +344,7 @@ httpOverTls TLSSettings{..} s bs0 params = do
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
       , connSendFile         = sendfile
-      , connClose            = close
+      , connClose            = close'
       , connRecv             = recv ref
       , connRecvBuf          = recvBuf ref
       , connWriteBuffer      = writeBuf
@@ -355,9 +355,9 @@ httpOverTls TLSSettings{..} s bs0 params = do
         sendfile fid offset len hook headers =
             readSendFile writeBuf bufferSize sendall fid offset len hook headers
 
-        close = freeBuffer writeBuf `finally`
-                void (tryIO $ TLS.bye ctx) `finally`
-                TLS.contextClose ctx
+        close' = freeBuffer writeBuf `finally`
+                 void (tryIO $ TLS.bye ctx) `finally`
+                 TLS.contextClose ctx
 
         -- TLS version of recv with a cache for leftover input data.
         -- The cache is shared with recvBuf.
@@ -463,7 +463,7 @@ plainHTTP TLSSettings{..} s bs0 = case onInsecure of
         \r\nConnection: Upgrade\
         \r\nContent-Type: text/plain\r\n\r\n"
         mapM_ (sendAll s) $ L.toChunks lbs
-        sClose s
+        close s
         throwIO InsecureConnectionDenied
 
 ----------------------------------------------------------------
