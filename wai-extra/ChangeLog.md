@@ -1,3 +1,7 @@
+## 3.0.19.1
+
+* All loggers follow the autoFlush setting [#604](https://github.com/yesodweb/wai/pull/604)
+
 ## 3.0.19
 
 * Add a new function basicAuth', which passes request to the CheckCreds argument.
