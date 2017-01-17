@@ -95,20 +95,19 @@ mkRequestLogger RequestLoggerSettings{..} = do
                 Handle h -> (BS.hPutStr h . logToByteString, when autoFlush (hFlush h))
                 Logger l -> (pushLogStr l, when autoFlush (flushLogStr l))
                 Callback c -> (c, return ())
+        callbackAndFlush str = callback str >> flusher
     case outputFormat of
         Apache ipsrc -> do
             getdate <- getDateGetter flusher
             apache <- initLogger ipsrc (LogCallback callback flusher) getdate
             return $ apacheMiddleware apache
-        Detailed useColors -> detailedMiddleware
-                                  (\str -> callback str >> flusher)
-                                  useColors
+        Detailed useColors -> detailedMiddleware callbackAndFlush useColors
         CustomOutputFormat formatter -> do
             getDate <- getDateGetter flusher
-            return $ customMiddleware callback getDate formatter
+            return $ customMiddleware callbackAndFlush getDate formatter
         CustomOutputFormatWithDetails formatter -> do
             getdate <- getDateGetter flusher
-            return $ customMiddlewareWithDetails callback getdate formatter
+            return $ customMiddlewareWithDetails callbackAndFlush getdate formatter
 
 apacheMiddleware :: ApacheLoggerActions -> Middleware
 apacheMiddleware ala app req sendResponse = app req $ \res -> do
