@@ -84,7 +84,7 @@ decode sendInner flushInner streamingBody = do
     Z.finishInflate inflate >>= sendInner . fromByteString
 
 toInsert :: S.ByteString
-toInsert = "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping\",false);x.send();},60000)</script>"
+toInsert = "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping?\" + (new Date()).getTime(),true);x.send();},60000)</script>"
 
 addInsideHead :: (Builder -> IO ())
               -> IO ()
