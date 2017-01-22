@@ -1,3 +1,7 @@
+## 3.0.2.2
+
+* Improvements to ping's javascript script. [#494](https://github.com/yesodweb/wai/pull/494)
+
 ## 3.0.2.1
 
 * Relax upper bound on process

@@ -1,5 +1,5 @@
 Name:                wai-handler-launch
-Version:             3.0.2.1
+Version:             3.0.2.2
 Synopsis:            Launch a web app in the default browser.
 description:         API docs and the README are available at <http://www.stackage.org/package/wai-handler-launch>.
 License:             MIT
