@@ -64,7 +64,8 @@ socketConnection s = do
         connSendMany = Sock.sendMany s
       , connSendAll = sendall
       , connSendFile = sendFile s writeBuf bufferSize sendall
-      , connClose = close s >> freeBuffer writeBuf
+      , connClose = close s
+      , connFree = freeBuffer writeBuf
       , connRecv = receive s bufferPool
       , connRecvBuf = receiveBuf s
       , connWriteBuffer = writeBuf
@@ -277,7 +278,8 @@ fork set mkConn addr app counter ii0 = settingsFork set $ \ unmask ->
     -- We grab the connection before registering timeouts since the
     -- timeouts will be useless during connection creation, due to the
     -- fact that async exceptions are still masked.
-    bracket mkConn (closeConn ref . fst) $ \(conn, transport) ->
+    bracket mkConn (\(conn, _) -> closeConn ref conn `finally` connFree conn)
+    $ \(conn, transport) ->
 
     -- We need to register a timeout handler for this thread, and
     -- cancel that handler as soon as we exit. We additionally close

@@ -345,6 +345,7 @@ httpOverTls TLSSettings{..} s bs0 params = do
       , connSendAll          = sendall
       , connSendFile         = sendfile
       , connClose            = close'
+      , connFree             = freeBuffer writeBuf
       , connRecv             = recv ref
       , connRecvBuf          = recvBuf ref
       , connWriteBuffer      = writeBuf
@@ -355,8 +356,7 @@ httpOverTls TLSSettings{..} s bs0 params = do
         sendfile fid offset len hook headers =
             readSendFile writeBuf bufferSize sendall fid offset len hook headers
 
-        close' = freeBuffer writeBuf `finally`
-                 void (tryIO $ TLS.bye ctx) `finally`
+        close' = void (tryIO $ TLS.bye ctx) `finally`
                  TLS.contextClose ctx
 
         -- TLS version of recv with a cache for leftover input data.
