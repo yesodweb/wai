@@ -1,12 +1,10 @@
 ## 3.2.10
 
-* Add `connFree` to `Connection`
-* Close socket connections on timeout triggered
-* Timeout exceptions extend from `SomeAsyncException`
+* Add `connFree` to `Connection`. Close socket connections on timeout triggered. Timeout exceptions extend from `SomeAsyncException`. [#602](https://github.com/yesodweb/wai/pull/602) [#605](https://github.com/yesodweb/wai/pull/605)
 
 ## 3.2.9
 
-* Fixing a space leak. [#586] https://github.com/yesodweb/wai/pull/586
+* Fixing a space leak. [#586](https://github.com/yesodweb/wai/pull/586)
 
 ## 3.2.8
 
