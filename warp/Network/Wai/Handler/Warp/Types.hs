@@ -92,8 +92,13 @@ data Connection = Connection {
     , connSendAll     :: ByteString -> IO ()
     -- | The sending function for files in HTTP/1.1.
     , connSendFile    :: SendFile
-    -- | The connection closing function.
+    -- | The connection closing function. Warp guarantees it will only be
+    -- called once. Other functions (like 'connRecv') may be called after
+    -- 'connClose' is called.
     , connClose       :: IO ()
+    -- | Free any buffers allocated. Warp guarantees it will only be
+    -- called once, and no other functions will be called after it.
+    , connFree        :: IO ()
     -- | The connection receiving function. This returns "" for EOF.
     , connRecv        :: Recv
     -- | The connection receiving function. This tries to fill the buffer.

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Network.Wai.Handler.Warp.Timeout (
@@ -97,19 +98,24 @@ register mgr onTimeout = do
     return h
 
 -- | Registering a timeout action of killing this thread.
-registerKillThread :: Manager -> IO Handle
-registerKillThread m = do
+registerKillThread :: Manager -> TimeoutAction -> IO Handle
+registerKillThread m onTimeout = do
     -- If we hold ThreadId, the stack and data of the thread is leaked.
     -- If we hold Weak ThreadId, the stack is released. However, its
     -- data is still leaked probably because of a bug of GHC.
     -- So, let's just use ThreadId and release ThreadId by
     -- overriding the timeout action by "cancel".
     tid <- myThreadId
-    register m $ E.throwTo tid TimeoutThread
+    -- First run the timeout action in case the child thread is masked.
+    register m $ onTimeout `E.finally` E.throwTo tid TimeoutThread
 
 data TimeoutThread = TimeoutThread
     deriving Typeable
-instance E.Exception TimeoutThread
+instance E.Exception TimeoutThread where
+#if MIN_VERSION_base(4,7,0)
+    toException = E.asyncExceptionToException
+    fromException = E.asyncExceptionFromException
+#endif
 instance Show TimeoutThread where
     show TimeoutThread = "Thread killed by Warp's timeout reaper"
 

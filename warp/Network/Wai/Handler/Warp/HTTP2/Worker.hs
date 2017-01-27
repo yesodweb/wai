@@ -236,7 +236,8 @@ worker :: Context -> S.Settings -> Application -> Responder -> T.Manager -> IO (
 worker ctx@Context{inputQ,controlQ} set app responder tm = do
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
-    E.bracket (T.registerKillThread tm) T.cancel $ go sinfo tcont
+    let timeoutAction = return () -- cannot close the shared connection
+    E.bracket (T.registerKillThread tm timeoutAction) T.cancel $ go sinfo tcont
   where
     go sinfo tcont th = do
         setThreadContinue tcont True
