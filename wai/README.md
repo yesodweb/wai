@@ -67,7 +67,7 @@ Basic dispatching
 An `Application` maps `Request`s to `Response`s:
 
     ghci> :info  Application
-    type Application = Request -> IO Response
+    type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
 
 Depending on the path info provided with each `Request` we can serve different `Response`s:
 
