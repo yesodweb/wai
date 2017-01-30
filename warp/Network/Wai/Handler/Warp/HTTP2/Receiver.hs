@@ -210,7 +210,7 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, contro
 
 control FramePing FrameHeader{flags} bs Context{controlQ} =
     if testAck flags then
-        E.throwIO $ ConnectionError ProtocolError "the ack flag of this ping frame must not be set"
+        return True -- just ignore
       else do
         let !frame = pingFrame bs
         enqueueControl controlQ $ CFrame frame
