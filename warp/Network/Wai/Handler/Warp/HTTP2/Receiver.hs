@@ -166,19 +166,23 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                          when (ftyp `notElem` [FrameHeaders,FramePriority]) $
                              E.throwIO $ ConnectionError ProtocolError "this frame is not allowed in an idel stream"
                          csid <- readIORef clientStreamId
-                         when (streamId <= csid) $
-                             E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
-                         when (ftyp == FrameHeaders) $ do
-                             writeIORef clientStreamId streamId
-                             cnt <- readIORef concurrency
-                             -- Checking the limitation of concurrency
-                             when (cnt >= maxConcurrency) $
-                                 E.throwIO $ StreamError RefusedStream streamId
-                         ws <- initialWindowSize <$> readIORef http2settings
-                         newstrm <- newStream streamId (fromIntegral ws)
-                         when (ftyp == FrameHeaders) $ opened ctx newstrm
-                         insert streamTable streamId newstrm
-                         return $ Just newstrm
+                         if streamId <= csid then do
+                             if ftyp == FramePriority then
+                                 return Nothing -- will be ignored
+                               else
+                                 E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
+                           else do
+                             when (ftyp == FrameHeaders) $ do
+                                 writeIORef clientStreamId streamId
+                                 cnt <- readIORef concurrency
+                                 -- Checking the limitation of concurrency
+                                 when (cnt >= maxConcurrency) $
+                                     E.throwIO $ StreamError RefusedStream streamId
+                             ws <- initialWindowSize <$> readIORef http2settings
+                             newstrm <- newStream streamId (fromIntegral ws)
+                             when (ftyp == FrameHeaders) $ opened ctx newstrm
+                             insert streamTable streamId newstrm
+                             return $ Just newstrm
 
     consume = void . recvN
 
