@@ -159,6 +159,8 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                      when (ftyp == FrameHeaders) $ do
                          st <- readIORef $ streamState strm0
                          when (isHalfClosed st) $ E.throwIO $ ConnectionError StreamClosed "header must not be sent to half closed"
+                         -- Priority made an idele stream
+                         when (isIdle st) $ opened ctx strm0
                      return js
                  Nothing
                    | isResponse streamId -> return Nothing
