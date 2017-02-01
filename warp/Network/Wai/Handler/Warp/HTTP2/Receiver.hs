@@ -197,14 +197,18 @@ initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,maxConcurrency)]
 ----------------------------------------------------------------
 
 control :: FrameTypeId -> FrameHeader -> ByteString -> Context -> IO Bool
-control FrameSettings header@FrameHeader{flags} bs Context{http2settings, controlQ,firstSettings} = do
+control FrameSettings header@FrameHeader{flags} bs Context{http2settings, controlQ, firstSettings, streamTable} = do
     SettingsFrame alist <- guardIt $ decodeSettingsFrame header bs
     case checkSettingsList alist of
         Just x  -> E.throwIO x
         Nothing -> return ()
     -- HTTP/2 Setting from a browser
     unless (testAck flags) $ do
+        oldws <- initialWindowSize <$> readIORef http2settings
         modifyIORef' http2settings $ \old -> updateSettings old alist
+        newws <- initialWindowSize <$> readIORef http2settings
+        let diff = newws - oldws
+        when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
         let !frame = settingsFrame setAck []
         sent <- readIORef firstSettings
         let !setframe

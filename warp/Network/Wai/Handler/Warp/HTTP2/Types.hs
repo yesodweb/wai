@@ -11,7 +11,7 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Exception (SomeException, bracket)
-import Control.Monad (void)
+import Control.Monad (void, forM_)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.IntMap.Strict (IntMap, IntMap)
@@ -255,6 +255,11 @@ remove (StreamTable ref) k = atomicModifyIORef' ref $ \m ->
 
 search :: StreamTable -> M.Key -> IO (Maybe Stream)
 search (StreamTable ref) k = M.lookup k <$> readIORef ref
+
+updateAllStreamWindow :: (WindowSize -> WindowSize) -> StreamTable -> IO ()
+updateAllStreamWindow adst (StreamTable ref) = do
+    strms <- M.elems <$> readIORef ref
+    forM_ strms $ \strm -> atomically $ modifyTVar (streamWindow strm) adst
 
 {-# INLINE forkAndEnqueueWhenReady #-}
 forkAndEnqueueWhenReady :: IO () -> PriorityTree Output -> Output -> Manager -> IO ()
