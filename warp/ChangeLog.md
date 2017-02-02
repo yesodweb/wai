@@ -1,3 +1,7 @@
+## 3.2.11
+
+* Fixing 10 HTTP2 bugs pointed out by h2spec v2.
+
 ## 3.2.10
 
 * Add `connFree` to `Connection`. Close socket connections on timeout triggered. Timeout exceptions extend from `SomeAsyncException`. [#602](https://github.com/yesodweb/wai/pull/602) [#605](https://github.com/yesodweb/wai/pull/605)
