@@ -267,7 +267,29 @@ fork set mkConn addr app counter ii0 = settingsFork set $ \ unmask ->
     -- Allocate a new IORef indicating whether the connection has been
     -- closed, to avoid double-freeing a connection
     withClosedRef $ \ref ->
+    let cleanUp (conn, _) = closeConn ref conn `finally` connFree conn
+        serve (conn, transport) =
+        -- We need to register a timeout handler for this thread, and
+        -- cancel that handler as soon as we exit. We additionally close
+        -- the connection immediately in case the child thread catches the
+        -- async exception or performs some long-running cleanup action.
+            bracket (T.registerKillThread (timeoutManager0 ii0) (closeConn ref conn))
+                    T.cancel $ \th ->
+                    let ii1 = toInternalInfo1 ii0 th
+                    -- We now have fully registered a connection close handler
+                    -- in the case of all exceptions, so it is safe to one
+                    -- again allow async exceptions.
+                    in unmask .
+                    -- Call the user-supplied on exception code if any
+                    -- exceptions are thrown.
+                       handle (settingsOnException set Nothing) .
 
+                    -- Call the user-supplied code for connection open and close events
+                       bracket (onOpen addr) (onClose addr) $ \goingon ->
+
+                    -- Actually serve this connection.
+                    -- bracket with closeConn above ensures the connection is closed.
+                       when goingon $ serveConnection conn ii1 addr transport set app
     -- Run the connection maker to get a new connection, and ensure
     -- that the connection is closed. If the mkConn call throws an
     -- exception, we will leak the connection. If the mkConn call is
@@ -278,30 +300,7 @@ fork set mkConn addr app counter ii0 = settingsFork set $ \ unmask ->
     -- We grab the connection before registering timeouts since the
     -- timeouts will be useless during connection creation, due to the
     -- fact that async exceptions are still masked.
-    bracket mkConn (\(conn, _) -> closeConn ref conn `finally` connFree conn)
-    $ \(conn, transport) ->
-
-    -- We need to register a timeout handler for this thread, and
-    -- cancel that handler as soon as we exit. We additionally close
-    -- the connection immediately in case the child thread catches the
-    -- async exception or performs some long-running cleanup action.
-    bracket (T.registerKillThread (timeoutManager0 ii0) (closeConn ref conn)) T.cancel $ \th ->
-
-    let ii1 = toInternalInfo1 ii0 th
-        -- We now have fully registered a connection close handler
-        -- in the case of all exceptions, so it is safe to one
-        -- again allow async exceptions.
-    in unmask .
-       -- Call the user-supplied on exception code if any
-       -- exceptions are thrown.
-       handle (settingsOnException set Nothing) .
-
-       -- Call the user-supplied code for connection open and close events
-       bracket (onOpen addr) (onClose addr) $ \goingon ->
-
-       -- Actually serve this connection.
-       -- bracket with closeConn above ensures the connection is closed.
-       when goingon $ serveConnection conn ii1 addr transport set app
+    in bracket mkConn cleanUp serve `catch` settingsOnException set Nothing
   where
     withClosedRef inner = newIORef False >>= inner
 
