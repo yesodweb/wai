@@ -264,6 +264,10 @@ fork :: Settings
      -> InternalInfo0
      -> IO ()
 fork set mkConn addr app counter ii0 = settingsFork set $ \ unmask ->
+    -- Call the user-supplied on exception code if any
+    -- exceptions are thrown.
+    handle (settingsOnException set Nothing) .
+
     -- Allocate a new IORef indicating whether the connection has been
     -- closed, to avoid double-freeing a connection
     withClosedRef $ \ref ->
@@ -292,10 +296,6 @@ fork set mkConn addr app counter ii0 = settingsFork set $ \ unmask ->
         -- in the case of all exceptions, so it is safe to one
         -- again allow async exceptions.
     in unmask .
-       -- Call the user-supplied on exception code if any
-       -- exceptions are thrown.
-       handle (settingsOnException set Nothing) .
-
        -- Call the user-supplied code for connection open and close events
        bracket (onOpen addr) (onClose addr) $ \goingon ->
 
