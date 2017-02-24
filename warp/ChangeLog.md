@@ -1,3 +1,8 @@
+## 3.2.11.1
+
+* Move exception handling to top of thread (fixes
+  [#613](https://github.com/yesodweb/wai/issues/613))
+
 ## 3.2.11
 
 * Fixing 10 HTTP2 bugs pointed out by h2spec v2.
