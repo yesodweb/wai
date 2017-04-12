@@ -63,29 +63,29 @@ spec = do
   describe "headerLines" $ do
       it "can handle a nomarl case" $ do
           src <- mkSourceFunc ["Status: 200\r\nContent-Type: text/plain\r\n\r\n"] >>= mkSource
-          x <- headerLines src
+          x <- headerLines True src
           x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
       it "can handle a nasty case (1)" $ do
           src <- mkSourceFunc ["Status: 200", "\r\nContent-Type: text/plain", "\r\n\r\n"] >>= mkSource
-          x <- headerLines src
+          x <- headerLines True src
           x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
       it "can handle a nasty case (1)" $ do
           src <- mkSourceFunc ["Status: 200", "\r", "\nContent-Type: text/plain", "\r", "\n\r\n"] >>= mkSource
-          x <- headerLines src
+          x <- headerLines True src
           x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
       it "can handle a nasty case (1)" $ do
           src <- mkSourceFunc ["Status: 200", "\r", "\n", "Content-Type: text/plain", "\r", "\n", "\r", "\n"] >>= mkSource
-          x <- headerLines src
+          x <- headerLines True src
           x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
       it "can handle an illegal case (1)" $ do
           src <- mkSourceFunc ["\nStatus:", "\n 200", "\nContent-Type: text/plain", "\r\n\r\n"] >>= mkSource
-          x <- headerLines src
+          x <- headerLines True src
           x `shouldBe` []
-          y <- headerLines src
+          y <- headerLines True src
           y `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
   where
@@ -111,7 +111,7 @@ headerLinesList' orig = do
                     writeIORef ref z
                     return y
     src' <- mkSource src
-    res <- headerLines src'
+    res <- headerLines True src'
     return (res, src')
 
 consumeLen :: Int -> Source -> IO S8.ByteString
