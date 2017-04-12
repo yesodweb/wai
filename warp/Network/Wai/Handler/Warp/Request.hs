@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 module Network.Wai.Handler.Warp.Request (
@@ -8,12 +9,14 @@ module Network.Wai.Handler.Warp.Request (
   , headerLines
   , pauseTimeoutKey
   , getFileInfoKey
+  , NoKeepAliveRequest (..)
   ) where
 
 import qualified Control.Concurrent as Conc (yield)
-import Control.Exception (throwIO)
+import Control.Exception (throwIO, Exception)
 import Data.Array ((!))
 import Data.ByteString (ByteString)
+import Data.Typeable (Typeable)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
@@ -46,7 +49,8 @@ maxTotalHeaderLength = 50 * 1024
 
 -- | Receiving a HTTP request from 'Connection' and parsing its header
 --   to create 'Request'.
-recvRequest :: Settings
+recvRequest :: Bool -- ^ first request on this connection?
+            -> Settings
             -> Connection
             -> InternalInfo1
             -> SockAddr -- ^ Peer's address.
@@ -61,8 +65,8 @@ recvRequest :: Settings
             -- 'IndexedHeader' of HTTP request for internal use,
             -- Body producing action used for flushing the request body
 
-recvRequest settings conn ii1 addr src = do
-    hdrlines <- headerLines src
+recvRequest firstRequest settings conn ii1 addr src = do
+    hdrlines <- headerLines firstRequest src
     (method, unparsedPath, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
         expect = idxhdr ! fromEnum ReqExpect
@@ -103,12 +107,20 @@ recvRequest settings conn ii1 addr src = do
 
 ----------------------------------------------------------------
 
-headerLines :: Source -> IO [ByteString]
-headerLines src = do
+headerLines :: Bool -> Source -> IO [ByteString]
+headerLines firstRequest src = do
     bs <- readSource src
     if S.null bs
-        then throwIO ConnectionClosedByPeer
+        -- When we're working on a keep-alive connection and trying to
+        -- get the second or later request, we don't want to treat the
+        -- lack of data as a real exception. See the http1 function in
+        -- the Run module for more details.
+        then if firstRequest then throwIO ConnectionClosedByPeer else throwIO NoKeepAliveRequest
         else push src (THStatus 0 id id) bs
+
+data NoKeepAliveRequest = NoKeepAliveRequest
+    deriving (Show, Typeable)
+instance Exception NoKeepAliveRequest
 
 ----------------------------------------------------------------
 

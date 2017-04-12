@@ -341,7 +341,7 @@ serveConnection conn ii1 origAddr transport settings app = do
         writeIORef istatus True
         leftoverSource src bs
         addr <- getProxyProtocolAddr src
-        http1 addr istatus src `E.catch` \e -> do
+        http1 True addr istatus src `E.catch` \e -> do
             sendErrorResponse addr istatus e
             throwIO (e :: SomeException)
   where
@@ -402,8 +402,8 @@ serveConnection conn ii1 origAddr transport settings app = do
 
     errorResponse e = settingsOnExceptionResponse settings e
 
-    http1 addr istatus src = do
-        (req', mremainingRef, idxhdr, nextBodyFlush, ii) <- recvRequest settings conn ii1 addr src
+    http1 firstRequest addr istatus src = do
+        (req', mremainingRef, idxhdr, nextBodyFlush, ii) <- recvRequest firstRequest settings conn ii1 addr src
         let req = req' { isSecure = isTransportSecure transport }
         keepAlive <- processRequest istatus src req mremainingRef idxhdr nextBodyFlush ii
             `E.catch` \e -> do
@@ -412,7 +412,16 @@ serveConnection conn ii1 origAddr transport settings app = do
                 settingsOnException settings (Just req) e
                 -- Don't throw the error again to prevent calling settingsOnException twice.
                 return False
-        when keepAlive $ http1 addr istatus src
+
+        -- When doing a keep-alive connection, the other side may just
+        -- close the connection. We don't want to treat that as an
+        -- exceptional situation, so we pass in False to http1 (which
+        -- in turn passes in False to recvRequest), indicating that
+        -- this is not the first request. If, when trying to read the
+        -- request headers, no data is available, recvRequest will
+        -- throw a NoKeepAliveRequest exception, which we catch here
+        -- and ignore. See: https://github.com/yesodweb/wai/issues/618
+        when keepAlive $ http1 False addr istatus src `E.catch` \NoKeepAliveRequest -> return ()
 
     processRequest istatus src req mremainingRef idxhdr nextBodyFlush ii = do
         -- Let the application run for as long as it wants
