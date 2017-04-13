@@ -1,3 +1,8 @@
+## 3.2.11.2
+
+* Don't throw exceptions when closing a keep-alive connection
+  [#618](https://github.com/yesodweb/wai/issues/618)
+
 ## 3.2.11.1
 
 * Move exception handling to top of thread (fixes
