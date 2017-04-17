@@ -27,6 +27,7 @@ testRange :: S.ByteString -- ^ range value
 testRange range out crange = it title $ withApp defaultSettings app $ \port -> do
     handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
     S.hPutStr handle "GET / HTTP/1.0\r\n"
+    S.hPutStr handle "Host: localhost\r\n"
     S.hPutStr handle "Range: bytes="
     S.hPutStr handle range
     S.hPutStr handle "\r\n\r\n"
@@ -53,7 +54,8 @@ testPartial :: Integer -- ^ file size
             -> Spec
 testPartial size offset count out = it title $ withApp defaultSettings app $ \port -> do
     handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
-    S.hPutStr handle "GET / HTTP/1.0\r\n\r\n"
+    S.hPutStr handle "GET / HTTP/1.0\r\n"
+    S.hPutStr handle "Host: localhost\r\n\r\n"
     hFlush handle
     threadDelay 10000
     bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ S.hGetSome handle 1024
