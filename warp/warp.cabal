@@ -175,7 +175,7 @@ Test-Suite spec
                    , hashable
                    , http-date
 
-  if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
+  if (os(linux) || os(freebsd) || os(darwin) || os(solaris2)) && flag(allow-sendfilefd)
     Cpp-Options:   -DSENDFILEFD
     Build-Depends: unix
   if os(windows)
