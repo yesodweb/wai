@@ -275,9 +275,6 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
 alpn :: [S.ByteString] -> IO S.ByteString
 alpn xs
   | "h2"    `elem` xs = return "h2"
-  | "h2-16" `elem` xs = return "h2-16"
-  | "h2-15" `elem` xs = return "h2-15"
-  | "h2-14" `elem` xs = return "h2-14"
   | otherwise         = return "http/1.1"
 
 ----------------------------------------------------------------
