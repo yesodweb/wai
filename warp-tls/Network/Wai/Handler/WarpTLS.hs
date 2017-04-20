@@ -102,7 +102,7 @@ data TLSSettings = TLSSettings {
     -- ^ The TLS ciphers this server accepts.
     --
     -- >>> tlsCiphers defaultTlsSettings
-    -- [ECDHE-RSA-AES128GCM-SHA256,DHE-RSA-AES128GCM-SHA256,DHE-RSA-AES256-SHA256,DHE-RSA-AES128-SHA256,DHE-RSA-AES256-SHA1,DHE-RSA-AES128-SHA1,DHE-DSA-AES128-SHA1,DHE-DSA-AES256-SHA1,RSA-aes128-sha1,RSA-aes256-sha1]
+    -- [ECDHE-ECDSA-AES256GCM-SHA384,ECDHE-ECDSA-AES128GCM-SHA256,ECDHE-RSA-AES256GCM-SHA384,ECDHE-RSA-AES128GCM-SHA256,DHE-RSA-AES256GCM-SHA384,DHE-RSA-AES128GCM-SHA256,ECDHE-ECDSA-AES256CBC-SHA384,ECDHE-RSA-AES256CBC-SHA384,DHE-RSA-AES256-SHA256,ECDHE-ECDSA-AES256CBC-SHA,ECDHE-RSA-AES256CBC-SHA,DHE-RSA-AES256-SHA1,RSA-AES256GCM-SHA384,RSA-AES256-SHA256,RSA-AES256-SHA1]
     --
     -- Since 1.4.2
   , tlsWantClientCert :: Bool
@@ -151,20 +151,7 @@ defaultTlsSettings = TLSSettings {
 
 -- taken from stunnel example in tls-extra
 ciphers :: [TLS.Cipher]
-ciphers =
-    [ TLSExtra.cipher_ECDHE_RSA_AES128GCM_SHA256
-    , TLSExtra.cipher_ECDHE_RSA_AES128CBC_SHA256
-    , TLSExtra.cipher_ECDHE_RSA_AES128CBC_SHA
-    , TLSExtra.cipher_DHE_RSA_AES128GCM_SHA256
-    , TLSExtra.cipher_DHE_RSA_AES256_SHA256
-    , TLSExtra.cipher_DHE_RSA_AES128_SHA256
-    , TLSExtra.cipher_DHE_RSA_AES256_SHA1
-    , TLSExtra.cipher_DHE_RSA_AES128_SHA1
-    , TLSExtra.cipher_DHE_DSS_AES128_SHA1
-    , TLSExtra.cipher_DHE_DSS_AES256_SHA1
-    , TLSExtra.cipher_AES128_SHA1
-    , TLSExtra.cipher_AES256_SHA1
-    ]
+ciphers = TLSExtra.ciphersuite_strong
 
 ----------------------------------------------------------------
 
@@ -279,14 +266,6 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
         TLS.supportedVersions       = tlsAllowedVersions
       , TLS.supportedCiphers        = tlsCiphers
       , TLS.supportedCompressions   = [TLS.nullCompression]
-      , TLS.supportedHashSignatures = [
-          -- Safari 8 and go tls have bugs on SHA 512 and SHA 384.
-          -- So, we don't specify them here at this moment.
-          (TLS.HashSHA256, TLS.SignatureRSA)
-        , (TLS.HashSHA224, TLS.SignatureRSA)
-        , (TLS.HashSHA1,   TLS.SignatureRSA)
-        , (TLS.HashSHA1,   TLS.SignatureDSS)
-        ]
       , TLS.supportedSecureRenegotiation = True
       , TLS.supportedClientInitiatedRenegotiation = False
       , TLS.supportedSession             = True
