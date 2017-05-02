@@ -28,8 +28,9 @@ import Network.Wai.Handler.Warp.Types
 {-# INLINE addHeader #-}
 addHeader :: Token -> ByteString -> ValueTable -> TokenHeaderList -> TokenHeaderList
 addHeader t v tbl ths = case getHeaderValue t tbl of
-    Nothing -> (t,v) : ths
-    Just _  -> ths
+    Nothing
+      | v /= "" -> (t,v) : ths
+    _           -> ths
 
 addNecessaryHeaders :: Context
                     -> Rspn
