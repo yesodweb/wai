@@ -431,9 +431,10 @@ warpVersion = showVersion Paths_warp.version
 
 addServer :: HeaderValue -> IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
 addServer serverName rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
-    Nothing
-      | serverName /= "" -> (H.hServer, serverName) : hdrs
-    _                    -> hdrs
+    Nothing                -> (H.hServer, serverName) : hdrs
+    Just serverName'
+      | S.null serverName' -> filter (\(x, _) -> x /= "Server") hdrs
+      | otherwise          -> hdrs
 
 ----------------------------------------------------------------
 
