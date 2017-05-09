@@ -5,15 +5,36 @@ module ResponseHeaderSpec (main, spec) where
 import Data.ByteString
 import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.ResponseHeader
+import Network.Wai.Handler.Warp.Response
+import Network.Wai.Handler.Warp.Header
 import Test.Hspec
 
 main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = describe "composeHeader" $ do
-    it "composes a HTTP header" $
-        composeHeader H.http11 H.ok200 headers `shouldReturn` composedHeader
+spec = do
+    describe "composeHeader" $ do
+        it "composes a HTTP header" $
+            composeHeader H.http11 H.ok200 headers `shouldReturn` composedHeader
+    describe "addServer" $ do
+        it "adds Server if not exist" $ do
+            let hdrs = []
+                rspidxhdr = indexResponseHeader hdrs
+            addServer "MyServer" rspidxhdr hdrs `shouldBe` [("Server","MyServer")]
+        it "does not add Server if exists" $ do
+            let hdrs = [("Server","MyServer")]
+                rspidxhdr = indexResponseHeader hdrs
+            addServer "MyServer2" rspidxhdr hdrs `shouldBe` hdrs
+        it "does not add Server if empty" $ do
+            let hdrs = []
+                rspidxhdr = indexResponseHeader hdrs
+            addServer "" rspidxhdr hdrs `shouldBe` hdrs
+        it "deletes Server " $ do
+            let hdrs = [("Server","MyServer")]
+                rspidxhdr = indexResponseHeader hdrs
+            addServer "" rspidxhdr hdrs `shouldBe` []
+
 
 headers :: H.ResponseHeaders
 headers = [
