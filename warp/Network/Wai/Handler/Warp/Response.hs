@@ -11,7 +11,7 @@ module Network.Wai.Handler.Warp.Response (
   , warpVersion
   , hasBody
   , replaceHeader
-  , addServer
+  , addServer -- testing
   ) where
 
 #ifndef MIN_VERSION_base
@@ -430,13 +430,14 @@ addDate getdate rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
 warpVersion :: String
 warpVersion = showVersion Paths_warp.version
 
+{-# INLINE addServer #-}
 addServer :: HeaderValue -> IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
 addServer "" rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
     Nothing -> hdrs
-    Just _  -> filter ((/= H.hServer) . fst) hdrs
+    _       -> filter ((/= H.hServer) . fst) hdrs
 addServer serverName rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
     Nothing -> (H.hServer, serverName) : hdrs
-    Just _  -> hdrs
+    _       -> hdrs
 
 ----------------------------------------------------------------
 
