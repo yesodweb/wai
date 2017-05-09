@@ -7,6 +7,9 @@ import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.ResponseHeader
 import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Header
+import Network.Wai.Handler.Warp.HTTP2.HPACK
+import Network.HPACK
+import Network.HPACK.Token
 import Test.Hspec
 
 main :: IO ()
@@ -34,7 +37,31 @@ spec = do
             let hdrs = [("Server","MyServer")]
                 rspidxhdr = indexResponseHeader hdrs
             addServer "" rspidxhdr hdrs `shouldBe` []
-
+    describe "addHeader" $ do
+        it "adds Server if not exist" $ do
+            let v = "MyServer"
+                hdrs = []
+                hdrs1 = [("Server",v)]
+            (thl, vt) <- toHeaderTable hdrs
+            (thl1, _) <- toHeaderTable hdrs1
+            addHeader tokenServer v vt thl `shouldBe` thl1
+        it "does not add Server if exists" $ do
+            let v = "MyServer2"
+                hdrs = [("Server","MyServer")]
+            (thl, vt) <- toHeaderTable hdrs
+            addHeader tokenServer v vt thl `shouldBe` thl
+        it "does not add Server if empty" $ do
+            let v = ""
+                hdrs = []
+            (thl, vt) <- toHeaderTable hdrs
+            addHeader tokenServer v vt thl `shouldBe` thl
+        it "deletes Server " $ do
+            let v = ""
+                hdrs = [("Server","MyServer")]
+                hdrs1 = []
+            (thl, vt) <- toHeaderTable hdrs
+            (thl1, _) <- toHeaderTable hdrs1
+            addHeader tokenServer v vt thl `shouldBe` thl1
 
 headers :: H.ResponseHeaders
 headers = [
