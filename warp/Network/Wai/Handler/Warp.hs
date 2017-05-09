@@ -302,7 +302,10 @@ getGracefulShutdownTimeout = settingsGracefulShutdownTimeout
 setInstallShutdownHandler :: (IO () -> IO ()) -> Settings -> Settings
 setInstallShutdownHandler x y = y { settingsInstallShutdownHandler = x }
 
--- | Default server name if application does not set one.
+-- | Default server name to be sent as the \"Server:\" header
+--   if an application does not set one.
+--   If an empty string is set, the \"Server:\" header is not sent.
+--   This is true even if an application set one.
 --
 -- Since 3.0.2
 setServerName :: ByteString -> Settings -> Settings
