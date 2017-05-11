@@ -1,3 +1,7 @@
+## 3.2.12
+
+* If an empty string is set by setServerName, the Server header is not included in response headers [#619](https://github.com/yesodweb/wai/issues/619)
+
 ## 3.2.11.2
 
 * Don't throw exceptions when closing a keep-alive connection
