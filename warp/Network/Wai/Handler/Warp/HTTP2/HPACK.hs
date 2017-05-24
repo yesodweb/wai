@@ -93,7 +93,6 @@ checkRequestHeader reqvt
   | mScheme     == Nothing      = False
   | mPath       == Nothing      = False
   | mPath       == Just ""      = False
-  | mAuthority  == Nothing      = False
   | mConnection /= Nothing      = False
   | just mTE (/= "trailers")    = False
   | otherwise                   = True
@@ -102,7 +101,6 @@ checkRequestHeader reqvt
     mScheme     = getHeaderValue tokenScheme reqvt
     mPath       = getHeaderValue tokenPath reqvt
     mMethod     = getHeaderValue tokenMethod reqvt
-    mAuthority  = getHeaderValue tokenAuthority reqvt
     mConnection = getHeaderValue tokenConnection reqvt
     mTE         = getHeaderValue tokenTE reqvt
 
