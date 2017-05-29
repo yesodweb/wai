@@ -234,7 +234,7 @@ control FrameWindowUpdate header bs Context{connectionWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
     !w <- atomically $ do
       w0 <- readTVar connectionWindow
-      let w1 = w0 + n
+      let !w1 = w0 + n
       writeTVar connectionWindow w1
       return w1
     when (isWindowOverflow w) $ E.throwIO $ ConnectionError FlowControlError "control window should be less than 2^31"
@@ -341,7 +341,7 @@ stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
     !w <- atomically $ do
       w0 <- readTVar streamWindow
-      let w1 = w0 + n
+      let !w1 = w0 + n
       writeTVar streamWindow w1
       return w1
     when (isWindowOverflow w) $
