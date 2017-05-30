@@ -23,10 +23,6 @@ import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.PackInt
 import Numeric (showInt)
 
-#ifndef MIN_VERSION_http_types
-#define MIN_VERSION_http_types(x,y,z) 1
-#endif
-
 -- $setup
 -- >>> import Test.QuickCheck
 
@@ -116,17 +112,10 @@ checkRange (H.ByteRangeSuffix count)   size = (max 0 (size - count), size - 1)
 
 ----------------------------------------------------------------
 
-contentRange :: H.HeaderName
-#if MIN_VERSION_http_types(0,9,0)
-contentRange = H.hContentRange
-#else
-contentRange = "Content-Range"
-#endif
-
 -- | @contentRangeHeader beg end total@ constructs a Content-Range 'H.Header'
 -- for the range specified.
 contentRangeHeader :: Integer -> Integer -> Integer -> H.Header
-contentRangeHeader beg end total = (contentRange, range)
+contentRangeHeader beg end total = (H.hContentRange, range)
   where
     range = B.pack
       -- building with ShowS
@@ -138,13 +127,6 @@ contentRangeHeader beg end total = (contentRange, range)
       ( '/'
       : showInt total "")
 
-acceptRange :: H.HeaderName
-#if MIN_VERSION_http_types(0,9,0)
-acceptRange = H.hAcceptRanges
-#else
-acceptRange = "Accept-Ranges"
-#endif
-
 addContentHeaders :: H.ResponseHeaders -> Integer -> Integer -> Integer -> H.ResponseHeaders
 addContentHeaders hs off len size
   | len == size = hs'
@@ -152,7 +134,7 @@ addContentHeaders hs off len size
                   in ctrng:hs'
   where
     !lengthBS = packIntegral len
-    !hs' = (H.hContentLength, lengthBS) : (acceptRange,"bytes") : hs
+    !hs' = (H.hContentLength, lengthBS) : (H.hAcceptRanges,"bytes") : hs
 
 -- |
 --

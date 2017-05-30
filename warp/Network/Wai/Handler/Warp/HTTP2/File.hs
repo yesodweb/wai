@@ -22,10 +22,6 @@ import Numeric (showInt)
 import Network.HPACK
 import Network.HPACK.Token
 
-#ifndef MIN_VERSION_http_types
-#define MIN_VERSION_http_types(x,y,z) 1
-#endif
-
 -- $setup
 -- >>> import Test.QuickCheck
 
