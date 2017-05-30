@@ -1,3 +1,8 @@
+## 3.2.13
+
+* Guarantee atomicity of WINDOW_UPDATE increments [622](https://github.com/yesodweb/wai/pull/622)
+* Relax HTTP2 headers check [621](https://github.com/yesodweb/wai/pull/621)
+
 ## 3.2.12
 
 * If an empty string is set by setServerName, the Server header is not included in response headers [#619](https://github.com/yesodweb/wai/issues/619)
