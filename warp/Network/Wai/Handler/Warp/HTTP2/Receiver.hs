@@ -232,9 +232,12 @@ control FrameGoAway _ _ Context{controlQ} = do
 
 control FrameWindowUpdate header bs Context{connectionWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    !w <- (n +) <$> atomically (readTVar connectionWindow)
+    !w <- atomically $ do
+      w0 <- readTVar connectionWindow
+      let !w1 = w0 + n
+      writeTVar connectionWindow w1
+      return w1
     when (isWindowOverflow w) $ E.throwIO $ ConnectionError FlowControlError "control window should be less than 2^31"
-    atomically $ writeTVar connectionWindow w
     return True
 
 control _ _ _ _ =
@@ -336,10 +339,13 @@ stream FrameContinuation FrameHeader{flags} frag ctx (Open (Continued rfrags siz
 
 stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    !w <- (n +) <$> atomically (readTVar streamWindow)
+    !w <- atomically $ do
+      w0 <- readTVar streamWindow
+      let !w1 = w0 + n
+      writeTVar streamWindow w1
+      return w1
     when (isWindowOverflow w) $
         E.throwIO $ StreamError FlowControlError streamId
-    atomically $ writeTVar streamWindow w
     return s
 
 stream FrameRSTStream header bs ctx _ strm = do
