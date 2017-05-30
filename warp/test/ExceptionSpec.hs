@@ -14,7 +14,7 @@ import Test.Hspec
 import Control.Exception
 import qualified Data.Streaming.Network as N
 import Control.Concurrent.Async (withAsync)
-import Network.Socket (sClose)
+import Network.Socket (close)
 
 import HTTP
 
@@ -24,7 +24,7 @@ main = hspec spec
 withTestServer :: (Int -> IO a) -> IO a
 withTestServer inner = bracket
     (N.bindRandomPortTCP "127.0.0.1")
-    (sClose . snd)
+    (close . snd)
     $ \(prt, lsocket) -> do
         withAsync (runSettingsSocket defaultSettings lsocket testApp)
             $ \_ -> inner prt

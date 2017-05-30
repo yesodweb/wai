@@ -19,7 +19,7 @@ import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, getSocketTCP, safeRecv)
 import Network (connectTo, PortID (PortNumber))
 import Network.HTTP.Types
-import Network.Socket (sClose)
+import Network.Socket (close)
 import Network.Socket.ByteString (sendAll)
 import Network.Wai
 import Network.Wai.Handler.Warp
@@ -84,7 +84,7 @@ getPort = do
     case esocket of
         Left (_ :: IOException) -> RunSpec.getPort
         Right socket -> do
-            sClose socket
+            close socket
             return port
 
 withApp :: Settings -> Application -> (Int -> IO a) -> IO a
