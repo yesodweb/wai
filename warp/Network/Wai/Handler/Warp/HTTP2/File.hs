@@ -6,12 +6,11 @@ module Network.Wai.Handler.Warp.HTTP2.File (
     RspFileInfo(..)
   , conditionalRequest
   , addContentHeadersForFilePart
-  , parseByteRanges
+  , H.parseByteRanges
   ) where
 
 import Control.Applicative ((<|>))
-import qualified Data.ByteString as B hiding (pack)
-import qualified Data.ByteString.Char8 as B (pack, readInteger)
+import qualified Data.ByteString.Char8 as B (pack)
 import Data.ByteString (ByteString)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Date
@@ -22,10 +21,6 @@ import Network.Wai.Handler.Warp.PackInt
 import Numeric (showInt)
 import Network.HPACK
 import Network.HPACK.Token
-
-#ifndef MIN_VERSION_http_types
-#define MIN_VERSION_http_types(x,y,z) 1
-#endif
 
 -- $setup
 -- >>> import Test.QuickCheck
@@ -104,7 +99,7 @@ unconditional reqtbl size = case getHeaderValue tokenRange reqtbl of
 
 {-# INLINE parseRange #-}
 parseRange :: ByteString -> Integer -> RspFileInfo
-parseRange rng size = case parseByteRanges rng of
+parseRange rng size = case H.parseByteRanges rng of
     Nothing    -> WithoutBody H.requestedRangeNotSatisfiable416
     Just []    -> WithoutBody H.requestedRangeNotSatisfiable416
     Just (r:_) -> let (!beg, !end) = checkRange r size
@@ -120,34 +115,6 @@ checkRange :: H.ByteRange -> Integer -> (Integer, Integer)
 checkRange (H.ByteRangeFrom   beg)     size = (beg, size - 1)
 checkRange (H.ByteRangeFromTo beg end) size = (beg,  min (size - 1) end)
 checkRange (H.ByteRangeSuffix count)   size = (max 0 (size - count), size - 1)
-
-{-# INLINE parseByteRanges #-}
--- | Parse the value of a Range header into a 'H.ByteRanges'.
-parseByteRanges :: B.ByteString -> Maybe H.ByteRanges
-parseByteRanges bs1 = do
-    bs2 <- stripPrefix "bytes=" bs1
-    (r, bs3) <- range bs2
-    ranges (r:) bs3
-  where
-    range bs2 = do
-        (i, bs3) <- B.readInteger bs2
-        if i < 0 -- has prefix "-" ("-0" is not valid, but here treated as "0-")
-            then Just (H.ByteRangeSuffix (negate i), bs3)
-            else do
-                bs4 <- stripPrefix "-" bs3
-                case B.readInteger bs4 of
-                    Just (j, bs5) | j >= i -> Just (H.ByteRangeFromTo i j, bs5)
-                    _ -> Just (H.ByteRangeFrom i, bs4)
-    ranges front bs3
-        | B.null bs3 = Just (front [])
-        | otherwise = do
-            bs4 <- stripPrefix "," bs3
-            (r, bs5) <- range bs4
-            ranges (front . (r:)) bs5
-
-    stripPrefix x y
-        | x `B.isPrefixOf` y = Just (B.drop (B.length x) y)
-        | otherwise = Nothing
 
 ----------------------------------------------------------------
 
