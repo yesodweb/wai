@@ -5,6 +5,7 @@ module Network.Wai.Test
     ( -- * Session
       Session
     , runSession
+    , runSessionWith, ClientState(..), initState
       -- * Client Cookies
     , ClientCookies
     , getClientCookies
@@ -109,6 +110,9 @@ initState = ClientState Map.empty
 
 runSession :: Session a -> Application -> IO a
 runSession session app = ST.evalStateT (runReaderT session app) initState
+
+runSessionWith :: ClientState -> Session a -> Application -> IO (a, ClientState)
+runSessionWith st session app = ST.runStateT (runReaderT session app) st
 
 data SRequest = SRequest
     { simpleRequest :: Request
@@ -337,4 +341,3 @@ assertClientCookieValue s cookieName cookieValue = do
           ]
         )
         (Cookie.setCookieValue c == cookieValue)
-
