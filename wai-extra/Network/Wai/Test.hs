@@ -5,7 +5,7 @@ module Network.Wai.Test
     ( -- * Session
       Session
     , runSession
-    , runSessionWith, ClientState(..), initState
+    , runSessionWith, initState
       -- * Client Cookies
     , ClientCookies
     , getClientCookies
@@ -40,6 +40,7 @@ import Data.Monoid (mempty, mappend)
 
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
+import Network.Wai.Test.Internal
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import qualified Control.Monad.Trans.State as ST
