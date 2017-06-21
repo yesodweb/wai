@@ -105,12 +105,21 @@ deleteClientCookie cookieName =
   modifyClientCookies
     (Map.delete cookieName)
 
+-- |
+--
+-- Since 3.0.20.0
 initState :: ClientState
 initState = ClientState Map.empty
 
 runSession :: Session a -> Application -> IO a
 runSession session app = ST.evalStateT (runReaderT session app) initState
 
+-- | Like 'runSession', but if allows you to hand in cookies and get
+-- the updated cookies back.  One use case for this is writing tests
+-- that address the application under test alternatingly through rest
+-- api and through db handle.
+--
+-- Since 3.0.20.0
 runSessionWith :: ClientState -> Session a -> Application -> IO (a, ClientState)
 runSessionWith st session app = ST.runStateT (runReaderT session app) st
 
