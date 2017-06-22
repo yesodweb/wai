@@ -5,7 +5,7 @@ module Network.Wai.Test
     ( -- * Session
       Session
     , runSession
-    , runSessionWith
+    , runSessionWith, initState
       -- * Client Cookies
     , ClientCookies
     , getClientCookies
@@ -40,6 +40,7 @@ import Data.Monoid (mempty, mappend)
 
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
+import Network.Wai.Test.Internal
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import qualified Control.Monad.Trans.State as ST
@@ -120,9 +121,8 @@ runSession session app = ST.evalStateT (runReaderT session app) initState
 -- api and through db handle.
 --
 -- Since 3.0.20.0
-runSessionWith :: ClientCookies -> Session a -> Application -> IO (a, ClientCookies)
-runSessionWith cookies session app = (\(result, cookies') -> (result, clientCookies cookies')) <$>
-  ST.runStateT (runReaderT session app) (ClientState cookies)
+runSessionWith :: ClientState -> Session a -> Application -> IO (a, ClientState)
+runSessionWith st session app = ST.runStateT (runReaderT session app) st
 
 data SRequest = SRequest
     { simpleRequest :: Request

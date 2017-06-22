@@ -1,6 +1,6 @@
 ## 3.0.20.0
 
-* runSessionWith (runSession variant that gives access to ClientCookies) [#629](https://github.com/yesodweb/wai/pull/629)
+* runSessionWith (runSession variant that gives access to ClientState) [#629](https://github.com/yesodweb/wai/pull/629)
 
 ## 3.0.19.1
 
