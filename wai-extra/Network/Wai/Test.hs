@@ -5,7 +5,6 @@ module Network.Wai.Test
     ( -- * Session
       Session
     , runSession
-    , runSessionWith, initState
       -- * Client Cookies
     , ClientCookies
     , getClientCookies
@@ -44,12 +43,11 @@ import Network.Wai.Test.Internal
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import qualified Control.Monad.Trans.State as ST
-import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
+import Control.Monad.Trans.Reader (runReaderT, ask)
 import Control.Monad (unless)
 import Control.DeepSeq (deepseq)
 import Control.Exception (throwIO, Exception)
 import Data.Typeable (Typeable)
-import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Web.Cookie as Cookie
 import Data.ByteString (ByteString)
@@ -65,17 +63,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.IORef
 import Data.Time.Clock (getCurrentTime)
-
-type Session = ReaderT Application (ST.StateT ClientState IO)
-
--- |
---
--- Since 3.0.6
-type ClientCookies = Map ByteString Cookie.SetCookie
-
-data ClientState = ClientState
-    { clientCookies :: ClientCookies
-    }
 
 -- |
 --
@@ -106,23 +93,9 @@ deleteClientCookie cookieName =
   modifyClientCookies
     (Map.delete cookieName)
 
--- |
---
--- Since 3.0.20.0
-initState :: ClientState
-initState = ClientState Map.empty
-
+-- | See also: 'runSessionWith'.
 runSession :: Session a -> Application -> IO a
 runSession session app = ST.evalStateT (runReaderT session app) initState
-
--- | Like 'runSession', but if allows you to hand in cookies and get
--- the updated cookies back.  One use case for this is writing tests
--- that address the application under test alternatingly through rest
--- api and through db handle.
---
--- Since 3.0.20.0
-runSessionWith :: ClientState -> Session a -> Application -> IO (a, ClientState)
-runSessionWith st session app = ST.runStateT (runReaderT session app) st
 
 data SRequest = SRequest
     { simpleRequest :: Request
