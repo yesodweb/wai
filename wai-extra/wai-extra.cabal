@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.0.19.1
+Version:             3.0.20.0
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
@@ -148,6 +148,7 @@ Library
                      Network.Wai.Request
                      Network.Wai.UrlMap
                      Network.Wai.Test
+                     Network.Wai.Test.Internal
                      Network.Wai.EventSource
                      Network.Wai.EventSource.EventStream
   other-modules:     Network.Wai.Middleware.RequestLogger.Internal
