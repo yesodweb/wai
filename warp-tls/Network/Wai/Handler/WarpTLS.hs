@@ -31,6 +31,7 @@ module Network.Wai.Handler.WarpTLS (
     , tlsWantClientCert
     , tlsServerHooks
     , tlsServerDHEParams
+    , tlsSessionManagerConfig
     , onInsecure
     , OnInsecure (..)
     -- * Runner
@@ -60,6 +61,7 @@ import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
 import qualified Crypto.PubKey.DH as DH
 import qualified Network.TLS.Extra as TLSExtra
+import qualified Network.TLS.SessionManager as SM
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal
@@ -129,6 +131,15 @@ data TLSSettings = TLSSettings {
     -- Default: Nothing
     --
     -- Since 3.2.2
+  , tlsSessionManagerConfig :: Maybe SM.Config
+    -- ^ Configuration for in-memory TLS session manager.
+    -- If Nothing, 'TLS.noSessionManager' is used.
+    -- Otherwise, an in-memory TLS session manager is created
+    -- according to 'Config'.
+    --
+    -- Default: Nothing
+    --
+    -- Since 3.2.4
   }
 
 -- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name (aka accessors).
@@ -147,6 +158,7 @@ defaultTlsSettings = TLSSettings {
   , tlsWantClientCert = False
   , tlsServerHooks = def
   , tlsServerDHEParams = Nothing
+  , tlsSessionManagerConfig = Nothing
   }
 
 -- taken from stunnel example in tls-extra
@@ -239,10 +251,13 @@ runTLSSocket tlsset@TLSSettings{..} set sock app = do
             key <- maybe (S.readFile keyFile) return mkey
             either error return $
               TLS.credentialLoadX509ChainFromMemory cert chainCertsMemory key
-    runTLSSocket' tlsset set credential sock app
+    mgr <- case tlsSessionManagerConfig of
+      Nothing     -> return TLS.noSessionManager
+      Just config -> SM.newSessionManager config
+    runTLSSocket' tlsset set credential mgr sock app
 
-runTLSSocket' :: TLSSettings -> Settings -> TLS.Credential -> Socket -> Application -> IO ()
-runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
+runTLSSocket' :: TLSSettings -> Settings -> TLS.Credential -> TLS.SessionManager -> Socket -> Application -> IO ()
+runTLSSocket' tlsset@TLSSettings{..} set credential mgr sock app =
     runSettingsConnectionMakerSecure set get app
   where
     get = getter tlsset sock params
@@ -260,7 +275,8 @@ runTLSSocket' tlsset@TLSSettings{..} set credential sock app =
           (if settingsHTTP2Enabled set then Just alpn else Nothing)
       }
     shared = def {
-        TLS.sharedCredentials = TLS.Credentials [credential]
+        TLS.sharedCredentials    = TLS.Credentials [credential]
+      , TLS.sharedSessionManager = mgr
       }
     supported = def { -- TLS.Supported
         TLS.supportedVersions       = tlsAllowedVersions
