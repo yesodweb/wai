@@ -122,10 +122,7 @@ resume reaper use k = do
 invalidate :: Reaper DB Item
            -> SessionID -> IO ()
 invalidate reaper k = do
-    -- repaerDelete does not exist
-    -- So, let's set the entry used and hope that it will be
-    -- cleaned in the future.
     db <- reaperRead reaper
     case Q.lookup k db of
-      Nothing          -> return ()
-      Just (_,(_,ref)) -> atomicModifyIORef' ref $ \_ -> (Used, ())
+      Nothing    -> return ()
+      Just (p,v) -> reaperAdd reaper (k,p,v,Del)
