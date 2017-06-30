@@ -48,6 +48,7 @@ type DB = OrdPSQ SessionID UTCTime Value
 type Item = (SessionID, UTCTime, Value, Operation)
 
 data Operation = Add | Del
+data Use = SingleUse | MultipleUse
 data Availability = Fresh | Used
 
 ----------------------------------------------------------------
@@ -65,7 +66,7 @@ newSessionManager conf = do
         , reaperDelay  = pruningDelay conf * 1000000
         }
     return SessionManager {
-        sessionResume     = resume reaper
+        sessionResume     = resume reaper MultipleUse
       , sessionEstablish  = establish reaper lifetime
       , sessionInvalidate = invalidate reaper
       }
@@ -101,16 +102,19 @@ establish reaper lifetime k sd = do
     let !v = (sd,ref)
     reaperAdd reaper (k,p,v,Add)
 
-resume :: Reaper DB Item
+resume :: Reaper DB Item -> Use
        -> SessionID -> IO (Maybe SessionData)
-resume reaper k = do
+resume reaper use k = do
     db <- reaperRead reaper
     case Q.lookup k db of
       Nothing             -> return Nothing
       Just (p,v@(sd,ref)) -> do
-          available <- atomicModifyIORef' ref check
-          reaperAdd reaper (k,p,v,Del)
-          return $ if available then Just sd else Nothing
+           case use of
+               SingleUse -> do
+                   available <- atomicModifyIORef' ref check
+                   reaperAdd reaper (k,p,v,Del)
+                   return $ if available then Just sd else Nothing
+               MultipleUse -> return $ Just sd
   where
     check Fresh = (Used,True)
     check Used  = (Used,False)
