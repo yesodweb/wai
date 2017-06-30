@@ -4,8 +4,8 @@
 --
 -- * Limitation: you can set the maximum size of the session data database.
 -- * Automatic pruning: old session data over their lifetime are pruned automatically.
--- * Replay resistance: each session data is used at most once to prevent replay attacks.
--- * Energy saving: no dedicate pruning thread is running when the size of session database is zero.
+-- * Energy saving: no dedicate pruning thread is running when the size of session data database is zero.
+-- * (Replay resistance: each session data is used at most once to prevent replay attacks against 0RTT early data of TLS 1.3.)
 
 module Network.TLS.SessionManager (
     Config(..)
