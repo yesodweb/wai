@@ -21,6 +21,7 @@ extra-deps:
 - http-types-0.9.1
 - x509-1.6.5
 - x509-validation-1.6.5
+- foundation-0.0.12
 nix:
   enable: false
   packages:
