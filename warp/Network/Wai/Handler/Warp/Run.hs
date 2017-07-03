@@ -518,11 +518,11 @@ wrappedRecvN th istatus slowlorisSize readN bufsize = do
     bs <- readN bufsize
     unless (S.null bs) $ do
         writeIORef istatus True
-	-- TODO: think about the slowloris protection in HTTP2: current code
-	-- might open a slow-loris attack vector. Rather than timing we should
-	-- consider limiting the per-client connections assuming that in HTTP2
-	-- we should allow only few connections per host (real-world
-	-- deployments with large NATs may be trickier).
+    -- TODO: think about the slowloris protection in HTTP2: current code
+    -- might open a slow-loris attack vector. Rather than timing we should
+    -- consider limiting the per-client connections assuming that in HTTP2
+    -- we should allow only few connections per host (real-world
+    -- deployments with large NATs may be trickier).
         when (S.length bs >= slowlorisSize || bufsize <= slowlorisSize) $ T.tickle th
     return bs
 
