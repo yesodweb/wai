@@ -74,7 +74,7 @@ newSessionManager conf = do
 
 cons :: Int -> Item -> DB -> DB
 cons lim (k,t,v,Add) db
-  | lim == 0            = Q.empty
+  | lim <= 0            = Q.empty
   | Q.size db == lim    = case Q.minView db of
       Nothing          -> assert False $ Q.insert k t v Q.empty
       Just (_,_,_,db') -> Q.insert k t v db'
