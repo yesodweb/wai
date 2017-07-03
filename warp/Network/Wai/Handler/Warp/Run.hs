@@ -331,12 +331,13 @@ serveConnection conn ii1 origAddr transport settings app = do
                        return (True, bs0)
                      else
                        return (False, bs0)
+    istatus <- newIORef False
     if settingsHTTP2Enabled settings && h2 then do
-        recvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
+        rawRecvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
+        let recvN = wrappedRecvN th istatus (settingsSlowlorisSize settings) rawRecvN
         -- fixme: origAddr
         http2 conn ii1 origAddr transport settings recvN app
       else do
-        istatus <- newIORef False
         src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
         writeIORef istatus True
         leftoverSource src bs
@@ -510,6 +511,19 @@ wrappedRecv Connection { connRecv = recv } th istatus slowlorisSize = do
     unless (S.null bs) $ do
         writeIORef istatus True
         when (S.length bs >= slowlorisSize) $ T.tickle th
+    return bs
+
+wrappedRecvN :: T.Handle -> IORef Bool -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
+wrappedRecvN th istatus slowlorisSize readN bufsize = do
+    bs <- readN bufsize
+    unless (S.null bs) $ do
+        writeIORef istatus True
+    -- TODO: think about the slowloris protection in HTTP2: current code
+    -- might open a slow-loris attack vector. Rather than timing we should
+    -- consider limiting the per-client connections assuming that in HTTP2
+    -- we should allow only few connections per host (real-world
+    -- deployments with large NATs may be trickier).
+        when (S.length bs >= slowlorisSize || bufsize <= slowlorisSize) $ T.tickle th
     return bs
 
 -- Copied from: https://github.com/mzero/plush/blob/master/src/Plush/Server/Warp.hs
