@@ -20,6 +20,7 @@ import Data.OrdPSQ (OrdPSQ)
 import qualified Data.OrdPSQ as Q
 import Data.Time (UTCTime, NominalDiffTime, getCurrentTime, addUTCTime)
 import Network.TLS (SessionID, SessionData, SessionManager(..))
+import Control.Exception (assert)
 
 ----------------------------------------------------------------
 
@@ -73,8 +74,9 @@ newSessionManager conf = do
 
 cons :: Int -> Item -> DB -> DB
 cons lim (k,t,v,Add) db
+  | lim == 0            = Q.empty
   | Q.size db == lim    = case Q.minView db of
-      Nothing          -> Q.insert k t v Q.empty -- not happens, just in case
+      Nothing          -> assert False $ Q.insert k t v Q.empty
       Just (_,_,_,db') -> Q.insert k t v db'
   | otherwise           = Q.insert k t v db
 cons _   (k,_,_,Del) db = Q.delete k db
