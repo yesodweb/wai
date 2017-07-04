@@ -1,5 +1,6 @@
 ## 3.2.13
 
+* Tickling HTTP/2 timer. [624](https://github.com/yesodweb/wai/pull/624)
 * Guarantee atomicity of WINDOW_UPDATE increments [622](https://github.com/yesodweb/wai/pull/622)
 * Relax HTTP2 headers check [621](https://github.com/yesodweb/wai/pull/621)
 
