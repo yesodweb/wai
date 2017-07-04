@@ -13,14 +13,15 @@ module Network.TLS.SessionManager (
   , newSessionManager
   ) where
 
+import Control.Exception (assert)
 import Control.Reaper
 import Data.IORef
+import Data.Int (Int64)
 import Data.List (foldl')
 import Data.OrdPSQ (OrdPSQ)
 import qualified Data.OrdPSQ as Q
-import Data.Time (UTCTime, NominalDiffTime, getCurrentTime, addUTCTime)
 import Network.TLS (SessionID, SessionData, SessionManager(..))
-import Control.Exception (assert)
+import qualified System.Clock as C
 
 ----------------------------------------------------------------
 
@@ -44,9 +45,10 @@ defaultConfig = Config {
 
 ----------------------------------------------------------------
 
+type Sec = Int64
 type Value = (SessionData, IORef Availability)
-type DB = OrdPSQ SessionID UTCTime Value
-type Item = (SessionID, UTCTime, Value, Operation)
+type DB = OrdPSQ SessionID Sec Value
+type Item = (SessionID, Sec, Value, Operation)
 
 data Operation = Add | Del
 data Use = SingleUse | MultipleUse
@@ -83,7 +85,7 @@ cons _   (k,_,_,Del) db = Q.delete k db
 
 clean :: DB -> IO (DB -> DB)
 clean olddb = do
-    currentTime <- getCurrentTime
+    currentTime <- C.sec <$> C.getTime C.Monotonic
     let !pruned = snd $ Q.atMostView currentTime olddb
     return $ merge pruned
   where
@@ -96,11 +98,11 @@ clean olddb = do
 
 ----------------------------------------------------------------
 
-establish :: Reaper DB Item -> NominalDiffTime
+establish :: Reaper DB Item -> Sec
           -> SessionID -> SessionData -> IO ()
 establish reaper lifetime k sd = do
     ref <- newIORef Fresh
-    !p <- addUTCTime lifetime <$> getCurrentTime
+    !p <- ((+ lifetime) . C.sec) <$> C.getTime C.Monotonic
     let !v = (sd,ref)
     reaperAdd reaper (k,p,v,Add)
 
