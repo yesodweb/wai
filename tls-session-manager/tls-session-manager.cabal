@@ -23,7 +23,7 @@ library
                      , auto-update
                      , time
                      , tls
-                     , psqueues
+                     , psqueues >= 0.2.3
   -- hs-source-dirs:
   default-language:    Haskell2010
   ghc-options:       -Wall
