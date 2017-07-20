@@ -1,5 +1,10 @@
 {-|
     A WAI adapter to the HTML5 Server-Sent Events API.
+
+    If running through a proxy like Nginx you might need to add the
+    headers:
+
+    > [ ("X-Accel-Buffering", "no"), ("Cache-Control", "no-cache")]
 -}
 module Network.Wai.EventSource (
     ServerEvent(..),
