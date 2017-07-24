@@ -1,5 +1,5 @@
 name:                tls-session-manager
-version:             0.0.0.0
+version:             0.0.0.1
 synopsis:            In-memory TLS session manager
 description:         TLS session manager with limitation, automatic pruning, energy saving and replay resistance
 license:             BSD3
