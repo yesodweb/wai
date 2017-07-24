@@ -22,6 +22,7 @@ extra-deps:
 - x509-1.6.5
 - x509-validation-1.6.5
 - foundation-0.0.12
+- tls-session-manager-0.0.0.1
 nix:
   enable: false
   packages:
