@@ -15,6 +15,7 @@ import qualified Control.Exception as E
 import Control.Monad (when, unless, void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import Data.IORef
 import Network.HPACK
 import Network.HPACK.Token
 import Network.HTTP2
@@ -23,7 +24,6 @@ import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.HPACK
 import Network.Wai.Handler.Warp.HTTP2.Request
 import Network.Wai.Handler.Warp.HTTP2.Types
-import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Types
 

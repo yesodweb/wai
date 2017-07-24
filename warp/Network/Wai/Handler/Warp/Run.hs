@@ -20,7 +20,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import Data.Char (chr)
 import "iproute" Data.IP (toHostAddress, toHostAddress6)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef')
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno(..), eCONNABORTED)
 import GHC.IO.Exception (IOException(..))
@@ -35,7 +35,6 @@ import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.HTTP2 (http2, isHTTP2)
 import Network.Wai.Handler.Warp.Header
-import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.Request

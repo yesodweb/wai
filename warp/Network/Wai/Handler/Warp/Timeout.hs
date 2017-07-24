@@ -27,8 +27,8 @@ import Control.Concurrent (myThreadId)
 import qualified Control.Exception as E
 import Control.Reaper
 import Data.Typeable (Typeable)
-import Network.Wai.Handler.Warp.IORef (IORef)
-import qualified Network.Wai.Handler.Warp.IORef as I
+import Data.IORef (IORef)
+import qualified Data.IORef as I
 
 ----------------------------------------------------------------
 
