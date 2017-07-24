@@ -19,9 +19,6 @@ module Network.Wai.Handler.Warp.Response (
 #endif
 
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-#endif
 import qualified Control.Exception as E
 import Control.Monad (unless, when)
 import Data.Array ((!))

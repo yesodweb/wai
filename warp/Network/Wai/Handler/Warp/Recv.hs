@@ -9,9 +9,6 @@ module Network.Wai.Handler.Warp.Recv (
   , spell
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-#endif
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..))

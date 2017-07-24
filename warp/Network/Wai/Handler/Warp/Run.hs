@@ -9,9 +9,6 @@
 
 module Network.Wai.Handler.Warp.Run where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-#endif
 import Control.Arrow (first)
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception as E
@@ -70,11 +67,6 @@ socketConnection s = do
       , connWriteBuffer = writeBuf
       , connBufferSize = bufferSize
       }
-
-#if __GLASGOW_HASKELL__ < 702
-allowInterrupt :: IO ()
-allowInterrupt = unblock $ return ()
-#endif
 
 -- | Run an 'Application' on the given port.
 -- This calls 'runSettings' with 'defaultSettings'.

@@ -4,9 +4,6 @@
 
 module Network.Wai.Handler.Warp.HTTP2.Types where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>),(<*>))
-#endif
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Exception (SomeException, bracket)

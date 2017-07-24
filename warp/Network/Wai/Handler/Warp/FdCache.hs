@@ -14,9 +14,6 @@ module Network.Wai.Handler.Warp.FdCache (
   ) where
 
 #ifndef WINDOWS
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>), (<*>))
-#endif
 import Control.Exception (bracket)
 import Control.Reaper
 import Data.IORef

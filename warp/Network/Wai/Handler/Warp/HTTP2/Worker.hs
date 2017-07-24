@@ -11,10 +11,6 @@ module Network.Wai.Handler.Warp.HTTP2.Worker (
   , worker
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-import Data.Monoid (mempty)
-#endif
 import Control.Applicative ((<|>))
 import Control.Concurrent.STM
 import Control.Exception (SomeException(..), AsyncException(..))

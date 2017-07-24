@@ -4,9 +4,6 @@
 
 module Network.Wai.Handler.Warp.HTTP2.Sender (frameSender) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-#endif
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (void, when)
