@@ -16,7 +16,7 @@ library
   exposed-modules:     Network.TLS.SessionManager
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >= 4.9 && < 5
+  build-depends:       base >= 4.7 && < 5
                      , auto-update
                      , clock
                      , psqueues >= 0.2.3
