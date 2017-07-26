@@ -4,22 +4,19 @@
 
 module Network.Wai.Handler.Warp.HTTP2.Types where
 
-import Data.ByteString.Builder (Builder)
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>),(<*>))
-#endif
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Exception (SomeException, bracket)
 import Control.Monad (void, forM_)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import Data.ByteString.Builder (Builder)
+import Data.IORef
 import Data.IntMap.Strict (IntMap, IntMap)
 import qualified Data.IntMap.Strict as M
 import qualified Network.HTTP.Types as H
 import Network.Wai (Request, FilePart)
 import Network.Wai.Handler.Warp.HTTP2.Manager
-import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.Types
 
 import Network.HTTP2

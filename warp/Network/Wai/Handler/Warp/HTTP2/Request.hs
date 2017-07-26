@@ -13,6 +13,7 @@ import Control.Applicative ((<|>))
 import Control.Arrow (first)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
+import Data.IORef
 import Data.Maybe (fromJust)
 import qualified Data.Vault.Lazy as Vault
 import Network.HPACK
@@ -22,7 +23,6 @@ import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.HashMap (hashByteString)
-import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.Request (pauseTimeoutKey, getFileInfoKey)
 import qualified Network.Wai.Handler.Warp.Settings as S (Settings, settingsNoParsePath)
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout

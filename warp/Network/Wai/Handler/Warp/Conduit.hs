@@ -7,9 +7,6 @@ import Control.Monad (when, unless)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.IORef as I
-#if __GLASGOW_HASKELL__ < 709
-import Data.Word (Word)
-#endif
 import Data.Word (Word8)
 import Network.Wai.Handler.Warp.Types
 

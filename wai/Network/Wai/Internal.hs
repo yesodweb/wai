@@ -9,9 +9,6 @@ module Network.Wai.Internal where
 
 import           Blaze.ByteString.Builder     (Builder)
 import qualified Data.ByteString              as B hiding (pack)
-#if __GLASGOW_HASKELL__ < 709
-import           Data.Functor                 ((<$>))
-#endif
 import           Data.Text                    (Text)
 import           Data.Typeable                (Typeable)
 import           Data.Vault.Lazy              (Vault)

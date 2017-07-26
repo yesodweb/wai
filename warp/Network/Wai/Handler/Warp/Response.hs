@@ -14,14 +14,7 @@ module Network.Wai.Handler.Warp.Response (
   , addServer -- testing
   ) where
 
-#ifndef MIN_VERSION_base
-#define MIN_VERSION_base(x,y,z) 1
-#endif
-
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-#endif
 import qualified Control.Exception as E
 import Control.Monad (unless, when)
 import Data.Array ((!))
@@ -34,14 +27,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Maybe
-#if MIN_VERSION_base(4,5,0)
-# if __GLASGOW_HASKELL__ < 709
-import Data.Monoid (mempty)
-# endif
 import Data.Monoid ((<>))
-#else
-import Data.Monoid (mappend, mempty)
-#endif
 import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy)
 import Data.Version (showVersion)
 import Data.Word8 (_cr, _lf)
@@ -59,11 +45,6 @@ import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
 import qualified Paths_warp
-
-#if !MIN_VERSION_base(4,5,0)
-(<>) :: Monoid m => m -> m -> m
-(<>) = mappend
-#endif
 
 -- $setup
 -- >>> :set -XOverloadedStrings

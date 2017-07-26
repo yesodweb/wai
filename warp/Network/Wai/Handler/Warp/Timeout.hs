@@ -27,8 +27,8 @@ import Control.Concurrent (myThreadId)
 import qualified Control.Exception as E
 import Control.Reaper
 import Data.Typeable (Typeable)
-import Network.Wai.Handler.Warp.IORef (IORef)
-import qualified Network.Wai.Handler.Warp.IORef as I
+import Data.IORef (IORef)
+import qualified Data.IORef as I
 
 ----------------------------------------------------------------
 
@@ -112,10 +112,8 @@ registerKillThread m onTimeout = do
 data TimeoutThread = TimeoutThread
     deriving Typeable
 instance E.Exception TimeoutThread where
-#if MIN_VERSION_base(4,7,0)
     toException = E.asyncExceptionToException
     fromException = E.asyncExceptionFromException
-#endif
 instance Show TimeoutThread where
     show TimeoutThread = "Thread killed by Warp's timeout reaper"
 

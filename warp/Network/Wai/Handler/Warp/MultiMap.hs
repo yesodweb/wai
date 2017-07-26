@@ -13,9 +13,6 @@ module Network.Wai.Handler.Warp.MultiMap (
   , merge
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-#endif
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as I
 import qualified Network.Wai.Handler.Warp.Some as S

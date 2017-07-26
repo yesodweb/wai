@@ -33,13 +33,12 @@ Flag warp-debug
     Default:     False
 
 Library
-  Build-Depends:     base                      >= 3        && < 5
+  Build-Depends:     base                      >= 4.8        && < 5
                    , array
                    , async
                    , auto-update               >= 0.1.3    && < 0.2
                    , blaze-builder             >= 0.4
                    , bytestring                >= 0.9.1.4
-                   , bytestring-builder
                    , case-insensitive          >= 0.2
                    , containers
                    , ghc-prim
@@ -83,7 +82,6 @@ Library
                      Network.Wai.Handler.Warp.HTTP2.Worker
                      Network.Wai.Handler.Warp.Header
                      Network.Wai.Handler.Warp.IO
-                     Network.Wai.Handler.Warp.IORef
                      Network.Wai.Handler.Warp.PackInt
                      Network.Wai.Handler.Warp.ReadInt
                      Network.Wai.Handler.Warp.Recv
@@ -118,7 +116,7 @@ Test-Suite doctest
   HS-Source-Dirs:       test
   Ghc-Options:          -threaded -Wall
   Main-Is:              doctests.hs
-  Build-Depends:        base
+  Build-Depends:        base >= 4.8 && < 5
                       , doctest >= 0.10.1
 
 Test-Suite spec
@@ -140,12 +138,11 @@ Test-Suite spec
     Type:            exitcode-stdio-1.0
 
     Ghc-Options:     -Wall
-    Build-Depends:   base >= 4 && < 5
+    Build-Depends:   base >= 4.8 && < 5
                    , array
                    , auto-update
                    , blaze-builder             >= 0.4
                    , bytestring                >= 0.9.1.4
-                   , bytestring-builder
                    , case-insensitive          >= 0.2
                    , ghc-prim
                    , HTTP
@@ -185,7 +182,7 @@ Benchmark parser
     Type:           exitcode-stdio-1.0
     Main-Is:        Parser.hs
     HS-Source-Dirs: bench .
-    Build-Depends:  base
+    Build-Depends:  base >= 4.8 && < 5
                   , auto-update
                   , bytestring
                   , containers

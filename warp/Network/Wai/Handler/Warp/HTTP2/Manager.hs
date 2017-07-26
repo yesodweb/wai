@@ -13,16 +13,13 @@ module Network.Wai.Handler.Warp.HTTP2.Manager (
   , deleteMyId
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-#endif
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad (void)
+import Data.Foldable
+import Data.IORef
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Foldable
-import Network.Wai.Handler.Warp.IORef
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 

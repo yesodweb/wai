@@ -11,30 +11,26 @@ module Network.Wai.Handler.Warp.HTTP2.Worker (
   , worker
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-import Data.Monoid (mempty)
-#endif
 import Control.Applicative ((<|>))
-import Data.Maybe (fromJust)
 import Control.Concurrent.STM
 import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
 import Control.Monad (when)
 import Data.ByteString.Builder (byteString)
+import Data.IORef
+import Data.Maybe (fromJust)
+import Network.HPACK
+import Network.HPACK.Token
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.HPACK
-import Network.HPACK.Token
 import Network.Wai
 import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.File
 import Network.Wai.Handler.Warp.HTTP2.Manager
-import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.HTTP2.Request
-import Network.Wai.Handler.Warp.IORef
+import Network.Wai.Handler.Warp.HTTP2.Types
 import qualified Network.Wai.Handler.Warp.Response as R
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T

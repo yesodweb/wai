@@ -10,9 +10,6 @@ import Control.Monad (when, void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Builder (byteString)
-#if __GLASGOW_HASKELL__ < 709
-import Data.Monoid (mappend)
-#endif
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO

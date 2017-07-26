@@ -4,7 +4,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE CPP #-}
 
 -- | HTTP over TLS support for Warp via the TLS package.
 --
@@ -43,9 +42,6 @@ module Network.Wai.Handler.WarpTLS (
     , DH.generateParams
     ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-#endif
 import Control.Applicative ((<|>))
 import Control.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException, SomeException(..))
 import qualified Control.Exception as E
