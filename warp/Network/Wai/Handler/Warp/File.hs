@@ -34,12 +34,17 @@ data RspFileInfo = WithoutBody H.Status
 ----------------------------------------------------------------
 
 conditionalRequest :: I.FileInfo
-                   -> H.ResponseHeaders -> IndexedHeader
+                   -> H.ResponseHeaders
+                   -> IndexedHeader -- Response
+                   -> IndexedHeader -- Request
                    -> RspFileInfo
-conditionalRequest finfo hs0 reqidx = case condition of
+conditionalRequest finfo hs0 rspidx reqidx = case condition of
     nobody@(WithoutBody _) -> nobody
-    WithBody s _ off len   -> let !hs = (H.hLastModified,date) :
-                                        addContentHeaders hs0 off len size
+    WithBody s _ off len   -> let !hs1 = addContentHeaders hs0 off len size
+                                  !hasLM = isJust $ rspidx ! fromEnum ResLastModified
+                                  !hs
+                                    | hasLM     = hs1
+                                    | otherwise = (H.hLastModified,date) : hs1
                               in WithBody s hs off len
   where
     !mtime = I.fileInfoTime finfo

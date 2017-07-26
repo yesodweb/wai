@@ -21,7 +21,7 @@ testFileRange desc reqhs file ans = it desc $ do
     let WithBody s hs off len = ans
         hs' = ("Last-Modified",fileInfoDate finfo) : hs
         ans' = WithBody s hs' off len
-    conditionalRequest finfo [] (indexRequestHeader reqhs) `shouldBe` ans'
+    conditionalRequest finfo [] (indexResponseHeader hs) (indexRequestHeader reqhs) `shouldBe` ans'
 
 spec :: Spec
 spec = do
