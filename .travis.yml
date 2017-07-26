@@ -183,7 +183,7 @@ install:
       # Due to dependency on wai-logger (which depends on some packages here),
       # we can't build just dependencies
       #
-      # cabal install --only-dependencies --enable-tests --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 $CABALARGS $PACKAGES
+      # cabal install --only-dependencies --enable-tests --force-reinstalls --ghc-options=-O0 --max-backjumps=-1 $CABALARGS $PACKAGES
       cabal install hspec-discover
       ;;
   esac
@@ -197,7 +197,7 @@ script:
       stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
       ;;
     cabal)
-      cabal install --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 $CABALARGS $PACKAGES
+      cabal install --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --max-backjumps=-1 $CABALARGS $PACKAGES
 
       ORIGDIR=$(pwd)
       for dir in $PACKAGES
