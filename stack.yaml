@@ -1,5 +1,7 @@
 resolver: lts-4.1
 packages:
+- ./auto-update
+- ./mime-types
 - ./wai
 - ./wai-extra
 - ./warp
@@ -9,8 +11,7 @@ packages:
 - ./wai-handler-launch
 - ./wai-websockets
 - ./wai-conduit
-- ./mime-types
-- ./auto-update
+- ./tls-session-manager
 extra-deps:
 - http2-1.6.0
 - cryptonite-0.23
@@ -22,7 +23,6 @@ extra-deps:
 - x509-1.6.5
 - x509-validation-1.6.5
 - foundation-0.0.12
-- tls-session-manager-0.0.0.1
 - psqueues-0.2.3.0
 nix:
   enable: false
