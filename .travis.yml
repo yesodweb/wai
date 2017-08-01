@@ -155,6 +155,9 @@ install:
   set -ex
   case "$BUILD" in
     stack)
+      # Avoid out of memory condition
+      stack --no-terminal --install-ghc $ARGS build Cabal
+
       stack --no-terminal --install-ghc $ARGS test --bench --only-dependencies
       ;;
     cabal)
