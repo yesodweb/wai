@@ -11,6 +11,6 @@ There is a small example using Server-Sent Events (SSE) in the
 Run the commands below to start the server on http://localhost:8080
 
 ```
-$ cabal configure -f build-example
-$ cabal run
+$ stack build .
+$ stack exec example
 ```
