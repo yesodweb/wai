@@ -81,6 +81,11 @@ extra-source-files:
   ChangeLog.md
   README.md
 
+flag build-example
+  description:        Build example executable.
+  manual:             True
+  default:            False
+
 Library
   Build-Depends:     base                      >= 4.6 && < 5
                    , bytestring                >= 0.9.1.4
@@ -154,6 +159,22 @@ Library
   other-modules:     Network.Wai.Middleware.RequestLogger.Internal
   default-language:          Haskell2010
   ghc-options:       -Wall
+
+executable example
+  hs-source-dirs:      example
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
+  if flag(build-example)
+    build-depends:     base
+                     , wai-extra
+                     , warp
+                     , wai
+                     , time
+                     , http-types
+                     , blaze-builder
+  else
+    buildable: False
+  default-language:    Haskell2010
 
 test-suite spec
     type:            exitcode-stdio-1.0

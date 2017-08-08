@@ -11,6 +11,9 @@ packages:
 - ./wai-websockets
 - ./wai-conduit
 - ./tls-session-manager
+flags:
+  wai-extra:
+    build-example: true
 extra-deps:
 - http2-1.6.0
 - cryptonite-0.23
