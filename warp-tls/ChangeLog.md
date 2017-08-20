@@ -1,3 +1,7 @@
+## 3.2.4.1
+
+* Ignore socket errors while sending `close_notify` [#640](https://github.com/yesodweb/wai/issues/640)
+
 ## 3.2.2
 
 * New settting parameter: tlsServerDHEParams [#556](https://github.com/yesodweb/wai/pull/556)
