@@ -377,6 +377,12 @@ spec = do
             res <- sendGET $ "http://127.0.0.1:" ++ show port
             rspBody res `shouldBe` "HelloHelloHelloHello"
 
+    it "file with non-200 status #644" $ do
+        let app _ f = f $ responseFile status404 [] "attic/test.txt" Nothing
+        withApp defaultSettings app $ \port -> do
+          res <- sendHEAD $ "http://127.0.0.1:" ++ show port
+          rspCode res `shouldBe` (4, 0, 4)
+
     describe "head requests" $ do
         let fp = "test/head-response"
         let app req f =
