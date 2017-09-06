@@ -1,4 +1,4 @@
-resolver: lts-4.1
+resolver: lts-9.0
 packages:
 - ./auto-update
 - ./mime-types
