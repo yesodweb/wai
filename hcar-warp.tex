@@ -1,7 +1,7 @@
 % Warp-KW.tex
 \begin{hcarentry}[updated]{Warp}
 \label{warp}
-\report{Kazu Yamamoto}%05/17
+\report{Kazu Yamamoto}%11/17
 \participants{Michael Snoyman}
 \status{stable}
 \makeheader
@@ -9,7 +9,9 @@
 Warp is a high performance, easy to deploy HTTP handler for WAI~\cref{wai}.
 Its supports both HTTP/1.1 and HTTP/2.
 
-Since the last HCAR, Warp improved some exception handling.
+Since the last HCAR, some bugs of Warp have been fixed.
+Also, Warp TLS incorporated the tls-session-manager package
+which enables TLS session cache in the server side.
 
 \FurtherReading
 \begin{compactitem}
