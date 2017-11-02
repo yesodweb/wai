@@ -7,7 +7,7 @@
 \makeheader
 
 WAI (Web Application Interface) is an application interface between web
-applications and handlers in Haskell.  The \texttt{Application} data type is
+applications and handlers in Haskell. The \texttt{Application} data type is
 defined as follows:
 
 \begin{verbatim}
@@ -24,14 +24,14 @@ response to the function.
 
 Historically speaking, this interface made possible to develop handlers other
 than HTTP.  The WAI applications can run through FastCGI
-(wai-handler-fastcgi), run as stand-alone (wai-handler-webkit), etc.  But the
-most popular handler is based on HTTP, of course.  The major HTTP handler for
+(wai-handler-fastcgi), run as stand-alone (wai-handler-webkit), etc. But the
+most popular handler is based on HTTP, of course. The major HTTP handler for
 WAI is Warp which now provides both HTTP/1.1 and HTTP/2. TLS (warp-tls) is
-also available.  New transports such as WebSocket (wai-websocket) and Event
+also available. New transports such as WebSocket (wai-websocket) and Event
 Source (wai-extra) can be implemented, too.
 
-It is possible to develop WAI applications directly.  For instance, Hoogle and
-Mighttpd2 take this way.  However, you may want to use web application
+It is possible to develop WAI applications directly. For instance, Hoogle and
+Mighttpd2 take this way. However, you may want to use web application
 frameworks such as Apiary, MFlow, rest, Servant, Scotty, Spock, Yesod, etc.
 
 WAI also provides \texttt{Middleware}:
