@@ -1,5 +1,3 @@
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE CPP #-}
 {-|
 
 This module defines a generic web application interface. It is a common
