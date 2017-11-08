@@ -1,7 +1,5 @@
 {-# OPTIONS_HADDOCK not-home #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 -- | Internal constructors and helper functions. Note that no guarantees are
 -- given for stability of these interfaces.
