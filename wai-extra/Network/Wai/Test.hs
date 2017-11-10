@@ -176,6 +176,7 @@ srequest (SRequest req bod) = do
                 case bss of
                     [] -> ([], S.empty)
                     x:y -> (y, x)
+            , requestBodyLength = ChunkedBody
             }
     req'' <- addCookiesToRequest req'
     response <- liftIO $ do
