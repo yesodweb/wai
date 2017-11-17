@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.RequestSpec
     ( main
     , spec

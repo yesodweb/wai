@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.TestSpec (main, spec) where
 
 import           Control.Monad (void)

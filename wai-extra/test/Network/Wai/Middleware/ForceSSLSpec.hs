@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.Middleware.ForceSSLSpec
     ( main
     , spec
