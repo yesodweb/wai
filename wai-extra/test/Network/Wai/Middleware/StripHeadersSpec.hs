@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.Middleware.StripHeadersSpec
     ( main
     , spec

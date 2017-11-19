@@ -205,6 +205,7 @@ test-suite spec
                    , time
                    , case-insensitive
     ghc-options:     -Wall
+    default-extensions:        OverloadedStrings
     default-language:          Haskell2010
 
 source-repository head

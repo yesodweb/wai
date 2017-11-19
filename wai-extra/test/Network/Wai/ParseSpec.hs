@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.ParseSpec (main, spec) where
 
 import           Test.Hspec
