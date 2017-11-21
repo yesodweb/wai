@@ -1,3 +1,7 @@
+## 3.0.20.1
+
+* Set `requestBodyLength` for `srequest` [#654](https://github.com/yesodweb/wai/pull/654)
+
 ## 3.0.20.0
 
 * runSessionWith (runSession variant that gives access to ClientState) [#629](https://github.com/yesodweb/wai/pull/629)
