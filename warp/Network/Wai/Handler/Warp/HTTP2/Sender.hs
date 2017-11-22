@@ -56,7 +56,7 @@ waitStreamWindowSize Stream{streamWindow} = atomically $ do
 waitStreaming :: TBQueue a -> IO ()
 waitStreaming tbq = atomically $ do
     isEmpty <- isEmptyTBQueue tbq
-    check (isEmpty == False)
+    check (not isEmpty)
 
 data Switch = C Control
             | O (StreamId,Precedence,Output)

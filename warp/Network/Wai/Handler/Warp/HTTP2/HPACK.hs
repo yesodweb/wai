@@ -87,13 +87,13 @@ hpackDecodeHeader hdrblk Context{..} = do
 {-# INLINE checkRequestHeader #-}
 checkRequestHeader :: ValueTable -> Bool
 checkRequestHeader reqvt
-  | just mMethod (== "CONNECT") = mPath == Nothing && mScheme == Nothing
-  | mStatus     /= Nothing      = False
-  | mMethod     == Nothing      = False
-  | mScheme     == Nothing      = False
-  | mPath       == Nothing      = False
+  | just mMethod (== "CONNECT") = isNothing mPath && isNothing mScheme
+  | isJust mStatus              = False
+  | isNothing mMethod           = False
+  | isNothing mScheme           = False
+  | isNothing mPath             = False
   | mPath       == Just ""      = False
-  | mConnection /= Nothing      = False
+  | isJust mConnection          = False
   | just mTE (/= "trailers")    = False
   | otherwise                   = True
   where
