@@ -8,7 +8,7 @@ import Control.Concurrent (forkIOWithUnmask)
 import Control.Exception
 import Control.Monad (when, void)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Builder (byteString)
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Text as T
@@ -135,7 +135,7 @@ defaultSettings = Settings
     , settingsFork = void . forkIOWithUnmask
     , settingsNoParsePath = False
     , settingsInstallShutdownHandler = const $ return ()
-    , settingsServerName = S8.pack $ "Warp/" ++ showVersion Paths_warp.version
+    , settingsServerName = C8.pack $ "Warp/" ++ showVersion Paths_warp.version
     , settingsMaximumBodyFlush = Just 8192
     , settingsProxyProtocol = ProxyProtocolNone
     , settingsSlowlorisSize = 2048
@@ -184,4 +184,4 @@ exceptionResponseForDebug :: SomeException -> Response
 exceptionResponseForDebug e =
     responseBuilder H.internalServerError500
                     [(H.hContentType, "text/plain; charset=utf-8")]
-                    $ byteString . S8.pack $ "Exception: " ++ show e
+                    $ byteString . C8.pack $ "Exception: " ++ show e

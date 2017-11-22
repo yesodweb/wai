@@ -8,7 +8,7 @@ module Network.Wai.Handler.Warp.RequestHeader (
 import Control.Exception (throwIO)
 import Control.Monad (when)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as B (unpack)
+import qualified Data.ByteString.Char8 as C8 (unpack)
 import Data.ByteString.Internal (ByteString(..), memchr)
 import qualified Data.CaseInsensitive as CI
 import Data.Word (Word8)
@@ -89,7 +89,7 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
 
     return (method,path,query,hv)
   where
-    baderr = BadFirstLine $ B.unpack requestLine
+    baderr = BadFirstLine $ C8.unpack requestLine
     check :: Ptr Word8 -> Int -> Word8 -> IO ()
     check p n w = do
         w0 <- peek $ p `plusPtr` n

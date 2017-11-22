@@ -20,7 +20,7 @@ import Control.Monad (unless, when)
 import Data.Array ((!))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Builder (byteString, Builder)
 import Data.ByteString.Builder.Extra (flush)
 import qualified Data.CaseInsensitive as CI
@@ -175,11 +175,11 @@ containsNewlines = S.any (\w -> w == _cr || w == _lf)
 
 {-# INLINE sanitizeHeaderValue #-}
 sanitizeHeaderValue :: ByteString -> ByteString
-sanitizeHeaderValue v = case S8.lines $ S.filter (/= _cr) v of
+sanitizeHeaderValue v = case C8.lines $ S.filter (/= _cr) v of
     []     -> ""
-    x : xs -> S8.intercalate "\r\n" (x : mapMaybe addSpaceIfMissing xs)
+    x : xs -> C8.intercalate "\r\n" (x : mapMaybe addSpaceIfMissing xs)
   where
-    addSpaceIfMissing line = case S8.uncons line of
+    addSpaceIfMissing line = case C8.uncons line of
         Nothing                           -> Nothing
         Just (first, _)
           | first == ' ' || first == '\t' -> Just line

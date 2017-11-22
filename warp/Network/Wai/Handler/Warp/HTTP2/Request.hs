@@ -12,7 +12,7 @@ module Network.Wai.Handler.Warp.HTTP2.Request (
 import Control.Applicative ((<|>))
 import Control.Arrow (first)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as B8
+import qualified Data.ByteString.Char8 as C8
 import Data.IORef
 import Data.Maybe (fromJust)
 import qualified Data.Vault.Lazy as Vault
@@ -76,7 +76,7 @@ mkRequest' ii1 settings addr ref (reqths,reqvt) (bodylen,body) = return (req,ii)
     !mUserAgent = getHeaderValue tokenUserAgent reqvt
     -- CONNECT request will have ":path" omitted, use ":authority" as unparsed
     -- path instead so that it will have consistent behavior compare to HTTP 1.0
-    (unparsedPath,query) = B8.break (=='?') $ fromJust (mPath <|> mAuth)
+    (unparsedPath,query) = C8.break (=='?') $ fromJust (mPath <|> mAuth)
     !path = H.extractPath unparsedPath
     !rawPath = if S.settingsNoParsePath settings then unparsedPath else path
     !h = hashByteString rawPath

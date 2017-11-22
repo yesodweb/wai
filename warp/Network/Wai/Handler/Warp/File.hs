@@ -11,7 +11,7 @@ module Network.Wai.Handler.Warp.File (
 
 import Control.Applicative ((<|>))
 import Data.Array ((!))
-import qualified Data.ByteString.Char8 as B (pack)
+import qualified Data.ByteString.Char8 as C8 (pack)
 import Data.ByteString (ByteString)
 import Data.Maybe (fromMaybe)
 import Network.HTTP.Date
@@ -117,7 +117,7 @@ checkRange (H.ByteRangeSuffix count)   size = (max 0 (size - count), size - 1)
 contentRangeHeader :: Integer -> Integer -> Integer -> H.Header
 contentRangeHeader beg end total = (H.hContentRange, range)
   where
-    range = B.pack
+    range = C8.pack
       -- building with ShowS
       $ 'b' : 'y': 't' : 'e' : 's' : ' '
       : (if beg > end then ('*':) else
