@@ -1,3 +1,7 @@
+## 3.0.20.2
+
+* Revert previous change to `srequest`, which caused breakage
+
 ## 3.0.20.1
 
 * Set `requestBodyLength` for `srequest` [#654](https://github.com/yesodweb/wai/pull/654)
