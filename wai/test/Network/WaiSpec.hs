@@ -3,7 +3,6 @@ module Network.WaiSpec (spec) where
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Network.Wai
-import Network.Wai.Internal (Request (Request))
 import Data.IORef
 import Data.Monoid
 import qualified Data.ByteString as S

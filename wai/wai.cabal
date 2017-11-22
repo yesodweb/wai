@@ -35,7 +35,7 @@ test-suite test
     hs-source-dirs: test
     main-is:        Spec.hs
     type:           exitcode-stdio-1.0
-    ghc-options:    -threaded
+    ghc-options:    -threaded -Wall
     cpp-options:    -DTEST
     build-depends:  base >= 4.8 && < 5
                   , wai
