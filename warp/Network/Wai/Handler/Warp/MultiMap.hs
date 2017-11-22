@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, BangPatterns #-}
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.MultiMap (
     MMap

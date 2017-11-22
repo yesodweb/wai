@@ -24,7 +24,7 @@ composeHeader !httpversion !status !responseHeaders = create len $ \ptr -> do
     void $ copyCRLF ptr2
   where
     !len = 17 + slen + foldl' fieldLength 0 responseHeaders
-    fieldLength !l !(k,v) = l + S.length (CI.original k) + S.length v + 4
+    fieldLength !l (!k,!v) = l + S.length (CI.original k) + S.length v + 4
     !slen = S.length $ H.statusMessage status
 
 httpVer11 :: ByteString

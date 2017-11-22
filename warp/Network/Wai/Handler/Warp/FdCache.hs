@@ -43,7 +43,7 @@ withFdCache _        action = action getFdNothing
 withFdCache 0        action = action getFdNothing
 withFdCache duration action = bracket (initialize duration)
                                       terminate
-                                      (\mfc -> action (getFd mfc))
+                                      (action . getFd)
 
 ----------------------------------------------------------------
 

@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Network.Wai.Handler.Warp.HTTP2.EncodeFrame where
 
 import Data.ByteString (ByteString)

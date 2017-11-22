@@ -165,7 +165,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                          when (ftyp `notElem` [FrameHeaders,FramePriority]) $
                              E.throwIO $ ConnectionError ProtocolError "this frame is not allowed in an idel stream"
                          csid <- readIORef clientStreamId
-                         if streamId <= csid then do
+                         if streamId <= csid then
                              if ftyp == FramePriority then
                                  return Nothing -- will be ignored
                                else

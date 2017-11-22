@@ -15,7 +15,7 @@ hashByteString :: ByteString -> Hash
 hashByteString = hash
 
 empty :: HashMap k v
-empty = HashMap $ I.empty
+empty = HashMap I.empty
 
 null :: HashMap k v -> Bool
 null (HashMap hm) = I.null hm

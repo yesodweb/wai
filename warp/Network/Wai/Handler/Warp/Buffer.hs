@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Network.Wai.Handler.Warp.Buffer (
     bufferSize

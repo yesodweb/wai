@@ -91,7 +91,7 @@ withFileInfoCache 0        action = action getInfoNaive
 withFileInfoCache duration action =
     E.bracket (initialize duration)
               terminate
-              (\r -> action (getAndRegisterInfo r))
+              (action . getAndRegisterInfo)
 
 initialize :: Hash -> IO FileInfoCache
 initialize duration = mkReaper settings

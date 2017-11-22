@@ -84,7 +84,7 @@ data Waiter a
 mkWaiter :: IO (Waiter a)
 mkWaiter = do
   mvar <- newEmptyMVar
-  return $ Waiter {
+  return Waiter {
     notify = putMVar mvar,
     waitFor = readMVar mvar
   }

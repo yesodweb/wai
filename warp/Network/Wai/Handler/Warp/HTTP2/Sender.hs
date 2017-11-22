@@ -293,7 +293,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
         handleEndOfBody True off0 noTrailers trailers = do
             off1 <- handleTrailers noTrailers off0 trailers
-            void $ tell
+            void tell
             closed ctx strm Finished
             return off1
         handleEndOfBody False off0 _ _ = return off0
