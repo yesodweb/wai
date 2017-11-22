@@ -57,7 +57,7 @@ spec = do
     describe "lazyRequestBody" $ do
         prop "works" $ \chunks -> do
             ref <- newIORef $ map S.pack $ filter (not . null) chunks
-            let req = Request
+            let req = defaultRequest
                         { requestBody = atomicModifyIORef ref $ \bss ->
                             case bss of
                                 [] -> ([], S.empty)
@@ -66,7 +66,7 @@ spec = do
             body <- lazyRequestBody req
             body `shouldBe` L.fromChunks (map S.pack chunks)
         it "is lazy" $ do
-            let req = Request
+            let req = defaultRequest
                         { requestBody = error "requestBody"
                         }
             _ <- lazyRequestBody req
@@ -74,7 +74,7 @@ spec = do
     describe "strictRequestBody" $ do
         prop "works" $ \chunks -> do
             ref <- newIORef $ map S.pack $ filter (not . null) chunks
-            let req = Request
+            let req = defaultRequest
                         { requestBody = atomicModifyIORef ref $ \bss ->
                             case bss of
                                 [] -> ([], S.empty)
