@@ -13,12 +13,12 @@ module Network.Wai.Handler.Warp.ReadInt (
 -- This function lives in its own file because the MagicHash pragma interacts
 -- poorly with the CPP pragma.
 
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import Data.Int (Int64)
 import GHC.Prim
 import GHC.Types
 import GHC.Word
+
+import Network.Wai.Handler.Warp.Imports hiding (readInt)
 
 {-# INLINE readInt #-}
 readInt :: Integral a => ByteString -> a

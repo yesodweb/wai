@@ -2,12 +2,12 @@
 
 module Network.Wai.Handler.Warp.PackInt where
 
-import Control.Monad (when)
-import Data.ByteString.Internal (ByteString(..), unsafeCreate)
-import Data.Word8 (Word8)
+import Data.ByteString.Internal (unsafeCreate)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (poke)
 import qualified Network.HTTP.Types as H
+
+import Network.Wai.Handler.Warp.Imports
 
 -- $setup
 -- >>> import Data.ByteString.Char8 as C8

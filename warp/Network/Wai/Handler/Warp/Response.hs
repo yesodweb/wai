@@ -15,35 +15,32 @@ module Network.Wai.Handler.Warp.Response (
 
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 import qualified Control.Exception as E
-import Control.Monad (unless, when)
 import Data.Array ((!))
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Builder (byteString, Builder)
 import Data.ByteString.Builder.Extra (flush)
+import qualified Data.ByteString.Char8 as C8
 import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
-import Data.List (deleteBy)
-import Data.Maybe
-import Data.Monoid ((<>))
 import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy)
 import Data.Version (showVersion)
 import Data.Word8 (_cr, _lf)
 import qualified Network.HTTP.Types as H
 import qualified Network.HTTP.Types.Header as H
 import Network.Wai
+import Network.Wai.Internal
+import qualified Paths_warp
+
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
 import Network.Wai.Handler.Warp.File
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.IO (toBufIOWith)
+import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.ResponseHeader
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Internal
-import qualified Paths_warp
 
 -- $setup
 -- >>> :set -XOverloadedStrings

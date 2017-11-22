@@ -3,11 +3,10 @@
 module Network.Wai.Handler.Warp.Conduit where
 
 import Control.Exception
-import Control.Monad (when, unless)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.IORef as I
-import Data.Word (Word8)
+
+import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------

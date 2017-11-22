@@ -9,14 +9,12 @@
 
 module Network.Wai.Handler.Warp.Run where
 
+import "iproute" Data.IP (toHostAddress, toHostAddress6)
 import Control.Arrow (first)
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception as E
-import Control.Monad (when, unless, void)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import Data.Char (chr)
-import "iproute" Data.IP (toHostAddress, toHostAddress6)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef')
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno(..), eCONNABORTED)
@@ -25,6 +23,10 @@ import Network (Socket)
 import Network.Socket (close, accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6), setSocketOption, SocketOption(..))
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
+import Network.Wai.Internal (ResponseReceived (ResponseReceived))
+import System.Environment (getEnvironment)
+import System.Timeout (timeout)
+
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Counter
 import qualified Network.Wai.Handler.Warp.Date as D
@@ -32,6 +34,7 @@ import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.HTTP2 (http2, isHTTP2)
 import Network.Wai.Handler.Warp.Header
+import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.Request
@@ -40,9 +43,7 @@ import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Internal (ResponseReceived (ResponseReceived))
-import System.Environment (getEnvironment)
-import System.Timeout (timeout)
+
 
 #if WINDOWS
 import Network.Wai.Handler.Warp.Windows

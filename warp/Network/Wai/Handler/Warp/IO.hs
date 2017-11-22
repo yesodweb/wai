@@ -3,10 +3,11 @@
 
 module Network.Wai.Handler.Warp.IO where
 
-import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder.Extra (runBuilder, Next(Done, More, Chunk))
+
 import Network.Wai.Handler.Warp.Buffer
+import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
 
 toBufIOWith :: Buffer -> BufSize -> (ByteString -> IO ()) -> Builder -> IO ()

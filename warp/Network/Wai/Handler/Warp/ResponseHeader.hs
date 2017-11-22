@@ -3,17 +3,15 @@
 
 module Network.Wai.Handler.Warp.ResponseHeader (composeHeader) where
 
-import Control.Monad
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import Data.ByteString.Internal (create)
 import qualified Data.CaseInsensitive as CI
-import Data.List (foldl')
-import Data.Word (Word8)
 import Foreign.Ptr
 import GHC.Storable
 import qualified Network.HTTP.Types as H
+
 import Network.Wai.Handler.Warp.Buffer (copy)
+import Network.Wai.Handler.Warp.Imports
 
 ----------------------------------------------------------------
 

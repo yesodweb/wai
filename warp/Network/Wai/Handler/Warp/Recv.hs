@@ -11,18 +11,18 @@ module Network.Wai.Handler.Warp.Recv (
 
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal (ByteString(..))
 import Data.IORef
-import Data.Word (Word8)
 import Foreign.C.Error (eAGAIN, getErrno, throwErrno)
 import Foreign.C.Types
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
 import GHC.Conc (threadWaitRead)
 import Network.Socket (Socket, fdSocket)
-import Network.Wai.Handler.Warp.Buffer
-import Network.Wai.Handler.Warp.Types
 import System.Posix.Types (Fd(..))
+
+import Network.Wai.Handler.Warp.Buffer
+import Network.Wai.Handler.Warp.Imports
+import Network.Wai.Handler.Warp.Types
 
 #ifdef mingw32_HOST_OS
 import GHC.IO.FD (FD(..), readRawBufferPtr)
