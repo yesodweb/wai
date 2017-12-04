@@ -6,27 +6,16 @@ module Network.Wai.Handler.Warp.HTTP2.Sender (frameSender) where
 
 import Control.Concurrent.STM
 import qualified Control.Exception as E
-import Control.Monad (void, when)
-import Data.Bits
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
 import Data.IORef
-import Data.Maybe (isNothing)
-import Data.Word (Word8, Word32)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (poke)
 import Network.HPACK (setLimitForEncoding, toHeaderTable)
 import Network.HTTP2
 import Network.HTTP2.Priority (isEmptySTM, dequeueSTM, Precedence)
 import Network.Wai
-import Network.Wai.Handler.Warp.Buffer
-import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
-import Network.Wai.Handler.Warp.HTTP2.HPACK
-import Network.Wai.Handler.Warp.HTTP2.Manager (Manager)
-import Network.Wai.Handler.Warp.HTTP2.Types
-import qualified Network.Wai.Handler.Warp.Settings as S
-import Network.Wai.Handler.Warp.Types
 
 #ifdef WINDOWS
 import qualified System.IO as IO
@@ -36,11 +25,20 @@ import Network.Wai.Handler.Warp.SendFile (positionRead)
 import qualified Network.Wai.Handler.Warp.Timeout as T
 #endif
 
+import Network.Wai.Handler.Warp.Buffer
+import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
+import Network.Wai.Handler.Warp.HTTP2.HPACK
+import Network.Wai.Handler.Warp.HTTP2.Manager (Manager)
+import Network.Wai.Handler.Warp.HTTP2.Types
+import Network.Wai.Handler.Warp.Imports hiding (readInt)
+import qualified Network.Wai.Handler.Warp.Settings as S
+import Network.Wai.Handler.Warp.Types
+
 ----------------------------------------------------------------
 
 data Leftover = LZero
               | LOne B.BufferWriter
-              | LTwo BS.ByteString B.BufferWriter
+              | LTwo ByteString B.BufferWriter
 
 ----------------------------------------------------------------
 
@@ -58,7 +56,7 @@ waitStreamWindowSize Stream{streamWindow} = atomically $ do
 waitStreaming :: TBQueue a -> IO ()
 waitStreaming tbq = atomically $ do
     isEmpty <- isEmptyTBQueue tbq
-    check (isEmpty == False)
+    check (not isEmpty)
 
 data Switch = C Control
             | O (StreamId,Precedence,Output)

@@ -5,11 +5,10 @@ module Network.Wai.Handler.Warp.HTTP2 (isHTTP2, http2) where
 
 import Control.Concurrent (forkIO, killThread)
 import qualified Control.Exception as E
-import Control.Monad (when, unless, replicateM_)
-import Data.ByteString (ByteString)
 import Network.HTTP2
 import Network.Socket (SockAddr)
 import Network.Wai
+
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
 import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Receiver
@@ -17,6 +16,7 @@ import Network.Wai.Handler.Warp.HTTP2.Request
 import Network.Wai.Handler.Warp.HTTP2.Sender
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.HTTP2.Worker
+import Network.Wai.Handler.Warp.Imports
 import qualified Network.Wai.Handler.Warp.Settings as S (Settings)
 import Network.Wai.Handler.Warp.Types
 

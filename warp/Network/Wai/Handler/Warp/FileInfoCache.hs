@@ -8,13 +8,13 @@ module Network.Wai.Handler.Warp.FileInfoCache (
   ) where
 
 import Control.Exception as E
-import Control.Monad (void)
 import Control.Reaper
-import Data.ByteString (ByteString)
 import Network.HTTP.Date
+import System.PosixCompat.Files
+
 import Network.Wai.Handler.Warp.HashMap (HashMap)
 import qualified Network.Wai.Handler.Warp.HashMap as M
-import System.PosixCompat.Files
+import Network.Wai.Handler.Warp.Imports
 
 ----------------------------------------------------------------
 

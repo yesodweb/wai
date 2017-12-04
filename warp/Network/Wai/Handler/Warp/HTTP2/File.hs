@@ -9,18 +9,16 @@ module Network.Wai.Handler.Warp.HTTP2.File (
   , H.parseByteRanges
   ) where
 
-import Control.Applicative ((<|>))
 import qualified Data.ByteString.Char8 as C8 (pack)
-import Data.ByteString (ByteString)
-import Data.Maybe (fromMaybe)
+import Network.HPACK
+import Network.HPACK.Token
 import Network.HTTP.Date
 import qualified Network.HTTP.Types as H
 import Network.Wai
+
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
+import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.PackInt
-import Numeric (showInt)
-import Network.HPACK
-import Network.HPACK.Token
 
 -- $setup
 -- >>> import Test.QuickCheck

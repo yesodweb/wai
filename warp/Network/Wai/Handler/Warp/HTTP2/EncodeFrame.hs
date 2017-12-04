@@ -1,7 +1,8 @@
 module Network.Wai.Handler.Warp.HTTP2.EncodeFrame where
 
-import Data.ByteString (ByteString)
 import Network.HTTP2
+
+import Network.Wai.Handler.Warp.Imports
 
 ----------------------------------------------------------------
 

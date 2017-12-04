@@ -9,22 +9,14 @@ module Network.Wai.Handler.Warp.SendFile (
 #endif
   ) where
 
-import Control.Monad (void, when)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Network.Socket (Socket)
-import Network.Wai.Handler.Warp.Buffer
-import Network.Wai.Handler.Warp.Types
 
 #ifdef WINDOWS
-import Data.ByteString.Internal (ByteString(..))
 import Foreign.ForeignPtr (newForeignPtr_)
 import Foreign.Ptr (plusPtr)
 import qualified System.IO as IO
 #else
-# if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-# endif
 import Control.Exception
 import Foreign.C.Error (throwErrno)
 import Foreign.C.Types
@@ -33,6 +25,10 @@ import Network.Sendfile
 import Network.Wai.Handler.Warp.FdCache (openFile, closeFile)
 import System.Posix.Types
 #endif
+
+import Network.Wai.Handler.Warp.Buffer
+import Network.Wai.Handler.Warp.Imports
+import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 

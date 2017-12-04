@@ -7,7 +7,8 @@ module Network.Wai.Handler.Warp.Windows
 import Control.Exception
 import Control.Concurrent.MVar
 import Control.Concurrent
-import Control.Monad
+
+import Network.Wai.Handler.Warp.Imports
 
 windowsThreadBlockHack :: IO a -> IO a
 windowsThreadBlockHack act = do

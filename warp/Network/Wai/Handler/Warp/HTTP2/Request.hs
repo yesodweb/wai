@@ -9,26 +9,25 @@ module Network.Wai.Handler.Warp.HTTP2.Request (
   , modifyHTTP2Data
   ) where
 
-import Control.Applicative ((<|>))
 import Control.Arrow (first)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
-import Data.Maybe (fromJust)
 import qualified Data.Vault.Lazy as Vault
 import Network.HPACK
 import Network.HPACK.Token
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
+import Network.Wai.Internal (Request(..))
+import System.IO.Unsafe (unsafePerformIO)
+
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.HashMap (hashByteString)
+import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Request (pauseTimeoutKey, getFileInfoKey)
 import qualified Network.Wai.Handler.Warp.Settings as S (Settings, settingsNoParsePath)
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Internal (Request(..))
-import System.IO.Unsafe (unsafePerformIO)
 
 type MkReq = (TokenHeaderList,ValueTable) -> (Maybe Int,IO ByteString) -> IO (Request,InternalInfo)
 

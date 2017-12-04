@@ -9,7 +9,9 @@ module Network.Wai.Handler.Warp.Counter (
   ) where
 
 import Control.Concurrent.STM
-import Control.Monad (unless)
+
+import Network.Wai.Handler.Warp.Imports
+
 
 newtype Counter = Counter (TVar Int)
 

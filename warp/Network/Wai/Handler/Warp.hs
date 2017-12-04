@@ -119,20 +119,20 @@ module Network.Wai.Handler.Warp (
   ) where
 
 import Control.Exception (SomeException, throwIO)
-import Data.ByteString (ByteString)
-import Data.Maybe (fromMaybe)
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai (Request, Response, vault)
+
 import Network.Wai.Handler.Warp.FileInfoCache
+import Network.Wai.Handler.Warp.HTTP2.Request (getHTTP2Data, setHTTP2Data, modifyHTTP2Data)
+import Network.Wai.Handler.Warp.HTTP2.Types
+import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response (warpVersion)
 import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.Settings
-import Network.Wai.Handler.Warp.HTTP2.Request (getHTTP2Data, setHTTP2Data, modifyHTTP2Data)
-import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types hiding (getFileInfo)
 import Network.Wai.Handler.Warp.WithApplication

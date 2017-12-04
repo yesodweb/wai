@@ -15,11 +15,12 @@ module Network.Wai.Handler.Warp.HTTP2.Manager (
 
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Monad (void)
 import Data.Foldable
 import Data.IORef
 import Data.Set (Set)
 import qualified Data.Set as Set
+
+import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Settings
 import qualified Network.Wai.Handler.Warp.Timeout as T
 

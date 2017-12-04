@@ -5,16 +5,16 @@ module Network.Wai.Handler.Warp.RequestHeader (
     ) where
 
 import Control.Exception (throwIO)
-import Control.Monad (when)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C8 (unpack)
-import Data.ByteString.Internal (ByteString(..), memchr)
+import Data.ByteString.Internal (memchr)
 import qualified Data.CaseInsensitive as CI
-import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr, nullPtr)
 import Foreign.Storable (peek)
 import qualified Network.HTTP.Types as H
+
+import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
 
 -- $setup

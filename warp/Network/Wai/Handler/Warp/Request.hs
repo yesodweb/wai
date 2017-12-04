@@ -15,29 +15,29 @@ module Network.Wai.Handler.Warp.Request (
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception (throwIO, Exception)
 import Data.Array ((!))
-import Data.ByteString (ByteString)
-import Data.Typeable (Typeable)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
 import qualified Data.IORef as I
+import Data.Typeable (Typeable)
+import qualified Data.Vault.Lazy as Vault
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
-import Network.Wai.Handler.Warp.Conduit
-import Network.Wai.Handler.Warp.FileInfoCache
-import Network.Wai.Handler.Warp.HashMap (hashByteString)
-import Network.Wai.Handler.Warp.Header
-import Network.Wai.Handler.Warp.ReadInt
-import Network.Wai.Handler.Warp.RequestHeader
-import Network.Wai.Handler.Warp.Settings (Settings, settingsNoParsePath)
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
 import Prelude hiding (lines)
-import Control.Monad (when)
-import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
+
+import Network.Wai.Handler.Warp.Conduit
+import Network.Wai.Handler.Warp.FileInfoCache
+import Network.Wai.Handler.Warp.HashMap (hashByteString)
+import Network.Wai.Handler.Warp.Header
+import Network.Wai.Handler.Warp.Imports hiding (readInt, lines)
+import Network.Wai.Handler.Warp.ReadInt
+import Network.Wai.Handler.Warp.RequestHeader
+import Network.Wai.Handler.Warp.Settings (Settings, settingsNoParsePath)
 
 ----------------------------------------------------------------
 
