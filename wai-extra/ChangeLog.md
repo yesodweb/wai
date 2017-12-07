@@ -1,3 +1,7 @@
+## 3.0.20.3
+
+* Set Vary: Accept-Encoding in gzip middleware [#661](https://github.com/yesodweb/wai/pull/661)
+
 ## 3.0.20.2
 
 * Revert previous change to `srequest`, which caused breakage
