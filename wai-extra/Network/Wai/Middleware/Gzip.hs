@@ -92,8 +92,8 @@ defaultCheckMime bs =
 gzip :: GzipSettings -> Middleware
 gzip set app env sendResponse = app env $ \res ->
     case res of
-        ResponseRaw{} -> sendResponse res
-        ResponseFile{} | gzipFiles set == GzipIgnore -> sendResponse res
+        ResponseRaw{} -> sendResponse (addVary res)
+        ResponseFile{} | gzipFiles set == GzipIgnore -> sendResponse (addVary res)
         _ -> if "gzip" `elem` enc && not isMSIE6 && not (isEncoded res) && (bigEnough res)
                 then
                     let runAction x = case x of
@@ -103,17 +103,17 @@ gzip set app env sendResponse = app env $ \res ->
                                  in
                                     doesFileExist compressedVersion >>= \x ->
                                        if x
-                                         then (sendResponse $ ResponseFile s (fixHeaders hs) compressedVersion Nothing)
-                                         else (runAction (ResponseFile s hs file Nothing, nextAction))
+                                         then (sendResponse $ ResponseFile s (vary:fixHeaders hs) compressedVersion Nothing)
+                                         else (runAction (ResponseFile s (vary:hs) file Nothing, nextAction))
                             (ResponseFile s hs file Nothing, GzipCacheFolder cache) ->
                                 case lookup hContentType hs of
                                     Just m
-                                        | gzipCheckMime set m -> compressFile s hs file cache sendResponse
-                                    _ -> sendResponse res
-                            (ResponseFile {}, GzipIgnore) -> sendResponse res
-                            _ -> compressE set res sendResponse
+                                        | gzipCheckMime set m -> compressFile s (vary:hs) file cache sendResponse
+                                    _ -> sendResponse (addVary res)
+                            (ResponseFile {}, GzipIgnore) -> sendResponse (addVary res)
+                            _ -> compressE set (addVary res) sendResponse
                     in runAction (res, gzipFiles set)
-                else sendResponse res
+                else sendResponse (addVary res)
   where
     enc = fromMaybe [] $ (splitCommas . S8.unpack)
                     `fmap` lookup "Accept-Encoding" (requestHeaders env)
@@ -130,6 +130,8 @@ gzip set app env sendResponse = app env $ \res ->
     -- The actual number is application specific though and may need to be adjusted
     -- http://webmasters.stackexchange.com/questions/31750/what-is-recommended-minimum-object-size-for-gzip-performance-benefits
     minimumLength = 860
+    vary = ("Vary", "Accept-Encoding")
+    addVary = mapResponseHeaders (vary:)
 
 compressFile :: Status -> [Header] -> FilePath -> FilePath -> (Response -> IO a) -> IO a
 compressFile s hs file cache sendResponse = do
