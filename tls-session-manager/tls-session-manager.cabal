@@ -14,7 +14,7 @@ cabal-version:       >= 1.10
 
 library
   exposed-modules:     Network.TLS.SessionManager
-  -- other-modules:
+  other-modules:       Network.TLS.Imports
   -- other-extensions:
   build-depends:       base >= 4.7 && < 5
                      , auto-update
