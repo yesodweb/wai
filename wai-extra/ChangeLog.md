@@ -1,3 +1,7 @@
+## 3.0.21.0
+
+* Export `Network.Wai.Parse.noLimitParseRequestBodyOptions` [#662](https://github.com/yesodweb/wai/pull/662).
+
 ## 3.0.20.2
 
 * Revert previous change to `srequest`, which caused breakage

@@ -22,6 +22,7 @@ module Network.Wai.Parse
     , parseContentType
     , ParseRequestBodyOptions
     , defaultParseRequestBodyOptions
+    , noLimitParseRequestBodyOptions
     , parseRequestBodyEx
     , setMaxRequestKeyLength
     , clearMaxRequestKeyLength
@@ -266,7 +267,7 @@ defaultParseRequestBodyOptions = ParseRequestBodyOptions
 
 -- | Do not impose any memory limits.
 --
--- @since 3.0.16.0
+-- @since 3.0.21.0
 noLimitParseRequestBodyOptions :: ParseRequestBodyOptions
 noLimitParseRequestBodyOptions = ParseRequestBodyOptions
     { prboKeyLength=Nothing
