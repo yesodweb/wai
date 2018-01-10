@@ -22,7 +22,7 @@ import Data.ByteString.Builder.Extra (flush)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
-import Data.Streaming.Blaze (newBlazeRecv, reuseBufferStrategy)
+import Data.Streaming.ByteString.Builder (newBuilderRecv, reuseBufferStrategy)
 import Data.Version (showVersion)
 import Data.Word8 (_cr, _lf)
 import qualified Network.HTTP.Types as H
@@ -224,7 +224,7 @@ sendRsp conn _ ver s hs (RspBuilder body needsChunked) = do
 
 sendRsp conn _ ver s hs (RspStream streamingBody needsChunked th) = do
     header <- composeHeaderBuilder ver s hs needsChunked
-    (recv, finish) <- newBlazeRecv $ reuseBufferStrategy
+    (recv, finish) <- newBuilderRecv $ reuseBufferStrategy
                     $ toBuilderBuffer (connWriteBuffer conn) (connBufferSize conn)
     let send builder = do
             popper <- recv builder

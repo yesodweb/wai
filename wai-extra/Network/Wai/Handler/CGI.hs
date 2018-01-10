@@ -29,7 +29,13 @@ import qualified Data.CaseInsensitive as CI
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (mconcat, mempty, mappend)
 #endif
+
+#if MIN_VERSION_streaming_commons(0, 2, 0)
+import qualified Data.Streaming.ByteString.Builder as Blaze
+#else
 import qualified Data.Streaming.Blaze as Blaze
+#endif
+
 import Data.Function (fix)
 import Control.Monad (unless, void)
 
@@ -130,7 +136,11 @@ runGeneric vars inputH outputH xsendfile app = do
                 return ResponseReceived
             _ -> do
                 let (s, hs, wb) = responseToStream res
+#if MIN_VERSION_streaming_commons(0, 2, 0)
+                (blazeRecv, blazeFinish) <- Blaze.newBuilderRecv Blaze.defaultStrategy
+#else
                 (blazeRecv, blazeFinish) <- Blaze.newBlazeRecv Blaze.defaultStrategy
+#endif
                 wb $ \b -> do
                     let sendBuilder builder = do
                             popper <- blazeRecv builder

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE Rank2Types, ScopedTypeVariables #-}
 ---------------------------------------------------------
 -- |
@@ -35,7 +36,11 @@ import Control.Exception (try, SomeException)
 import qualified Data.Set as Set
 import Network.Wai.Header
 import Network.Wai.Internal
+#if MIN_VERSION_streaming_commons(0, 2, 0)
+import qualified Data.Streaming.ByteString.Builder as B
+#else
 import qualified Data.Streaming.Blaze as B
+#endif
 import qualified Data.Streaming.Zlib as Z
 import qualified Blaze.ByteString.Builder as Blaze
 import Control.Monad (unless)
@@ -69,7 +74,7 @@ instance Default GzipSettings where
     def = GzipSettings GzipIgnore defaultCheckMime
 
 -- | MIME types that will be compressed by default:
--- @text/*@, @application/json@, @application/javascript@,
+-- @text/@ @*@, @application/json@, @application/javascript@,
 -- @application/ecmascript@, @image/x-icon@.
 defaultCheckMime :: S.ByteString -> Bool
 defaultCheckMime bs =
@@ -182,7 +187,11 @@ compressE set res sendResponse =
         Just m | gzipCheckMime set m ->
             let hs' = fixHeaders hs
              in wb $ \body -> sendResponse $ responseStream s hs' $ \sendChunk flush -> do
+#if MIN_VERSION_streaming_commons(0, 2, 0)
+                    (blazeRecv, _) <- B.newBuilderRecv B.defaultStrategy
+#else
                     (blazeRecv, _) <- B.newBlazeRecv B.defaultStrategy
+#endif
                     deflate <- Z.initDeflate 1 (Z.WindowBits 31)
                     let sendBuilder builder = do
                             popper <- blazeRecv builder
