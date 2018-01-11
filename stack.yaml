@@ -10,7 +10,6 @@ packages:
 - ./wai-handler-fastcgi
 - ./wai-websockets
 - ./wai-conduit
-- ./tls-session-manager
 flags:
   wai-extra:
     build-example: true
