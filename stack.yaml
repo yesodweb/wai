@@ -25,6 +25,7 @@ extra-deps:
 - x509-validation-1.6.5
 - foundation-0.0.12
 - psqueues-0.2.3.0
+- tls-session-manager-0.0.0.2
 nix:
   enable: false
   packages:
