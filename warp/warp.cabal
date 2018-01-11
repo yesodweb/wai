@@ -83,6 +83,7 @@ Library
                      Network.Wai.Handler.Warp.HTTP2.Worker
                      Network.Wai.Handler.Warp.Header
                      Network.Wai.Handler.Warp.IO
+                     Network.Wai.Handler.Warp.Imports
                      Network.Wai.Handler.Warp.PackInt
                      Network.Wai.Handler.Warp.ReadInt
                      Network.Wai.Handler.Warp.Recv
