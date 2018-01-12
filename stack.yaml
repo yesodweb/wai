@@ -1,4 +1,4 @@
-resolver: lts-4.1
+resolver: lts-10.0
 packages:
 - ./auto-update
 - ./mime-types
@@ -14,18 +14,8 @@ flags:
   wai-extra:
     build-example: true
 extra-deps:
-- http2-1.6.0
-- cryptonite-0.23
-- memory-0.14.6
-- tls-1.3.11
-- fast-logger-2.4.5
-- wai-logger-2.2.7
-- http-types-0.9.1
-- x509-1.6.5
-- x509-validation-1.6.5
-- foundation-0.0.12
-- psqueues-0.2.3.0
 - tls-session-manager-0.0.0.2
+- psqueues-0.2.4.0
 nix:
   enable: false
   packages:

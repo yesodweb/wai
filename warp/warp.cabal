@@ -173,7 +173,8 @@ Test-Suite spec
                    , word8
                    , hashable
                    , http-date
-                   , semigroups
+  if impl(ghc < 8)
+      Build-Depends: semigroups
 
   if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
     Cpp-Options:   -DSENDFILEFD
@@ -196,6 +197,8 @@ Benchmark parser
                   , network
                   , network
                   , unix-compat
+  if impl(ghc < 8)
+      Build-Depends: semigroups
 
   if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
     Cpp-Options:   -DSENDFILEFD
