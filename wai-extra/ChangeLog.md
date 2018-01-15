@@ -1,6 +1,7 @@
 ## 3.0.22.0
 
 * Support for streaming-commons 0.2
+* Support for resourcet 1.2
 
 ## 3.0.21.0
 
