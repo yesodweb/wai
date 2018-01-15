@@ -18,7 +18,7 @@ import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
 
-import Criterion.Main
+import Gauge.Main
 
 -- $setup
 -- >>> :set -XOverloadedStrings

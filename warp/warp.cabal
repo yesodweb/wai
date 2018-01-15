@@ -187,7 +187,7 @@ Benchmark parser
                   , auto-update
                   , bytestring
                   , containers
-                  , criterion >= 1
+                  , gauge
                   , hashable
                   , http-date
                   , http-types
