@@ -63,15 +63,15 @@ parseRequestLine3 :: ByteString
                      ,H.HttpVersion)
 parseRequestLine3 requestLine = ret
   where
-    (!method,!rest) = S.breakByte 32 requestLine -- ' '
+    (!method,!rest) = S.break (== 32) requestLine -- ' '
     (!pathQuery,!httpVer')
       | rest == "" = throw badmsg
-      | otherwise  = S.breakByte 32 (S.drop 1 rest) -- ' '
-    (!path,!query) = S.breakByte 63 pathQuery -- '?'
+      | otherwise  = S.break (== 32) (S.drop 1 rest) -- ' '
+    (!path,!query) = S.break (== 63) pathQuery -- '?'
     !httpVer = S.drop 1 httpVer'
     (!http,!ver)
       | httpVer == "" = throw badmsg
-      | otherwise     = S.breakByte 47 httpVer -- '/'
+      | otherwise     = S.break (== 47) httpVer -- '/'
     !hv | http /= "HTTP" = throw NonHttp
         | ver == "/1.1"  = H.http11
         | otherwise      = H.http10
@@ -169,13 +169,13 @@ parseRequestLine1 :: ByteString
                         ,ByteString -- Query
                         ,H.HttpVersion)
 parseRequestLine1 requestLine = do
-    let (!method,!rest) = S.breakByte 32 requestLine -- ' '
-        (!pathQuery,!httpVer') = S.breakByte 32 (S.drop 1 rest) -- ' '
+    let (!method,!rest) = S.break (== 32) requestLine -- ' '
+        (!pathQuery,!httpVer') = S.break (== 32) (S.drop 1 rest) -- ' '
         !httpVer = S.drop 1 httpVer'
     when (rest == "" || httpVer == "") $
         throwIO $ BadFirstLine $ B.unpack requestLine
-    let (!path,!query) = S.breakByte 63 pathQuery -- '?'
-        (!http,!ver)   = S.breakByte 47 httpVer -- '/'
+    let (!path,!query) = S.break (== 63) pathQuery -- '?'
+        (!http,!ver)   = S.break (== 47) httpVer -- '/'
     when (http /= "HTTP") $ throwIO NonHttp
     let !hv | ver == "/1.1" = H.http11
             | otherwise     = H.http10
@@ -205,7 +205,7 @@ parseRequestLine0 s =
                 !http' = S.concat http''
                 (!hfirst, !hsecond) = S.splitAt 5 http'
             if hfirst == "HTTP/"
-               then let (!rpath, !qstring) = S.breakByte 63 query  -- '?'
+               then let (!rpath, !qstring) = S.break (== 63) query  -- '?'
                         !hv =
                             case hsecond of
                                 "1.1" -> H.http11

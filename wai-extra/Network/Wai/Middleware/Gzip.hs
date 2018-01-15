@@ -106,8 +106,8 @@ gzip set app env sendResponse = app env $ \res ->
                                  let
                                     compressedVersion = file ++ ".gz"
                                  in
-                                    doesFileExist compressedVersion >>= \x ->
-                                       if x
+                                    doesFileExist compressedVersion >>= \y ->
+                                       if y
                                          then (sendResponse $ ResponseFile s (fixHeaders hs) compressedVersion Nothing)
                                          else (runAction (ResponseFile s hs file Nothing, nextAction))
                             (ResponseFile s hs file Nothing, GzipCacheFolder cache) ->
