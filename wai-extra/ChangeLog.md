@@ -1,3 +1,8 @@
+## 3.0.22.0
+
+* Support for streaming-commons 0.2
+* Support for resourcet 1.2
+
 ## 3.0.21.0
 
 * Export `Network.Wai.Parse.noLimitParseRequestBodyOptions` [#662](https://github.com/yesodweb/wai/pull/662).
