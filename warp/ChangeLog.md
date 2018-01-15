@@ -1,6 +1,7 @@
 ## 3.2.14
 
 * Support streaming-commons 0.2
+* Warnings cleanup
 
 ## 3.2.13
 
