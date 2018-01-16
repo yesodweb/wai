@@ -22,7 +22,7 @@ module Network.Wai.Middleware.RequestLogger
 import System.IO (Handle, hFlush, stdout)
 import qualified Blaze.ByteString.Builder as B
 import qualified Data.ByteString as BS
-import Data.ByteString.Char8 (pack, unpack)
+import Data.ByteString.Char8 (pack)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Network.Wai

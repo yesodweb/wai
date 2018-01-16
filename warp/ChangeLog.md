@@ -1,3 +1,8 @@
+## 3.2.14
+
+* Support streaming-commons 0.2
+* Warnings cleanup
+
 ## 3.2.13
 
 * Tickling HTTP/2 timer. [624](https://github.com/yesodweb/wai/pull/624)
