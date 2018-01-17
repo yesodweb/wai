@@ -334,9 +334,14 @@ serveConnection conn ii1 origAddr transport settings app = do
         writeIORef istatus True
         leftoverSource src bs
         addr <- getProxyProtocolAddr src
-        http1 True addr istatus src `E.catch` \e -> do
-            sendErrorResponse addr istatus e
-            throwIO (e :: SomeException)
+        http1 True addr istatus src `E.catch` \e ->
+          case fromException e of
+            -- See comment below referencing
+            -- https://github.com/yesodweb/wai/issues/618
+            Just NoKeepAliveRequest -> return ()
+            Nothing -> do
+              sendErrorResponse addr istatus e
+              throwIO e
   where
     getProxyProtocolAddr src =
         case settingsProxyProtocol settings of
@@ -414,7 +419,7 @@ serveConnection conn ii1 origAddr transport settings app = do
         -- request headers, no data is available, recvRequest will
         -- throw a NoKeepAliveRequest exception, which we catch here
         -- and ignore. See: https://github.com/yesodweb/wai/issues/618
-        when keepAlive $ http1 False addr istatus src `E.catch` \NoKeepAliveRequest -> return ()
+        when keepAlive $ http1 False addr istatus src
 
     processRequest istatus src req mremainingRef idxhdr nextBodyFlush ii = do
         -- Let the application run for as long as it wants
