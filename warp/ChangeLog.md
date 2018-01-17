@@ -1,3 +1,8 @@
+## 3.2.15
+
+* Address space leak from exception handlers
+  [#649](https://github.com/yesodweb/wai/issues/649)
+
 ## 3.2.14
 
 * Support streaming-commons 0.2
