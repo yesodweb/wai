@@ -90,8 +90,8 @@ getPort = do
     esocket <- try $ bindPortTCP port "127.0.0.1"
     case esocket of
         Left (_ :: IOException) -> RunSpec.getPort
-        Right socket -> do
-            close socket
+        Right sock -> do
+            close sock
             return port
 
 withApp :: Settings -> Application -> (Int -> IO a) -> IO a
@@ -370,11 +370,11 @@ spec = do
                         loop
             loop
         withApp defaultSettings app $ \port -> do
-            (socket, _addr) <- getSocketTCP "127.0.0.1" port
-            sendAll socket "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"
+            (sock, _addr) <- getSocketTCP "127.0.0.1" port
+            sendAll sock "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"
             threadDelay 10000
-            sendAll socket "5\r\nhello\r\n0\r\n\r\n"
-            bs <- safeRecv socket 4096
+            sendAll sock "5\r\nhello\r\n0\r\n\r\n"
+            bs <- safeRecv sock 4096
             S.takeWhile (/= 13) bs `shouldBe` "HTTP/1.1 200 OK"
 
     it "streaming response with length" $ do
