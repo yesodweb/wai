@@ -7,7 +7,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Data.Maybe (mapMaybe)
 import Network.HTTP.Types
-import Network.Wai
+import Network.Wai hiding (responseHeaders)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Response
 import RunSpec (withApp)
@@ -78,7 +78,7 @@ spec = do
             let app _ respond = respond $ responseLBS status200 [("foo", "foo\r\nbar")] "Hello"
             withApp defaultSettings app $ \port -> do
                 res <- sendGET $ "http://127.0.0.1:" ++ show port
-                getHeaderValue (HdrCustom "foo") res `shouldBe`
+                getHeaderValue "foo" (responseHeaders res) `shouldBe`
                   Just "foo   bar" -- HTTP inserts two spaces for \r\n.
 
     describe "sanitizeHeaderValue" $ do

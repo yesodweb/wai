@@ -7,7 +7,7 @@ import Control.Applicative
 #endif
 import Control.Monad
 import Network.HTTP.Types hiding (Header)
-import Network.Wai hiding (Response)
+import Network.Wai hiding (Response, responseStatus)
 import Network.Wai.Internal (Request(..))
 import Network.Wai.Handler.Warp
 import Test.Hspec
@@ -49,18 +49,18 @@ spec :: Spec
 spec = describe "responds even if there is an exception" $ do
         {- Disabling these tests. We can consider forcing evaluation in Warp.
         it "statusError" $ do
-            sc <- rspCode <$> sendGET "http://127.0.0.1:2345/statusError"
-            sc `shouldBe` (5,0,0)
+            sc <- responseStatus <$> sendGET "http://127.0.0.1:2345/statusError"
+            sc `shouldBe` internalServerError500
         it "headersError" $ do
-            sc <- rspCode <$> sendGET "http://127.0.0.1:2345/headersError"
-            sc `shouldBe` (5,0,0)
+            sc <- responseStatus <$> sendGET "http://127.0.0.1:2345/headersError"
+            sc `shouldBe` internalServerError500
         it "headerError" $ do
-            sc <- rspCode <$> sendGET "http://127.0.0.1:2345/headerError"
-            sc `shouldBe` (5,0,0)
+            sc <- responseStatus <$> sendGET "http://127.0.0.1:2345/headerError"
+            sc `shouldBe` internalServerError500
         it "bodyError" $ do
-            sc <- rspCode <$> sendGET "http://127.0.0.1:2345/bodyError"
-            sc `shouldBe` (5,0,0)
+            sc <- responseStatus <$> sendGET "http://127.0.0.1:2345/bodyError"
+            sc `shouldBe` internalServerError500
         -}
         it "ioException" $ withTestServer $ \prt -> do
-            sc <- rspCode <$> sendGET ("http://127.0.0.1:" ++ show prt ++ "/ioException")
-            sc `shouldBe` (5,0,0)
+            sc <- responseStatus <$> sendGET ("http://127.0.0.1:" ++ show prt ++ "/ioException")
+            sc `shouldBe` internalServerError500

@@ -20,7 +20,7 @@ import Data.Streaming.Network (bindPortTCP, getSocketTCP, safeRecv)
 import Network.HTTP.Types
 import Network.Socket
 import Network.Socket.ByteString (sendAll)
-import Network.Wai
+import Network.Wai hiding (responseHeaders)
 import Network.Wai.Handler.Warp
 import System.IO (hFlush, hClose, Handle, IOMode(..))
 import System.IO.Unsafe (unsafePerformIO)
@@ -358,8 +358,8 @@ spec = do
                 ] ""
         withApp defaultSettings app $ \port -> do
             res <- sendGET $ "http://127.0.0.1:" ++ show port
-            getHeaderValue HdrServer res `shouldBe` Just "server"
-            getHeaderValue HdrDate res `shouldBe` Just "date"
+            getHeaderValue hServer (responseHeaders res) `shouldBe` Just "server"
+            getHeaderValue hDate (responseHeaders res) `shouldBe` Just "date"
 
     it "streaming echo #249" $ do
         let app req f = f $ responseStream status200 [] $ \write _ -> do
@@ -382,7 +382,7 @@ spec = do
                 replicateM_ 4 $ write $ byteString "Hello"
         withApp defaultSettings app $ \port -> do
             res <- sendGET $ "http://127.0.0.1:" ++ show port
-            rspBody res `shouldBe` "HelloHelloHelloHello"
+            responseBody res `shouldBe` "HelloHelloHelloHello"
 
     describe "head requests" $ do
         let fp = "test/head-response"
@@ -395,19 +395,19 @@ spec = do
                     _ -> error "invalid path"
         it "builder" $ withApp defaultSettings app $ \port -> do
             res <- sendHEAD $ concat ["http://127.0.0.1:", show port, "/builder"]
-            rspBody res `shouldBe` ""
+            responseBody res `shouldBe` ""
         it "streaming" $ withApp defaultSettings app $ \port -> do
             res <- sendHEAD $ concat ["http://127.0.0.1:", show port, "/streaming"]
-            rspBody res `shouldBe` ""
+            responseBody res `shouldBe` ""
         it "file, no range" $ withApp defaultSettings app $ \port -> do
             bs <- S.readFile fp
             res <- sendHEAD $ concat ["http://127.0.0.1:", show port, "/file"]
-            getHeaderValue HdrContentLength res `shouldBe` Just (show $ S.length bs)
+            getHeaderValue hContentLength (responseHeaders res) `shouldBe` Just (S8.pack $ show $ S.length bs)
         it "file, with range" $ withApp defaultSettings app $ \port -> do
             res <- sendHEADwH
                 (concat ["http://127.0.0.1:", show port, "/file"])
-                [mkHeader HdrRange "bytes=0-1"]
-            getHeaderValue HdrContentLength res `shouldBe` Just "2"
+                [(hRange, "bytes=0-1")]
+            getHeaderValue hContentLength (responseHeaders res) `shouldBe` Just "2"
 
 consumeBody :: IO ByteString -> IO [ByteString]
 consumeBody body =
