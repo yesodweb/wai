@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module RunSpec (main, spec, withApp) where
+module RunSpec (main, spec, withApp, connectTo) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
@@ -17,13 +17,12 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, getSocketTCP, safeRecv)
-import Network (connectTo, PortID (PortNumber))
 import Network.HTTP.Types
-import Network.Socket (close)
+import Network.Socket
 import Network.Socket.ByteString (sendAll)
 import Network.Wai
 import Network.Wai.Handler.Warp
-import System.IO (hFlush, hClose)
+import System.IO (hFlush, hClose, Handle, IOMode(..))
 import System.IO.Unsafe (unsafePerformIO)
 import System.Timeout (timeout)
 import Test.Hspec
@@ -35,6 +34,14 @@ main = hspec spec
 
 type Counter = I.IORef (Either String Int)
 type CounterApplication = Counter -> Application
+
+connectTo :: HostName -> Int -> IO Handle
+connectTo host port = do
+    let hints = defaultHints { addrSocketType = Stream }
+    addr:_ <- getAddrInfo (Just hints) (Just host) (Just $ show port)
+    sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+    connect sock $ addrAddress addr
+    socketToHandle sock ReadWriteMode
 
 incr :: MonadIO m => Counter -> m ()
 incr icount = liftIO $ I.atomicModifyIORef icount $ \ecount ->
@@ -107,7 +114,7 @@ runTest :: Int -- ^ expected number of requests
 runTest expected app chunks = do
     ref <- I.newIORef (Right 0)
     withApp defaultSettings (app ref) $ \port -> do
-        handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+        handle <- connectTo "127.0.0.1" port
         forM_ chunks $ \chunk -> hPutStr handle chunk >> hFlush handle
         _ <- timeout 100000 $ replicateM_ expected $ hGetSome handle 4096
         res <- I.readIORef ref
@@ -125,7 +132,7 @@ runTerminateTest expected input = do
     ref <- I.newIORef Nothing
     let onExc _ = I.writeIORef ref . Just
     withApp (setOnException onExc defaultSettings) dummyApp $ \port -> do
-        handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+        handle <- connectTo "127.0.0.1" port
         hPutStr handle input
         hFlush handle
         hClose handle
@@ -200,7 +207,7 @@ spec = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                handle <- connectTo "127.0.0.1" port
                 let input = S.concat
                         [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
                         ]
@@ -218,7 +225,7 @@ spec = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                handle <- connectTo "127.0.0.1" port
                 let input = S.concat
                         [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
                         ]
@@ -239,7 +246,7 @@ spec = do
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                handle <- connectTo "127.0.0.1" port
                 let input = S.concat
                         [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
@@ -262,7 +269,7 @@ spec = do
                     I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                handle <- connectTo "127.0.0.1" port
                 let input = concat $ replicate 2 $
                         ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
                         (replicate 50 "5\r\n12345\r\n") ++
@@ -279,7 +286,7 @@ spec = do
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                handle <- connectTo "127.0.0.1" port
                 let input = S.concat
                         [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
@@ -310,7 +317,7 @@ spec = do
                 let bs1 = S.replicate 2048 88
                     bs2 = "This is short"
                     bs = S.append bs1 bs2
-                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                handle <- connectTo "127.0.0.1" port
                 hPutStr handle "POST / HTTP/1.1\r\n"
                 hPutStr handle "content-length: "
                 hPutStr handle $ S8.pack $ show $ S.length bs
@@ -336,7 +343,7 @@ spec = do
                         loop
                 doubleBS = S.concatMap $ \w -> S.pack [w, w]
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+                handle <- connectTo "127.0.0.1" port
                 hPutStr handle "POST / HTTP/1.1\r\n\r\n12345"
                 hFlush handle
                 timeout 100000 (S.hGet handle 10) >>= (`shouldBe` Just "1122334455")
