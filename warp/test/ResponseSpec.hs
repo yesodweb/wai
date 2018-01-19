@@ -14,7 +14,7 @@ import RunSpec (withApp)
 import System.IO (hClose, hFlush)
 import Test.Hspec
 
-import HTTP
+-- import HTTP
 import RunSpec (connectTo)
 
 main :: IO ()
@@ -73,6 +73,7 @@ testPartial size offset count out = it title $ withApp defaultSettings app $ \po
 
 spec :: Spec
 spec = do
+{- http-client does not support this.
     describe "preventing response splitting attack" $ do
         it "sanitizes header values" $ do
             let app _ respond = respond $ responseLBS status200 [("foo", "foo\r\nbar")] "Hello"
@@ -80,6 +81,7 @@ spec = do
                 res <- sendGET $ "http://127.0.0.1:" ++ show port
                 getHeaderValue "foo" (responseHeaders res) `shouldBe`
                   Just "foo   bar" -- HTTP inserts two spaces for \r\n.
+-}
 
     describe "sanitizeHeaderValue" $ do
         it "doesn't alter valid multiline header values" $ do
