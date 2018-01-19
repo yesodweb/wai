@@ -42,8 +42,10 @@ spec = do
             readProcess "curl" ["-s", "localhost:" ++ show port] "")
           `shouldThrow` (errorCall "foo")
 
+{- The future netwrok library will not export MkSocket.
   describe "withFreePort" $ do
     it "closes the socket before exiting" $ do
       MkSocket _ _ _ _ statusMVar <- withFreePort $ \ (_, sock) -> do
         return sock
       readMVar statusMVar `shouldReturn` Closed
+-}
