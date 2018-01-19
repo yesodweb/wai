@@ -6,9 +6,8 @@ import Control.Concurrent (threadDelay)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Data.Maybe (mapMaybe)
-import Network (connectTo, PortID (PortNumber))
 import Network.HTTP.Types
-import Network.Wai
+import Network.Wai hiding (responseHeaders)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Response
 import RunSpec (withApp)
@@ -16,6 +15,7 @@ import System.IO (hClose, hFlush)
 import Test.Hspec
 
 import HTTP
+import RunSpec (connectTo)
 
 main :: IO ()
 main = hspec spec
@@ -25,7 +25,7 @@ testRange :: S.ByteString -- ^ range value
           -> Maybe String -- ^ expected content-range value
           -> Spec
 testRange range out crange = it title $ withApp defaultSettings app $ \port -> do
-    handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+    handle <- connectTo "127.0.0.1" port
     S.hPutStr handle "GET / HTTP/1.0\r\n"
     S.hPutStr handle "Range: bytes="
     S.hPutStr handle range
@@ -52,7 +52,7 @@ testPartial :: Integer -- ^ file size
             -> String -- ^ expected output
             -> Spec
 testPartial size offset count out = it title $ withApp defaultSettings app $ \port -> do
-    handle <- connectTo "127.0.0.1" $ PortNumber $ fromIntegral port
+    handle <- connectTo "127.0.0.1" port
     S.hPutStr handle "GET / HTTP/1.0\r\n\r\n"
     hFlush handle
     threadDelay 10000
@@ -78,7 +78,7 @@ spec = do
             let app _ respond = respond $ responseLBS status200 [("foo", "foo\r\nbar")] "Hello"
             withApp defaultSettings app $ \port -> do
                 res <- sendGET $ "http://127.0.0.1:" ++ show port
-                getHeaderValue (HdrCustom "foo") res `shouldBe`
+                getHeaderValue "foo" (responseHeaders res) `shouldBe`
                   Just "foo   bar" -- HTTP inserts two spaces for \r\n.
 
     describe "sanitizeHeaderValue" $ do

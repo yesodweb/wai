@@ -94,9 +94,13 @@ mkWaiter = do
 -- @since 3.2.4
 openFreePort :: IO (Port, Socket)
 openFreePort = do
-  s <- socket AF_INET Stream defaultProtocol
-  localhost <- inet_addr "127.0.0.1"
-  bind s (SockAddrInet aNY_PORT localhost)
+  let hints = defaultHints {
+          addrFlags = [AI_PASSIVE]
+        , addrSocketType = Stream
+        }
+  addr:_ <- getAddrInfo (Just hints) (Just "127.0.0.1") Nothing
+  s <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+  bind s $ addrAddress addr
   listen s 1
   port <- socketPort s
   return (fromIntegral port, s)
