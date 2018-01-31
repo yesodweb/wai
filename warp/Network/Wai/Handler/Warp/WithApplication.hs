@@ -11,6 +11,7 @@ module Network.Wai.Handler.Warp.WithApplication (
 import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Exception
+import           Control.Monad (when)
 import           Network.Socket
 import           Network.Wai
 import           Network.Wai.Handler.Warp.Run
@@ -71,7 +72,9 @@ testWithApplicationSettings _settings mkApp action = do
   app <- mkApp
   let wrappedApp request respond =
         app request respond `catch` \ e -> do
-          throwTo callingThread (e :: SomeException)
+          when
+            (defaultShouldDisplayException e)
+            (throwTo callingThread e)
           throwIO e
   withApplication (return wrappedApp) action
 
