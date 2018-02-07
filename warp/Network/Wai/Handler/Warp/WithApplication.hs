@@ -1,4 +1,4 @@
-
+{-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.Handler.Warp.WithApplication (
   withApplication,
   withApplicationSettings,
@@ -12,6 +12,7 @@ import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Exception
 import           Control.Monad (when)
+import           Data.Streaming.Network (bindRandomPortTCP)
 import           Network.Socket
 import           Network.Wai
 import           Network.Wai.Handler.Warp.Run
@@ -96,17 +97,7 @@ mkWaiter = do
 --
 -- @since 3.2.4
 openFreePort :: IO (Port, Socket)
-openFreePort = do
-  let hints = defaultHints {
-          addrFlags = [AI_PASSIVE]
-        , addrSocketType = Stream
-        }
-  addr:_ <- getAddrInfo (Just hints) (Just "127.0.0.1") Nothing
-  s <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-  bind s $ addrAddress addr
-  listen s 1
-  port <- socketPort s
-  return (fromIntegral port, s)
+openFreePort = bindRandomPortTCP "127.0.0.1"
 
 -- | Like 'openFreePort' but closes the socket before exiting.
 withFreePort :: ((Port, Socket) -> IO a) -> IO a

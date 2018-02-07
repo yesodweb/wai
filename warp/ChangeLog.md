@@ -1,7 +1,8 @@
 ## 3.2.16
 
 * In `testWithApplication`, don't `throwTo` ignorable exceptions
-  [#671](https://github.com/yesodweb/wai/issues/671)
+  [#671](https://github.com/yesodweb/wai/issues/671), and
+  reuse `bindRandomPortTCP`
 
 ## 3.2.15
 
