@@ -522,7 +522,11 @@ wrappedRecvN th istatus slowlorisSize readN bufsize = do
         when (S.length bs >= slowlorisSize || bufsize <= slowlorisSize) $ T.tickle th
     return bs
 
+-- | Set flag FileCloseOnExec flag on a socket (on Unix)
+--
 -- Copied from: https://github.com/mzero/plush/blob/master/src/Plush/Server/Warp.hs
+--
+-- @since 3.2.17
 setSocketCloseOnExec :: Socket -> IO ()
 #if WINDOWS
 setSocketCloseOnExec _ = return ()

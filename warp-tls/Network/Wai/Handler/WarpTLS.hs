@@ -293,7 +293,12 @@ alpn xs
 
 getter :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (IO (Connection, Transport), SockAddr)
 getter tlsset@TLSSettings{..} sock params = do
+#if WINDOWS
+    (s, sa) <- windowsThreadBlockHack $ accept sock
+#else
     (s, sa) <- accept sock
+#endif
+    setSocketCloseOnExec s
     return (mkConn tlsset s params, sa)
 
 mkConn :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (Connection, Transport)
