@@ -68,7 +68,7 @@ testWithApplication = testWithApplicationSettings defaultSettings
 --
 -- @since 3.2.7
 testWithApplicationSettings :: Settings -> IO Application -> (Port -> IO a) -> IO a
-testWithApplicationSettings _settings mkApp action = do
+testWithApplicationSettings settings mkApp action = do
   callingThread <- myThreadId
   app <- mkApp
   let wrappedApp request respond =
@@ -77,7 +77,7 @@ testWithApplicationSettings _settings mkApp action = do
             (defaultShouldDisplayException e)
             (throwTo callingThread e)
           throwIO e
-  withApplication (return wrappedApp) action
+  withApplicationSettings settings (return wrappedApp) action
 
 data Waiter a
   = Waiter {
