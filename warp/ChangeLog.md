@@ -1,3 +1,8 @@
+## 3.2.18
+
+* Make `testWithApplicationSettings` actually use the settings passed.
+  [#677](https://github.com/yesodweb/wai/pull/677).
+
 ## 3.2.16
 
 * In `testWithApplication`, don't `throwTo` ignorable exceptions
