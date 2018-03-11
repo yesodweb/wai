@@ -1,5 +1,5 @@
 name:                wai-conduit
-version:             3.0.0.3
+version:             3.0.0.4
 synopsis:            conduit wrappers for WAI
 description:         API docs and the README are available at <http://www.stackage.org/package/wai-conduit>.
 homepage:            https://github.com/yesodweb/wai
@@ -20,5 +20,4 @@ library
                      , transformers
                      , bytestring
                      , http-types
-                     , blaze-builder
   default-language:    Haskell2010

@@ -16,7 +16,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import Control.Monad (unless)
 import Network.HTTP.Types
-import Blaze.ByteString.Builder (Builder)
+import Data.ByteString.Builder (Builder)
 import Data.IORef
 import qualified Data.Conduit.List as CL
 
