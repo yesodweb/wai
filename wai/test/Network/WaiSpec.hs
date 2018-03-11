@@ -7,7 +7,7 @@ import Data.IORef
 import Data.Monoid
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import Blaze.ByteString.Builder (toByteString, Builder, fromWord8)
+import Data.ByteString.Builder (Builder, toLazyByteString, word8)
 import Control.Monad (forM_)
 
 spec :: Spec
@@ -23,17 +23,17 @@ spec = do
                         flush :: IO ()
                         flush = return ()
                     streamingBody add flush
-                    fmap toByteString $ readIORef builderRef
+                    fmap (L.toStrict . toLazyByteString) $ readIORef builderRef
         prop "responseLBS" $ \bytes -> do
             body <- getBody $ responseLBS undefined undefined $ L.pack bytes
             body `shouldBe` S.pack bytes
         prop "responseBuilder" $ \bytes -> do
             body <- getBody $ responseBuilder undefined undefined
-                            $ mconcat $ map fromWord8 bytes
+                            $ mconcat $ map word8 bytes
             body `shouldBe` S.pack bytes
         prop "responseStream" $ \chunks -> do
             body <- getBody $ responseStream undefined undefined $ \sendChunk _ ->
-                forM_ chunks $ \chunk -> sendChunk $ mconcat $ map fromWord8 chunk
+                forM_ chunks $ \chunk -> sendChunk $ mconcat $ map word8 chunk
             body `shouldBe` S.concat (map S.pack chunks)
         it "responseFile total" $ do
             let fp = "wai.cabal"
