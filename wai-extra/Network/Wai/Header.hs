@@ -14,5 +14,5 @@ contentLength hdrs = lookup H.hContentLength hdrs >>= readInt
 readInt :: S8.ByteString -> Maybe Integer
 readInt bs =
     case S8.readInteger bs of
-        Just (i, "") -> Just i
+        Just (i, rest) | S8.null rest -> Just i
         _ -> Nothing

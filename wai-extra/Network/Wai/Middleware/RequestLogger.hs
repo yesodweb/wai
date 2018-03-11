@@ -20,7 +20,7 @@ module Network.Wai.Middleware.RequestLogger
     ) where
 
 import System.IO (Handle, hFlush, stdout)
-import qualified Blaze.ByteString.Builder as B
+import qualified Data.ByteString.Builder as B (Builder, byteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
 import Control.Monad (when)
@@ -130,7 +130,7 @@ customMiddlewareWithDetails cb getdate formatter app req sendResponse = do
     t1 <- getCurrentTime
     date <- liftIO getdate
     -- We use Nothing for the response size since we generally don't know it
-    builderIO <- newIORef $ B.fromByteString ""
+    builderIO <- newIORef $ B.byteString ""
     res' <- recordChunks builderIO res
     rspRcv <- sendResponse res'
     _ <- liftIO . cb .

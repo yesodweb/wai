@@ -9,8 +9,7 @@ module Network.Wai.EventSource.EventStream (
     eventToBuilder
     ) where
 
-import Blaze.ByteString.Builder
-import Blaze.ByteString.Builder.Char8
+import Data.ByteString.Builder
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
 #endif
@@ -39,18 +38,18 @@ data ServerEvent
     Newline as a Builder.
 -}
 nl :: Builder
-nl = fromChar '\n'
+nl = char7 '\n'
 
 
 {-|
     Field names as Builder
 -}
 nameField, idField, dataField, retryField, commentField :: Builder
-nameField = fromString "event:"
-idField = fromString "id:"
-dataField = fromString "data:"
-retryField = fromString "retry:"
-commentField = fromChar ':'
+nameField = string7 "event:"
+idField = string7 "id:"
+dataField = string7 "data:"
+retryField = string7 "retry:"
+commentField = char7 ':'
 
 
 {-|
@@ -66,7 +65,7 @@ field l b = l `mappend` b `mappend` nl
 -}
 eventToBuilder :: ServerEvent -> Maybe Builder
 eventToBuilder (CommentEvent txt) = Just $ field commentField txt
-eventToBuilder (RetryEvent   n)   = Just $ field retryField (fromShow n)
+eventToBuilder (RetryEvent   n)   = Just $ field retryField (string8 . show $ n)
 eventToBuilder (CloseEvent)       = Nothing
 eventToBuilder (ServerEvent n i d)= Just $
     (name n $ evid i $ mconcat (map (field dataField) d)) `mappend` nl
