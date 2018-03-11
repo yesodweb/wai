@@ -4,8 +4,8 @@ This module defines a generic web application interface. It is a common
 protocol between web servers and web applications.
 
 The overriding design principles here are performance and generality. To
-address performance, this library is built on top of the conduit and
-blaze-builder packages.  The advantages of conduits over lazy IO have been
+address performance, this library is built on top of the conduit package and
+bytestring's Builder type.  The advantages of conduits over lazy IO have been
 debated elsewhere and so will not be addressed here.  However, helper functions
 like 'responseLBS' allow you to continue using lazy IO if you so desire.
 
@@ -119,13 +119,13 @@ responseFile = ResponseFile
 --
 -- A2. No. If the ByteStrings are small, then they will be copied into a larger
 -- buffer, which should be a performance gain overall (less system calls). If
--- they are already large, then blaze-builder uses an InsertByteString
--- instruction to avoid copying.
+-- they are already large, then an insert operation is used
+-- to avoid copying.
 --
 -- Q3. Doesn't this prevent us from creating comet-style servers, since data
 -- will be cached?
 --
--- A3. You can force blaze-builder to output a ByteString before it is an
+-- A3. You can force a Builder to output a ByteString before it is an
 -- optimal size by sending a flush command.
 responseBuilder :: H.Status -> H.ResponseHeaders -> Builder -> Response
 responseBuilder = ResponseBuilder
