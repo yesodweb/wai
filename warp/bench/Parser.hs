@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 
@@ -18,7 +19,11 @@ import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
 
+#if MIN_VERSION_gauge(0, 2, 0)
 import Gauge
+#else
+import Gauge.Main
+#endif
 
 -- $setup
 -- >>> :set -XOverloadedStrings

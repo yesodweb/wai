@@ -1,3 +1,7 @@
+## 3.2.18.1
+
+* Fix benchmark compilation [#681](https://github.com/yesodweb/wai/issues/681)
+
 ## 3.2.18
 
 * Make `testWithApplicationSettings` actually use the settings passed.
