@@ -170,6 +170,7 @@ executable example
                      , wai
                      , time
                      , http-types
+                     , bytestring
   else
     buildable: False
   default-language:    Haskell2010
