@@ -18,7 +18,7 @@ Library
                    , warp                    >= 3.0     && < 3.3
                    , http-types              >= 0.7
                    , transformers            >= 0.2.2
-                   , bytestring              >= 0.10.2
+                   , bytestring              >= 0.10.4
                    , streaming-commons       >= 0.2
                    , async
 

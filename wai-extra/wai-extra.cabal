@@ -88,7 +88,7 @@ flag build-example
 
 Library
   Build-Depends:     base                      >= 4.6 && < 5
-                   , bytestring                >= 0.10.2
+                   , bytestring                >= 0.10.4
                    , wai                       >= 3.0.3.0  && < 3.3
                    , old-locale                >= 1.0.0.2  && < 1.1
                    , time                      >= 1.1.4

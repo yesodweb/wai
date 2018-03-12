@@ -20,7 +20,7 @@ Source-repository head
 
 Library
   Build-Depends:     base                      >= 4.8      && < 5
-                   , bytestring                >= 0.10.2
+                   , bytestring                >= 0.10.4
                    , network                   >= 2.2.1.5
                    , http-types                >= 0.7
                    , text                      >= 0.7
