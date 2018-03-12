@@ -1,6 +1,6 @@
-## 3.2.1.2
+## UNRELEASED
 
-* Drop dependency on blaze-builder
+* Remove dependency on blaze-builder
 
 ## 3.2.1.1
 

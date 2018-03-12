@@ -4,7 +4,6 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Network.Wai
 import Data.IORef
-import Data.Monoid
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Builder (Builder, toLazyByteString, word8)

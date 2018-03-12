@@ -83,7 +83,8 @@ module Network.Wai
     , modifyResponse
     ) where
 
-import           Data.ByteString.Builder      (Builder, byteString, lazyByteString)
+import           Data.ByteString.Builder      (Builder, lazyByteString)
+import           Data.ByteString.Builder      (byteString)
 import           Control.Monad                (unless)
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as L
@@ -91,7 +92,6 @@ import qualified Data.ByteString.Lazy.Internal as LI
 import           Data.ByteString.Lazy.Internal (defaultChunkSize)
 import           Data.ByteString.Lazy.Char8   ()
 import           Data.Function                (fix)
-import           Data.Monoid                  (mempty)
 import qualified Network.HTTP.Types           as H
 import           Network.Socket               (SockAddr (SockAddrInet))
 import           Network.Wai.Internal
