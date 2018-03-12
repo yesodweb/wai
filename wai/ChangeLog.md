@@ -1,4 +1,4 @@
-## UNRELEASED
+## 3.2.1.2
 
 * Remove dependency on blaze-builder
 
