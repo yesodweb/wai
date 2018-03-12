@@ -16,6 +16,8 @@ flags:
 extra-deps:
 - tls-session-manager-0.0.0.2
 - psqueues-0.2.4.0
+- streaming-commons-0.2.0.0
+- wai-logger-2.3.2
 nix:
   enable: false
   packages:
