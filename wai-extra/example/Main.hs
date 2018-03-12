@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Blaze.ByteString.Builder.Char.Utf8 (fromString)
+import Data.ByteString.Builder (string8)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Chan
 import Control.Monad
@@ -27,15 +27,15 @@ eventChan :: Chan ServerEvent -> IO ()
 eventChan chan = forever $ do
     threadDelay 1000000
     time <- getPOSIXTime
-    writeChan chan (ServerEvent Nothing Nothing [fromString . show $ time])
+    writeChan chan (ServerEvent Nothing Nothing [string8 . show $ time])
 
 eventIO :: IO ServerEvent
 eventIO = do
     threadDelay 1000000
     time <- getPOSIXTime
-    return $ ServerEvent (Just $ fromString "io")
+    return $ ServerEvent (Just $ string8 "io")
                          Nothing
-                         [fromString . show $ time]
+                         [string8 . show $ time]
 
 main :: IO ()
 main = do
