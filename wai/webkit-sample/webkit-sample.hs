@@ -5,7 +5,7 @@ import Network.Wai.Handler.Webkit
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
 import Data.Enumerator (consume, Iteratee)
-import Blaze.ByteString.Builder (fromLazyByteString)
+import Data.ByteString.Builder (lazyByteString)
 
 main :: IO ()
 main = putStrLn "http://localhost:3000/" >> run "Webkit Sample" app
@@ -27,4 +27,4 @@ postResponse :: L.ByteString -> Iteratee ByteString IO Response
 postResponse lbs = return $ ResponseBuilder
     status200
     [("Content-Type", "text/plain")]
-    (fromLazyByteString lbs)
+    (lazyByteString lbs)

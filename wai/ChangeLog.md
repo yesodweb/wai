@@ -1,3 +1,7 @@
+## UNRELEASED
+
+* Remove dependency on blaze-builder
+
 ## 3.2.1.1
 
 * Relax upper bound on bytestring-builder

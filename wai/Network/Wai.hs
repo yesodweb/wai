@@ -83,8 +83,8 @@ module Network.Wai
     , modifyResponse
     ) where
 
-import           Blaze.ByteString.Builder     (Builder, fromLazyByteString)
-import           Blaze.ByteString.Builder     (fromByteString)
+import           Data.ByteString.Builder     (Builder, lazyByteString)
+import           Data.ByteString.Builder     (byteString)
 import           Control.Monad                (unless)
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as L
@@ -92,7 +92,6 @@ import qualified Data.ByteString.Lazy.Internal as LI
 import           Data.ByteString.Lazy.Internal (defaultChunkSize)
 import           Data.ByteString.Lazy.Char8   ()
 import           Data.Function                (fix)
-import           Data.Monoid                  (mempty)
 import qualified Network.HTTP.Types           as H
 import           Network.Socket               (SockAddr (SockAddrInet))
 import           Network.Wai.Internal
@@ -134,7 +133,7 @@ responseBuilder = ResponseBuilder
 -- | Creating 'Response' from 'L.ByteString'. This is a wrapper for
 --   'responseBuilder'.
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
-responseLBS s h = ResponseBuilder s h . fromLazyByteString
+responseLBS s h = ResponseBuilder s h . lazyByteString
 
 -- | Creating 'Response' from a stream of values.
 --
@@ -148,9 +147,9 @@ responseLBS s h = ResponseBuilder s h . fromLazyByteString
 --     (putStrLn \"Allocating scarce resource\")
 --     (putStrLn \"Cleaning up\")
 --     $ respond $ responseStream status200 [] $ \\write flush -> do
---         write $ fromByteString \"Hello\\n\"
+--         write $ byteString \"Hello\\n\"
 --         flush
---         write $ fromByteString \"World\\n\"
+--         write $ byteString \"World\\n\"
 -- @
 --
 -- Note that in some cases you can use @bracket@ from inside @responseStream@
@@ -213,7 +212,7 @@ responseToStream (ResponseFile s h fp (Just part)) =
                 bs <- B.hGetSome handle defaultChunkSize
                 unless (B.null bs) $ do
                     let x = B.take remaining bs
-                    sendChunk $ fromByteString x
+                    sendChunk $ byteString x
                     loop $ remaining - B.length x
         loop $ fromIntegral $ filePartByteCount part
     )
@@ -224,7 +223,7 @@ responseToStream (ResponseFile s h fp Nothing) =
        withBody $ \sendChunk _flush -> fix $ \loop -> do
             bs <- B.hGetSome handle defaultChunkSize
             unless (B.null bs) $ do
-                sendChunk $ fromByteString bs
+                sendChunk $ byteString bs
                 loop
     )
 responseToStream (ResponseBuilder s h b) =
