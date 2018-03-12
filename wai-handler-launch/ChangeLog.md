@@ -1,3 +1,7 @@
+## 3.0.2.4
+
+* Drop dependency on blaze-builder, requiring streaming-commons >= 0.2
+
 ## 3.0.2.3
 
 * `process` package bump
