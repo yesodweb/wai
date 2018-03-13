@@ -8,7 +8,7 @@ import WaiAppStatic.Types
 import Data.ByteString (ByteString)
 import Control.Arrow ((&&&), second)
 import Data.List
-import Blaze.ByteString.Builder (fromByteString)
+import Data.ByteString.Builder (byteString)
 import qualified Network.Wai as W
 import qualified Data.Map as Map
 import Data.Function (on)
@@ -50,7 +50,7 @@ toEntry :: (Piece, EmbeddedEntry) -> Either FolderName File
 toEntry (name, EEFolder{}) = Left name
 toEntry (name, EEFile bs) = Right File
     { fileGetSize = fromIntegral $ S.length bs
-    , fileToResponse = \s h -> W.responseBuilder s h $ fromByteString bs
+    , fileToResponse = \s h -> W.responseBuilder s h $ byteString bs
     , fileName = name
     , fileGetHash = return $ Just $ runHash bs
     , fileGetModified = Nothing
@@ -87,7 +87,7 @@ toEmbedded fps =
 bsToFile :: Piece -> ByteString -> File
 bsToFile name bs = File
     { fileGetSize = fromIntegral $ S.length bs
-    , fileToResponse = \s h -> W.responseBuilder s h $ fromByteString bs
+    , fileToResponse = \s h -> W.responseBuilder s h $ byteString bs
     , fileName = name
     , fileGetHash = return $ Just $ runHash bs
     , fileGetModified = Nothing
