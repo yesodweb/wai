@@ -1,6 +1,6 @@
 ## 3.2.18.2
 
-* Replace dependency on `blaze-builder` with `bsb-http-chunked` [#683](https://github.com/yesodweb/wai/pull/683)
+* Replace dependency on `blaze-builder` with `bsb-http-chunked`
 
 ## 3.2.18.1
 
