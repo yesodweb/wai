@@ -204,7 +204,6 @@ runHostPortUrl host port url app = do
           Warp.setHost (fromString host) $
           Warp.setBeforeMainLoop (putMVar ready ()) $
           Warp.defaultSettings
-    -}
     -- Run these threads concurrently; when either one terminates or
     -- raises an exception, the same happens to the other.
     fmap (either id id) $ race
