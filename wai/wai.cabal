@@ -41,6 +41,7 @@ test-suite test
                   , hspec
                   , bytestring
     other-modules:  Network.WaiSpec
+    build-tool-depends: hspec-discover:hspec-discover
 
 source-repository head
   type:     git
