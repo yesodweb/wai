@@ -21,7 +21,7 @@ extra-deps:
 - wai-logger-2.3.2
 - http-client-0.5.10
 - websockets-0.12.4.0
-- binary-0.9.0.0
+- binary-0.8.5.1
 nix:
   enable: false
   packages:
