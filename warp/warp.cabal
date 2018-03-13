@@ -211,7 +211,7 @@ Test-Suite spec
                    , word8
                    , hashable
                    , http-date
-    Build-Tool-Depends: hspec-discover:hspec-discover
+    -- Build-Tool-Depends: hspec-discover:hspec-discover
   if impl(ghc < 8)
       Build-Depends: semigroups
 
