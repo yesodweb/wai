@@ -15,6 +15,7 @@ import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as I
 import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
+import Prelude -- Silence redundant import warnings
 
 import Network.Wai.Handler.Warp.Imports hiding ((<>), union, empty, insert)
 

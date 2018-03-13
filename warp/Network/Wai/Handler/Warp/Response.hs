@@ -13,7 +13,7 @@ module Network.Wai.Handler.Warp.Response (
   , addServer -- testing
   ) where
 
-import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
+import Data.ByteString.Builder.HTTP.Chunked (chunkedTransferEncoding, chunkedTransferTerminator)
 import qualified Control.Exception as E
 import Data.Array ((!))
 import qualified Data.ByteString as S

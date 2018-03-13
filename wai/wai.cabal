@@ -2,7 +2,8 @@ Name:                wai
 Version:             3.2.1.2
 Synopsis:            Web Application Interface.
 Description:         Provides a common protocol for communication between web applications and web servers.
-description:         API docs and the README are available at <http://www.stackage.org/package/wai>.
+                     .
+                     API docs and the README are available at <http://www.stackage.org/package/wai>.
 License:             MIT
 License-file:        LICENSE
 Author:              Michael Snoyman
@@ -41,6 +42,7 @@ test-suite test
                   , hspec
                   , bytestring
     other-modules:  Network.WaiSpec
+    build-tool-depends: hspec-discover:hspec-discover
 
 source-repository head
   type:     git
