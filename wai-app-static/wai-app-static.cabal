@@ -1,5 +1,5 @@
 name:            wai-app-static
-version:         3.1.6.1
+version:         3.1.6.2
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -27,7 +27,7 @@ Flag print
 library
     build-depends:   base                      >= 4        && < 5
                    , wai                       >= 3.0      && < 3.3
-                   , bytestring                >= 0.9.1.4
+                   , bytestring                >= 0.10.4
                    , http-types                >= 0.7
                    , transformers              >= 0.2.2
                    , unix-compat               >= 0.2
@@ -37,7 +37,6 @@ library
                    , old-locale                >= 1.0.0.2
                    , file-embed                >= 0.0.3.1
                    , text                      >= 0.7
-                   , blaze-builder             >= 0.2.1.4
                    , cryptonite                >= 0.6
                    , memory                    >= 0.7
                    , http-date
@@ -74,7 +73,7 @@ Executable warp
                , wai-app-static
                , directory       >= 1.0
                , containers      >= 0.2
-               , bytestring      >= 0.9.1.4
+               , bytestring      >= 0.10.4
                , text            >= 0.7
                , mime-types      >= 0.1                && < 0.2
 

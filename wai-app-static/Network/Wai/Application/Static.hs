@@ -34,7 +34,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Lazy.Char8 ()
 import Control.Monad.IO.Class (liftIO)
 
-import Blaze.ByteString.Builder (toByteString)
+import Data.ByteString.Builder (toLazyByteString)
 
 import Data.FileEmbed (embedFile)
 
@@ -262,7 +262,7 @@ staticAppPieces ss rawPieces req sendResponse = liftIO $ do
                 ] lbs
 
     response (Redirect pieces' mHash) = do
-            let loc = (ssMkRedirect ss) pieces' $ toByteString (H.encodePathSegments $ map fromPiece pieces')
+            let loc = ssMkRedirect ss pieces' $ L.toStrict $ toLazyByteString (H.encodePathSegments $ map fromPiece pieces')
             let qString = case mHash of
                   Just hash -> replace "etag" (Just hash) (W.queryString req)
                   Nothing   -> remove "etag" (W.queryString req)
