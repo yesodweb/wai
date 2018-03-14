@@ -30,7 +30,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.Monoid (mconcat, mempty, mappend)
 #endif
 
-import qualified Data.Streaming.ByteString.Builder as Blaze
+import qualified Data.Streaming.ByteString.Builder as Builder
 import Data.Function (fix)
 import Control.Monad (unless, void)
 
@@ -131,7 +131,7 @@ runGeneric vars inputH outputH xsendfile app = do
                 return ResponseReceived
             _ -> do
                 let (s, hs, wb) = responseToStream res
-                (blazeRecv, blazeFinish) <- Blaze.newBuilderRecv Blaze.defaultStrategy
+                (blazeRecv, blazeFinish) <- Builder.newBuilderRecv Builder.defaultStrategy
                 wb $ \b -> do
                     let sendBuilder builder = do
                             popper <- blazeRecv builder
