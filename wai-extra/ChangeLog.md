@@ -1,3 +1,7 @@
+## 3.0.22.1
+
+* Drop dependency on blaze-builder, requiring streaming-commons >= 0.2
+
 ## 3.0.22.0
 
 * Support for streaming-commons 0.2

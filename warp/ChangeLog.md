@@ -1,3 +1,7 @@
+## 3.2.18.2
+
+* Replace dependency on `blaze-builder` with `bsb-http-chunked`
+
 ## 3.2.18.1
 
 * Fix benchmark compilation [#681](https://github.com/yesodweb/wai/issues/681)

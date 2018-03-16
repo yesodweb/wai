@@ -52,8 +52,7 @@ import qualified Data.Map as Map
 import qualified Web.Cookie as Cookie
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
-import Blaze.ByteString.Builder (toLazyByteString, toByteString)
-import qualified Blaze.ByteString.Builder as B
+import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Network.HTTP.Types as H
@@ -114,7 +113,7 @@ request = srequest . flip SRequest L.empty
 setPath :: Request -> S8.ByteString -> Request
 setPath req path = req {
     pathInfo = segments
-  , rawPathInfo = B.toByteString (H.encodePathSegments segments)
+  , rawPathInfo = (L8.toStrict . toLazyByteString) (H.encodePathSegments segments)
   , queryString = query
   , rawQueryString = (H.renderQuery True query)
   }
@@ -143,7 +142,7 @@ addCookiesToRequest req = do
   let cookiePairs = [ (Cookie.setCookieName c, Cookie.setCookieValue c)
                     | c <- map snd $ Map.toList cookiesForRequest
                     ]
-  let cookieValue = toByteString $ Cookie.renderCookies cookiePairs
+  let cookieValue = L8.toStrict . toLazyByteString $ Cookie.renderCookies cookiePairs
       addCookieHeader rest
         | null cookiePairs = rest
         | otherwise = ("Cookie", cookieValue) : rest

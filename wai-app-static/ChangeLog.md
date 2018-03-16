@@ -1,3 +1,7 @@
+## 3.1.6.2
+
+* Drop dependency on blaze-builder
+
 ## 3.1.6.1
 
 * Add `<>` import

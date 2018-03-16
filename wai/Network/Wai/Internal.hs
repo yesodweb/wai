@@ -5,7 +5,7 @@
 -- given for stability of these interfaces.
 module Network.Wai.Internal where
 
-import           Blaze.ByteString.Builder     (Builder)
+import           Data.ByteString.Builder      (Builder)
 import qualified Data.ByteString              as B hiding (pack)
 import           Data.Text                    (Text)
 import           Data.Typeable                (Typeable)

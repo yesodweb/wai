@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module WaiAppStatic.Types
     ( -- * Pieces
       Piece
@@ -25,7 +24,7 @@ import qualified Network.Wai as W
 import Data.ByteString (ByteString)
 import System.Posix.Types (EpochTime)
 import qualified Data.Text as T
-import Blaze.ByteString.Builder (Builder)
+import Data.ByteString.Builder (Builder)
 import Network.Mime (MimeType)
 
 -- | An individual component of a path, or of a filepath.

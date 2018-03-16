@@ -2,7 +2,8 @@
 
 module Network.Wai.Middleware.RequestLogger.JSON (formatAsJSON) where
 
-import qualified Blaze.ByteString.Builder as BB
+import qualified Data.ByteString.Builder as BB (toLazyByteString)
+import Data.ByteString.Lazy (toStrict)
 import Data.Aeson
 import Data.CaseInsensitive (original)
 import Data.Monoid ((<>))
@@ -31,7 +32,7 @@ formatAsJSON date req status responseSize duration reqBody response =
         , "size"   .= responseSize
         , "body"   .=
           if statusCode status >= 400
-            then Just . decodeUtf8 . BB.toByteString $ response
+            then Just . decodeUtf8 . toStrict . BB.toLazyByteString $ response
             else Nothing
         ]
       , "time"     .= decodeUtf8 date

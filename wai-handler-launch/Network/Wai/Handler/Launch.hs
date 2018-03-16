@@ -22,15 +22,15 @@ import Control.Monad (unless)
 import Control.Exception (throwIO)
 import Data.Function (fix)
 import qualified Data.ByteString as S
-import Blaze.ByteString.Builder (fromByteString, Builder, flush)
-import qualified Blaze.ByteString.Builder as Blaze
+import Data.ByteString.Builder (Builder, byteString)
+import qualified Data.ByteString.Builder.Extra as Builder (flush)
 #if WINDOWS
 import Foreign
 import Foreign.C.String
 #else
 import System.Process (rawSystem)
 #endif
-import Data.Streaming.Blaze (newBlazeRecv, defaultStrategy)
+import Data.Streaming.ByteString.Builder as B (newBuilderRecv, defaultStrategy)
 import qualified Data.Streaming.Zlib as Z
 
 ping :: IORef Bool -> Middleware
@@ -60,7 +60,7 @@ decode :: (Builder -> IO ()) -> IO ()
        -> StreamingBody
        -> IO ()
 decode sendInner flushInner streamingBody = do
-    (blazeRecv, blazeFinish) <- newBlazeRecv defaultStrategy
+    (blazeRecv, blazeFinish) <- newBuilderRecv defaultStrategy
     inflate <- Z.initInflate $ Z.WindowBits 31
     let send builder = blazeRecv builder >>= goBuilderPopper
         goBuilderPopper popper = fix $ \loop -> do
@@ -73,15 +73,15 @@ decode sendInner flushInner streamingBody = do
             case res of
                 Z.PRDone -> return ()
                 Z.PRNext bs -> do
-                    sendInner $ fromByteString bs
+                    sendInner $ byteString bs
                     loop
                 Z.PRError e -> throwIO e
-    streamingBody send (send flush)
+    streamingBody send (send Builder.flush)
     mbs <- blazeFinish
     case mbs of
         Nothing -> return ()
         Just bs -> Z.feedInflate inflate bs >>= goZlibPopper
-    Z.finishInflate inflate >>= sendInner . fromByteString
+    Z.finishInflate inflate >>= sendInner . byteString
 
 toInsert :: S.ByteString
 toInsert = "<script>setInterval(function(){var x;if(window.XMLHttpRequest){x=new XMLHttpRequest();}else{x=new ActiveXObject(\"Microsoft.XMLHTTP\");}x.open(\"GET\",\"/_ping?\" + (new Date()).getTime(),true);x.send();},60000)</script>"
@@ -91,7 +91,7 @@ addInsideHead :: (Builder -> IO ())
               -> StreamingBody
               -> IO ()
 addInsideHead sendInner flushInner streamingBody = do
-    (blazeRecv, blazeFinish) <- newBlazeRecv defaultStrategy
+    (blazeRecv, blazeFinish) <- newBuilderRecv defaultStrategy
     ref <- newIORef $ Just (S.empty, whole)
     streamingBody (inner blazeRecv ref) (flush blazeRecv ref)
     state <- readIORef ref
@@ -101,11 +101,11 @@ addInsideHead sendInner flushInner streamingBody = do
         Just bs -> push state bs
     case state of
         Nothing -> return ()
-        Just (held, _) -> sendInner $ fromByteString held `mappend` fromByteString toInsert
+        Just (held, _) -> sendInner $ byteString held `mappend` byteString toInsert
   where
     whole = "<head>"
 
-    flush blazeRecv ref = inner blazeRecv ref Blaze.flush
+    flush blazeRecv ref = inner blazeRecv ref Builder.flush
 
     inner blazeRecv ref builder = do
         state0 <- readIORef ref
@@ -117,23 +117,23 @@ addInsideHead sendInner flushInner streamingBody = do
                     else push state bs >>= loop
         loop state0
 
-    push Nothing x = sendInner (fromByteString x) >> return Nothing
+    push Nothing x = sendInner (byteString x) >> return Nothing
     push (Just (held, atFront)) x
         | atFront `S.isPrefixOf` x = do
             let y = S.drop (S.length atFront) x
-            sendInner $ fromByteString held
-              `mappend` fromByteString atFront
-              `mappend` fromByteString toInsert
-              `mappend` fromByteString y
+            sendInner $ byteString held
+              `mappend` byteString atFront
+              `mappend` byteString toInsert
+              `mappend` byteString y
             return Nothing
         | whole `S.isInfixOf` x = do
             let (before, rest) = S.breakSubstring whole x
             let after = S.drop (S.length whole) rest
-            sendInner $ fromByteString held
-              `mappend` fromByteString before
-              `mappend` fromByteString whole
-              `mappend` fromByteString toInsert
-              `mappend` fromByteString after
+            sendInner $ byteString held
+              `mappend` byteString before
+              `mappend` byteString whole
+              `mappend` byteString toInsert
+              `mappend` byteString after
             return Nothing
         | x `S.isPrefixOf` atFront = do
             let held' = held `S.append` x
@@ -141,7 +141,7 @@ addInsideHead sendInner flushInner streamingBody = do
             return $ Just (held', atFront')
         | otherwise = do
             let (held', atFront', x') = getOverlap whole x
-            sendInner $ fromByteString held `mappend` fromByteString x'
+            sendInner $ byteString held `mappend` byteString x'
             return $ Just (held', atFront')
 
 getOverlap :: S.ByteString -> S.ByteString -> (S.ByteString, S.ByteString, S.ByteString)

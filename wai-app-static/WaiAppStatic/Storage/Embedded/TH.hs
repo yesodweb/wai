@@ -5,7 +5,7 @@ module WaiAppStatic.Storage.Embedded.TH(
   , mkSettings
 ) where
 
-import Blaze.ByteString.Builder.ByteString (insertByteString)
+import Data.ByteString.Builder.Extra (byteStringInsert)
 import Codec.Compression.GZip (compress)
 import Control.Applicative
 import Data.ByteString.Unsafe (unsafePackAddressLen)
@@ -130,7 +130,7 @@ embeddedToFile entry = File
         let h' = if embCompressed entry
                     then h ++ [("Content-Encoding", "gzip")]
                     else h
-         in W.responseBuilder s h' $ insertByteString $ embContent entry
+         in W.responseBuilder s h' $ byteStringInsert $ embContent entry
 
     -- Usually the fileName should just be the filename not the entire path,
     -- but we need the whole path to make the lookup within lookupMime

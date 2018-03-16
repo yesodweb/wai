@@ -19,8 +19,8 @@ import Control.Arrow ((***))
 import Data.Char (toLower)
 import qualified System.IO
 import qualified Data.String as String
-import Blaze.ByteString.Builder (fromByteString, toLazyByteString, flush)
-import Blaze.ByteString.Builder.Char8 (fromChar, fromString)
+import Data.ByteString.Builder (byteString, toLazyByteString, char7, string8)
+import Data.ByteString.Builder.Extra (flush)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import System.IO (Handle)
 import Network.HTTP.Types (Status (..), hRange, hContentType, hContentLength)
@@ -30,12 +30,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.Monoid (mconcat, mempty, mappend)
 #endif
 
-#if MIN_VERSION_streaming_commons(0, 2, 0)
-import qualified Data.Streaming.ByteString.Builder as Blaze
-#else
-import qualified Data.Streaming.Blaze as Blaze
-#endif
-
+import qualified Data.Streaming.ByteString.Builder as Builder
 import Data.Function (fix)
 import Control.Monad (unless, void)
 
@@ -136,11 +131,7 @@ runGeneric vars inputH outputH xsendfile app = do
                 return ResponseReceived
             _ -> do
                 let (s, hs, wb) = responseToStream res
-#if MIN_VERSION_streaming_commons(0, 2, 0)
-                (blazeRecv, blazeFinish) <- Blaze.newBuilderRecv Blaze.defaultStrategy
-#else
-                (blazeRecv, blazeFinish) <- Blaze.newBlazeRecv Blaze.defaultStrategy
-#endif
+                (blazeRecv, blazeFinish) <- Builder.newBuilderRecv Builder.defaultStrategy
                 wb $ \b -> do
                     let sendBuilder builder = do
                             popper <- blazeRecv builder
@@ -149,30 +140,30 @@ runGeneric vars inputH outputH xsendfile app = do
                                 unless (B.null bs) $ do
                                     outputH bs
                                     loop
-                    sendBuilder $ headers s hs `mappend` fromChar '\n'
+                    sendBuilder $ headers s hs `mappend` char7 '\n'
                     b sendBuilder (sendBuilder flush)
                 blazeFinish >>= maybe (return ()) outputH
                 return ResponseReceived
   where
     headers s hs = mconcat (map header $ status s : map header' (fixHeaders hs))
-    status (Status i m) = (fromByteString "Status", mconcat
-        [ fromString $ show i
-        , fromChar ' '
-        , fromByteString m
+    status (Status i m) = (byteString "Status", mconcat
+        [ string8 $ show i
+        , char7 ' '
+        , byteString m
         ])
-    header' (x, y) = (fromByteString $ CI.original x, fromByteString y)
+    header' (x, y) = (byteString $ CI.original x, byteString y)
     header (x, y) = mconcat
         [ x
-        , fromByteString ": "
+        , byteString ": "
         , y
-        , fromChar '\n'
+        , char7 '\n'
         ]
     sfBuilder s hs sf fp = mconcat
         [ headers s hs
-        , header $ (fromByteString sf, fromString fp)
-        , fromChar '\n'
-        , fromByteString sf
-        , fromByteString " not supported"
+        , header $ (byteString sf, string8 fp)
+        , char7 '\n'
+        , byteString sf
+        , byteString " not supported"
         ]
     fixHeaders h =
         case lookup hContentType h of

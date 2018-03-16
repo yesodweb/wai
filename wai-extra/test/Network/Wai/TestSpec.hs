@@ -16,12 +16,16 @@ import           Network.Wai.Test
 import           Network.HTTP.Types (status200)
 
 import qualified Data.ByteString.Lazy.Char8 as L8
-import           Blaze.ByteString.Builder (toByteString)
+import           Data.ByteString.Builder (Builder, toLazyByteString)
+import           Data.ByteString (ByteString)
 
 import qualified Web.Cookie as Cookie
 
 main :: IO ()
 main = hspec spec
+
+toByteString :: Builder -> ByteString
+toByteString = L8.toStrict . toLazyByteString
 
 spec :: Spec
 spec = do

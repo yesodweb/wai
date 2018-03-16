@@ -18,8 +18,8 @@ import Network.Wai
 import Network.Wai.Internal
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
-import Blaze.ByteString.Builder (copyByteString)
-import Blaze.ByteString.Builder.Char8 (fromChar)
+import Data.ByteString.Builder.Extra (byteStringCopy)
+import Data.ByteString.Builder (char7)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (mappend)
 #endif
@@ -60,10 +60,10 @@ jsonp app env sendResponse = do
         sendResponse $ case checkJSON hs of
             Nothing -> r
             Just hs' -> responseBuilder s hs' $
-                copyByteString c
-                `mappend` fromChar '('
+                byteStringCopy c
+                `mappend` char7 '('
                 `mappend` b
-                `mappend` fromChar ')'
+                `mappend` char7 ')'
     go c r =
         case checkJSON hs of
             Just hs' -> addCallback c s hs' wb
@@ -81,9 +81,9 @@ jsonp app env sendResponse = do
 
     addCallback cb s hs wb =
         wb $ \body -> sendResponse $ responseStream s hs $ \sendChunk flush -> do
-            sendChunk $ copyByteString cb `mappend` fromChar '('
+            sendChunk $ byteStringCopy cb `mappend` char7 '('
             _ <- body sendChunk flush
-            sendChunk $ fromChar ')'
+            sendChunk $ char7 ')'
 
 changeVal :: Eq a
           => a

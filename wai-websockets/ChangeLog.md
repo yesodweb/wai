@@ -1,3 +1,7 @@
+## 3.0.1.2
+
+* Drop unused dependency on blaze-builder
+
 ## 3.0.1.1
 
 * Doc improvement
