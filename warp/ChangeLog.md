@@ -11,6 +11,10 @@
 * Make `testWithApplicationSettings` actually use the settings passed.
   [#677](https://github.com/yesodweb/wai/pull/677).
 
+## 3.2.17
+* Add support for windows thread block hack and closeOnExec to TLS.
+  [#674](https://github.com/yesodweb/wai/pull/674).
+
 ## 3.2.16
 
 * In `testWithApplication`, don't `throwTo` ignorable exceptions
