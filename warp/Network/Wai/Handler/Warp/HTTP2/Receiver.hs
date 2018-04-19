@@ -115,7 +115,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                   Open (NoBody tbl@(_,reqvt) pri) -> do
                       resetContinued
                       let mcl = readInt <$> getHeaderValue tokenContentLength reqvt
-                      when (just mcl (== (0 :: Int))) $
+                      when (just mcl (/= (0 :: Int))) $
                           E.throwIO $ StreamError ProtocolError streamId
                       writeIORef streamPrecedence $ toPrecedence pri
                       writeIORef streamState HalfClosed
