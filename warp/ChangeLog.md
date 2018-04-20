@@ -1,3 +1,8 @@
+## 3.2.19
+* Fixing fixing 0-length body in HTTP/2
+  [#597](https://github.com/yesodweb/wai/issues/597)
+  [#679](https://github.com/yesodweb/wai/issues/679)
+
 ## 3.2.18.2
 
 * Replace dependency on `blaze-builder` with `bsb-http-chunked`
