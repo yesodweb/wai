@@ -102,6 +102,9 @@ Library
                      Paths_warp
   Ghc-Options:       -Wall
 
+  C-Sources:         cbits/warp.c
+  Include-Dirs:      cbits
+
   if flag(warp-debug)
       Cpp-Options:   -DWARP_DEBUG
   if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)

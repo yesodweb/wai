@@ -12,7 +12,7 @@ module Network.Wai.Handler.Warp.Recv (
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.IORef
-import Foreign.C.Error (eAGAIN, getErrno, throwErrno)
+import Foreign.C.Error (Errno(Errno), eAGAIN, errnoToIOError)
 import Foreign.C.Types
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
@@ -113,18 +113,17 @@ receiveloop sock ptr size = do
 #ifdef mingw32_HOST_OS
     bytes <- windowsThreadBlockHack $ fromIntegral <$> readRawBufferPtr "recv" (FD sock 1) (castPtr ptr) 0 size
 #else
-    bytes <- c_recv sock (castPtr ptr) size 0
+    bytes <- c_warp_recv sock (castPtr ptr) size 0
 #endif
-    if bytes == -1 then do
-        errno <- getErrno
-        if errno == eAGAIN then do
-            threadWaitRead (Fd sock)
-            receiveloop sock ptr size
-          else
-            throwErrno "receiveloop"
-       else
-        return bytes
+    if bytes < 0 then do
+      if Errno (-bytes) == eAGAIN then do
+          threadWaitRead (Fd sock)
+          receiveloop sock ptr size
+        else
+          ioError (errnoToIOError "receiveloop" (Errno (-bytes)) Nothing Nothing)
+     else
+      return bytes
 
 -- fixme: the type of the return value
-foreign import ccall unsafe "recv"
-    c_recv :: CInt -> Ptr CChar -> CSize -> CInt -> IO CInt
+foreign import ccall unsafe "warp_recv"
+    c_warp_recv :: CInt -> Ptr CChar -> CSize -> CInt -> IO CInt
