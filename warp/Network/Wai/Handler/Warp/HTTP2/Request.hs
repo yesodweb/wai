@@ -80,7 +80,7 @@ mkRequest' ii1 settings addr ref (reqths,reqvt) (bodylen,body) = return (req,ii)
     !rawPath = if S.settingsNoParsePath settings then unparsedPath else path
     !h = hashByteString rawPath
     !ii = toInternalInfo ii1 h
-    !th = threadHandle ii
+    !th = threadHandle ii -- th must be overwritten with worker's one.
     !vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
                 $ Vault.insert getFileInfoKey (getFileInfo ii)
                 $ Vault.insert getHTTP2DataKey (readIORef ref)

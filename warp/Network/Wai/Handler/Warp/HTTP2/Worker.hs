@@ -219,8 +219,9 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = case rs
             !out = Output strm rspn ii tell h2data rspnOrWait
         enqueueOutput outputQ out
         let push b = do
+              T.pause th
               atomically $ writeTBQueue tbq (SBuilder b)
-              T.tickle th
+              T.resume th
             flush  = atomically $ writeTBQueue tbq SFlush
         _ <- strmbdy push flush
         atomically $ writeTBQueue tbq SFinish
@@ -242,7 +243,8 @@ worker ctx@Context{inputQ,controlQ} set app responder tm = do
             setStreamInfo sinfo inp
             T.resume th
             T.tickle th
-            app req $ responder ii reqvt tcont strm req
+            let ii' = ii { threadHandle = th }
+            app req $ responder ii' reqvt tcont strm req
         cont1 <- case ex of
             Right ResponseReceived -> return True
             Left  e@(SomeException _)
