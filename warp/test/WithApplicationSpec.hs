@@ -2,10 +2,8 @@
 
 module WithApplicationSpec where
 
-import           Control.Concurrent
 import           Control.Exception
 import           Network.HTTP.Types
-import           Network.Socket
 import           Network.Wai
 import           System.Environment
 import           System.IO
