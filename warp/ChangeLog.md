@@ -1,8 +1,14 @@
+## 3.2.21
+
+* Fixing HTTP/2's timeout handler.
+
 ## 3.2.20
+
 * Fixing "Thread killed by timeout reaper when sending large HTTP/2 response"
   [#593](https://github.com/yesodweb/wai/issues/593)
 
 ## 3.2.19
+
 * Fixing 0-length body in HTTP/2
   [#597](https://github.com/yesodweb/wai/issues/597)
   [#679](https://github.com/yesodweb/wai/issues/679)
