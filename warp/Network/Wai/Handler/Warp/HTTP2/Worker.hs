@@ -16,12 +16,14 @@ import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
 import Data.ByteString.Builder (byteString)
 import Data.IORef
+import qualified Data.Vault.Lazy as Vault
 import Network.HPACK
 import Network.HPACK.Token
 import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
 import Network.Wai
+import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceived(..))
 
 import Network.Wai.Handler.Warp.FileInfoCache
@@ -31,6 +33,7 @@ import Network.Wai.Handler.Warp.HTTP2.Manager
 import Network.Wai.Handler.Warp.HTTP2.Request
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Imports hiding (insert)
+import Network.Wai.Handler.Warp.Request (pauseTimeoutKey)
 import qualified Network.Wai.Handler.Warp.Response as R
 import qualified Network.Wai.Handler.Warp.Settings as S
 import qualified Network.Wai.Handler.Warp.Timeout as T
@@ -244,7 +247,9 @@ worker ctx@Context{inputQ,controlQ} set app responder tm = do
             T.resume th
             T.tickle th
             let ii' = ii { threadHandle = th }
-            app req $ responder ii' reqvt tcont strm req
+                vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th) $ vault req
+                req' = req { vault = vaultValue }
+            app req' $ responder ii' reqvt tcont strm req'
         cont1 <- case ex of
             Right ResponseReceived -> return True
             Left  e@(SomeException _)

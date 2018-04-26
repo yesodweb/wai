@@ -24,9 +24,8 @@ import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.HashMap (hashByteString)
 import Network.Wai.Handler.Warp.Imports
-import Network.Wai.Handler.Warp.Request (pauseTimeoutKey, getFileInfoKey)
+import Network.Wai.Handler.Warp.Request (getFileInfoKey)
 import qualified Network.Wai.Handler.Warp.Settings as S (Settings, settingsNoParsePath)
-import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 import Network.Wai.Handler.Warp.Types
 
 type MkReq = (TokenHeaderList,ValueTable) -> (Maybe Int,IO ByteString) -> IO (Request,InternalInfo)
@@ -79,10 +78,9 @@ mkRequest' ii1 settings addr ref (reqths,reqvt) (bodylen,body) = return (req,ii)
     !path = H.extractPath unparsedPath
     !rawPath = if S.settingsNoParsePath settings then unparsedPath else path
     !h = hashByteString rawPath
+    -- timeout handler must be overwritten with worker's one.
     !ii = toInternalInfo ii1 h
-    !th = threadHandle ii -- th must be overwritten with worker's one.
-    !vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
-                $ Vault.insert getFileInfoKey (getFileInfo ii)
+    !vaultValue = Vault.insert getFileInfoKey (getFileInfo ii)
                 $ Vault.insert getHTTP2DataKey (readIORef ref)
                 $ Vault.insert setHTTP2DataKey (writeIORef ref)
                 $ Vault.insert modifyHTTP2DataKey (modifyIORef' ref)
