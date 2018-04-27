@@ -246,9 +246,15 @@ worker ctx@Context{inputQ,controlQ} set app responder tm = do
             setStreamInfo sinfo inp
             T.resume th
             T.tickle th
-            let ii' = ii { threadHandle = th }
-                vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th) $ vault req
-                req' = req { vault = vaultValue }
+            let !ii' = ii { threadHandle = th }
+                !body = requestBody req
+                !body' = do
+                    T.pause th
+                    bs <- body
+                    T.resume th
+                    return bs
+                !vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th) $ vault req
+                !req' = req { vault = vaultValue, requestBody = body' }
             app req' $ responder ii' reqvt tcont strm req'
         cont1 <- case ex of
             Right ResponseReceived -> return True
