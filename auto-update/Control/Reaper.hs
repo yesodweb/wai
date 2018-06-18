@@ -49,8 +49,9 @@ data ReaperSettings workload item = ReaperSettings
     -- ^ The action to perform on a workload. The result of this is a
     -- \"workload modifying\" function. In the common case of using lists,
     -- the result should be a difference list that prepends the remaining
-    -- workload to the temporary workload. For help with setting up such
-    -- an action, see 'mkListAction'.
+    -- workload to the temporary workload. The temporary workload here
+    -- refers to items added to the workload while the reaper action is
+    -- running. For help with setting up such an action, see 'mkListAction'.
     --
     -- Default: do nothing with the workload, and then prepend it to the
     -- temporary workload. This is incredibly useless; you should
