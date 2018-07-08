@@ -1,3 +1,7 @@
+## 3.0.22.2
+
+* Export `defaultRequestLoggerSettings` [#696](https://github.com/yesodweb/wai/pull/696)
+
 ## 3.0.22.1
 
 * Drop dependency on blaze-builder, requiring streaming-commons >= 0.2
