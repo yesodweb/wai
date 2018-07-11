@@ -1,3 +1,7 @@
+## 3.0.23.0
+
+* Add rewriteRoot middleware [#697](https://github.com/yesodweb/wai/pull/697).
+
 ## 3.0.22.1
 
 * Drop dependency on blaze-builder, requiring streaming-commons >= 0.2

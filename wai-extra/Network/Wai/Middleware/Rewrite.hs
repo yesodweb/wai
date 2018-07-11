@@ -27,6 +27,7 @@ module Network.Wai.Middleware.Rewrite
       -- ** Recommended functions
     , rewriteWithQueries
     , rewritePureWithQueries
+    , rewriteRoot
 
       -- ** Deprecated
     , rewrite
@@ -262,6 +263,21 @@ rewriteWithQueries convert app req sendResponse = do
 rewritePureWithQueries :: (PathsAndQueries -> H.RequestHeaders -> PathsAndQueries)
                        -> Middleware
 rewritePureWithQueries convert app req = app $ rewriteRequestPure convert req
+
+-- | Rewrite root requests (/) to a specified path
+--
+-- Note that /index.html/ in example below should already be a valid route.
+--
+-- @
+--     rewriteRoot "index.html" :: Middleware
+-- @
+--
+-- @since 3.0.23.0
+rewriteRoot :: Text -> Middleware
+rewriteRoot root = rewritePureWithQueries onlyRoot
+  where
+    onlyRoot ([], q) _ = ([root], q)
+    onlyRoot paths _ = paths
 
 --------------------------------------------------
 -- * Modifying 'Request's directly
