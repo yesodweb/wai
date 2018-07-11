@@ -271,6 +271,8 @@ rewritePureWithQueries convert app req = app $ rewriteRequestPure convert req
 -- @
 --     rewriteRoot "index.html" :: Middleware
 -- @
+--
+-- @since 3.0.23.0
 rewriteRoot :: Text -> Middleware
 rewriteRoot root = rewritePureWithQueries onlyRoot
   where
