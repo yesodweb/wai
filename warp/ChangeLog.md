@@ -1,3 +1,8 @@
+## 3.2.23
+
+* Log real requsts when an app throws an error.
+  [#698](https://github.com/yesodweb/wai/pull/698)
+
 ## 3.2.22
 
 * Fixing large request body in HTTP/2.
