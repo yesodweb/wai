@@ -336,6 +336,9 @@ parseContentType a = do
     semicolon = 59
     equals = 61
     space = 32
+    dq s = if S.length s > 2 && S.head s == 34 && S.last s == 34 -- quote
+                then S.tail $ S.init s
+                else s
     goAttrs front bs
         | S.null bs = front []
         | otherwise =
@@ -344,7 +347,7 @@ parseContentType a = do
     goAttr bs =
         let (k, v') = S.break (== equals) bs
             v = S.drop 1 v'
-         in (strip k, strip v)
+         in (strip k, dq $ strip v)
     strip = S.dropWhile (== space) . fst . S.breakEnd (/= space)
 
 -- | Parse the body of an HTTP request.
