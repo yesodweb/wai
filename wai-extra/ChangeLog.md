@@ -1,3 +1,7 @@
+## 3.0.24.0
+
+* Add timeout middleware [#702](https://github.com/yesodweb/wai/pull/702).
+
 ## 3.0.23.0
 
 * Add rewriteRoot middleware [#697](https://github.com/yesodweb/wai/pull/697).
