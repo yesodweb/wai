@@ -29,5 +29,5 @@ timeoutStatus status = timeoutAs $ responseLBS status [] ""
 -- @since 3.0.24.0@
 timeoutAs :: Response -> Int -> Middleware
 timeoutAs timeoutReponse seconds app req respond =
-    maybe (respond timeoutReponse) pure
+    maybe (respond timeoutReponse) return
         =<< Timeout.timeout (seconds * 1000000) (app req respond)
