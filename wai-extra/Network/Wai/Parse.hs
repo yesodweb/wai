@@ -59,10 +59,12 @@ import Data.List (sortBy)
 import Data.Function (on, fix)
 import System.Directory (removeFile, getTemporaryDirectory)
 import System.IO (hClose, openBinaryTempFile)
+import System.IO.Error (isDoesNotExistError)
 import Network.Wai
 import qualified Network.HTTP.Types as H
 import Control.Applicative ((<$>))
-import Control.Monad (when, unless)
+import Control.Exception (catchJust)
+import Control.Monad (when, unless, guard)
 import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
 import Data.IORef
 import Network.HTTP.Types (hContentType)
@@ -128,7 +130,7 @@ tempFileBackEndOpts :: IO FilePath -- ^ get temporary directory
                     -> IO FilePath
 tempFileBackEndOpts getTmpDir pattrn internalState _ _ popper = do
     (key, (fp, h)) <- flip runInternalState internalState $ allocate it (hClose . snd)
-    _ <- runInternalState (register $ removeFile fp) internalState
+    _ <- runInternalState (register $ removeFileQuiet fp) internalState
     fix $ \loop -> do
         bs <- popper
         unless (S.null bs) $ do
@@ -140,6 +142,9 @@ tempFileBackEndOpts getTmpDir pattrn internalState _ _ popper = do
         it = do
             tempDir <- getTmpDir
             openBinaryTempFile tempDir pattrn
+        removeFileQuiet fp = catchJust (guard . isDoesNotExistError)
+                                       (removeFile fp)
+                                       (const $ return ())
 
 -- | A data structure that describes the behavior of
 -- the parseRequestBodyEx function.
