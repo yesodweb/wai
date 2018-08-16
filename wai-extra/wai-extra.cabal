@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.0.24.1
+Version:             3.0.24.2
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
