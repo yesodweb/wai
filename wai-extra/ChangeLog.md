@@ -1,3 +1,7 @@
+## 3.0.24.2
+
+* Don't raise exceptions in `formatAsJSON` [#709](https://github.com/yesodweb/wai/pull/709)
+
 ## 3.0.24.1
 
 * Fix a "file not found" exception in wai-extra [#705](https://github.com/yesodweb/wai/pull/706)
