@@ -1,6 +1,7 @@
 ## 3.0.24.2
 
 * Consider quoted multipart form boundary markers [#700](https://github.com/yesodweb/wai/pull/700).
+* Don't raise exceptions in `formatAsJSON` [#709](https://github.com/yesodweb/wai/pull/709)
 
 ## 3.0.24.1
 
