@@ -1,3 +1,7 @@
+## 3.0.24.2
+
+* Consider quoted multipart form boundary markers [#700](https://github.com/yesodweb/wai/pull/700).
+
 ## 3.0.24.1
 
 * Fix a "file not found" exception in wai-extra [#705](https://github.com/yesodweb/wai/pull/706)
