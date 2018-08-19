@@ -72,9 +72,9 @@ matrix:
 
   # The Stack builds. We can pass in arbitrary Stack arguments via the ARGS
   # variable, such as using --stack-yaml to point to a different file.
-  - env: BUILD=stack ARGS=""
-    compiler: ": #stack default"
-    addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+  #- env: BUILD=stack ARGS=""
+  #  compiler: ": #stack default"
+  #  addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 
   #- env: BUILD=stack ARGS="--resolver lts-2"
   #  compiler: ": #stack 7.8.4"
@@ -84,7 +84,7 @@ matrix:
   #  compiler: ": #stack 7.10.2"
   #  addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 
-  - env: BUILD=stack ARGS="--resolver lts-6"
+  - env: BUILD=stack ARGS="--resolver lts-6" STACK_YAML="stack-lts-6.yaml"
     compiler: ": #stack 7.10.3"
     addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 
@@ -92,27 +92,27 @@ matrix:
   #  compiler: ": #stack 8.0.1"
   #  addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 
-  - env: BUILD=stack ARGS="--resolver lts-9"
+  - env: BUILD=stack ARGS="--resolver lts-9" STACK_YAML="stack-lts-9.yaml"
     compiler: ": #stack 8.0.2"
     addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 
-  - env: BUILD=stack ARGS="--resolver lts-11"
+  - env: BUILD=stack ARGS="--resolver lts-11" STACK_YAML="stack-lts-11.yaml"
     compiler: ": #stack 8.2.2"
     addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 
-  - env: BUILD=stack ARGS="--resolver lts-12"
+  - env: BUILD=stack ARGS="--resolver lts-12" STACK_YAML="stack-lts-12.yaml"
     compiler: ": #stack 8.4.3"
     addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 
   # Nightly builds are allowed to fail
-  - env: BUILD=stack ARGS="--resolver nightly"
+  - env: BUILD=stack ARGS="--resolver nightly" STACK_YAML="stack-nightly.yaml"
     compiler: ": #stack nightly"
     addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 
   # Build on macOS in addition to Linux
-  - env: BUILD=stack ARGS=""
-    compiler: ": #stack default osx"
-    os: osx
+  #- env: BUILD=stack ARGS=""
+  #  compiler: ": #stack default osx"
+  #  os: osx
 
   # Travis includes an macOS which is incompatible with GHC 7.8.4
   #- env: BUILD=stack ARGS="--resolver lts-2"
@@ -123,7 +123,7 @@ matrix:
   #  compiler: ": #stack 7.10.2 osx"
   #  os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-6"
+  - env: BUILD=stack ARGS="--resolver lts-6" STACK_YAML="stack-lts-6.yaml"
     compiler: ": #stack 7.10.3 osx"
     os: osx
 
@@ -131,15 +131,15 @@ matrix:
   #  compiler: ": #stack 8.0.1 osx"
   #  os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-9"
+  - env: BUILD=stack ARGS="--resolver lts-9" STACK_YAML="stack-lts-9.yaml"
     compiler: ": #stack 8.0.2 osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-11"
+  - env: BUILD=stack ARGS="--resolver lts-11" STACK_YAML="stack-lts-11.yaml"
     compiler: ": #stack 8.2.2 osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-12"
+  - env: BUILD=stack ARGS="--resolver lts-12" STACK_YAML="stack-lts-12.yaml"
     compiler: ": #stack 8.4.3 osx"
     os: osx
 
@@ -149,7 +149,7 @@ matrix:
 
   allow_failures:
   - env: BUILD=cabal GHCVER=head  CABALVER=head HAPPYVER=1.19.5 ALEXVER=3.1.7
-  - env: BUILD=stack ARGS="--resolver nightly"
+  #- env: BUILD=stack ARGS="--resolver nightly"
 
 before_install:
 # Using compiler above sets CC to an invalid value, so unset it
@@ -169,8 +169,8 @@ before_install:
 
     # brew no longer has fcgi
     # brew install fcgi
-    grep -v wai-handler-fastcgi < stack.yaml > tmp
-    mv tmp stack.yaml
+    grep -v wai-handler-fastcgi < $STACK_YAML > tmp
+    mv tmp $STACK_YAML
   else
     travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
   fi
