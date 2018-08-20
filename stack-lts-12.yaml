@@ -1,0 +1,25 @@
+resolver: lts-12.6
+packages:
+- ./auto-update
+- ./mime-types
+- ./wai
+- ./wai-extra
+- ./warp
+- ./warp-tls
+- ./wai-app-static
+- ./wai-websockets
+- ./wai-conduit
+flags:
+  wai-extra:
+    build-example: true
+nix:
+  enable: false
+  packages:
+  - fcgi
+  - zlib
+image:
+  containers:
+    - base: "fpco/pid1"
+      name: "yesodweb/warp"
+      executables:
+        - warp

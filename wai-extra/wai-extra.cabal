@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.0.22.2
+Version:             3.0.25.0
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
@@ -148,6 +148,7 @@ Library
                      Network.Wai.Middleware.ForceDomain
                      Network.Wai.Middleware.ForceSSL
                      Network.Wai.Middleware.Routed
+                     Network.Wai.Middleware.Timeout
                      Network.Wai.Parse
                      Network.Wai.Request
                      Network.Wai.UrlMap
@@ -186,6 +187,7 @@ test-suite spec
                      Network.Wai.Middleware.ForceSSLSpec
                      Network.Wai.Middleware.RoutedSpec
                      Network.Wai.Middleware.StripHeadersSpec
+                     Network.Wai.Middleware.TimeoutSpec
                      WaiExtraSpec
     build-depends:   base                      >= 4        && < 5
                    , wai-extra

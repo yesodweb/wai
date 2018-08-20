@@ -1,0 +1,27 @@
+resolver: lts-11.21
+packages:
+- ./auto-update
+- ./mime-types
+- ./wai
+- ./wai-extra
+- ./warp
+- ./warp-tls
+- ./wai-app-static
+- ./wai-websockets
+- ./wai-conduit
+flags:
+  wai-extra:
+    build-example: true
+extra-deps:
+- streaming-commons-0.2.1.0@sha256:163af02944f374f316e35257c1afbffefd2c2852a85a151d1ea0ad22152cf28d,4990
+nix:
+  enable: false
+  packages:
+  - fcgi
+  - zlib
+image:
+  containers:
+    - base: "fpco/pid1"
+      name: "yesodweb/warp"
+      executables:
+        - warp

@@ -87,7 +87,7 @@ data RequestLoggerSettings = RequestLoggerSettings
 -- | @defaultRequestLoggerSettings@ is the original 'Default' instance
 --   factored out into a top-level declared variable.
 --
---   @since 3.0.22.2
+--   @since 3.0.25.0
 defaultRequestLoggerSettings :: RequestLoggerSettings
 defaultRequestLoggerSettings =
   RequestLoggerSettings

@@ -339,8 +339,9 @@ serveConnection conn ii1 origAddr transport settings app = do
             -- https://github.com/yesodweb/wai/issues/618
             Just NoKeepAliveRequest -> return ()
             Nothing -> do
-              sendErrorResponse addr istatus e
+              sendErrorResponse (dummyreq addr) istatus e
               throwIO e
+
   where
     getProxyProtocolAddr src =
         case settingsProxyProtocol settings of
@@ -388,12 +389,11 @@ serveConnection conn ii1 origAddr transport settings app = do
         | Just ConnectionClosedByPeer <- fromException se = False
         | otherwise                                       = True
 
-    sendErrorResponse addr istatus e = do
+    sendErrorResponse req istatus e = do
         status <- readIORef istatus
         when (shouldSendErrorResponse e && status) $ do
            let ii = toInternalInfo ii1 0 -- dummy
-               dreq = dummyreq addr
-           void $ sendResponse settings conn ii dreq defaultIndexRequestHeader (return S.empty) (errorResponse e)
+           void $ sendResponse settings conn ii req defaultIndexRequestHeader (return S.empty) (errorResponse e)
 
     dummyreq addr = defaultRequest { remoteHost = addr }
 
@@ -405,7 +405,7 @@ serveConnection conn ii1 origAddr transport settings app = do
         keepAlive <- processRequest istatus src req mremainingRef idxhdr nextBodyFlush ii
             `E.catch` \e -> do
                 -- Call the user-supplied exception handlers, passing the request.
-                sendErrorResponse addr istatus e
+                sendErrorResponse req istatus e
                 settingsOnException settings (Just req) e
                 -- Don't throw the error again to prevent calling settingsOnException twice.
                 return False

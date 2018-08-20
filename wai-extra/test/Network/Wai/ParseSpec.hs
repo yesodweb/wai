@@ -30,6 +30,7 @@ spec = do
             [ ("text/plain", "text/plain", [])
             , ("text/plain; charset=UTF-8 ", "text/plain", [("charset", "UTF-8")])
             , ("text/plain; charset=UTF-8 ; boundary = foo", "text/plain", [("charset", "UTF-8"), ("boundary", "foo")])
+            , ("text/plain; charset=UTF-8 ; boundary = \"quoted\"", "text/plain", [("charset", "UTF-8"), ("boundary", "quoted")])
             ]
     it "parseHttpAccept" caseParseHttpAccept
     describe "parseRequestBody" $ do
