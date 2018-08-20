@@ -7,7 +7,8 @@ module Network.Wai.Middleware.RequestLogger
     , logStdoutDev
       -- * Create more versions
     , mkRequestLogger
-    , RequestLoggerSettings
+    , defaultRequestLoggerSettings
+    , RequestLoggerSettings (..)
     , outputFormat
     , autoFlush
     , destination
@@ -64,7 +65,9 @@ data Destination = Handle Handle
 
 type Callback = LogStr -> IO ()
 
--- | @RequestLoggerSettings@ is an instance of Default. See <https://hackage.haskell.org/package/data-default Data.Default> for more information.
+-- | @RequestLoggerSettings@ is an instance of Default.
+--   See <https://hackage.haskell.org/package/data-default Data.Default>
+--   for more information.
 --
 -- @outputFormat@, @autoFlush@, and @destination@ are record fields
 -- for the record type @RequestLoggerSettings@, so they can be used to
@@ -81,12 +84,20 @@ data RequestLoggerSettings = RequestLoggerSettings
     , destination :: Destination
     }
 
+-- | @defaultRequestLoggerSettings@ is the original 'Default' instance
+--   factored out into a top-level declared variable.
+--
+--   @since 3.0.25.0
+defaultRequestLoggerSettings :: RequestLoggerSettings
+defaultRequestLoggerSettings =
+  RequestLoggerSettings
+    { outputFormat = Detailed True
+    , autoFlush = True
+    , destination = Handle stdout
+    }
+
 instance Default RequestLoggerSettings where
-    def = RequestLoggerSettings
-        { outputFormat = Detailed True
-        , autoFlush = True
-        , destination = Handle stdout
-        }
+    def = defaultRequestLoggerSettings
 
 mkRequestLogger :: RequestLoggerSettings -> IO Middleware
 mkRequestLogger RequestLoggerSettings{..} = do

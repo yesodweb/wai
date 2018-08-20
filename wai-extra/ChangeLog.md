@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.0.25.0
+
+* Export `defaultRequestLoggerSettings` [#696](https://github.com/yesodweb/wai/pull/696)
+
 ## 3.0.24.2
 
 * Consider quoted multipart form boundary markers [#700](https://github.com/yesodweb/wai/pull/700).
