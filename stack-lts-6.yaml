@@ -7,7 +7,6 @@ packages:
 - ./warp
 - ./warp-tls
 - ./wai-app-static
-- ./wai-handler-fastcgi
 - ./wai-websockets
 - ./wai-conduit
 extra-deps:

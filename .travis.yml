@@ -53,22 +53,22 @@ matrix:
   #  addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
   - env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22 HAPPYVER=1.19.5 ALEXVER=3.1.7
     compiler: ": #GHC 7.10.3"
-    addons: {apt: {packages: [libfcgi-dev,cabal-install-1.22,ghc-7.10.3,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
   - env: BUILD=cabal GHCVER=8.0.2 CABALVER=1.24 HAPPYVER=1.19.5 ALEXVER=3.1.7
     compiler: ": #GHC 8.0.2"
-    addons: {apt: {packages: [libfcgi-dev,cabal-install-1.24,ghc-8.0.2,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
   - env: BUILD=cabal GHCVER=8.2.2 CABALVER=2.0 HAPPYVER=1.19.5 ALEXVER=3.1.7
     compiler: ": #GHC 8.2.2"
-    addons: {apt: {packages: [libfcgi-dev,cabal-install-2.0,ghc-8.2.2,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
   - env: BUILD=cabal GHCVER=8.4.3 CABALVER=2.2 HAPPYVER=1.19.5 ALEXVER=3.1.7
     compiler: ": #GHC 8.4.3"
-    addons: {apt: {packages: [libfcgi-dev,cabal-install-2.2,ghc-8.4.3,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
 
   # Build with the newest GHC and cabal-install. This is an accepted failure,
   # see below.
   - env: BUILD=cabal GHCVER=head  CABALVER=head HAPPYVER=1.19.5 ALEXVER=3.1.7
     compiler: ": #GHC HEAD"
-    addons: {apt: {packages: [libfcgi-dev,cabal-install-head,ghc-head,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [cabal-install-head,ghc-head,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
 
   # The Stack builds. We can pass in arbitrary Stack arguments via the ARGS
   # variable, such as using --stack-yaml to point to a different file.
@@ -86,7 +86,7 @@ matrix:
 
   - env: BUILD=stack ARGS="--resolver lts-6" STACK_YAML="stack-lts-6.yaml"
     compiler: ": #stack 7.10.3"
-    addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+    addons: {apt: {packages: [libgmp-dev]}}
 
   #- env: BUILD=stack ARGS="--resolver lts-7"
   #  compiler: ": #stack 8.0.1"
@@ -94,20 +94,20 @@ matrix:
 
   - env: BUILD=stack ARGS="--resolver lts-9" STACK_YAML="stack-lts-9.yaml"
     compiler: ": #stack 8.0.2"
-    addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+    addons: {apt: {packages: [libgmp-dev]}}
 
   - env: BUILD=stack ARGS="--resolver lts-11" STACK_YAML="stack-lts-11.yaml"
     compiler: ": #stack 8.2.2"
-    addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+    addons: {apt: {packages: [libgmp-dev]}}
 
   - env: BUILD=stack ARGS="--resolver lts-12" STACK_YAML="stack-lts-12.yaml"
     compiler: ": #stack 8.4.3"
-    addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+    addons: {apt: {packages: [libgmp-dev]}}
 
   # Nightly builds are allowed to fail
   - env: BUILD=stack ARGS="--resolver nightly" STACK_YAML="stack-nightly.yaml"
     compiler: ": #stack nightly"
-    addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+    addons: {apt: {packages: [libgmp-dev]}}
 
   # Build on macOS in addition to Linux
   #- env: BUILD=stack ARGS=""
@@ -166,11 +166,6 @@ before_install:
   if [ `uname` = "Darwin" ]
   then
     travis_retry curl --insecure -L https://get.haskellstack.org/stable/osx-x86_64.tar.gz | tar xz --strip-components=1 --include '*/stack' -C ~/.local/bin
-
-    # brew no longer has fcgi
-    # brew install fcgi
-    grep -v wai-handler-fastcgi < $STACK_YAML > tmp
-    mv tmp $STACK_YAML
   else
     travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
   fi
