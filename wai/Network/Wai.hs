@@ -352,6 +352,6 @@ lazyRequestBody req =
                 bss <- loop
                 return $ LI.Chunk bs bss
 
--- | Apply the provided function to the response header list of the Response.
+-- | Apply the provided function to the request header list of the Request.
 mapRequestHeaders :: (H.RequestHeaders -> H.RequestHeaders) -> Request -> Request
 mapRequestHeaders f request = request { requestHeaders = f (requestHeaders request) }
