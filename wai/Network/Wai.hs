@@ -353,5 +353,7 @@ lazyRequestBody req =
                 return $ LI.Chunk bs bss
 
 -- | Apply the provided function to the request header list of the Request.
+--
+-- @since 3.2.2.0
 mapRequestHeaders :: (H.RequestHeaders -> H.RequestHeaders) -> Request -> Request
 mapRequestHeaders f request = request { requestHeaders = f (requestHeaders request) }
