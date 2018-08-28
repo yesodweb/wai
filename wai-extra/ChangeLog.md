@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.0.24.3
+
+* Drop unnecessary `lifted-base` dependency
+
 ## 3.0.24.2
 
 * Consider quoted multipart form boundary markers [#700](https://github.com/yesodweb/wai/pull/700).

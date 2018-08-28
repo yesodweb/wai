@@ -40,7 +40,7 @@ import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as S8
 import System.Console.ANSI
-import Data.IORef.Lifted
+import Data.IORef
 import System.IO.Unsafe
 import Network.Wai.Internal (Response (..))
 import Data.Default.Class (Default (def))
