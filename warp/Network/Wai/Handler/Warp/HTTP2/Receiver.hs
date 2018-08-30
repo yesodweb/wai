@@ -10,6 +10,7 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as C8
 import Data.IORef
 import Network.HPACK
 import Network.HPACK.Token
@@ -162,15 +163,15 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                  Nothing
                    | isResponse streamId -> return Nothing
                    | otherwise           -> do
-                         when (ftyp `notElem` [FrameHeaders,FramePriority]) $
-                             E.throwIO $ ConnectionError ProtocolError "this frame is not allowed in an idel stream"
                          csid <- readIORef clientStreamId
-                         if streamId <= csid then
-                             if ftyp == FramePriority then
+                         if streamId <= csid then -- consider the stream closed
+                             if ftyp `elem` [FrameWindowUpdate, FrameRSTStream, FramePriority] then
                                  return Nothing -- will be ignored
                                else
                                  E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
-                           else do
+                           else do -- consider the stream idle
+                             when (ftyp `notElem` [FrameHeaders,FramePriority]) $
+                                 E.throwIO $ ConnectionError ProtocolError $ "this frame is not allowed in an idel stream: " `BS.append` C8.pack (show ftyp)
                              when (ftyp == FrameHeaders) $ do
                                  writeIORef clientStreamId streamId
                                  cnt <- readIORef concurrency
