@@ -211,7 +211,12 @@ acceptConnection set getConnMaker app counter ii0 = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
+    --
+    -- acceptLoop can be broken by closing the listing socket.
     void $ mask_ acceptLoop
+    -- In some cases, we want to stop Warp here without graceful shutdown.
+    -- So, async exceptions are allowed here.
+    -- That's why `finally` is not used.
     gracefulShutdown set counter
   where
     acceptLoop = do
