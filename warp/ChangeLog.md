@@ -1,3 +1,8 @@
+## 3.2.24
+
+* Fix HTTP2 unwanted GoAways on late WindowUpdate frames.
+  [#711](https://github.com/yesodweb/wai/pull/711)
+
 ## 3.2.23
 
 * Log real requsts when an app throws an error.
