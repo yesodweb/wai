@@ -4,10 +4,11 @@ This module defines a generic web application interface. It is a common
 protocol between web servers and web applications.
 
 The overriding design principles here are performance and generality. To
-address performance, this library is built on top of the conduit package and
-bytestring's Builder type.  The advantages of conduits over lazy IO have been
-debated elsewhere and so will not be addressed here.  However, helper functions
-like 'responseLBS' allow you to continue using lazy IO if you so desire.
+address performance, this library uses a streaming interface for request and
+response bodies, paired with bytestring's 'Builder' type.  The advantages of a
+streaming API over lazy IO have been debated elsewhere and so will not be
+addressed here.  However, helper functions like 'responseLBS' allow you to
+continue using lazy IO if you so desire.
 
 Generality is achieved by removing many variables commonly found in similar
 projects that are not universal to all servers. The goal is that the 'Request'
