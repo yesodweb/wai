@@ -6,8 +6,9 @@ module Network.Wai.Handler.Warp.HTTP2.HPACK (
   , hpackEncodeHeaderLoop
   , hpackDecodeHeader
   , just
-  , addNecessaryHeaders
+  , fixHeaders
   , addHeader -- testing
+  , deleteUnnecessaryHeaders
   ) where
 
 import qualified Control.Exception as E
@@ -34,12 +35,12 @@ addHeader t v tbl ths = case getHeaderValue t tbl of
     Nothing -> (t,v) : ths
     _       -> ths
 
-addNecessaryHeaders :: Context
-                    -> Rspn
-                    -> InternalInfo
-                    -> S.Settings
-                    -> IO TokenHeaderList
-addNecessaryHeaders Context{..} rspn ii settings = do
+fixHeaders :: Context
+           -> Rspn
+           -> InternalInfo
+           -> S.Settings
+           -> IO TokenHeaderList
+fixHeaders Context{..} rspn ii settings = do
     date <- getDate ii
     let !s = rspnStatus rspn
         !status = packStatus s
@@ -48,7 +49,25 @@ addNecessaryHeaders Context{..} rspn ii settings = do
         !ths1 = addHeader tokenServer defServer tbl ths0
         !ths2 = addHeader tokenDate date tbl ths1
         !ths3 = (tokenStatus, status) : ths2
-    return ths3
+        !ths4 = deleteUnnecessaryHeaders ths3 tbl
+    return ths4
+
+deleteUnnecessaryHeaders :: TokenHeaderList -> ValueTable -> TokenHeaderList
+deleteUnnecessaryHeaders htl0 tbl0 = loop headersToBeRemoved htl0
+  where
+    loop [] thl = thl
+    loop (t:ts) thl = case getHeaderValue t tbl0 of
+      Nothing -> thl
+      _       -> let !thl' = filter ((/= t) . fst) thl
+                 in loop ts thl'
+
+headersToBeRemoved :: [Token]
+headersToBeRemoved = [ tokenConnection
+                     , tokenTransferEncoding
+                     -- Keep-Alive:
+                     -- Proxy-Connection:
+                     -- Upgrade:
+                     ]
 
 ----------------------------------------------------------------
 

@@ -132,7 +132,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             !endOfStream = case rspn of
                 RspnNobody _ _ -> True
                 _              -> False
-        ths <- addNecessaryHeaders ctx rspn ii settings
+        ths <- fixHeaders ctx rspn ii settings
         kvlen <- headerContinue sid ths endOfStream off0
         off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
         case rspn of
