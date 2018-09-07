@@ -62,6 +62,11 @@ spec = do
             (thl, vt) <- toHeaderTable hdrs
             (thl1, _) <- toHeaderTable hdrs1
             addHeader tokenServer v vt thl `shouldBe` thl1
+        it "keeps Server" $ do
+            let v = ""
+                hdrs = [("Server","MyServer"),("Content-Type","Text/HTML")]
+            (thl, vt) <- toHeaderTable hdrs
+            addHeader tokenContentType v vt thl `shouldBe` thl
 
 headers :: H.ResponseHeaders
 headers = [
