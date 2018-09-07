@@ -55,7 +55,7 @@ spec = do
                 hdrs = []
             (thl, vt) <- toHeaderTable hdrs
             addHeader tokenServer v vt thl `shouldBe` thl
-        it "deletes Server " $ do
+        it "deletes Server" $ do
             let v = ""
                 hdrs = [("Server","MyServer")]
                 hdrs1 = []
