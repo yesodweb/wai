@@ -1,3 +1,9 @@
+## 3.2.25
+
+* Removing Connection: and Transfer-Encoding: from HTTP/2
+  response header
+  [#707](https://github.com/yesodweb/wai/pull/707)
+
 ## 3.2.24
 
 * Fix HTTP2 unwanted GoAways on late WindowUpdate frames.
