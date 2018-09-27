@@ -48,7 +48,6 @@ module Network.Wai.Parse
 #endif
     ) where
 
-import qualified Data.ByteString.Search as Search
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
@@ -577,7 +576,7 @@ data Bound = FoundBound S.ByteString S.ByteString
     deriving (Eq, Show)
 
 findBound :: S.ByteString -> S.ByteString -> Bound
-findBound b bs = handleBreak $ Search.breakOn b bs
+findBound b bs = handleBreak $ S.breakSubstring b bs
   where
     handleBreak (h, t)
         | S.null t = go [lowBound..S.length bs - 1]

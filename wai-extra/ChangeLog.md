@@ -3,6 +3,7 @@
 ## 3.0.24.3
 
 * Drop unnecessary `lifted-base` dependency
+* Drop unnecessary `stringsearch` dependency [#714](https://github.com/yesodweb/wai/pull/714)
 
 ## 3.0.24.2
 
