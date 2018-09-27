@@ -104,7 +104,6 @@ Library
                    , ansi-terminal
                    , resourcet                 >= 0.4.6    && < 1.3
                    , void                      >= 0.5
-                   , stringsearch              >= 0.3      && < 0.4
                    , containers
                    , base64-bytestring
                    , word8
