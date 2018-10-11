@@ -296,6 +296,18 @@ getGracefulShutdownTimeout = settingsGracefulShutdownTimeout
 --       void $ 'System.Posix.Signals.installHandler' 'System.Posix.Signals.sigTERM' ('System.Posix.Signals.Catch' $ shutdownAction >> closeSocket) 'Nothing'
 -- @
 --
+-- Note that by default, the graceful shutdown mode lasts indefinitely
+-- (see 'setGracefulShutdownTimeout'). If you install a signal handler as above,
+-- upon receiving that signal, the custon shutdown action will run /and/ all
+-- outstanding requests will be handled.
+--
+-- You may instead prefer to do one or both of the following:
+--
+-- * Only wait a finite amount of time for outstanding requests to complete,
+--   using 'setGracefulShutdownTimeout'.
+-- * Only catch one signal, so the second hard-kills the Warp server, using
+--   'System.Posix.Signals.CatchOnce'.
+--
 -- Default: does not install any code.
 --
 -- Since 3.0.1
@@ -408,6 +420,10 @@ setServerPushLogger lgr y = y { settingsServerPushLogger = lgr }
 -- | Set the graceful shutdown timeout. A timeout of `Nothing' will
 -- wait indefinitely, and a number, if provided, will be treated as seconds
 -- to wait for requests to finish, before shutting down the server entirely.
+--
+-- Graceful shutdown mode is entered when the server socket is closed; see
+-- 'setInstallShutdownHandler' for an example of how this could be done in
+-- response to a UNIX signal.
 --
 -- Since 3.2.8
 setGracefulShutdownTimeout :: Maybe Int
