@@ -1,3 +1,7 @@
+## 0.1.0.9
+
+* Add mjs mime type
+
 ## 0.1.0.8
 
 * Add wasm mime type
