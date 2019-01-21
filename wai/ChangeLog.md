@@ -1,3 +1,7 @@
+## 3.2.2
+
+* Deprecate `requestBody` in favor of the more clearly named `getRequestBodyChunk`. [#726](https://github.com/yesodweb/wai/pull/726)
+
 ## 3.2.1.2
 
 * Remove dependency on blaze-builder [#683](https://github.com/yesodweb/wai/pull/683)

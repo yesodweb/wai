@@ -33,6 +33,8 @@ include:
 [wai-test] <http://hackage.haskell.org/package/wai-test>
 
 -}
+-- Ignore deprecations, because this module needs to use the deprecated requestBody to construct a response.
+{-# OPTIONS_GHC -fno-warn-deprecations #-}
 module Network.Wai
     (
       -- * Types
@@ -325,7 +327,7 @@ strictRequestBody req =
     loop id
   where
     loop front = do
-        bs <- requestBody req
+        bs <- getRequestBodyChunk req
         if B.null bs
             then return $ front LI.Empty
             else loop (front . LI.Chunk bs)
@@ -339,7 +341,7 @@ lazyRequestBody req =
     loop
   where
     loop = unsafeInterleaveIO $ do
-        bs <- requestBody req
+        bs <- getRequestBodyChunk req
         if B.null bs
             then return LI.Empty
             else do

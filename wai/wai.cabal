@@ -1,5 +1,5 @@
 Name:                wai
-Version:             3.2.1.2
+Version:             3.2.2
 Synopsis:            Web Application Interface.
 Description:         Provides a common protocol for communication between web applications and web servers.
                      .
