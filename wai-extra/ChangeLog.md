@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.0.25
+
+* Supporting `network` version 3.0.
+
 ## 3.0.24.3
 
 * Drop unnecessary `lifted-base` dependency
