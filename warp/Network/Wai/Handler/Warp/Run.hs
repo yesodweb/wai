@@ -536,7 +536,13 @@ setSocketCloseOnExec :: Socket -> IO ()
 #if WINDOWS
 setSocketCloseOnExec _ = return ()
 #else
-setSocketCloseOnExec socket = F.setFileCloseOnExec $ fromIntegral $ fdSocket socket
+setSocketCloseOnExec socket = do
+#if MIN_VERSION_network(3,0,0)
+    fd <- fdSocket socket
+#else
+    let fd = fdSocket socket
+#endif
+    F.setFileCloseOnExec $ fromIntegral fd
 #endif
 
 gracefulShutdown :: Settings -> Counter -> IO ()

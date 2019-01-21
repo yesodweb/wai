@@ -91,22 +91,31 @@ spell init0 siz0 recv recvBuf
 
 receive :: Socket -> BufferPool -> Recv
 receive sock pool = withBufferPool pool $ \ (ptr, size) -> do
-    let sock' = fdSocket sock
-        size' = fromIntegral size
-    fromIntegral <$> receiveloop sock' ptr size'
+#if MIN_VERSION_network(3,0,0)
+    fd <- fdSocket sock
+#else
+    let fd = fdSocket sock
+#endif
+    let size' = fromIntegral size
+    fromIntegral <$> receiveloop fd ptr size'
 
 receiveBuf :: Socket -> RecvBuf
-receiveBuf sock buf0 siz0 = loop buf0 siz0
+receiveBuf sock buf0 siz0 = do
+#if MIN_VERSION_network(3,0,0)
+    fd <- fdSocket sock
+#else
+    let fd = fdSocket sock
+#endif
+    loop fd buf0 siz0
   where
-    loop _   0   = return True
-    loop buf siz = do
+    loop _  _   0   = return True
+    loop fd buf siz = do
         n <- fromIntegral <$> receiveloop fd buf (fromIntegral siz)
         -- fixme: what should we do in the case of n == 0
         if n == 0 then
             return False
           else
-            loop (buf `plusPtr` n) (siz - n)
-    fd = fdSocket sock
+            loop fd (buf `plusPtr` n) (siz - n)
 
 receiveloop :: CInt -> Ptr Word8 -> CSize -> IO CInt
 receiveloop sock ptr size = do
