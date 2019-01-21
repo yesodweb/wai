@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Middleware.RequestLogger.JSON (formatAsJSON) where
 
@@ -75,8 +76,10 @@ sockToJSON (SockAddrInet6 pn _ ha _) =
     ]
 sockToJSON (SockAddrUnix sock) =
   object [ "unix" .= sock ]
+#if !MIN_VERSION_network(3,0,0)
 sockToJSON (SockAddrCan i) =
   object [ "can" .= i ]
+#endif
 
 queryItemToJSON :: QueryItem -> Value
 queryItemToJSON (name, mValue) = toJSON (decodeUtf8With lenientDecode name, fmap (decodeUtf8With lenientDecode) mValue)
