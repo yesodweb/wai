@@ -62,6 +62,8 @@ module Network.Wai
     , requestHeaderUserAgent
     , strictRequestBody
     , lazyRequestBody
+      -- ** Request modifiers
+    , mapRequestHeaders
       -- * Response
     , Response
     , StreamingBody
@@ -81,6 +83,7 @@ module Network.Wai
     , mapResponseStatus
       -- * Middleware composition
     , ifRequest
+    , modifyRequest
     , modifyResponse
     ) where
 
@@ -304,6 +307,10 @@ defaultRequest = Request
 type Middleware = Application -> Application
 
 
+-- | apply a function that modifies a request as a 'Middleware'
+modifyRequest :: (Request -> Request) -> Middleware
+modifyRequest f app req respond = app (f req) $ respond
+
 -- | apply a function that modifies a response as a 'Middleware'
 modifyResponse :: (Response -> Response) -> Middleware
 modifyResponse f app req respond = app req $ respond . f
@@ -345,3 +352,9 @@ lazyRequestBody req =
             else do
                 bss <- loop
                 return $ LI.Chunk bs bss
+
+-- | Apply the provided function to the request header list of the Request.
+--
+-- @since 3.2.2.0
+mapRequestHeaders :: (H.RequestHeaders -> H.RequestHeaders) -> Request -> Request
+mapRequestHeaders f request = request { requestHeaders = f (requestHeaders request) }

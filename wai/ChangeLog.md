@@ -1,3 +1,7 @@
+## 3.2.2.0
+
+* Add helpers for modifying request headers [#710](https://github.com/yesodweb/wai/pull/710)
+
 ## 3.2.1.2
 
 * Remove dependency on blaze-builder [#683](https://github.com/yesodweb/wai/pull/683)
