@@ -1,3 +1,7 @@
+## 3.2.26
+
+* Support network package version 3
+
 ## 3.2.25
 
 * Removing Connection: and Transfer-Encoding: from HTTP/2
