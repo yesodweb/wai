@@ -17,6 +17,7 @@ import           Data.List                    (intercalate)
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
+{-# DEPRECATED requestBody "requestBody's name is misleading because it only gets a partial chunk of the body. Use getRequestBodyChunk instead." #-}
 data Request = Request {
   -- | Request method such as GET.
      requestMethod        :: H.Method
@@ -62,7 +63,7 @@ data Request = Request {
   -- | Parsed query string information.
   ,  queryString          :: H.Query
   -- | Get the next chunk of the body. Returns 'B.empty' when the
-  -- body is fully consumed.
+  -- body is fully consumed. Since 3.2.2, this is deprecated in favor of 'getRequestBodyChunk'.
   ,  requestBody          :: IO B.ByteString
   -- | A location for arbitrary data to be shared by applications and middleware.
   ,  vault                 :: Vault
@@ -89,6 +90,13 @@ data Request = Request {
   ,  requestHeaderUserAgent :: Maybe B.ByteString
   }
   deriving (Typeable)
+
+-- | Get the next chunk of the body. Returns 'B.empty' when the
+-- body is fully consumed.
+--
+-- @since 3.2.2
+getRequestBodyChunk :: Request -> IO B.ByteString
+getRequestBodyChunk = requestBody
 
 instance Show Request where
     show Request{..} = "Request {" ++ intercalate ", " [a ++ " = " ++ b | (a,b) <- fields] ++ "}"
