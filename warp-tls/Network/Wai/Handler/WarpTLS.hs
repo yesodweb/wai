@@ -90,19 +90,37 @@ data TLSSettings = TLSSettings {
     --
     -- Since 1.4.0
   , tlsAllowedVersions :: [TLS.Version]
+#if MIN_VERSION_tls(1,5,0)
+    -- ^ The TLS versions this server accepts.
+    --
+    -- >>> tlsAllowedVersions defaultTlsSettings
+    -- [TLS13,TLS12,TLS11,TLS10]
+    --
+    -- Since 1.4.2
+#else
     -- ^ The TLS versions this server accepts.
     --
     -- >>> tlsAllowedVersions defaultTlsSettings
     -- [TLS12,TLS11,TLS10]
     --
     -- Since 1.4.2
+#endif
   , tlsCiphers :: [TLS.Cipher]
+#if MIN_VERSION_tls(1,5,0)
+    -- ^ The TLS ciphers this server accepts.
+    --
+    -- >>> tlsCiphers defaultTlsSettings
+    -- [ECDHE-ECDSA-AES256GCM-SHA384,ECDHE-ECDSA-AES128GCM-SHA256,ECDHE-RSA-AES256GCM-SHA384,ECDHE-RSA-AES128GCM-SHA256,DHE-RSA-AES256GCM-SHA384,DHE-RSA-AES128GCM-SHA256,ECDHE-ECDSA-AES256CBC-SHA384,ECDHE-RSA-AES256CBC-SHA384,DHE-RSA-AES256-SHA256,ECDHE-ECDSA-AES256CBC-SHA,ECDHE-RSA-AES256CBC-SHA,DHE-RSA-AES256-SHA1,RSA-AES256GCM-SHA384,RSA-AES256-SHA256,RSA-AES256-SHA1,AES128GCM-SHA256,AES256GCM-SHA384]
+    --
+    -- Since 1.4.2
+#else
     -- ^ The TLS ciphers this server accepts.
     --
     -- >>> tlsCiphers defaultTlsSettings
     -- [ECDHE-ECDSA-AES256GCM-SHA384,ECDHE-ECDSA-AES128GCM-SHA256,ECDHE-RSA-AES256GCM-SHA384,ECDHE-RSA-AES128GCM-SHA256,DHE-RSA-AES256GCM-SHA384,DHE-RSA-AES128GCM-SHA256,ECDHE-ECDSA-AES256CBC-SHA384,ECDHE-RSA-AES256CBC-SHA384,DHE-RSA-AES256-SHA256,ECDHE-ECDSA-AES256CBC-SHA,ECDHE-RSA-AES256CBC-SHA,DHE-RSA-AES256-SHA1,RSA-AES256GCM-SHA384,RSA-AES256-SHA256,RSA-AES256-SHA1]
     --
     -- Since 1.4.2
+#endif
   , tlsWantClientCert :: Bool
     -- ^ Whether or not to demand a certificate from the client.  If this
     -- is set to True, you must handle received certificates in a server hook
@@ -149,7 +167,11 @@ defaultTlsSettings = TLSSettings {
   , keyMemory = Nothing
   , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
   , tlsLogging = def
+#if MIN_VERSION_tls(1,5,0)
+  , tlsAllowedVersions = [TLS.TLS13,TLS.TLS12,TLS.TLS11,TLS.TLS10]
+#else
   , tlsAllowedVersions = [TLS.TLS12,TLS.TLS11,TLS.TLS10]
+#endif
   , tlsCiphers = ciphers
   , tlsWantClientCert = False
   , tlsServerHooks = def
@@ -264,6 +286,9 @@ runTLSSocket' tlsset@TLSSettings{..} set credential mgr sock app =
       , TLS.serverHooks          = hooks
       , TLS.serverShared         = shared
       , TLS.serverSupported      = supported
+#if MIN_VERSION_tls(1,5,0)
+      , TLS.serverEarlyDataSize  = 2018
+#endif
       }
     -- Adding alpn to user's tlsServerHooks.
     hooks = tlsServerHooks {
@@ -282,6 +307,9 @@ runTLSSocket' tlsset@TLSSettings{..} set credential mgr sock app =
       , TLS.supportedClientInitiatedRenegotiation = False
       , TLS.supportedSession             = True
       , TLS.supportedFallbackScsv        = True
+#if MIN_VERSION_tls(1,5,0)
+      , TLS.supportedGroups              = [TLS.X25519,TLS.P256,TLS.P384]
+#endif
       }
 
 alpn :: [S.ByteString] -> IO S.ByteString
@@ -427,6 +455,9 @@ getTLSinfo ctx = do
                     TLS.TLS10 -> (3,1)
                     TLS.TLS11 -> (3,2)
                     TLS.TLS12 -> (3,3)
+#if MIN_VERSION_tls(1,5,0)
+                    TLS.TLS13 -> (3,4)
+#endif
             return TLS {
                 tlsMajorVersion = major
               , tlsMinorVersion = minor
