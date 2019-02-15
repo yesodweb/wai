@@ -93,7 +93,7 @@ args = Args
 -- Since 2.0.1
 runCommandLine :: (Args -> Middleware) -> IO ()
 runCommandLine middleware = do
-    args@Args {..} <- execParser $ info (helper <*> args) fullDesc
+    args@Args {..} <- execParser $ info (helperOption <*> args) fullDesc
     let mime' = map (pack *** S8.pack) mime
     let mimeMap = Map.fromList mime' `Map.union` defaultMimeMap
     docroot' <- canonicalizePath docroot
@@ -110,3 +110,8 @@ runCommandLine middleware = do
         { ssIndices = if noindex then [] else mapMaybe (toPiece . pack) index
         , ssGetMimeType = return . mimeByExt mimeMap defaultMimeType . fromPiece . fileName
         }
+    where
+      helperOption :: Parser (a -> a)
+      helperOption =
+        abortOption ShowHelpText $
+        mconcat [long "help", help "Show this help text", hidden]
