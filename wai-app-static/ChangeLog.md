@@ -1,3 +1,9 @@
+## 3.1.6.3
+
+* The executable warp obeys `-h` option properly for host
+now. Previously this used to invoke the help option. That can be
+reached via `--help` as before.
+
 ## 3.1.6.2
 
 * Drop dependency on blaze-builder
