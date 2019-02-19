@@ -113,7 +113,7 @@ data Reaper workload item = Reaper {
 
 -- | State of reaper.
 data State workload = NoReaper           -- ^ No reaper thread
-                    | Workload workload  -- ^ The current jobs
+                    | Workload !workload  -- ^ The current jobs
 
 -- | Create a reaper addition function. This function can be used to add
 -- new items to the workload. Spawning of reaper threads will be handled
@@ -154,9 +154,9 @@ add settings@ReaperSettings{..} stateRef tidRef item =
       next <- atomicModifyIORef' stateRef cons
       next
   where
-    cons NoReaper      = let !wl = reaperCons item reaperEmpty
+    cons NoReaper      = let wl = reaperCons item reaperEmpty
                          in (Workload wl, spawn settings stateRef tidRef)
-    cons (Workload wl) = let !wl' = reaperCons item wl
+    cons (Workload wl) = let wl' = reaperCons item wl
                          in (Workload wl', return ())
 
 spawn :: ReaperSettings workload item
