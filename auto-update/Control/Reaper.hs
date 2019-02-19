@@ -156,7 +156,7 @@ add settings@ReaperSettings{..} stateRef tidRef item =
   where
     cons NoReaper      = let !wl = reaperCons item reaperEmpty
                          in (Workload wl, spawn settings stateRef tidRef)
-    cons (Workload wl) = let wl' = reaperCons item wl
+    cons (Workload wl) = let !wl' = reaperCons item wl
                          in (Workload wl', return ())
 
 spawn :: ReaperSettings workload item
