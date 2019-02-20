@@ -1,12 +1,11 @@
-## 0.1.4.2
-
-* [#732](https://github.com/yesodweb/wai/pull/732):
-  Fixed memory leak in `reaperAdd` function.
+# ChangeLog for auto-update
 
 ## 0.1.4.1
 
 * [#693](https://github.com/yesodweb/wai/pull/693):
   Improve documentation for `reaperAction` function.
+* [#732](https://github.com/yesodweb/wai/pull/732):
+  Fixed memory leak in `reaperAdd` function.
 
 ## 0.1.4
 
