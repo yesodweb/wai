@@ -30,8 +30,6 @@ include:
 
 [wai-extra] <http://hackage.haskell.org/package/wai-extra>
 
-[wai-test] <http://hackage.haskell.org/package/wai-test>
-
 -}
 -- Ignore deprecations, because this module needs to use the deprecated requestBody to construct a response.
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
