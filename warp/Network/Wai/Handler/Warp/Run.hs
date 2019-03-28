@@ -23,7 +23,7 @@ import Network.Socket (Socket, close, accept, withSocketsDo, SockAddr(SockAddrIn
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
-import System.Environment (getEnvironment)
+import System.Environment (lookupEnv)
 import System.Timeout (timeout)
 
 import Network.Wai.Handler.Warp.Buffer
@@ -80,7 +80,7 @@ run p = runSettings defaultSettings { settingsPort = p }
 -- Since 3.0.9
 runEnv :: Port -> Application -> IO ()
 runEnv p app = do
-    mp <- lookup "PORT" <$> getEnvironment
+    mp <- lookupEnv "PORT"
 
     maybe (run p app) runReadPort mp
 

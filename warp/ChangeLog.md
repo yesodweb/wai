@@ -1,3 +1,8 @@
+## 3.2.27
+
+* Internally, use `lookupEnv` instead of `getEnvironment` to get the
+  value of the `PORT` environment variable.
+
 ## 3.2.26
 
 * Support network package version 3
