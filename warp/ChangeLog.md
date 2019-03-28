@@ -1,7 +1,8 @@
 ## 3.2.27
 
 * Internally, use `lookupEnv` instead of `getEnvironment` to get the
-  value of the `PORT` environment variable.
+  value of the `PORT` environment variable
+  [#736](https://github.com/yesodweb/wai/pull/736)
 
 ## 3.2.26
 
