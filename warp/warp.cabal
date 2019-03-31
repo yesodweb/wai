@@ -219,7 +219,8 @@ Test-Suite spec
     Cpp-Options:   -DSENDFILEFD
     Build-Depends: unix
   if os(windows)
-      Cpp-Options:   -DWINDOWS
+    Cpp-Options:   -DWINDOWS
+    Build-Depends: time
 
 Benchmark parser
     Type:           exitcode-stdio-1.0
@@ -251,7 +252,8 @@ Benchmark parser
     Cpp-Options:   -DSENDFILEFD
     Build-Depends: unix
   if os(windows)
-      Cpp-Options:   -DWINDOWS
+    Cpp-Options:   -DWINDOWS
+    Build-Depends: time
 
 Source-Repository head
   Type:     git
