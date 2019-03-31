@@ -375,11 +375,13 @@ spec = do
             getHeaderValue hDate (responseHeaders res) `shouldBe` Just "date"
 
     it "streaming echo #249" $ do
+        countVar <- newTVarIO (0 :: Int)
         let app req f = f $ responseStream status200 [] $ \write _ -> do
             let loop = do
                     bs <- requestBody req
                     unless (S.null bs) $ do
                         write $ byteString bs
+                        atomically $ modifyTVar countVar (+ 1)
                         loop
             loop
         withApp defaultSettings app $ \port -> do
@@ -387,6 +389,9 @@ spec = do
             sendAll sock "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"
             threadDelay 10000
             sendAll sock "5\r\nhello\r\n0\r\n\r\n"
+            atomically $ do
+              count <- readTVar countVar
+              check $ count >= 1
             bs <- safeRecv sock 4096
             S.takeWhile (/= 13) bs `shouldBe` "HTTP/1.1 200 OK"
 
