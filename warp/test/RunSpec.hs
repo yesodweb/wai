@@ -241,10 +241,12 @@ spec = do
 
     describe "chunked bodies" $ do
         it "works" $ do
+            countVar <- newTVarIO (0 :: Int)
             ifront <- I.newIORef id
             let app req f = do
                     bss <- consumeBody $ requestBody req
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" port
@@ -257,7 +259,9 @@ spec = do
                 hPutStr handle input
                 hFlush handle
                 hClose handle
-                threadDelay 1000
+                atomically $ do
+                  count <- readTVar countVar
+                  check $ count == 2
                 front <- I.readIORef ifront
                 front [] `shouldBe`
                     [ "Hello World\nBye"
