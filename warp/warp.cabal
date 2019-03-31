@@ -171,6 +171,7 @@ Test-Suite spec
                      Network.Wai.Handler.Warp.Settings
                      Network.Wai.Handler.Warp.Timeout
                      Network.Wai.Handler.Warp.Types
+                     Network.Wai.Handler.Warp.Windows
                      Network.Wai.Handler.Warp.WithApplication
                      Paths_warp
 
@@ -200,7 +201,6 @@ Test-Suite spec
                    , time
                    , text
                    , streaming-commons         >= 0.1.10
-                   , silently
                    , async
                    , vault
                    , stm                       >= 2.3

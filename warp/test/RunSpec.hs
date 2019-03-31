@@ -6,6 +6,7 @@ module RunSpec (main, spec, withApp, connectTo) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
+import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Exception.Lifted (bracket, try, IOException, onException)
 import Control.Monad (forM_, replicateM_, unless)
@@ -264,9 +265,11 @@ spec = do
                     ]
         it "lots of chunks" $ do
             ifront <- I.newIORef id
+            countVar <- newTVarIO (0 :: Int)
             let app req f = do
                     bss <- consumeBody $ requestBody req
                     I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" port
@@ -276,14 +279,21 @@ spec = do
                         ["0\r\n\r\n"]
                 mapM_ (\bs -> hPutStr handle bs >> hFlush handle) input
                 hClose handle
-                threadDelay 100000 -- FIXME why does this delay need to be so high?
+                atomically $ do
+                  count <- readTVar countVar
+                  check $ count == 2
                 front <- I.readIORef ifront
                 front [] `shouldBe` replicate 2 (S.concat $ replicate 50 "12345")
+-- For some reason, the following test on Windows causes the socket
+-- to be killed prematurely. Worth investigating in the future if possible.
+#if !WINDOWS
         it "in chunks" $ do
             ifront <- I.newIORef id
+            countVar <- newTVarIO (0 :: Int)
             let app req f = do
                     bss <- consumeBody $ requestBody req
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
                 handle <- connectTo "127.0.0.1" port
@@ -295,12 +305,15 @@ spec = do
                         ]
                 mapM_ (\bs -> hPutStr handle bs >> hFlush handle) $ map S.singleton $ S.unpack input
                 hClose handle
-                threadDelay 1000
+                atomically $ do
+                  count <- readTVar countVar
+                  check $ count == 2
                 front <- I.readIORef ifront
                 front [] `shouldBe`
                     [ "Hello World\nBye"
                     , "Hello World"
                     ]
+#endif
         it "timeout in request body" $ do
             ifront <- I.newIORef id
             let app req f = do
