@@ -397,10 +397,13 @@ spec = do
                 [ ("server", "server")
                 , ("date", "date")
                 ] ""
+            getValues key = map snd
+                          . filter (\(key', _) -> key == key')
+                          . responseHeaders
         withApp defaultSettings app $ \port -> do
             res <- sendGET $ "http://127.0.0.1:" ++ show port
-            getHeaderValue hServer (responseHeaders res) `shouldBe` Just "server"
-            getHeaderValue hDate (responseHeaders res) `shouldBe` Just "date"
+            getValues hServer res `shouldBe` ["server"]
+            getValues hDate res `shouldBe` ["date"]
 
     it "streaming echo #249" $ do
         countVar <- newTVarIO (0 :: Int)
