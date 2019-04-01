@@ -414,7 +414,6 @@ spec = do
             res <- sendGET $ "http://127.0.0.1:" ++ show port
             getValues hServer res `shouldBe` ["server"]
             getValues hDate res `shouldBe` ["date"]
-#endif
 
     it "streaming echo #249" $ do
         countVar <- newTVarIO (0 :: Int)
@@ -436,6 +435,7 @@ spec = do
               check $ count >= 1
             bs <- safeRecv sock 4096
             S.takeWhile (/= 13) bs `shouldBe` "HTTP/1.1 200 OK"
+#endif
 
     it "streaming response with length" $ do
         let app _ f = f $ responseStream status200 [("content-length", "20")] $ \write _ -> do
