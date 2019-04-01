@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module RunSpec (main, spec, withApp, connectTo) where
+module RunSpec (main, spec, withApp, connectTo, MySocket, msWrite, msRead, msClose) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
@@ -11,7 +11,7 @@ import qualified Control.Exception as E
 import Control.Exception.Lifted (bracket, try, IOException, onException)
 import Control.Monad (forM_, replicateM_, unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.ByteString (ByteString, hPutStr, hGetSome)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as S8
@@ -23,7 +23,6 @@ import Network.Socket
 import Network.Socket.ByteString (sendAll)
 import Network.Wai hiding (responseHeaders)
 import Network.Wai.Handler.Warp
-import System.IO (hFlush, hClose, Handle, IOMode(..))
 import System.IO.Unsafe (unsafePerformIO)
 import System.Timeout (timeout)
 import Test.Hspec
@@ -36,13 +35,44 @@ main = hspec spec
 type Counter = I.IORef (Either String Int)
 type CounterApplication = Counter -> Application
 
-connectTo :: HostName -> Int -> IO Handle
-connectTo host port = do
-    let hints = defaultHints { addrSocketType = Stream }
-    addr:_ <- getAddrInfo (Just hints) (Just host) (Just $ show port)
-    sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-    connect sock $ addrAddress addr
-    socketToHandle sock ReadWriteMode
+data MySocket = MySocket
+  { msSocket :: !Socket
+  , _msBuffer :: !(I.IORef ByteString)
+  }
+
+msWrite :: MySocket -> ByteString -> IO ()
+msWrite ms bs = sendAll (msSocket ms) bs
+
+msRead :: MySocket -> Int -> IO ByteString
+msRead (MySocket s ref) expected = do
+  bs <- I.readIORef ref
+  inner (bs:) (S.length bs)
+  where
+    inner front total =
+      case compare total expected of
+        EQ -> do
+          I.writeIORef ref mempty
+          pure $ S.concat $ front []
+        GT -> do
+          let bs = S.concat $ front []
+              (x, y) = S.splitAt expected bs
+          I.writeIORef ref y
+          pure x
+        LT -> do
+          bs <- safeRecv s 4096
+          if S.null bs
+            then do
+              I.writeIORef ref mempty
+              pure $ S.concat $ front []
+            else inner (front . (bs:)) (total + S.length bs)
+
+msClose :: MySocket -> IO ()
+msClose = Network.Socket.close . msSocket
+
+connectTo :: Int -> IO MySocket
+connectTo port = MySocket
+  <$> (fst <$> getSocketTCP "127.0.0.1" port)
+  <*> I.newIORef mempty
 
 incr :: MonadIO m => Counter -> m ()
 incr icount = liftIO $ I.atomicModifyIORef icount $ \ecount ->
@@ -115,9 +145,9 @@ runTest :: Int -- ^ expected number of requests
 runTest expected app chunks = do
     ref <- I.newIORef (Right 0)
     withApp defaultSettings (app ref) $ \port -> do
-        handle <- connectTo "127.0.0.1" port
-        forM_ chunks $ \chunk -> hPutStr handle chunk >> hFlush handle
-        _ <- timeout 100000 $ replicateM_ expected $ hGetSome handle 4096
+        ms <- connectTo port
+        forM_ chunks $ \chunk -> msWrite ms chunk
+        _ <- timeout 100000 $ replicateM_ expected $ msRead ms 4096
         res <- I.readIORef ref
         case res of
             Left s -> error s
@@ -133,10 +163,9 @@ runTerminateTest expected input = do
     ref <- I.newIORef Nothing
     let onExc _ = I.writeIORef ref . Just
     withApp (setOnException onExc defaultSettings) dummyApp $ \port -> do
-        handle <- connectTo "127.0.0.1" port
-        hPutStr handle input
-        hFlush handle
-        hClose handle
+        handle <- connectTo port
+        msWrite handle input
+        msClose handle
         threadDelay 1000
         res <- I.readIORef ref
         show res `shouldBe` show (Just expected)
@@ -208,13 +237,12 @@ spec = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" port
+                handle <- connectTo port
                 let input = S.concat
                         [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
                         ]
-                hPutStr handle input
-                hFlush handle
-                hClose handle
+                msWrite handle input
+                msClose handle
                 threadDelay 1000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
@@ -226,13 +254,12 @@ spec = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" port
+                handle <- connectTo port
                 let input = S.concat
                         [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
                         ]
-                hPutStr handle input
-                hFlush handle
-                hClose handle
+                msWrite handle input
+                msClose handle
                 threadDelay 1000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
@@ -249,16 +276,15 @@ spec = do
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" port
+                handle <- connectTo port
                 let input = S.concat
                         [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
                         , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "b\r\nHello World\r\n0\r\n\r\n"
                         ]
-                hPutStr handle input
-                hFlush handle
-                hClose handle
+                msWrite handle input
+                msClose handle
                 atomically $ do
                   count <- readTVar countVar
                   check $ count == 2
@@ -276,13 +302,13 @@ spec = do
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" port
+                handle <- connectTo port
                 let input = concat $ replicate 2 $
                         ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
                         (replicate 50 "5\r\n12345\r\n") ++
                         ["0\r\n\r\n"]
-                mapM_ (\bs -> hPutStr handle bs >> hFlush handle) input
-                hClose handle
+                mapM_ (msWrite handle) input
+                msClose handle
                 atomically $ do
                   count <- readTVar countVar
                   check $ count == 2
@@ -300,15 +326,15 @@ spec = do
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" port
+                handle <- connectTo port
                 let input = S.concat
                         [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
                         , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "b\r\nHello World\r\n0\r\n\r\n"
                         ]
-                mapM_ (\bs -> hPutStr handle bs >> hFlush handle) $ map S.singleton $ S.unpack input
-                hClose handle
+                mapM_ (msWrite handle) $ map S.singleton $ S.unpack input
+                msClose handle
                 atomically $ do
                   count <- readTVar countVar
                   check $ count == 2
@@ -334,16 +360,16 @@ spec = do
                 let bs1 = S.replicate 2048 88
                     bs2 = "This is short"
                     bs = S.append bs1 bs2
-                handle <- connectTo "127.0.0.1" port
-                hPutStr handle "POST / HTTP/1.1\r\n"
-                hPutStr handle "content-length: "
-                hPutStr handle $ S8.pack $ show $ S.length bs
-                hPutStr handle "\r\n\r\n"
+                handle <- connectTo port
+                msWrite handle "POST / HTTP/1.1\r\n"
+                msWrite handle "content-length: "
+                msWrite handle $ S8.pack $ show $ S.length bs
+                msWrite handle "\r\n\r\n"
                 threadDelay 100000
-                hPutStr handle bs1
+                msWrite handle bs1
                 threadDelay 100000
-                hPutStr handle bs2
-                hClose handle
+                msWrite handle bs2
+                msClose handle
                 threadDelay 5000000
                 front <- I.readIORef ifront
                 S.concat (front []) `shouldBe` bs
@@ -360,13 +386,11 @@ spec = do
                         loop
                 doubleBS = S.concatMap $ \w -> S.pack [w, w]
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo "127.0.0.1" port
-                hPutStr handle "POST / HTTP/1.1\r\n\r\n12345"
-                hFlush handle
-                timeout 100000 (S.hGet handle 10) >>= (`shouldBe` Just "1122334455")
-                hPutStr handle "67890"
-                hFlush handle
-                timeout 100000 (S.hGet handle 10) >>= (`shouldBe` Just "6677889900")
+                ms <- connectTo port
+                msWrite ms "POST / HTTP/1.1\r\n\r\n12345"
+                timeout 100000 (msRead ms 10) >>= (`shouldBe` Just "1122334455")
+                msWrite ms "67890"
+                timeout 100000 (msRead ms 10) >>= (`shouldBe` Just "6677889900")
 
     it "only one date and server header" $ do
         let app _ f = f $ responseLBS status200

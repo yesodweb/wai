@@ -10,12 +10,8 @@ import Network.HTTP.Types
 import Network.Wai hiding (responseHeaders)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Response
-import RunSpec (withApp)
-import System.IO (hClose, hFlush)
+import RunSpec (withApp, msClose, msWrite, msRead, connectTo)
 import Test.Hspec
-
--- import HTTP
-import RunSpec (connectTo)
 
 main :: IO ()
 main = hspec spec
@@ -25,15 +21,14 @@ testRange :: S.ByteString -- ^ range value
           -> Maybe String -- ^ expected content-range value
           -> Spec
 testRange range out crange = it title $ withApp defaultSettings app $ \port -> do
-    handle <- connectTo "127.0.0.1" port
-    S.hPutStr handle "GET / HTTP/1.0\r\n"
-    S.hPutStr handle "Range: bytes="
-    S.hPutStr handle range
-    S.hPutStr handle "\r\n\r\n"
-    hFlush handle
+    handle <- connectTo port
+    msWrite handle "GET / HTTP/1.0\r\n"
+    msWrite handle "Range: bytes="
+    msWrite handle range
+    msWrite handle "\r\n\r\n"
     threadDelay 10000
-    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ S.hGetSome handle 1024
-    hClose handle
+    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ msRead handle 1024
+    msClose handle
     last bss `shouldBe` out
     let hs = mapMaybe toHeader bss
     lookup "Content-Range" hs `shouldBe` fmap ("bytes " ++) crange
@@ -52,12 +47,11 @@ testPartial :: Integer -- ^ file size
             -> String -- ^ expected output
             -> Spec
 testPartial size offset count out = it title $ withApp defaultSettings app $ \port -> do
-    handle <- connectTo "127.0.0.1" port
-    S.hPutStr handle "GET / HTTP/1.0\r\n\r\n"
-    hFlush handle
+    handle <- connectTo port
+    msWrite handle "GET / HTTP/1.0\r\n\r\n"
     threadDelay 10000
-    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ S.hGetSome handle 1024
-    hClose handle
+    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ msRead handle 1024
+    msClose handle
     out `shouldBe` last bss
     let hs = mapMaybe toHeader bss
     lookup "Content-Length" hs `shouldBe` Just (show $ length $ last bss)
