@@ -120,6 +120,8 @@ Test-Suite doctest
   Main-Is:              doctests.hs
   Build-Depends:        base >= 4.8 && < 5
                       , doctest >= 0.10.1
+  if os(windows)
+    Buildable: False
 
 Test-Suite spec
     Main-Is:         Spec.hs
