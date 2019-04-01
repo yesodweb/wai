@@ -299,6 +299,8 @@ spec = do
                     [ "Hello World\nBye"
                     , "Hello World"
                     ]
+#if !WINDOWS
+-- Too slow on Windows
         it "lots of chunks" $ do
             ifront <- I.newIORef id
             countVar <- newTVarIO (0 :: Int)
@@ -322,7 +324,6 @@ spec = do
                 front [] `shouldBe` replicate 2 (S.concat $ replicate 50 "12345")
 -- For some reason, the following test on Windows causes the socket
 -- to be killed prematurely. Worth investigating in the future if possible.
-#if !WINDOWS
         it "in chunks" $ do
             ifront <- I.newIORef id
             countVar <- newTVarIO (0 :: Int)
