@@ -10,4 +10,4 @@ Code can be written that works with any web framework targeting WAI.
 
 [Haddock Documentation](http://hackage.haskell.org/package/wai)
 
-[![Build Status](https://travis-ci.org/yesodweb/wai.svg?branch=master)](https://travis-ci.org/yesodweb/wai)
+[![Build Status](https://dev.azure.com/yesodweb/wai/_apis/build/status/yesodweb.wai?branchName=master)](https://dev.azure.com/yesodweb/wai/_build/latest?definitionId=1&branchName=master)
