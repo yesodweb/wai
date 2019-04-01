@@ -136,7 +136,13 @@ withApp settings app f = do
     bracket
         (forkIO $ runSettings settings' app `onException` putMVar baton ())
         killThread
-        (const $ takeMVar baton >> f port)
+        (const $ do
+            takeMVar baton
+            -- use timeout to make sure we don't take too long
+            mres <- timeout (60 * 1000 * 1000) (f port)
+            case mres of
+              Nothing -> error "Timeout triggered, too slow!"
+              Just a -> pure a)
 
 runTest :: Int -- ^ expected number of requests
         -> CounterApplication
