@@ -11,7 +11,6 @@ module Network.Wai.Handler.Warp.Response (
   , hasBody
   , replaceHeader
   , addServer -- testing
-  , infoFromRequest -- for determining whether to close connections on error.
   ) where
 
 import Data.ByteString.Builder.HTTP.Chunked (chunkedTransferEncoding, chunkedTransferTerminator)
@@ -212,14 +211,13 @@ sendRsp conn _ ver s hs RspNoBody = do
 
 sendRsp conn _ ver s hs (RspBuilder body needsChunked) = do
     header <- composeHeaderBuilder ver s hs needsChunked
-    let bdy
-         | needsChunked = chunkedTransferEncoding body <> chunkedTransferTerminator
-         | otherwise    = body
+    let hdrBdy
+         | needsChunked = header <> chunkedTransferEncoding body
+                                 <> chunkedTransferTerminator
+         | otherwise    = header <> body
         buffer = connWriteBuffer conn
         size = connBufferSize conn
-    toBufIOWith buffer size (connSendAll conn) header
-    E.handle (E.throwIO . ExceptionInsideResponseBody) $
-        toBufIOWith buffer size (connSendAll conn) bdy
+    toBufIOWith buffer size (connSendAll conn) hdrBdy
     return (Just s, Nothing) -- fixme: can we tell the actual sent bytes?
 
 ----------------------------------------------------------------
@@ -240,11 +238,10 @@ sendRsp conn _ ver s hs (RspStream streamingBody needsChunked th) = do
             | needsChunked = send . chunkedTransferEncoding
             | otherwise = send
     send header
-    E.handle (E.throwIO . ExceptionInsideResponseBody) $ do
-      streamingBody sendChunk (sendChunk flush)
-      when needsChunked $ send chunkedTransferTerminator
-      mbs <- finish
-      maybe (return ()) (sendFragment conn th) mbs
+    streamingBody sendChunk (sendChunk flush)
+    when needsChunked $ send chunkedTransferTerminator
+    mbs <- finish
+    maybe (return ()) (sendFragment conn th) mbs
     return (Just s, Nothing) -- fixme: can we tell the actual sent bytes?
 
 ----------------------------------------------------------------

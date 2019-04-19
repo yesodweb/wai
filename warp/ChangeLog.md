@@ -3,10 +3,12 @@
 * Internally, use `lookupEnv` instead of `getEnvironment` to get the
   value of the `PORT` environment variable
   [#736](https://github.com/yesodweb/wai/pull/736)
-
 * Throw 413 for too large payload
 * Throw 431 for too large headers
   [#741](https://github.com/yesodweb/wai/pull/741)
+* Use exception response handler in HTTP/2 & improve connection preservation
+  in HTTP/1.x if uncaught exceptions are thrown in an `Application`.
+  [#738](https://github.com/yesodweb/wai/pull/738)
 
 ## 3.2.26
 
