@@ -396,9 +396,11 @@ serveConnection conn ii1 origAddr transport settings app = do
 
     sendErrorResponse req istatus e = do
         status <- readIORef istatus
-        when (shouldSendErrorResponse e && status) $ do
-           let ii = toInternalInfo ii1 0 -- dummy
-           void $ sendResponse settings conn ii req defaultIndexRequestHeader (return S.empty) (errorResponse e)
+        if (shouldSendErrorResponse e && status)
+            then do
+                let ii = toInternalInfo ii1 0 -- dummy
+                sendResponse settings conn ii req defaultIndexRequestHeader (return S.empty) (errorResponse e)
+            else return False
 
     dummyreq addr = defaultRequest { remoteHost = addr }
 
@@ -409,22 +411,9 @@ serveConnection conn ii1 origAddr transport settings app = do
         let req = req' { isSecure = isTransportSecure transport }
         keepAlive <- processRequest istatus src req mremainingRef idxhdr nextBodyFlush ii
             `E.catch` \e -> do
-                -- Attempt to unwrap exception and use it to determine
-                -- safety of keeping exception alive
-                case fromException e of
-                    Nothing -> do
-                        -- Call the user-supplied exception handlers, passing the request.
-                        sendErrorResponse req istatus e
-                        settingsOnException settings (Just req) e
-                        -- Don't throw the error again to prevent calling settingsOnException twice.
-                        let (isPersist, _) = infoFromRequest req idxhdr
-                        return isPersist
-                    Just (ExceptionInsideResponseBody e') -> do
-                        -- Call the user-supplied exception handlers, passing the request.
-                        sendErrorResponse req istatus e'
-                        settingsOnException settings (Just req) e'
-                        -- Don't throw the error again to prevent calling settingsOnException twice.
-                        return False
+                settingsOnException settings (Just req) e
+                -- Don't throw the error again to prevent calling settingsOnException twice.
+                return False
 
         -- When doing a keep-alive connection, the other side may just
         -- close the connection. We don't want to treat that as an
@@ -444,7 +433,7 @@ serveConnection conn ii1 origAddr transport settings app = do
         -- creating the request, we need to make sure that we don't get
         -- an async exception before calling the ResponseSource.
         keepAliveRef <- newIORef $ error "keepAliveRef not filled"
-        _ <- app req $ \res -> do
+        r <- E.try $ app req $ \res -> do
             T.resume th
             -- FIXME consider forcing evaluation of the res here to
             -- send more meaningful error messages to the user.
@@ -453,6 +442,15 @@ serveConnection conn ii1 origAddr transport settings app = do
             keepAlive <- sendResponse settings conn ii req idxhdr (readSource src) res
             writeIORef keepAliveRef keepAlive
             return ResponseReceived
+        case r of
+            Right ResponseReceived -> return ()
+            Left e@(SomeException _)
+              | Just (ExceptionInsideResponseBody e') <- fromException e -> throwIO e'
+              | otherwise -> do
+                    keepAlive <- sendErrorResponse req istatus e
+                    settingsOnException settings (Just req) e
+                    writeIORef keepAliveRef keepAlive
+
         keepAlive <- readIORef keepAliveRef
 
         -- We just send a Response and it takes a time to

@@ -4,6 +4,10 @@
   value of the `PORT` environment variable
   [#736](https://github.com/yesodweb/wai/pull/736)
 
+* Use exception response handler in HTTP/2 & improve connection preservation
+  in HTTP/1.x if uncaught exceptions are thrown in an `Application`.
+  [#738](https://github.com/yesodweb/wai/pull/738)
+
 ## 3.2.26
 
 * Support network package version 3
