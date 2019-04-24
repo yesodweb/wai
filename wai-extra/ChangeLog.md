@@ -1,5 +1,11 @@
 # Changelog for wai-extra
 
+## 3.0.26
+
+* Throw 413 for too large payload
+* Throw 431 for too large headers
+  [#741](https://github.com/yesodweb/wai/pull/741)
+
 ## 3.0.25
 
 * Supporting `network` version 3.0.

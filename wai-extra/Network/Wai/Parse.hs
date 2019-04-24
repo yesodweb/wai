@@ -48,6 +48,7 @@ module Network.Wai.Parse
 #endif
     ) where
 
+import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
@@ -67,6 +68,7 @@ import Control.Monad (when, unless, guard)
 import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
 import Data.IORef
 import Network.HTTP.Types (hContentType)
+import Network.HTTP2( HTTP2Error (..), ErrorCodeId (..) )
 import Data.CaseInsensitive (mk)
 
 import Prelude hiding (lines)
@@ -426,6 +428,8 @@ conduitRequestBodyEx o backend (Multipart bound) rbody add =
 
 
 -- | Take one header or subheader line.
+-- Since:  3.0.26
+--  Throw 431 if headers too large.
 takeLine :: Maybe Int -> Source -> IO (Maybe S.ByteString)
 takeLine maxlen src =
     go ""
@@ -434,7 +438,8 @@ takeLine maxlen src =
         bs <- readSource src
         case maxlen of
             Just maxlen' -> when (S.length front > maxlen') $
-                error "Header line length exceeds allowed maximum."
+              E.throwIO $ ConnectionError (UnknownErrorCode 431)
+                          "Request Header Fields Too Large"
             Nothing -> return ()
         if S.null bs
             then close front
@@ -450,7 +455,8 @@ takeLine maxlen src =
                     let res = front `S.append` x
                     case maxlen of
                         Just maxlen' -> when (S.length res > maxlen') $
-                            error "Header line length exceeds allowed maximum."
+                          E.throwIO $ ConnectionError (UnknownErrorCode 431)
+                                    "Request Header Fields Too Large"
                         Nothing -> return ()
                     return $ Just $ killCR $ res
 
@@ -639,8 +645,9 @@ wrapTillBound bound src max' = do
                 cur <- atomicModifyIORef' sref $ \ cur ->
                     let new = cur + fromIntegral (S.length bs) in (new, new)
                 case max' of
-                    Just max'' | cur > max'' -> error "Maximum size exceeded"
-                    _ -> return ()
+                   Just max'' | cur > max'' ->
+                     E.throwIO $ ConnectionError (UnknownErrorCode 413) "Payload Too Large"
+                   _ -> return ()
                 if S.null bs
                     then do
                         writeIORef ref $ WTBDone False
