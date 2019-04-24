@@ -4,6 +4,10 @@
   value of the `PORT` environment variable
   [#736](https://github.com/yesodweb/wai/pull/736)
 
+* Throw 413 for too large payload
+* Throw 431 for too large headers
+  [#741](https://github.com/yesodweb/wai/pull/741)
+
 ## 3.2.26
 
 * Support network package version 3

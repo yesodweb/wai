@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.0.25
+Version:             3.0.26
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
@@ -115,6 +115,7 @@ Library
                    , zlib
                    , aeson
                    , iproute
+                   , http2
 
   if os(windows)
       cpp-options:   -DWINDOWS
@@ -202,6 +203,7 @@ test-suite spec
                    , cookie
                    , time
                    , case-insensitive
+                   , http2
     ghc-options:     -Wall
     default-language:          Haskell2010
 

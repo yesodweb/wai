@@ -8,12 +8,14 @@ import Control.Concurrent (forkIOWithUnmask)
 import Control.Exception
 import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as C8
+import Data.ByteString.Lazy (fromStrict)
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Version (showVersion)
 import GHC.IO.Exception (IOErrorType(..))
 import qualified Network.HTTP.Types as H
+import Network.HTTP2( HTTP2Error (..), ErrorCodeId (..) )
 import Network.Socket (SockAddr)
 import Network.Wai
 import qualified Paths_warp
@@ -168,13 +170,29 @@ defaultOnException _ e =
     when (defaultShouldDisplayException e)
         $ TIO.hPutStrLn stderr $ T.pack $ show e
 
--- | Sending 400 for bad requests. Sending 500 for internal server errors.
---
+-- | Sending 400 for bad requests.
+--   Sending 500 for internal server errors.
 -- Since: 3.1.0
+--   Sending 413 for too large payload.
+--   Sending 431 for too large headers.
+-- Since 3.2.27
 defaultOnExceptionResponse :: SomeException -> Response
 defaultOnExceptionResponse e
-  | Just (_ :: InvalidRequest) <- fromException e = responseLBS H.badRequest400  [(H.hContentType, "text/plain; charset=utf-8")] "Bad Request"
-  | otherwise                                     = responseLBS H.internalServerError500 [(H.hContentType, "text/plain; charset=utf-8")] "Something went wrong"
+  | Just (_ :: InvalidRequest) <-
+    fromException e = responseLBS H.badRequest400
+                                [(H.hContentType, "text/plain; charset=utf-8")]
+                                 "Bad Request"
+  | Just (ConnectionError (UnknownErrorCode 413) t) <-
+    fromException e = responseLBS H.status413
+                                [(H.hContentType, "text/plain; charset=utf-8")]
+                                 (fromStrict t)
+  | Just (ConnectionError (UnknownErrorCode 431) t) <-
+    fromException e = responseLBS H.status431
+                                [(H.hContentType, "text/plain; charset=utf-8")]
+                                 (fromStrict t)
+  | otherwise       = responseLBS H.internalServerError500
+                                [(H.hContentType, "text/plain; charset=utf-8")]
+                                 "Something went wrong"
 
 -- | Exception handler for the debugging purpose.
 --   500, text/plain, a showed exception.
