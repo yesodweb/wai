@@ -171,7 +171,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                                  E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
                            else do -- consider the stream idle
                              when (ftyp `notElem` [FrameHeaders,FramePriority]) $
-                                 E.throwIO $ ConnectionError ProtocolError $ "this frame is not allowed in an idel stream: " `BS.append` C8.pack (show ftyp)
+                                 E.throwIO $ ConnectionError ProtocolError $ "this frame is not allowed in an idle stream: " `BS.append` C8.pack (show ftyp)
                              when (ftyp == FrameHeaders) $ do
                                  writeIORef clientStreamId streamId
                                  cnt <- readIORef concurrency

@@ -52,6 +52,20 @@ instance Exception InvalidRequest
 
 ----------------------------------------------------------------
 
+-- | Exception thrown if something goes wrong while in the midst of
+-- sending a response, since the status code can't be altered at that
+-- point.
+--
+-- Used to determine whether keeping the HTTP1.1 connection / HTTP2 stream alive is safe
+-- or irrecoverable.
+
+newtype ExceptionInsideResponseBody = ExceptionInsideResponseBody SomeException
+    deriving (Show, Typeable)
+
+instance Exception ExceptionInsideResponseBody
+
+----------------------------------------------------------------
+
 -- | Data type to abstract file identifiers.
 --   On Unix, a file descriptor would be specified to make use of
 --   the file descriptor cache.

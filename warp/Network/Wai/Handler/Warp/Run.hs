@@ -293,7 +293,7 @@ fork set mkConn addr app counter ii0 = settingsFork set $ \unmask ->
     serve unmask ref (conn, transport) = bracket register cancel $ \th -> do
         let ii1 = toInternalInfo1 ii0 th
         -- We now have fully registered a connection close handler in
-        -- the case of all exceptions, so it is safe to one again
+        -- the case of all exceptions, so it is safe to once again
         -- allow async exceptions.
         unmask .
             -- Call the user-supplied code for connection open and
@@ -396,9 +396,11 @@ serveConnection conn ii1 origAddr transport settings app = do
 
     sendErrorResponse req istatus e = do
         status <- readIORef istatus
-        when (shouldSendErrorResponse e && status) $ do
-           let ii = toInternalInfo ii1 0 -- dummy
-           void $ sendResponse settings conn ii req defaultIndexRequestHeader (return S.empty) (errorResponse e)
+        if (shouldSendErrorResponse e && status)
+            then do
+                let ii = toInternalInfo ii1 0 -- dummy
+                sendResponse settings conn ii req defaultIndexRequestHeader (return S.empty) (errorResponse e)
+            else return False
 
     dummyreq addr = defaultRequest { remoteHost = addr }
 
@@ -409,8 +411,6 @@ serveConnection conn ii1 origAddr transport settings app = do
         let req = req' { isSecure = isTransportSecure transport }
         keepAlive <- processRequest istatus src req mremainingRef idxhdr nextBodyFlush ii
             `E.catch` \e -> do
-                -- Call the user-supplied exception handlers, passing the request.
-                sendErrorResponse req istatus e
                 settingsOnException settings (Just req) e
                 -- Don't throw the error again to prevent calling settingsOnException twice.
                 return False
@@ -433,7 +433,7 @@ serveConnection conn ii1 origAddr transport settings app = do
         -- creating the request, we need to make sure that we don't get
         -- an async exception before calling the ResponseSource.
         keepAliveRef <- newIORef $ error "keepAliveRef not filled"
-        _ <- app req $ \res -> do
+        r <- E.try $ app req $ \res -> do
             T.resume th
             -- FIXME consider forcing evaluation of the res here to
             -- send more meaningful error messages to the user.
@@ -442,21 +442,29 @@ serveConnection conn ii1 origAddr transport settings app = do
             keepAlive <- sendResponse settings conn ii req idxhdr (readSource src) res
             writeIORef keepAliveRef keepAlive
             return ResponseReceived
+        case r of
+            Right ResponseReceived -> return ()
+            Left e@(SomeException _)
+              | Just (ExceptionInsideResponseBody e') <- fromException e -> throwIO e'
+              | otherwise -> do
+                    keepAlive <- sendErrorResponse req istatus e
+                    settingsOnException settings (Just req) e
+                    writeIORef keepAliveRef keepAlive
+
         keepAlive <- readIORef keepAliveRef
 
         -- We just send a Response and it takes a time to
         -- receive a Request again. If we immediately call recv,
-        -- it is likely to fail and the IO manager works.
-        -- It is very costly. So, we yield to another Haskell
+        -- it is likely to fail and cause the IO manager to do some work.
+        -- It is very costly, so we yield to another Haskell
         -- thread hoping that the next Request will arrive
         -- when this Haskell thread will be re-scheduled.
         -- This improves performance at least when
         -- the number of cores is small.
         Conc.yield
 
-        if not keepAlive then
-            return False
-          else
+        if keepAlive
+          then
             -- If there is an unknown or large amount of data to still be read
             -- from the request body, simple drop this connection instead of
             -- reading it all in to satisfy a keep-alive request.
@@ -482,6 +490,8 @@ serveConnection conn ii1 origAddr transport settings app = do
                               else
                                 return False
                         Nothing -> tryKeepAlive
+          else
+            return False
 
 flushEntireBody :: IO ByteString -> IO ()
 flushEntireBody src =
