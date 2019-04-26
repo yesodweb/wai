@@ -344,7 +344,7 @@ serveConnection conn ii1 origAddr transport settings app = do
             -- https://github.com/yesodweb/wai/issues/618
             Just NoKeepAliveRequest -> return ()
             Nothing -> do
-              sendErrorResponse (dummyreq addr) istatus e
+              _ <- sendErrorResponse (dummyreq addr) istatus e
               throwIO e
 
   where
@@ -396,7 +396,7 @@ serveConnection conn ii1 origAddr transport settings app = do
 
     sendErrorResponse req istatus e = do
         status <- readIORef istatus
-        if (shouldSendErrorResponse e && status)
+        if shouldSendErrorResponse e && status
             then do
                 let ii = toInternalInfo ii1 0 -- dummy
                 sendResponse settings conn ii req defaultIndexRequestHeader (return S.empty) (errorResponse e)
