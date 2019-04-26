@@ -1,6 +1,22 @@
-## 3.2.4.1
+## 3.2.5
+
+* When tls 1.5.0 is available, TLS 1.3 is automatically supported.
+
+## 3.2.4.3
+
+* Using warp >= 3.2.17.
+
+## 3.2.4.2
 
 * Ignore socket errors while sending `close_notify` [#640](https://github.com/yesodweb/wai/issues/640)
+
+## 3.2.4
+
+* Using tls-session-manager.
+
+## 3.2.3
+
+* Stop using obsoleted APIs of network.
 
 ## 3.2.2
 
