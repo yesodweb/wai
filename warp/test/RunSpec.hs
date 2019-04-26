@@ -22,6 +22,7 @@ import Network.HTTP.Types
 import Network.Socket
 import Network.Socket.ByteString (sendAll)
 import Network.Wai hiding (responseHeaders)
+import Network.Wai.Internal (getRequestBodyChunk)
 import Network.Wai.Handler.Warp
 import System.IO.Unsafe (unsafePerformIO)
 import System.Timeout (timeout)
@@ -85,7 +86,7 @@ err icount msg = liftIO $ I.writeIORef icount $ Left $ show msg
 
 readBody :: CounterApplication
 readBody icount req f = do
-    body <- consumeBody $ requestBody req
+    body <- consumeBody $ getRequestBodyChunk req
     case () of
         ()
             | pathInfo req == ["hello"] && L.fromChunks body /= "Hello"
@@ -106,8 +107,8 @@ ignoreBody icount req f = do
 
 doubleConnect :: CounterApplication
 doubleConnect icount req f = do
-    _ <- consumeBody $ requestBody req
-    _ <- consumeBody $ requestBody req
+    _ <- consumeBody $ getRequestBodyChunk req
+    _ <- consumeBody $ getRequestBodyChunk req
     incr icount
     f $ responseLBS status200 [] "double connect"
 
@@ -277,7 +278,7 @@ spec = do
             countVar <- newTVarIO (0 :: Int)
             ifront <- I.newIORef id
             let app req f = do
-                    bss <- consumeBody $ requestBody req
+                    bss <- consumeBody $ getRequestBodyChunk req
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
@@ -305,7 +306,7 @@ spec = do
             ifront <- I.newIORef id
             countVar <- newTVarIO (0 :: Int)
             let app req f = do
-                    bss <- consumeBody $ requestBody req
+                    bss <- consumeBody $ getRequestBodyChunk req
                     I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
@@ -328,7 +329,7 @@ spec = do
             ifront <- I.newIORef id
             countVar <- newTVarIO (0 :: Int)
             let app req f = do
-                    bss <- consumeBody $ requestBody req
+                    bss <- consumeBody $ getRequestBodyChunk req
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
@@ -354,7 +355,7 @@ spec = do
         it "timeout in request body" $ do
             ifront <- I.newIORef id
             let app req f = do
-                    bss <- (consumeBody $ requestBody req) `onException`
+                    bss <- (consumeBody $ getRequestBodyChunk req) `onException`
                         liftIO (I.atomicModifyIORef ifront (\front -> (front . ("consume interrupted":), ())))
                     liftIO $ threadDelay 4000000 `E.catch` \e -> do
                         I.atomicModifyIORef ifront (\front ->
@@ -419,7 +420,7 @@ spec = do
         countVar <- newTVarIO (0 :: Int)
         let app req f = f $ responseStream status200 [] $ \write _ -> do
             let loop = do
-                    bs <- requestBody req
+                    bs <- getRequestBodyChunk req
                     unless (S.null bs) $ do
                         write $ byteString bs
                         atomically $ modifyTVar countVar (+ 1)

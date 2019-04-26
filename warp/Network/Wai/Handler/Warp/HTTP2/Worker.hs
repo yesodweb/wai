@@ -24,7 +24,7 @@ import Network.HTTP2
 import Network.HTTP2.Priority
 import Network.Wai
 import qualified Network.Wai.Handler.Warp.Timeout as Timeout
-import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceived(..))
+import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceived(..), getRequestBodyChunk)
 
 import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
@@ -247,7 +247,7 @@ worker ctx@Context{inputQ,controlQ} set app responder tm = do
             T.resume th
             T.tickle th
             let !ii' = ii { threadHandle = th }
-                !body = requestBody req
+                !body = getRequestBodyChunk req
                 !body' = do
                     T.pause th
                     bs <- body
