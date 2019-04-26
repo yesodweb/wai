@@ -109,8 +109,8 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                     PriorityFrame newpri <- guardIt $ decodePriorityFrame header pl
                     checkPriority newpri streamId
                 return True -- just ignore this frame
-            Just strm@Stream{streamState,streamPrecedence} -> do
-              state <- readIORef streamState
+            Just strm@Stream{streamPrecedence} -> do
+              state <- readStreamState strm
               state' <- stream ftyp header pl ctx state strm
               case state' of
                   Open (NoBody tbl@(_,reqvt) pri) -> do
@@ -119,7 +119,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                       when (just mcl (/= (0 :: Int))) $
                           E.throwIO $ StreamError ProtocolError streamId
                       writeIORef streamPrecedence $ toPrecedence pri
-                      writeIORef streamState HalfClosed
+                      halfClosedRemote ctx strm
                       (!req, !ii) <- mkreq tbl (Just 0, return "")
                       atomically $ writeTQueue inputQ $ Input strm req reqvt ii
                   Open (HasBody tbl@(_,reqvt) pri) -> do
@@ -128,17 +128,20 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                       let !mcl = readInt <$> getHeaderValue tokenContentLength reqvt
                       writeIORef streamPrecedence $ toPrecedence pri
                       bodyLength <- newIORef 0
-                      writeIORef streamState $ Open (Body q mcl bodyLength)
+                      setStreamState ctx strm $ Open (Body q mcl bodyLength)
                       readQ <- newReadBody q
                       bodySource <- mkSource readQ
                       (!req, !ii) <- mkreq tbl (mcl, readSource bodySource)
                       atomically $ writeTQueue inputQ $ Input strm req reqvt ii
                   s@(Open Continued{}) -> do
                       setContinued
-                      writeIORef streamState s
-                  s -> do -- Idle, Open Body, HalfClosed, Closed
+                      setStreamState ctx strm s
+                  HalfClosedRemote -> do
                       resetContinued
-                      writeIORef streamState s
+                      halfClosedRemote ctx strm
+                  s -> do -- Idle, Open Body, Closed
+                      resetContinued
+                      setStreamState ctx strm s
               return True
        where
          setContinued = writeIORef continued (Just streamId)
@@ -155,8 +158,8 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
              case mstrm0 of
                  js@(Just strm0) -> do
                      when (ftyp == FrameHeaders) $ do
-                         st <- readIORef $ streamState strm0
-                         when (isHalfClosed st) $ E.throwIO $ ConnectionError StreamClosed "header must not be sent to half closed"
+                         st <- readStreamState strm0
+                         when (isHalfClosedRemote st) $ E.throwIO $ ConnectionError StreamClosed "header must not be sent to half or fully closed stream"
                          -- Priority made an idele stream
                          when (isIdle st) $ opened ctx strm0
                      return js
@@ -286,10 +289,27 @@ stream FrameHeaders header@FrameHeader{flags} bs _ (Open (Body q _ _)) _ = do
     let !endOfStream = testEndStream flags
     if endOfStream then do
         atomically $ writeTQueue q ""
-        return HalfClosed
+        return HalfClosedRemote
       else
         -- we don't support continuation here.
         E.throwIO $ ConnectionError ProtocolError "continuation in trailer is not supported"
+
+-- ignore data-frame except for flow-control when we're done locally
+stream FrameData
+       FrameHeader{flags,payloadLength}
+       _bs
+       Context{controlQ} s@(HalfClosedLocal _)
+       Stream{streamNumber} = do
+    let !endOfStream = testEndStream flags
+    when (payloadLength /= 0) $ do
+        let !frame1 = windowUpdateFrame 0 payloadLength
+            !frame2 = windowUpdateFrame streamNumber payloadLength
+            !frame = frame1 `BS.append` frame2
+        enqueueControl controlQ $ CFrame frame
+    if endOfStream then do
+        return HalfClosedRemote
+      else
+        return s
 
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
@@ -312,7 +332,7 @@ stream FrameData
             Nothing -> return ()
             Just cl -> when (cl /= len) $ E.throwIO $ StreamError ProtocolError streamId
         atomically $ writeTQueue q ""
-        return HalfClosed
+        return HalfClosedRemote
       else
         return s
 

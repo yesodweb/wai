@@ -137,7 +137,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
         case rspn of
             RspnNobody _ _ -> do
-                closed ctx strm Finished
+                halfClosedLocal ctx strm Finished
                 return off
             RspnFile _ _ path mpart -> do
                 -- Data frame payload
@@ -174,8 +174,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     output _ _ _ = undefined -- never reach
 
     outputOrEnqueueAgain out off = E.handle resetStream $ do
-        state <- readIORef $ streamState strm
-        if isClosed state then
+        state <- readStreamState strm
+        if isHalfClosedLocal state then
             return off
           else case out of
                  Output _ _ _ wait _ OWait -> do
@@ -292,7 +292,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         handleEndOfBody True off0 noTrailers trailers = do
             off1 <- handleTrailers noTrailers off0 trailers
             void tell
-            closed ctx strm Finished
+            halfClosedLocal ctx strm Finished
             return off1
         handleEndOfBody False off0 _ _ = return off0
 

@@ -166,7 +166,8 @@ data ClosedCode = Finished
 data StreamState =
     Idle
   | Open !OpenState
-  | HalfClosed
+  | HalfClosedRemote
+  | HalfClosedLocal !ClosedCode
   | Closed !ClosedCode
   | Reserved
 
@@ -178,9 +179,15 @@ isOpen :: StreamState -> Bool
 isOpen Open{} = True
 isOpen _      = False
 
-isHalfClosed :: StreamState -> Bool
-isHalfClosed HalfClosed = True
-isHalfClosed _          = False
+isHalfClosedRemote :: StreamState -> Bool
+isHalfClosedRemote HalfClosedRemote = True
+isHalfClosedRemote (Closed _)       = True
+isHalfClosedRemote _                = False
+
+isHalfClosedLocal :: StreamState -> Bool
+isHalfClosedLocal (HalfClosedLocal _) = True
+isHalfClosedLocal (Closed _)       = True
+isHalfClosedLocal _                = False
 
 isClosed :: StreamState -> Bool
 isClosed Closed{} = True
@@ -189,7 +196,8 @@ isClosed _        = False
 instance Show StreamState where
     show Idle        = "Idle"
     show Open{}      = "Open"
-    show HalfClosed  = "HalfClosed"
+    show HalfClosedRemote  = "HalfClosedRemote"
+    show (HalfClosedLocal e)  = "HalfClosedLocal: " ++ show e
     show (Closed e)  = "Closed: " ++ show e
     show Reserved    = "Reserved"
 
@@ -221,16 +229,49 @@ newPushStream Context{serverStreamId} win pre = do
 
 ----------------------------------------------------------------
 
+{-# INLINE readStreamState #-}
+readStreamState :: Stream -> IO StreamState
+readStreamState Stream{streamState} =
+    readIORef streamState
+
+{-# INLINE setStreamState #-}
+setStreamState :: Context -> Stream -> StreamState -> IO ()
+setStreamState _ Stream{streamState} val = writeIORef streamState val
+
 opened :: Context -> Stream -> IO ()
-opened Context{concurrency} Stream{streamState} = do
+opened ctx@Context{concurrency} strm = do
     atomicModifyIORef' concurrency (\x -> (x+1,()))
-    writeIORef streamState (Open JustOpened)
+    setStreamState ctx strm (Open JustOpened)
+
+halfClosedRemote :: Context -> Stream -> IO ()
+halfClosedRemote ctx stream@Stream{streamState} = do
+    !closingCode <- atomicModifyIORef streamState closeHalf
+    case closingCode of
+        Nothing -> return ()
+        Just cc -> closed ctx stream cc
+  where
+    closeHalf :: StreamState -> (StreamState, Maybe ClosedCode)
+    closeHalf x@(Closed _)         = (x, Nothing)
+    closeHalf (HalfClosedLocal cc) = (Closed cc, Just cc)
+    closeHalf _                    = (HalfClosedRemote, Nothing)
+
+halfClosedLocal :: Context -> Stream -> ClosedCode -> IO ()
+halfClosedLocal ctx stream@Stream{streamState} cc = do
+    shouldFinalize <- atomicModifyIORef streamState closeHalf
+    when shouldFinalize $
+        closed ctx stream cc
+  where
+    closeHalf :: StreamState -> (StreamState, Bool)
+    closeHalf x@(Closed _)     = (x, False)
+    closeHalf HalfClosedRemote = (Closed cc, True)
+    closeHalf _                = (HalfClosedLocal cc, False)
 
 closed :: Context -> Stream -> ClosedCode -> IO ()
-closed Context{concurrency,streamTable} Stream{streamState,streamNumber} cc = do
+closed ctx@Context{concurrency,streamTable} strm@Stream{streamNumber} cc = do
     remove streamTable streamNumber
+    -- TODO: prevent double-counting
     atomicModifyIORef' concurrency (\x -> (x-1,()))
-    writeIORef streamState (Closed cc) -- anyway
+    setStreamState ctx strm (Closed cc) -- anyway
 
 ----------------------------------------------------------------
 
