@@ -14,6 +14,7 @@ extra-deps:
 - streaming-commons-0.2.1.0@sha256:163af02944f374f316e35257c1afbffefd2c2852a85a151d1ea0ad22152cf28d,4990
 - wai-logger-2.3.2@sha256:7f5dbc72c0753bd3e0e73f8f542d9d159d1d70f8ff3a3ec16d0b74b500534fc6,1572
 - http-client-0.5.13.1@rev:0
+- http-types-0.12.3@rev:0
 nix:
   enable: false
   packages:

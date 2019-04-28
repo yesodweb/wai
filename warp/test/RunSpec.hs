@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -300,8 +299,6 @@ spec = do
                     [ "Hello World\nBye"
                     , "Hello World"
                     ]
-#if !WINDOWS
--- Too slow on Windows
         it "lots of chunks" $ do
             ifront <- I.newIORef id
             countVar <- newTVarIO (0 :: Int)
@@ -351,7 +348,6 @@ spec = do
                     [ "Hello World\nBye"
                     , "Hello World"
                     ]
-#endif
         it "timeout in request body" $ do
             ifront <- I.newIORef id
             let app req f = do
@@ -399,10 +395,6 @@ spec = do
                 timeout 100000 (msRead ms 10) >>= (`shouldBe` Just "1122334455")
                 msWrite ms "67890"
                 timeout 100000 (msRead ms 10) >>= (`shouldBe` Just "6677889900")
-
-#if !WINDOWS
--- No idea why this test is so unreliable on Windows
--- It fails in multiple ways on CI
     it "only one date and server header" $ do
         let app _ f = f $ responseLBS status200
                 [ ("server", "server")
@@ -436,7 +428,6 @@ spec = do
               check $ count >= 1
             bs <- safeRecv sock 4096
             S.takeWhile (/= 13) bs `shouldBe` "HTTP/1.1 200 OK"
-#endif
 
     it "streaming response with length" $ do
         let app _ f = f $ responseStream status200 [("content-length", "20")] $ \write _ -> do
