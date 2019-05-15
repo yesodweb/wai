@@ -102,7 +102,7 @@ test-suite runtests
                    , temporary
                    , mockery
                    -- , containers
-  ghc-options:   -Wall
+    ghc-options:   -Wall
 
 source-repository head
   type:     git
