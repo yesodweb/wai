@@ -260,7 +260,9 @@ worker ctx@Context{inputQ,controlQ} set app responder tm = do
                 Right ok -> return ok
                 Left e@(SomeException _)
                   | Just (ExceptionInsideResponseBody e') <- E.fromException e -> E.throwIO e'
-                  | otherwise -> responder ii' reqvt tcont strm req' (S.settingsOnExceptionResponse set e)
+                  | otherwise -> do
+                      S.settingsOnException set (Just req) e
+                      responder ii' reqvt tcont strm req' (S.settingsOnExceptionResponse set e)
         cont1 <- case ex of
             Right ResponseReceived -> return True
             Left  e@(SomeException _)
