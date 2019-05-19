@@ -1,3 +1,8 @@
+## 3.2.28
+
+* Call settingsOnException upon error
+  [#747](https://github.com/yesodweb/wai/pull/747)
+
 ## 3.2.27
 
 * Internally, use `lookupEnv` instead of `getEnvironment` to get the
