@@ -19,10 +19,10 @@ import Data.Foldable
 import Data.IORef
 import Data.Set (Set)
 import qualified Data.Set as Set
+import qualified System.TimeManager as T
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Settings
-import qualified Network.Wai.Handler.Warp.Timeout as T
 
 ----------------------------------------------------------------
 

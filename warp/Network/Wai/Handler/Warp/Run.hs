@@ -25,6 +25,7 @@ import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
+import qualified System.TimeManager as T
 
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Counter
@@ -40,7 +41,6 @@ import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
-import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 
 

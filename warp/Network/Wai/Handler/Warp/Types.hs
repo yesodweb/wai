@@ -10,12 +10,12 @@ import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 import Data.Typeable (Typeable)
 import Foreign.Ptr (Ptr)
 import System.Posix.Types (Fd)
+import qualified System.TimeManager as T
 
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.Imports
-import qualified Network.Wai.Handler.Warp.Timeout as T
 
 ----------------------------------------------------------------
 
