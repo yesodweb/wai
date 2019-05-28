@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
@@ -19,20 +20,22 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef')
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno(..), eCONNABORTED)
 import GHC.IO.Exception (IOException(..))
+import qualified Network.HTTP2 as H2
 import Network.Socket (Socket, close, accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6), setSocketOption, SocketOption(..))
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
 import System.Environment (lookupEnv)
-import System.Timeout (timeout)
 import qualified System.TimeManager as T
+import System.Timeout (timeout)
 
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Counter
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
-import Network.Wai.Handler.Warp.HTTP2 (http2, isHTTP2)
+import Network.Wai.Handler.Warp.HTTP2 (http2)
+import Network.Wai.Handler.Warp.HTTP2.Types (isHTTP2)
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.ReadInt
@@ -332,7 +335,8 @@ serveConnection conn ii th origAddr transport settings app = do
         rawRecvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
         let recvN = wrappedRecvN th istatus (settingsSlowlorisSize settings) rawRecvN
         -- fixme: origAddr
-        http2 conn ii origAddr transport settings recvN app
+        checkTLS
+        http2 conn ii origAddr settings recvN app
       else do
         src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
         writeIORef istatus True
@@ -489,6 +493,19 @@ serveConnection conn ii th origAddr transport settings app = do
                         Nothing -> tryKeepAlive
           else
             return False
+
+    checkTLS = case transport of
+        TCP -> return () -- direct
+        tls -> unless (tls12orLater tls) $ goaway conn H2.InadequateSecurity "Weak TLS"
+    tls12orLater tls = tlsMajorVersion tls == 3 && tlsMinorVersion tls >= 3
+
+-- connClose must not be called here since Run:fork calls it
+goaway :: Connection -> H2.ErrorCodeId -> ByteString -> IO ()
+goaway Connection{..} etype debugmsg = connSendAll bytestream
+  where
+    einfo = H2.encodeInfo id 0
+    frame = H2.GoAwayFrame 0 etype debugmsg
+    bytestream = H2.encodeFrame einfo frame
 
 flushEntireBody :: IO ByteString -> IO ()
 flushEntireBody src =
