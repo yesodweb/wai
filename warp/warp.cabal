@@ -42,19 +42,20 @@ Library
                    , case-insensitive          >= 0.2
                    , containers
                    , ghc-prim
-                   , http-types                >= 0.11
-                   , iproute                   >= 1.3.1
-                   , http2                     >= 1.6      && < 1.7
-                   , simple-sendfile           >= 0.2.7    && < 0.3
-                   , unix-compat               >= 0.2
-                   , wai                       >= 3.2      && < 3.3
-                   , text
-                   , streaming-commons         >= 0.1.10
-                   , vault                     >= 0.3
-                   , stm                       >= 2.3
-                   , word8
                    , hashable
                    , http-date
+                   , http-types                >= 0.11
+                   , http2                     >= 1.6      && < 1.7
+                   , iproute                   >= 1.3.1
+                   , simple-sendfile           >= 0.2.7    && < 0.3
+                   , stm                       >= 2.3
+                   , streaming-commons         >= 0.1.10
+                   , text
+                   , time-manager
+                   , unix-compat               >= 0.2
+                   , vault                     >= 0.3
+                   , wai                       >= 3.2      && < 3.3
+                   , word8
   if impl(ghc < 8)
       Build-Depends: semigroups
   if flag(network-bytestring)
@@ -95,7 +96,6 @@ Library
                      Network.Wai.Handler.Warp.Run
                      Network.Wai.Handler.Warp.SendFile
                      Network.Wai.Handler.Warp.Settings
-                     Network.Wai.Handler.Warp.Timeout
                      Network.Wai.Handler.Warp.Types
                      Network.Wai.Handler.Warp.Windows
                      Network.Wai.Handler.Warp.WithApplication
@@ -171,7 +171,6 @@ Test-Suite spec
                      Network.Wai.Handler.Warp.Run
                      Network.Wai.Handler.Warp.SendFile
                      Network.Wai.Handler.Warp.Settings
-                     Network.Wai.Handler.Warp.Timeout
                      Network.Wai.Handler.Warp.Types
                      Network.Wai.Handler.Warp.Windows
                      Network.Wai.Handler.Warp.WithApplication
@@ -182,37 +181,38 @@ Test-Suite spec
 
     Ghc-Options:     -Wall -threaded
     Build-Depends:   base >= 4.8 && < 5
+                   , HUnit
+                   , QuickCheck
                    , array
+                   , async
                    , auto-update
                    , bsb-http-chunked                         < 0.1
                    , bytestring                >= 0.9.1.4
                    , case-insensitive          >= 0.2
+                   , containers
+                   , directory
                    , ghc-prim
+                   , hashable
+                   , hspec                     >= 1.3
                    , http-client
+                   , http-date
                    , http-types                >= 0.8.5
+                   , http2                     >= 1.6      && < 1.7
                    , iproute                   >= 1.3.1
                    , lifted-base               >= 0.1
+                   , network
+                   , process
                    , simple-sendfile           >= 0.2.4    && < 0.3
+                   , stm                       >= 2.3
+                   , streaming-commons         >= 0.1.10
+                   , text
+                   , time
+                   , time-manager
                    , transformers              >= 0.2.2
                    , unix-compat               >= 0.2
-                   , wai                       >= 3.2      && < 3.3
-                   , network
-                   , HUnit
-                   , QuickCheck
-                   , hspec                     >= 1.3
-                   , time
-                   , text
-                   , streaming-commons         >= 0.1.10
-                   , async
                    , vault
-                   , stm                       >= 2.3
-                   , directory
-                   , process
-                   , containers
-                   , http2                     >= 1.6      && < 1.7
+                   , wai                       >= 3.2      && < 3.3
                    , word8
-                   , hashable
-                   , http-date
     -- Build-Tool-Depends: hspec-discover:hspec-discover
   if impl(ghc < 8)
       Build-Depends: semigroups
@@ -233,7 +233,6 @@ Benchmark parser
                     Network.Wai.Handler.Warp.HashMap
                     Network.Wai.Handler.Warp.Imports
                     Network.Wai.Handler.Warp.MultiMap
-                    Network.Wai.Handler.Warp.Timeout
                     Network.Wai.Handler.Warp.Types
     HS-Source-Dirs: bench .
     Build-Depends:  base >= 4.8 && < 5
@@ -246,6 +245,7 @@ Benchmark parser
                   , http-types
                   , network
                   , network
+                  , time-manager
                   , unix-compat
   if impl(ghc < 8)
       Build-Depends: semigroups

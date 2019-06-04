@@ -21,9 +21,9 @@ import Network.Wai
 import qualified Paths_warp
 import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
+import System.TimeManager
 
 import Network.Wai.Handler.Warp.Imports
-import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
 
 -- | Various Warp server settings. This is purposely kept as an abstract data

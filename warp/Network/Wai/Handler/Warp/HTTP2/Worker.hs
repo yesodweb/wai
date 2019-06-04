@@ -23,8 +23,8 @@ import qualified Network.HTTP.Types as H
 import Network.HTTP2
 import Network.HTTP2.Priority
 import Network.Wai
-import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 import Network.Wai.Internal (Response(..), ResponseReceived(..), ResponseReceived(..), getRequestBodyChunk)
+import qualified System.TimeManager as T
 
 import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
@@ -36,7 +36,6 @@ import Network.Wai.Handler.Warp.Imports hiding (insert)
 import Network.Wai.Handler.Warp.Request (pauseTimeoutKey)
 import qualified Network.Wai.Handler.Warp.Response as R
 import qualified Network.Wai.Handler.Warp.Settings as S
-import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
@@ -253,7 +252,7 @@ worker ctx@Context{inputQ,controlQ} set app responder tm = do
                     bs <- body
                     T.resume th
                     return bs
-                !vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th) $ vault req
+                !vaultValue = Vault.insert pauseTimeoutKey (T.pause th) $ vault req
                 !req' = req { vault = vaultValue, requestBody = body' }
             mr <- E.try $ app req' $ responder ii' reqvt tcont strm req'
             case mr of

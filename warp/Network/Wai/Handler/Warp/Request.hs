@@ -24,11 +24,11 @@ import qualified Data.Vault.Lazy as Vault
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
-import qualified Network.Wai.Handler.Warp.Timeout as Timeout
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
 import Prelude hiding (lines)
 import System.IO.Unsafe (unsafePerformIO)
+import qualified System.TimeManager as Timeout
 
 import Network.Wai.Handler.Warp.Conduit
 import Network.Wai.Handler.Warp.FileInfoCache

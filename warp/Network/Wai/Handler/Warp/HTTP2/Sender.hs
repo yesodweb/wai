@@ -22,7 +22,7 @@ import qualified System.IO as IO
 #else
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.SendFile (positionRead)
-import qualified Network.Wai.Handler.Warp.Timeout as T
+import qualified System.TimeManager as T
 #endif
 
 import Network.Wai.Handler.Warp.Buffer

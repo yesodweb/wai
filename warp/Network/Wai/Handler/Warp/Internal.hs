@@ -53,7 +53,7 @@ module Network.Wai.Handler.Warp.Internal (
     --   resumed as soon as we return from user code.
     --
     -- * Every time data is successfully sent to the client, the timeout is tickled.
-  , module Network.Wai.Handler.Warp.Timeout
+  , module System.TimeManager
     -- * File descriptor cache
   , module Network.Wai.Handler.Warp.FdCache
     -- * File information cache
@@ -69,6 +69,8 @@ module Network.Wai.Handler.Warp.Internal (
   , windowsThreadBlockHack
   ) where
 
+import System.TimeManager
+
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Date
 import Network.Wai.Handler.Warp.FdCache
@@ -80,6 +82,5 @@ import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
-import Network.Wai.Handler.Warp.Timeout
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Handler.Warp.Windows
