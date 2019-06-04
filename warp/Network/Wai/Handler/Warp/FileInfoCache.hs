@@ -93,7 +93,7 @@ withFileInfoCache duration action =
               terminate
               (action . getAndRegisterInfo)
 
-initialize :: Hash -> IO FileInfoCache
+initialize :: Int -> IO FileInfoCache
 initialize duration = mkReaper settings
   where
     settings = defaultReaperSettings {
