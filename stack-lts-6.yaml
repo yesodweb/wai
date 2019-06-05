@@ -9,6 +9,7 @@ packages:
 - ./wai-app-static
 - ./wai-websockets
 - ./wai-conduit
+- ./time-manager
 extra-deps:
 - bsb-http-chunked-0.0.0.2@sha256:0571ef33ec5530104503d32eaf24f2d7c221f350e5fc475a6dd8e84311bc0ca1,1792
 - streaming-commons-0.2.1.0@sha256:163af02944f374f316e35257c1afbffefd2c2852a85a151d1ea0ad22152cf28d,4990
