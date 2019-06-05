@@ -44,6 +44,7 @@ import Network.Wai.Handler.Warp.Types
 --   This type implements the second argument (Response -> IO ResponseReceived)
 --   with extra arguments.
 type Responder = InternalInfo
+              -> T.Handle
               -> ValueTable -- for Request
               -> ThreadContinue
               -> Stream
@@ -118,7 +119,7 @@ pushStream ctx@Context{http2settings,outputQ,streamTable}
 --   They also pass 'Response's from 'Application's to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: S.Settings -> Context -> Manager -> Responder
-response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = E.handle (E.throwIO . ExceptionInsideResponseBody) $ case rsp of
+response settings ctx@Context{outputQ} mgr ii th reqvt tconf strm req rsp = E.handle (E.throwIO . ExceptionInsideResponseBody) $ case rsp of
   ResponseStream s0 hs0 strmbdy
     | noBody s0          -> responseNoBody s0 hs0
     | isHead             -> responseNoBody s0 hs0
@@ -141,7 +142,6 @@ response settings ctx@Context{outputQ} mgr ii reqvt tconf strm req rsp = E.handl
     noBody = not . R.hasBody
     !isHead = requestMethod req == H.methodHead
     !logger = S.settingsLogger settings
-    !th = threadHandle ii
     sid = streamNumber strm
     !h2data = getHTTP2Data req
 
@@ -245,8 +245,7 @@ worker ctx@Context{inputQ,controlQ} set app responder tm = do
             setStreamInfo sinfo inp
             T.resume th
             T.tickle th
-            let !ii' = ii { threadHandle = th }
-                !body = getRequestBodyChunk req
+            let !body = getRequestBodyChunk req
                 !body' = do
                     T.pause th
                     bs <- body
@@ -254,12 +253,12 @@ worker ctx@Context{inputQ,controlQ} set app responder tm = do
                     return bs
                 !vaultValue = Vault.insert pauseTimeoutKey (T.pause th) $ vault req
                 !req' = req { vault = vaultValue, requestBody = body' }
-            mr <- E.try $ app req' $ responder ii' reqvt tcont strm req'
+            mr <- E.try $ app req' $ responder ii th reqvt tcont strm req'
             case mr of
                 Right ok -> return ok
                 Left e@(SomeException _)
                   | Just (ExceptionInsideResponseBody e') <- E.fromException e -> E.throwIO e'
-                  | otherwise -> responder ii' reqvt tcont strm req' (S.settingsOnExceptionResponse set e)
+                  | otherwise -> responder ii th reqvt tcont strm req' (S.settingsOnExceptionResponse set e)
         cont1 <- case ex of
             Right ResponseReceived -> return True
             Left  e@(SomeException _)

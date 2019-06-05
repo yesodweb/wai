@@ -22,8 +22,8 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-http2 :: Connection -> InternalInfo1 -> SockAddr -> Transport -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
-http2 conn ii1 addr transport settings readN app = do
+http2 :: Connection -> InternalInfo -> SockAddr -> Transport -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
+http2 conn ii addr transport settings readN app = do
     checkTLS
     ok <- checkPreface
     when ok $ do
@@ -40,8 +40,8 @@ http2 conn ii1 addr transport settings readN app = do
         -- context switches happen.
         replicateM_ 3 $ spawnAction mgr
         -- Receiver
-        let mkreq = mkRequest ii1 settings addr
-        tid <- forkIO $ frameReceiver ctx mkreq readN
+        let mkreq = mkRequest ii settings addr
+        tid <- forkIO $ frameReceiver ctx ii mkreq readN
         -- Sender
         -- frameSender is the main thread because it ensures to send
         -- a goway frame.

@@ -168,15 +168,15 @@ runSettingsConnectionMakerSecure :: Settings -> IO (IO (Connection, Transport), 
 runSettingsConnectionMakerSecure set getConnMaker app = do
     settingsBeforeMainLoop set
     counter <- newCounter
-    withII0 $ acceptConnection set getConnMaker app counter
+    withII $ acceptConnection set getConnMaker app counter
   where
-    withII0 action =
+    withII action =
         withTimeoutManager $ \tm ->
         D.withDateCache $ \dc ->
         F.withFdCache fdCacheDurationInSeconds $ \fdc ->
         I.withFileInfoCache fdFileInfoDurationInSeconds $ \fic -> do
-            let ii0 = InternalInfo0 tm dc fdc fic
-            action ii0
+            let ii = InternalInfo tm dc fdc fic
+            action ii
 
     !fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
     !fdFileInfoDurationInSeconds = settingsFileInfoCacheDuration set * 1000000
@@ -205,9 +205,9 @@ acceptConnection :: Settings
                  -> IO (IO (Connection, Transport), SockAddr)
                  -> Application
                  -> Counter
-                 -> InternalInfo0
+                 -> InternalInfo
                  -> IO ()
-acceptConnection set getConnMaker app counter ii0 = do
+acceptConnection set getConnMaker app counter ii = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
@@ -234,7 +234,7 @@ acceptConnection set getConnMaker app counter ii0 = do
         case mx of
             Nothing             -> return ()
             Just (mkConn, addr) -> do
-                fork set mkConn addr app counter ii0
+                fork set mkConn addr app counter ii
                 acceptLoop
 
     acceptNewConnection = do
@@ -257,9 +257,9 @@ fork :: Settings
      -> SockAddr
      -> Application
      -> Counter
-     -> InternalInfo0
+     -> InternalInfo
      -> IO ()
-fork set mkConn addr app counter ii0 = settingsFork set $ \unmask ->
+fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
     -- Call the user-supplied on exception code if any
     -- exceptions are thrown.
     handle (settingsOnException set Nothing) .
@@ -291,7 +291,6 @@ fork set mkConn addr app counter ii0 = settingsFork set $ \unmask ->
     -- the connection immediately in case the child thread catches the
     -- async exception or performs some long-running cleanup action.
     serve unmask ref (conn, transport) = bracket register cancel $ \th -> do
-        let ii1 = toInternalInfo1 ii0 th
         -- We now have fully registered a connection close handler in
         -- the case of all exceptions, so it is safe to once again
         -- allow async exceptions.
@@ -301,9 +300,9 @@ fork set mkConn addr app counter ii0 = settingsFork set $ \unmask ->
            bracket (onOpen addr) (onClose addr) $ \goingon ->
            -- Actually serve this connection.  bracket with closeConn
            -- above ensures the connection is closed.
-           when goingon $ serveConnection conn ii1 addr transport set app
+           when goingon $ serveConnection conn ii th addr transport set app
       where
-        register = T.registerKillThread (timeoutManager0 ii0)
+        register = T.registerKillThread (timeoutManager ii)
                                         (closeConn ref conn)
         cancel   = T.cancel
 
@@ -311,13 +310,14 @@ fork set mkConn addr app counter ii0 = settingsFork set $ \unmask ->
     onClose adr _ = decrease counter >> settingsOnClose set adr
 
 serveConnection :: Connection
-                -> InternalInfo1
+                -> InternalInfo
+                -> T.Handle
                 -> SockAddr
                 -> Transport
                 -> Settings
                 -> Application
                 -> IO ()
-serveConnection conn ii1 origAddr transport settings app = do
+serveConnection conn ii th origAddr transport settings app = do
     -- fixme: Upgrading to HTTP/2 should be supported.
     (h2,bs) <- if isHTTP2 transport then
                    return (True, "")
@@ -332,7 +332,7 @@ serveConnection conn ii1 origAddr transport settings app = do
         rawRecvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
         let recvN = wrappedRecvN th istatus (settingsSlowlorisSize settings) rawRecvN
         -- fixme: origAddr
-        http2 conn ii1 origAddr transport settings recvN app
+        http2 conn ii origAddr transport settings recvN app
       else do
         src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
         writeIORef istatus True
@@ -388,8 +388,6 @@ serveConnection conn ii1 origAddr transport settings app = do
 
     decodeAscii = map (chr . fromEnum) . S.unpack
 
-    th = threadHandle1 ii1
-
     shouldSendErrorResponse se
         | Just ConnectionClosedByPeer <- fromException se = False
         | otherwise                                       = True
@@ -398,8 +396,7 @@ serveConnection conn ii1 origAddr transport settings app = do
         status <- readIORef istatus
         if shouldSendErrorResponse e && status
             then do
-                let ii = toInternalInfo ii1 0 -- dummy
-                sendResponse settings conn ii req defaultIndexRequestHeader (return S.empty) (errorResponse e)
+                sendResponse settings conn ii th req defaultIndexRequestHeader (return S.empty) (errorResponse e)
             else return False
 
     dummyreq addr = defaultRequest { remoteHost = addr }
@@ -407,9 +404,9 @@ serveConnection conn ii1 origAddr transport settings app = do
     errorResponse e = settingsOnExceptionResponse settings e
 
     http1 firstRequest addr istatus src = do
-        (req', mremainingRef, idxhdr, nextBodyFlush, ii) <- recvRequest firstRequest settings conn ii1 addr src
+        (req', mremainingRef, idxhdr, nextBodyFlush) <- recvRequest firstRequest settings conn ii th addr src
         let req = req' { isSecure = isTransportSecure transport }
-        keepAlive <- processRequest istatus src req mremainingRef idxhdr nextBodyFlush ii
+        keepAlive <- processRequest istatus src req mremainingRef idxhdr nextBodyFlush
             `E.catch` \e -> do
                 settingsOnException settings (Just req) e
                 -- Don't throw the error again to prevent calling settingsOnException twice.
@@ -425,7 +422,7 @@ serveConnection conn ii1 origAddr transport settings app = do
         -- and ignore. See: https://github.com/yesodweb/wai/issues/618
         when keepAlive $ http1 False addr istatus src
 
-    processRequest istatus src req mremainingRef idxhdr nextBodyFlush ii = do
+    processRequest istatus src req mremainingRef idxhdr nextBodyFlush = do
         -- Let the application run for as long as it wants
         T.pause th
 
@@ -439,7 +436,7 @@ serveConnection conn ii1 origAddr transport settings app = do
             -- send more meaningful error messages to the user.
             -- However, it may affect performance.
             writeIORef istatus False
-            keepAlive <- sendResponse settings conn ii req idxhdr (readSource src) res
+            keepAlive <- sendResponse settings conn ii th req idxhdr (readSource src) res
             writeIORef keepAliveRef keepAlive
             return ResponseReceived
         case r of

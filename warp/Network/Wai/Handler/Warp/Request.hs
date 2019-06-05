@@ -32,7 +32,6 @@ import qualified System.TimeManager as Timeout
 
 import Network.Wai.Handler.Warp.Conduit
 import Network.Wai.Handler.Warp.FileInfoCache
-import Network.Wai.Handler.Warp.HashMap (hashByteString)
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Imports hiding (readInt, lines)
 import Network.Wai.Handler.Warp.ReadInt
@@ -52,20 +51,20 @@ maxTotalHeaderLength = 50 * 1024
 recvRequest :: Bool -- ^ first request on this connection?
             -> Settings
             -> Connection
-            -> InternalInfo1
+            -> InternalInfo
+            -> Timeout.Handle
             -> SockAddr -- ^ Peer's address.
             -> Source -- ^ Where HTTP request comes from.
             -> IO (Request
                   ,Maybe (I.IORef Int)
                   ,IndexedHeader
-                  ,IO ByteString
-                  ,InternalInfo) -- ^
+                  ,IO ByteString) -- ^
             -- 'Request' passed to 'Application',
             -- how many bytes remain to be consumed, if known
             -- 'IndexedHeader' of HTTP request for internal use,
             -- Body producing action used for flushing the request body
 
-recvRequest firstRequest settings conn ii1 addr src = do
+recvRequest firstRequest settings conn ii th addr src = do
     hdrlines <- headerLines firstRequest src
     (method, unparsedPath, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
@@ -74,9 +73,6 @@ recvRequest firstRequest settings conn ii1 addr src = do
         te = idxhdr ! fromEnum ReqTransferEncoding
         handle100Continue = handleExpect conn httpversion expect
         rawPath = if settingsNoParsePath settings then unparsedPath else path
-        h = hashByteString rawPath
-        ii = toInternalInfo ii1 h
-        th = threadHandle ii
         vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
                    $ Vault.insert getFileInfoKey (getFileInfo ii)
                      Vault.empty
@@ -103,7 +99,7 @@ recvRequest firstRequest settings conn ii1 addr src = do
           , requestHeaderReferer   = idxhdr ! fromEnum ReqReferer
           , requestHeaderUserAgent = idxhdr ! fromEnum ReqUserAgent
           }
-    return (req, remainingRef, idxhdr, rbodyFlush, ii)
+    return (req, remainingRef, idxhdr, rbodyFlush)
 
 ----------------------------------------------------------------
 
