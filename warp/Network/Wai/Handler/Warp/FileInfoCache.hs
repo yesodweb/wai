@@ -2,7 +2,6 @@
 
 module Network.Wai.Handler.Warp.FileInfoCache (
     FileInfo(..)
-  , Hash
   , withFileInfoCache
   , getInfo -- test purpose only
   ) where
@@ -18,8 +17,6 @@ import Network.Wai.Handler.Warp.Imports
 
 ----------------------------------------------------------------
 
-type Hash = Int
-
 -- | File information.
 data FileInfo = FileInfo {
     fileInfoName :: !FilePath
@@ -29,8 +26,8 @@ data FileInfo = FileInfo {
   } deriving (Eq, Show)
 
 data Entry = Negative | Positive FileInfo
-type Cache = HashMap FilePath Entry
-type FileInfoCache = Reaper Cache (Int,FilePath,Entry)
+type Cache = HashMap Entry
+type FileInfoCache = Reaper Cache (FilePath,Entry)
 
 ----------------------------------------------------------------
 
@@ -54,29 +51,29 @@ getInfo path = do
       else
         throwIO (userError "FileInfoCache:getInfo")
 
-getInfoNaive :: Hash -> FilePath -> IO FileInfo
-getInfoNaive _ = getInfo
+getInfoNaive :: FilePath -> IO FileInfo
+getInfoNaive = getInfo
 
 ----------------------------------------------------------------
 
-getAndRegisterInfo :: FileInfoCache -> Hash -> FilePath -> IO FileInfo
-getAndRegisterInfo reaper@Reaper{..} h path = do
+getAndRegisterInfo :: FileInfoCache -> FilePath -> IO FileInfo
+getAndRegisterInfo reaper@Reaper{..} path = do
     cache <- reaperRead
-    case M.lookup h path cache of
+    case M.lookup path cache of
         Just Negative     -> throwIO (userError "FileInfoCache:getAndRegisterInfo")
         Just (Positive x) -> return x
-        Nothing           -> positive reaper h path
-                               `E.onException` negative reaper h path
+        Nothing           -> positive reaper path
+                               `E.onException` negative reaper path
 
-positive :: FileInfoCache -> Hash -> FilePath -> IO FileInfo
-positive Reaper{..} h path = do
+positive :: FileInfoCache -> FilePath -> IO FileInfo
+positive Reaper{..} path = do
     info <- getInfo path
-    reaperAdd (h, path, Positive info)
+    reaperAdd (path, Positive info)
     return info
 
-negative :: FileInfoCache -> Hash -> FilePath -> IO FileInfo
-negative Reaper{..} h path = do
-    reaperAdd (h, path,Negative)
+negative :: FileInfoCache -> FilePath -> IO FileInfo
+negative Reaper{..} path = do
+    reaperAdd (path, Negative)
     throwIO (userError "FileInfoCache:negative")
 
 ----------------------------------------------------------------
@@ -85,7 +82,7 @@ negative Reaper{..} h path = do
 --   and executing the action in the second argument.
 --   The first argument is a cache duration in second.
 withFileInfoCache :: Int
-                  -> ((Hash -> FilePath -> IO FileInfo) -> IO a)
+                  -> ((FilePath -> IO FileInfo) -> IO a)
                   -> IO a
 withFileInfoCache 0        action = action getInfoNaive
 withFileInfoCache duration action =
@@ -99,8 +96,8 @@ initialize duration = mkReaper settings
     settings = defaultReaperSettings {
         reaperAction = override
       , reaperDelay  = duration
-      , reaperCons   = \(h,k,v) -> M.insert h k v
-      , reaperNull   = M.null
+      , reaperCons   = \(path,v) -> M.insert path v
+      , reaperNull   = M.isEmpty
       , reaperEmpty  = M.empty
       }
 

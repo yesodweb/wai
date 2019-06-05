@@ -1,100 +1,111 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Network.Wai.Handler.Warp.MultiMap (
-    MMap
+    MultiMap
   , isEmpty
   , empty
   , singleton
   , insert
-  , search
-  , searchWith
+  , Network.Wai.Handler.Warp.MultiMap.lookup
   , pruneWith
   , toList
   , merge
   ) where
 
+import Data.Hashable (hash)
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as I
-import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
 import Prelude -- Silence redundant import warnings
 
-import Network.Wai.Handler.Warp.Imports hiding ((<>), union, empty, insert)
-
 ----------------------------------------------------------------
 
-type MMap v = IntMap (NonEmpty v)
-
-----------------------------------------------------------------
-
--- | O(1)
-isEmpty :: MMap v -> Bool
-isEmpty = I.null
-
--- | O(1)
-empty :: MMap v
-empty = I.empty
+-- | 'MultiMap' is used for cache of file descriptors.
+--   Since multiple threads would open file descriptors for
+--   the same file simultaneously, multiple entries must
+--   be contained for the file.
+--   Since hash values of file pathes are used as outer keys,
+--   collison would happen for multiple file pathes.
+--   Becase only positive entries are contained,
+--   a bad guy cannot be cause the hash collision intentinally.
+--   So, lists are good enough.
+newtype MultiMap v = MultiMap (IntMap [(FilePath,v)])
 
 ----------------------------------------------------------------
 
 -- | O(1)
-singleton :: Int -> v -> MMap v
-singleton k v = I.singleton k (v :| [])
+empty :: MultiMap v
+empty = MultiMap $ I.empty
+
+-- | O(1)
+isEmpty :: MultiMap v -> Bool
+isEmpty (MultiMap mm) = I.null mm
 
 ----------------------------------------------------------------
 
--- | O(log n)
-search :: Int -> MMap v -> Maybe v
-search k m = case I.lookup k m of
+-- | O(1)
+singleton :: FilePath -> v -> MultiMap v
+singleton path v = MultiMap mm
+  where
+    !h = hash path
+    !mm = I.singleton h [(path,v)]
+
+----------------------------------------------------------------
+
+-- | O(N)
+lookup :: FilePath -> MultiMap v -> Maybe v
+lookup path (MultiMap mm) = case I.lookup h mm of
     Nothing -> Nothing
-    Just s  -> Just $! NE.head s
-
--- | O(log n)
-searchWith :: Int -> (v -> Bool) -> MMap v -> Maybe v
-searchWith k f m = case I.lookup k m of
-    Nothing  -> Nothing
-    Just nxs -> find f $ NE.toList nxs
+    Just s  -> Prelude.lookup path s
+  where
+    !h = hash path
 
 ----------------------------------------------------------------
 
 -- | O(log n)
-insert :: Int -> v -> MMap v -> MMap v
-insert k v m = I.insertWith (<>) k (v :| []) m
+insert :: FilePath -> v -> MultiMap v -> MultiMap v
+insert path v (MultiMap mm) = MultiMap mm'
+  where
+    !h = hash path
+    !mm' = I.insertWith (<>) h [(path,v)] mm
 
 ----------------------------------------------------------------
 
 -- | O(n)
-toList :: MMap v -> [v]
-toList m = concatMap f $ I.toAscList m
-  where
-    f (_,s) = NE.toList s
+toList :: MultiMap v -> [(FilePath,v)]
+toList (MultiMap mm) = concatMap snd $ I.toAscList mm
 
 ----------------------------------------------------------------
 
 -- | O(n)
-pruneWith :: MMap v
-          -> (v -> IO Bool)
-          -> IO (MMap v)
-pruneWith m action = I.fromAscList <$> go (I.toDescList m) []
+pruneWith :: MultiMap v
+          -> ((FilePath,v) -> IO Bool)
+          -> IO (MultiMap v)
+pruneWith (MultiMap mm) action = MultiMap <$> mm'
   where
-    go []          acc = return acc
-    go ((k,s):kss) acc = do
-        mt <- prune action s
-        case mt of
-            Nothing -> go kss acc
-            Just t  -> go kss ((k,t) : acc)
+    !mm' = I.fromAscList <$> go (I.toDescList mm) []
+    go []          !acc = return acc
+    go ((h,s):kss) !acc = do
+        rs <- prune action s
+        case rs of
+            [] -> go kss acc
+            _  -> go kss ((h,rs) : acc)
 
 ----------------------------------------------------------------
 
 -- O(n + m) where N is the size of the second argument
-merge :: MMap v -> MMap v -> MMap v
-merge m1 m2 = I.unionWith (<>) m1 m2
+merge :: MultiMap v -> MultiMap v -> MultiMap v
+merge (MultiMap m1) (MultiMap m2) = MultiMap mm
+  where
+    !mm = I.unionWith (<>) m1 m2
 
 ----------------------------------------------------------------
 
-prune :: (a -> IO Bool) -> NonEmpty a -> IO (Maybe (NonEmpty a))
-prune act nxs = NE.nonEmpty <$> go (NE.toList nxs)
+prune :: ((FilePath,v) -> IO Bool) -> [(FilePath,v)] -> IO [(FilePath,v)]
+prune action xs0 = go xs0
   where
     go []     = return []
     go (x:xs) = do
-        keep <- act x
+        keep <- action x
         rs <- go xs
         return $ if keep then x:rs else rs
