@@ -8,7 +8,7 @@ Maintainer:          michael@snoyman.com
 Homepage:            http://github.com/yesodweb/wai
 Category:            Web, Yesod
 Build-Type:          Simple
-Cabal-Version:       >=1.8
+Cabal-Version:       >= 1.10
 Stability:           Stable
 description:         HTTP\/1.0, HTTP\/1.1 and HTTP\/2 are supported.
                      For HTTP\/2,  Warp supports direct and ALPN (in TLS)
@@ -112,6 +112,9 @@ Library
   else
       Build-Depends: unix
       Other-modules: Network.Wai.Handler.Warp.MultiMap
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
+  Default-Language:     Haskell2010
 
 Test-Suite doctest
   Type:                 exitcode-stdio-1.0
@@ -122,6 +125,9 @@ Test-Suite doctest
                       , doctest >= 0.10.1
   if os(windows)
     Buildable: False
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
+  Default-Language:     Haskell2010
 
 Test-Suite spec
     Main-Is:         Spec.hs
@@ -223,6 +229,9 @@ Test-Suite spec
   if os(windows)
     Cpp-Options:   -DWINDOWS
     Build-Depends: time
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
+  Default-Language:     Haskell2010
 
 Benchmark parser
     Type:           exitcode-stdio-1.0
@@ -256,6 +265,9 @@ Benchmark parser
   if os(windows)
     Cpp-Options:   -DWINDOWS
     Build-Depends: time
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
+  Default-Language:     Haskell2010
 
 Source-Repository head
   Type:     git
