@@ -411,13 +411,13 @@ spec = do
     it "streaming echo #249" $ do
         countVar <- newTVarIO (0 :: Int)
         let app req f = f $ responseStream status200 [] $ \write _ -> do
-            let loop = do
+             let loop = do
                     bs <- getRequestBodyChunk req
                     unless (S.null bs) $ do
                         write $ byteString bs
                         atomically $ modifyTVar countVar (+ 1)
                         loop
-            loop
+             loop
         withApp defaultSettings app $ \port -> do
             (sock, _addr) <- getSocketTCP "127.0.0.1" port
             sendAll sock "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"

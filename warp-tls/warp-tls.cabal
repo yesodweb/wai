@@ -8,7 +8,7 @@ Maintainer:          michael@snoyman.com
 Homepage:            http://github.com/yesodweb/wai
 Category:            Web, Yesod
 Build-Type:          Simple
-Cabal-Version:       >=1.6
+Cabal-Version:       >= 1.10
 Stability:           Stable
 description:         SSLv1 and SSLv2 are obsoleted by IETF.
                      We should use TLS 1.2 (or TLS 1.1 or TLS 1.0 if necessary).
@@ -32,6 +32,9 @@ Library
   ghc-options:       -Wall
   if os(windows)
       Cpp-Options:   -DWINDOWS
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
+  Default-Language:     Haskell2010
 
 
 source-repository head
