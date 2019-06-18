@@ -1,3 +1,8 @@
+## 3.2.6
+
+* Using the Strict and StrictData language extensions for GHC >8.
+  [#752](https://github.com/yesodweb/wai/pull/752)
+
 ## 3.2.5
 
 * When tls 1.5.0 is available, TLS 1.3 is automatically supported.
