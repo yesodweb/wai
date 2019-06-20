@@ -1,3 +1,9 @@
+# ChangeLog for wai
+
+## 3.2.2.1
+
+* Fix missing reexport of `getRequestBodyChunk` [#753](https://github.com/yesodweb/wai/issues/753)
+
 ## 3.2.2
 
 * Deprecate `requestBody` in favor of the more clearly named `getRequestBodyChunk`. [#726](https://github.com/yesodweb/wai/pull/726)

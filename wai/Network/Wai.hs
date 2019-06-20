@@ -53,6 +53,7 @@ module Network.Wai
     , remoteHost
     , pathInfo
     , queryString
+    , getRequestBodyChunk
     , requestBody
     , vault
     , requestBodyLength
