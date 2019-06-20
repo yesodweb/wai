@@ -30,6 +30,7 @@ import qualified Network.HTTP.Types.Header as H
 import Network.Wai
 import Network.Wai.Internal
 import qualified Paths_warp
+import qualified System.TimeManager as T
 
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
@@ -39,7 +40,6 @@ import Network.Wai.Handler.Warp.IO (toBufIOWith)
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.ResponseHeader
 import Network.Wai.Handler.Warp.Settings
-import qualified Network.Wai.Handler.Warp.Timeout as T
 import Network.Wai.Handler.Warp.Types
 
 -- $setup
@@ -101,12 +101,13 @@ import Network.Wai.Handler.Warp.Types
 sendResponse :: Settings
              -> Connection
              -> InternalInfo
+             -> T.Handle
              -> Request -- ^ HTTP request.
              -> IndexedHeader -- ^ Indexed header of HTTP request.
              -> IO ByteString -- ^ source from client, for raw response
              -> Response -- ^ HTTP response including status code and response header.
              -> IO Bool -- ^ Returing True if the connection is persistent.
-sendResponse settings conn ii req reqidxhdr src response = do
+sendResponse settings conn ii th req reqidxhdr src response = do
     hs <- addServerAndDate hs0
     if hasBody s then do
         -- The response to HEAD does not have body.
@@ -133,7 +134,6 @@ sendResponse settings conn ii req reqidxhdr src response = do
     s = responseStatus response
     hs0 = sanitizeHeaders $ responseHeaders response
     rspidxhdr = indexResponseHeader hs0
-    th = threadHandle ii
     getdate = getDate ii
     addServerAndDate = addDate getdate rspidxhdr . addServer defServer rspidxhdr
     (isPersist,isChunked0) = infoFromRequest req reqidxhdr

@@ -1,5 +1,5 @@
 name:                auto-update
-version:             0.1.4.1
+version:             0.1.5
 synopsis:            Efficiently run periodic, on-demand actions
 description:         API docs and the README are available at <http://www.stackage.org/package/auto-update>.
 homepage:            https://github.com/yesodweb/wai
@@ -21,6 +21,8 @@ library
   other-modules:       Control.AutoUpdate.Util
   build-depends:       base >= 4 && < 5
   default-language:    Haskell2010
+  if impl(ghc >= 8)
+      default-extensions:  Strict StrictData
 
 -- Test suite is currently not robust enough, gives too many false negatives.
 

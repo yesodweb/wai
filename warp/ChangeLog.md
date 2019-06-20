@@ -1,3 +1,13 @@
+## 3.2.28
+
+* Using the Strict and StrictData language extensions for GHC >8.
+  [#752](https://github.com/yesodweb/wai/pull/752)
+* System.TimeManager is now in a separate package: time-manager.
+  [#750](https://github.com/yesodweb/wai/pull/750)
+* Fixing a bug of ALPN.
+* Introducing the half closed state for HTTP/2.
+  [#717](https://github.com/yesodweb/wai/pull/717)
+
 ## 3.2.27
 
 * Internally, use `lookupEnv` instead of `getEnvironment` to get the

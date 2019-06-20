@@ -1,0 +1,19 @@
+Name:                time-manager
+Version:             0.0.0
+Synopsis:            Scalable timer
+License:             MIT
+License-file:        LICENSE
+Author:              Michael Snoyman and Kazu Yamamoto
+Maintainer:          kazu@iij.ad.jp
+Homepage:            http://github.com/yesodweb/wai
+Category:            System
+Build-Type:          Simple
+Cabal-Version:       >=1.8
+Stability:           Stable
+Description:         Scalable timer functions provided by a timer manager.
+
+Library
+  Build-Depends:     base                      >= 4.8        && < 5
+                   , auto-update
+  Exposed-modules:   System.TimeManager
+  Ghc-Options:       -Wall

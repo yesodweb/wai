@@ -9,6 +9,7 @@ packages:
 - ./wai-app-static
 - ./wai-websockets
 - ./wai-conduit
+- ./time-manager
 flags:
   wai-extra:
     build-example: true

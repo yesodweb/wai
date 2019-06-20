@@ -1,7 +1,6 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Network.Wai.Handler.Warp.Timeout (
+module System.TimeManager (
   -- ** Types
     Manager
   , TimeoutAction
@@ -115,7 +114,7 @@ instance E.Exception TimeoutThread where
     toException = E.asyncExceptionToException
     fromException = E.asyncExceptionFromException
 instance Show TimeoutThread where
-    show TimeoutThread = "Thread killed by Warp's timeout reaper"
+    show TimeoutThread = "Thread killed by timeout manager"
 
 ----------------------------------------------------------------
 

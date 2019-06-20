@@ -27,8 +27,8 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-frameReceiver :: Context -> MkReq -> (BufSize -> IO ByteString) -> IO ()
-frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
+frameReceiver :: Context -> InternalInfo -> MkReq -> (BufSize -> IO ByteString) -> IO ()
+frameReceiver ctx ii mkreq recvN = loop 0 `E.catch` sendGoaway
   where
     Context{ http2settings
            , streamTable
@@ -120,7 +120,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                           E.throwIO $ StreamError ProtocolError streamId
                       writeIORef streamPrecedence $ toPrecedence pri
                       halfClosedRemote ctx strm
-                      (!req, !ii) <- mkreq tbl (Just 0, return "")
+                      !req <- mkreq tbl (Just 0, return "")
                       atomically $ writeTQueue inputQ $ Input strm req reqvt ii
                   Open (HasBody tbl@(_,reqvt) pri) -> do
                       resetContinued
@@ -131,7 +131,7 @@ frameReceiver ctx mkreq recvN = loop 0 `E.catch` sendGoaway
                       setStreamState ctx strm $ Open (Body q mcl bodyLength)
                       readQ <- newReadBody q
                       bodySource <- mkSource readQ
-                      (!req, !ii) <- mkreq tbl (mcl, readSource bodySource)
+                      !req <- mkreq tbl (mcl, readSource bodySource)
                       atomically $ writeTQueue inputQ $ Input strm req reqvt ii
                   s@(Open Continued{}) -> do
                       setContinued
