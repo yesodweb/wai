@@ -32,7 +32,9 @@ data HTTP2Data = HTTP2Data {
     --
     --   Since: 3.2.7
       http2dataPushPromise :: [PushPromise]
-    --   Since: 3.2.8
+    -- | Accessor for 'H2.TrailersMaker' in 'HTTP2Data'.
+    --
+    --   Since: 3.2.8 but the type changed in 3.3.0
     , http2dataTrailers :: H2.TrailersMaker
     }
 
@@ -43,6 +45,8 @@ defaultHTTP2Data :: HTTP2Data
 defaultHTTP2Data = HTTP2Data [] H2.defaultTrailersMaker
 
 -- | HTTP/2 push promise or sever push.
+--   This allows files only for backward-compatibility
+--   while the HTTP/2 library supports other types.
 --
 --   Since: 3.2.7
 data PushPromise = PushPromise {
