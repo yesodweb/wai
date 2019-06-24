@@ -4,12 +4,13 @@ module Network.Wai.Handler.Warp.HTTP2.File where
 
 import Network.HTTP2.Server
 
+import Network.Wai.Handler.Warp.Types
+
 #ifdef WINDOWS
 pReadMaker :: InternalInfo -> PositionReadMaker
-pReadMaker = defaultPositionReadMaker
+pReadMaker _ = defaultPositionReadMaker
 #else
 import Network.Wai.Handler.Warp.FdCache
-import Network.Wai.Handler.Warp.Types
 import Network.Wai.Handler.Warp.SendFile (positionRead)
 
 pReadMaker :: InternalInfo -> PositionReadMaker
