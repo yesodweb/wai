@@ -25,7 +25,6 @@ Library
                    , network                   >= 2.2.1.5
                    , http-types                >= 0.7
                    , text                      >= 0.7
-                   , transformers              >= 0.0
                    , vault                     >= 0.3      && < 0.4
   Exposed-modules:   Network.Wai
                      Network.Wai.Internal

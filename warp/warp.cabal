@@ -206,7 +206,6 @@ Test-Suite spec
                    , text
                    , time
                    , time-manager
-                   , transformers              >= 0.2.2
                    , unix-compat               >= 0.2
                    , vault
                    , wai                       >= 3.2      && < 3.3
