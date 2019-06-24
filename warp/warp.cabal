@@ -113,6 +113,7 @@ Library
   Default-Language:     Haskell2010
 
 Test-Suite doctest
+  buildable:            False
   Type:                 exitcode-stdio-1.0
   HS-Source-Dirs:       test
   Ghc-Options:          -threaded -Wall
