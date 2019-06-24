@@ -44,8 +44,8 @@ Library
                    , ghc-prim
                    , hashable
                    , http-date
-                   , http-types                >= 0.11
-                   , http2                     >= 1.6      && < 1.7
+                   , http-types                >= 0.12
+                   , http2                     >= 2.0      && < 2.1
                    , iproute                   >= 1.3.1
                    , simple-sendfile           >= 0.2.7    && < 0.3
                    , stm                       >= 2.3
@@ -74,15 +74,11 @@ Library
                      Network.Wai.Handler.Warp.FileInfoCache
                      Network.Wai.Handler.Warp.HashMap
                      Network.Wai.Handler.Warp.HTTP2
-                     Network.Wai.Handler.Warp.HTTP2.EncodeFrame
                      Network.Wai.Handler.Warp.HTTP2.File
-                     Network.Wai.Handler.Warp.HTTP2.HPACK
-                     Network.Wai.Handler.Warp.HTTP2.Manager
-                     Network.Wai.Handler.Warp.HTTP2.Receiver
+                     Network.Wai.Handler.Warp.HTTP2.PushPromise
                      Network.Wai.Handler.Warp.HTTP2.Request
-                     Network.Wai.Handler.Warp.HTTP2.Sender
+                     Network.Wai.Handler.Warp.HTTP2.Response
                      Network.Wai.Handler.Warp.HTTP2.Types
-                     Network.Wai.Handler.Warp.HTTP2.Worker
                      Network.Wai.Handler.Warp.Header
                      Network.Wai.Handler.Warp.IO
                      Network.Wai.Handler.Warp.Imports
@@ -153,15 +149,11 @@ Test-Suite spec
                      Network.Wai.Handler.Warp.File
                      Network.Wai.Handler.Warp.FileInfoCache
                      Network.Wai.Handler.Warp.HTTP2
-                     Network.Wai.Handler.Warp.HTTP2.EncodeFrame
                      Network.Wai.Handler.Warp.HTTP2.File
-                     Network.Wai.Handler.Warp.HTTP2.HPACK
-                     Network.Wai.Handler.Warp.HTTP2.Manager
-                     Network.Wai.Handler.Warp.HTTP2.Receiver
+                     Network.Wai.Handler.Warp.HTTP2.PushPromise
                      Network.Wai.Handler.Warp.HTTP2.Request
-                     Network.Wai.Handler.Warp.HTTP2.Sender
+                     Network.Wai.Handler.Warp.HTTP2.Response
                      Network.Wai.Handler.Warp.HTTP2.Types
-                     Network.Wai.Handler.Warp.HTTP2.Worker
                      Network.Wai.Handler.Warp.HashMap
                      Network.Wai.Handler.Warp.Header
                      Network.Wai.Handler.Warp.IO
@@ -202,8 +194,8 @@ Test-Suite spec
                    , hspec                     >= 1.3
                    , http-client
                    , http-date
-                   , http-types                >= 0.8.5
-                   , http2                     >= 1.6      && < 1.7
+                   , http-types                >= 0.12
+                   , http2                     >= 2.0      && < 2.1
                    , iproute                   >= 1.3.1
                    , lifted-base               >= 0.1
                    , network

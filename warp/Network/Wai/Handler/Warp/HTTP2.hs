@@ -1,69 +1,76 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-module Network.Wai.Handler.Warp.HTTP2 (isHTTP2, http2) where
+module Network.Wai.Handler.Warp.HTTP2 (http2) where
 
-import Control.Concurrent (forkIO, killThread)
 import qualified Control.Exception as E
-import Network.HTTP2
+import qualified Network.HTTP2.Server as H2
 import Network.Socket (SockAddr)
 import Network.Wai
+import Network.Wai.Internal (ResponseReceived(..))
+import qualified System.TimeManager as T
 
-import Network.Wai.Handler.Warp.HTTP2.EncodeFrame
-import Network.Wai.Handler.Warp.HTTP2.Manager
-import Network.Wai.Handler.Warp.HTTP2.Receiver
+import Network.Wai.Handler.Warp.HTTP2.File
+import Network.Wai.Handler.Warp.HTTP2.PushPromise
 import Network.Wai.Handler.Warp.HTTP2.Request
-import Network.Wai.Handler.Warp.HTTP2.Sender
-import Network.Wai.Handler.Warp.HTTP2.Types
-import Network.Wai.Handler.Warp.HTTP2.Worker
+import Network.Wai.Handler.Warp.HTTP2.Response
 import Network.Wai.Handler.Warp.Imports
-import qualified Network.Wai.Handler.Warp.Settings as S (Settings)
+import qualified Network.Wai.Handler.Warp.Settings as S
 import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-http2 :: Connection -> InternalInfo -> SockAddr -> Transport -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
-http2 conn ii addr transport settings readN app = do
-    checkTLS
-    ok <- checkPreface
-    when ok $ do
-        ctx <- newContext
-        -- Workers, worker manager and timer manager
-        mgr <- start settings
-        let responder = response settings ctx mgr
-            action = worker ctx settings app responder
-        setAction mgr action
-        -- The number of workers is 3.
-        -- This was carefully chosen based on a lot of benchmarks.
-        -- If it is 1, we cannot avoid head-of-line blocking.
-        -- If it is large, huge memory is consumed and many
-        -- context switches happen.
-        replicateM_ 3 $ spawnAction mgr
-        -- Receiver
-        let mkreq = mkRequest ii settings addr
-        tid <- forkIO $ frameReceiver ctx ii mkreq readN
-        -- Sender
-        -- frameSender is the main thread because it ensures to send
-        -- a goway frame.
-        frameSender ctx conn settings mgr `E.finally` do
-            clearContext ctx
-            stop mgr
-            killThread tid
+http2 :: Connection -> InternalInfo -> SockAddr -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
+http2 conn ii addr settings readN app =
+    H2.run conf http2server
   where
-    checkTLS = case transport of
-        TCP -> return () -- direct
-        tls -> unless (tls12orLater tls) $ goaway conn InadequateSecurity "Weak TLS"
-    tls12orLater tls = tlsMajorVersion tls == 3 && tlsMinorVersion tls >= 3
-    checkPreface = do
-        preface <- readN connectionPrefaceLength
-        if connectionPreface /= preface then do
-            goaway conn ProtocolError "Preface mismatch"
-            return False
-          else
-            return True
+    conf = H2.Config {
+        confWriteBuffer       = connWriteBuffer conn
+      , confBufferSize        = connBufferSize conn
+      , confSendAll           = connSendAll conn
+      , confReadN             = readN
+      , confPositionReadMaker = pReadMaker ii
+      }
 
--- connClose must not be called here since Run:fork calls it
-goaway :: Connection -> ErrorCodeId -> ByteString -> IO ()
-goaway Connection{..} etype debugmsg = connSendAll bytestream
-  where
-    bytestream = goawayFrame 0 etype debugmsg
+    http2server h2req aux response = do
+        req <- toWAIRequest h2req aux
+        ResponseReceived <- app req $ \rsp -> do
+            h2rsp <- fromResponse settings ii req rsp
+            pps <- fromPushPromises ii req
+            ex <- E.try $ response h2rsp pps
+            case ex of
+              Right () -> do
+                  logResponse h2rsp req
+                  mapM_ (logPushPromise req) pps
+              Left  e@(E.SomeException _)
+                -- killed by the local worker manager
+                | Just E.ThreadKilled  <- E.fromException e -> return ()
+                -- killed by the local timeout manager
+                | Just T.TimeoutThread <- E.fromException e -> return ()
+                | otherwise -> S.settingsOnException settings (Just req) e
+            return ResponseReceived
+        return ()
+
+    toWAIRequest h2req aux = toRequest ii settings addr hdr bdylen bdy th
+      where
+        !hdr = H2.requestHeaders h2req
+        !bdy = H2.getRequestBodyChunk h2req
+        !bdylen = H2.requestBodySize h2req
+        !th = H2.auxTimeHandle aux
+
+    logResponse h2rsp req = logger req st msiz
+      where
+        !logger = S.settingsLogger settings
+        !st = H2.responseStatus h2rsp
+        !msiz = fromIntegral <$> H2.responseBodySize h2rsp
+
+    logPushPromise req pp = logger req path siz
+      where
+        !logger = S.settingsServerPushLogger settings
+        !path = H2.promiseRequestPath pp
+        !siz = case H2.responseBodySize $ H2.promiseResponse pp of
+            Nothing -> 0
+            Just s  -> fromIntegral s

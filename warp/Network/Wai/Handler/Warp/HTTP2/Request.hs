@@ -1,9 +1,7 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Request (
-    mkRequest
-  , MkReq
+    toRequest
   , getHTTP2Data
   , setHTTP2Data
   , modifyHTTP2Data
@@ -20,28 +18,31 @@ import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Internal (Request(..))
 import System.IO.Unsafe (unsafePerformIO)
+import qualified System.TimeManager as T
 
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Imports
-import Network.Wai.Handler.Warp.Request (getFileInfoKey)
+import Network.Wai.Handler.Warp.Request (getFileInfoKey, pauseTimeoutKey)
 import qualified Network.Wai.Handler.Warp.Settings as S (Settings, settingsNoParsePath)
 import Network.Wai.Handler.Warp.Types
 
-type MkReq = (TokenHeaderList,ValueTable) -> (Maybe Int,IO ByteString) -> IO (Request)
+type ToReq = (TokenHeaderList,ValueTable) -> Maybe Int -> IO ByteString -> T.Handle -> IO Request
 
-mkRequest :: InternalInfo -> S.Settings -> SockAddr -> MkReq
-mkRequest ii1 settings addr (reqths,reqvt) (bodylen,body) = do
+----------------------------------------------------------------
+
+toRequest :: InternalInfo -> S.Settings -> SockAddr -> ToReq
+toRequest ii settings addr ht bodylen body th = do
     ref <- newIORef Nothing
-    mkRequest' ii1 settings addr ref (reqths,reqvt) (bodylen,body)
+    toRequest' ii settings addr ref ht bodylen body th
 
-mkRequest' :: InternalInfo -> S.Settings -> SockAddr
+toRequest' :: InternalInfo -> S.Settings -> SockAddr
            -> IORef (Maybe HTTP2Data)
-           -> MkReq
-mkRequest' ii settings addr ref (reqths,reqvt) (bodylen,body) = return req
+           -> ToReq
+toRequest' ii settings addr ref (reqths,reqvt) bodylen body th = return req
   where
     !req = Request {
         requestMethod = colonMethod
-      , httpVersion = http2ver
+      , httpVersion = H.http20
       , rawPathInfo = rawPath
       , pathInfo = H.decodePathSegments path
       , rawQueryString = query
@@ -76,10 +77,12 @@ mkRequest' ii settings addr ref (reqths,reqvt) (bodylen,body) = return req
     (unparsedPath,query) = C8.break (=='?') $ fromJust (mPath <|> mAuth)
     !path = H.extractPath unparsedPath
     !rawPath = if S.settingsNoParsePath settings then unparsedPath else path
+    -- fixme: pauseTimeout. th is not available here.
     !vaultValue = Vault.insert getFileInfoKey (getFileInfo ii)
                 $ Vault.insert getHTTP2DataKey (readIORef ref)
                 $ Vault.insert setHTTP2DataKey (writeIORef ref)
                 $ Vault.insert modifyHTTP2DataKey (modifyIORef' ref)
+                $ Vault.insert pauseTimeoutKey (T.pause th)
                   Vault.empty
 
 getHTTP2DataKey :: Vault.Key (IO (Maybe HTTP2Data))
