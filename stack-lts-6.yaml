@@ -20,6 +20,8 @@ extra-deps:
 - basement-0.0.7@rev:0
 - http-client-0.5.13.1@rev:0
 - http-types-0.12.3@rev:0
+- http2-2.0.0
+- network-byte-order-0.1.1.0
 nix:
   enable: false
   packages:

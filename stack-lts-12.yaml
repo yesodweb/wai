@@ -24,3 +24,6 @@ image:
       name: "yesodweb/warp"
       executables:
         - warp
+extra-deps:
+- http2-2.0.0
+- network-byte-order-0.1.1.0
