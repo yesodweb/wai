@@ -1,5 +1,10 @@
 # Changelog for wai-extra
 
+## 3.0.26.1
+
+* When available, supply the response size to custom loggers
+  [#757](https://github.com/yesodweb/wai/pull/757)
+
 ## 3.0.26
 
 * Throw 413 for too large payload

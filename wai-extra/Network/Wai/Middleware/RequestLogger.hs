@@ -118,8 +118,8 @@ apacheMiddleware ala app req sendResponse = app req $ \res -> do
 customMiddleware :: Callback -> IO ZonedDate -> OutputFormatter -> Middleware
 customMiddleware cb getdate formatter app req sendResponse = app req $ \res -> do
     date <- liftIO getdate
-    -- We use Nothing for the response size since we generally don't know it
-    liftIO $ cb $ formatter date req (responseStatus res) Nothing
+    let msize = contentLength (responseHeaders res)
+    liftIO $ cb $ formatter date req (responseStatus res) msize
     sendResponse res
 
 customMiddlewareWithDetails :: Callback -> IO ZonedDate -> OutputFormatterWithDetails -> Middleware
@@ -129,12 +129,12 @@ customMiddlewareWithDetails cb getdate formatter app req sendResponse = do
   app req' $ \res -> do
     t1 <- getCurrentTime
     date <- liftIO getdate
-    -- We use Nothing for the response size since we generally don't know it
+    let msize = contentLength (responseHeaders res)
     builderIO <- newIORef $ B.byteString ""
     res' <- recordChunks builderIO res
     rspRcv <- sendResponse res'
     _ <- liftIO . cb .
-      formatter date req' (responseStatus res') Nothing (t1 `diffUTCTime` t0) reqBody =<<
+      formatter date req' (responseStatus res') msize (t1 `diffUTCTime` t0) reqBody =<<
       readIORef builderIO
     return rspRcv
 
