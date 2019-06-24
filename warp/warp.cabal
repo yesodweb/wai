@@ -214,6 +214,7 @@ Test-Suite spec
     -- Build-Tool-Depends: hspec-discover:hspec-discover
   if impl(ghc < 8)
       Build-Depends: semigroups
+                   , transformers
 
   if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
     Cpp-Options:   -DSENDFILEFD
