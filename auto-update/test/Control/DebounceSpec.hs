@@ -6,7 +6,6 @@ import Control.Debounce
 import qualified Control.Debounce.Internal as DI
 import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Control.Retry
 import Data.IORef
 import Test.HUnit.Lang
@@ -143,7 +142,7 @@ waitForBatonToBeTaken :: MVar () -> IO ()
 waitForBatonToBeTaken baton = waitUntil 5 $ tryReadMVar baton >>= (`shouldBe` Nothing)
 
 -- | Wait up to n seconds for an actual to complete without throwing an HUnitFailure
-waitUntil :: (MonadIO m, MonadMask m) => Int -> m a -> m ()
+waitUntil :: Int -> IO a -> IO ()
 waitUntil n action = recovering policy [handler] (\_status -> void action)
   where policy = constantDelay 1000 <> limitRetries (n * 1000) -- 1ms * n * 1000 tries = n seconds
         handler _status = Handler (\(HUnitFailure {}) -> return True)
