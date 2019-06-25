@@ -1,6 +1,6 @@
 # ChangeLog for auto-update
 
-## 0.2.0
+## 0.1.6
 
 * Add control of activation on leading vs. trailing edges for Control.Debounce
   [#756](https://github.com/yesodweb/wai/pull/756)
