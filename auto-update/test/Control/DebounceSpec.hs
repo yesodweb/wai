@@ -144,7 +144,7 @@ waitForBatonToBeTaken baton = waitUntil 5 $ tryReadMVar baton >>= (`shouldBe` No
 -- | Wait up to n seconds for an actual to complete without throwing an HUnitFailure
 waitUntil :: Int -> IO a -> IO ()
 waitUntil n action = recovering policy [handler] (\_status -> void action)
-  where policy = constantDelay 1000 <> limitRetries (n * 1000) -- 1ms * n * 1000 tries = n seconds
+  where policy = constantDelay 1000 `mappend` limitRetries (n * 1000) -- 1ms * n * 1000 tries = n seconds
         handler _status = Handler (\(HUnitFailure {}) -> return True)
 
 main :: IO ()
