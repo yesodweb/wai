@@ -6,6 +6,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 module Network.Wai.Handler.Warp.Run where
@@ -343,13 +344,16 @@ serveConnection conn ii th origAddr transport settings app = do
         leftoverSource src bs
         addr <- getProxyProtocolAddr src
         http1 True addr istatus src `E.catch` \e ->
-          case fromException e of
-            -- See comment below referencing
-            -- https://github.com/yesodweb/wai/issues/618
-            Just NoKeepAliveRequest -> return ()
-            Nothing -> do
-              _ <- sendErrorResponse (dummyreq addr) istatus e
-              throwIO e
+          case () of
+            ()
+             -- See comment below referencing
+             -- https://github.com/yesodweb/wai/issues/618
+             | Just NoKeepAliveRequest <- fromException e -> return ()
+             -- No valid request
+             | Just (BadFirstLine _)   <- fromException e -> return ()
+             | otherwise -> do
+               _ <- sendErrorResponse (dummyreq addr) istatus e
+               throwIO e
 
   where
     getProxyProtocolAddr src =
