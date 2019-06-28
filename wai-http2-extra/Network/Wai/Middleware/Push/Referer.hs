@@ -120,10 +120,12 @@ pushOnReferer settings@Settings{..} app req sendResponse = do
                     when (isNothing mauth
                        || requestHeaderHost req == mauth) $ do
                         when (path /= refPath) $ do -- just in case
-                            mpp <- makePushPromise refPath path file
+                            let !path' = BS.copy path
+                                !refPath' = BS.copy refPath
+                            mpp <- makePushPromise refPath' path' file
                             case mpp of
                                 Nothing -> return ()
-                                Just pp -> reaperAdd reaper (refPath,pp)
+                                Just pp -> reaperAdd reaper (refPath',pp)
             ps -> do
                 let !h2d = defaultHTTP2Data { http2dataPushPromise = ps}
                 setHTTP2Data req (Just h2d)
