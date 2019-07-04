@@ -1,9 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- | Unstable API which exposes internals for testing.
 module Control.Debounce.Internal (
   DebounceSettings(..)
   , DebounceEdge(..)
-  , mkDebounce
+  , mkDebounceInternal
   ) where
 
 import           Control.Concurrent      (forkIO)
@@ -44,9 +45,13 @@ data DebounceSettings = DebounceSettings
     --
     -- Default: Leading.
     --
-    -- @since 0.2.0
+    -- @since 0.1.6
     }
 
+-- | Setting to control whether the action happens at the leading or trailing
+-- edge of the timeout.
+--
+-- @since 0.1.6
 data DebounceEdge =
   Leading
   -- ^ The action will either be performed immediately, or after the current cooldown period has expired.
@@ -57,16 +62,18 @@ data DebounceEdge =
   -- the debounced function was invoked again during the cooldown.
   deriving (Show, Eq)
 
-mkDebounce :: MVar () -> (Int -> IO ()) -> DebounceSettings -> IO (IO ())
-mkDebounce baton delayFn (DebounceSettings freq action edge) = do
+mkDebounceInternal :: MVar () -> (Int -> IO ()) -> DebounceSettings -> IO (IO ())
+mkDebounceInternal baton delayFn (DebounceSettings freq action edge) = do
     mask_ $ void $ forkIO $ forever $ do
         takeMVar baton
-        if edge `elem` [Leading, LeadingAndTrailing] then ignoreExc action >> runDelay False baton
-        else runDelay True baton
+        case edge of
+          Leading -> ignoreExc action >> runDelay False
+          LeadingAndTrailing -> ignoreExc action >> runDelay False
+          Trailing -> runDelay True
 
     return $ void $ tryPutMVar baton ()
 
-  where runDelay hasDelayedInitialActivation baton = do
+  where runDelay hasDelayedInitialActivation = do
             delayFn freq
 
             case edge of

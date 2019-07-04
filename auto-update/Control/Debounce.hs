@@ -56,4 +56,4 @@ defaultDebounceSettings = DI.DebounceSettings
 mkDebounce :: DI.DebounceSettings -> IO (IO ())
 mkDebounce settings = do
   baton <- newEmptyMVar
-  DI.mkDebounce baton threadDelay settings
+  DI.mkDebounceInternal baton threadDelay settings

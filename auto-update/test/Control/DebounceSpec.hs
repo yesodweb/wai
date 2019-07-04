@@ -126,7 +126,7 @@ getDebounce edge = do
 
   baton <- newEmptyMVar
 
-  debounced <- DI.mkDebounce baton waitAction defaultDebounceSettings {
+  debounced <- DI.mkDebounceInternal baton waitAction defaultDebounceSettings {
     debounceFreq = 5000000 -- unused
     , debounceAction = action
     , debounceEdge = edge
@@ -141,7 +141,7 @@ pause = threadDelay 100000
 waitForBatonToBeTaken :: MVar () -> IO ()
 waitForBatonToBeTaken baton = waitUntil 5 $ tryReadMVar baton >>= (`shouldBe` Nothing)
 
--- | Wait up to n seconds for an actual to complete without throwing an HUnitFailure
+-- | Wait up to n seconds for an action to complete without throwing an HUnitFailure
 waitUntil :: Int -> IO a -> IO ()
 waitUntil n action = recovering policy [handler] (\_status -> void action)
   where policy = constantDelay 1000 `mappend` limitRetries (n * 1000) -- 1ms * n * 1000 tries = n seconds
