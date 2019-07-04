@@ -25,8 +25,7 @@ import           Data.Maybe              (isJust)
 -- @since 0.1.2
 data DebounceSettings = DebounceSettings
     { debounceFreq   :: Int
-    -- ^ Microseconds lag required between subsequence calls to the debounced
-    -- action.
+    -- ^ Length of the debounce timeout period in microseconds.
     --
     -- Default: 1 second (1000000)
     --
@@ -48,18 +47,22 @@ data DebounceSettings = DebounceSettings
     -- @since 0.1.6
     }
 
--- | Setting to control whether the action happens at the leading or trailing
+-- | Setting to control whether the action happens at the leading and/or trailing
 -- edge of the timeout.
 --
 -- @since 0.1.6
 data DebounceEdge =
   Leading
-  -- ^ The action will either be performed immediately, or after the current cooldown period has expired.
-  | Trailing
-  -- ^ The action will be performed at the end of the current cooldown period.
+  -- ^ Perform the action immediately, and then begin a cooldown period.
+  -- If trigger happens again during the cooldown, wait until the end of the cooldown and then
+  -- perform the action again /plus/ enter a new cooldown period.
   | LeadingAndTrailing
-  -- ^ The action is performed on the leading edge. It's also performed on the trailing edge if
-  -- the debounced function was invoked again during the cooldown.
+  -- ^ Perform the action immediately, and then begin a cooldown period.
+  -- If trigger happens again during the cooldown, wait until the end of the cooldown and then
+  -- perform the action again but /do not/ enter a new cooldown period.
+  | Trailing
+  -- ^ Start a cooldown period and perform the action when the period ends. If another trigger
+  -- happens during the cooldown, it has no effect.
   deriving (Show, Eq)
 
 mkDebounceInternal :: MVar () -> (Int -> IO ()) -> DebounceSettings -> IO (IO ())
