@@ -67,19 +67,20 @@ mkDebounceInternal baton delayFn (DebounceSettings freq action edge) = do
     mask_ $ void $ forkIO $ forever $ do
         takeMVar baton
         case edge of
-          Leading -> ignoreExc action >> runDelay False
-          LeadingAndTrailing -> ignoreExc action >> runDelay False
-          Trailing -> runDelay True
+          Leading -> ignoreExc action >> runDelay
+          LeadingAndTrailing -> ignoreExc action >> runDelay
+          Trailing -> runDelay
 
     return $ void $ tryPutMVar baton ()
 
-  where runDelay hasDelayedInitialActivation = do
+  where runDelay = do
             delayFn freq
 
             case edge of
                 Trailing -> do
-                    firedDuringInterval <- isJust <$> tryTakeMVar baton
-                    when (firedDuringInterval || hasDelayedInitialActivation) $ ignoreExc action
+                    -- Empty the baton of any other activations during the interval
+                    void $ tryTakeMVar baton
+                    ignoreExc action
                 Leading ->
                     -- We already fired at the beginning of the interval so do nothing
                     return ()
