@@ -15,7 +15,7 @@ spec :: Spec
 spec = describe "mkDebounce" $ do
     describe "Leading edge" $ do
         it "works for a single event" $ do
-            (ref, debounced, baton, returnFromWait) <- getDebounce Leading
+            (ref, debounced, baton, returnFromWait) <- getDebounce leadingEdge
 
             debounced
             waitUntil 5 $ readIORef ref >>= (`shouldBe` 1)
@@ -33,7 +33,7 @@ spec = describe "mkDebounce" $ do
             readIORef ref >>= (`shouldBe` 2)
 
         it "works for multiple events" $ do
-            (ref, debounced, baton, returnFromWait) <- getDebounce Leading
+            (ref, debounced, baton, returnFromWait) <- getDebounce leadingEdge
 
             debounced
             waitForBatonToBeTaken baton
@@ -47,7 +47,7 @@ spec = describe "mkDebounce" $ do
 
     describe "Trailing edge" $ do
         it "works for a single event" $ do
-            (ref, debounced, baton, returnFromWait) <- getDebounce Trailing
+            (ref, debounced, baton, returnFromWait) <- getDebounce trailingEdge
 
             debounced
             pause
@@ -65,7 +65,7 @@ spec = describe "mkDebounce" $ do
             waitUntil 5 $ readIORef ref >>= (`shouldBe` 2)
 
         it "works for multiple events" $ do
-            (ref, debounced, baton, returnFromWait) <- getDebounce Trailing
+            (ref, debounced, baton, returnFromWait) <- getDebounce trailingEdge
 
             debounced
             waitForBatonToBeTaken baton
@@ -75,37 +75,6 @@ spec = describe "mkDebounce" $ do
 
             returnFromWait
             waitUntil 5 $ readIORef ref >>= (`shouldBe` 1)
-
-    describe "Leading or trailing edge" $ do
-        it "works for a single event" $ do
-            (ref, debounced, baton, returnFromWait) <- getDebounce LeadingAndTrailing
-
-            debounced
-            waitUntil 5 $ readIORef ref >>= (`shouldBe` 1)
-
-            returnFromWait
-            pause
-            readIORef ref >>= (`shouldBe` 1)
-
-            -- Try another round
-            debounced
-            waitUntil 5 $ readIORef ref >>= (`shouldBe` 2)
-
-            returnFromWait
-            pause
-            readIORef ref >>= (`shouldBe` 2)
-
-        it "works for multiple events" $ do
-            (ref, debounced, baton, returnFromWait) <- getDebounce LeadingAndTrailing
-
-            debounced
-            waitForBatonToBeTaken baton
-            debounced
-
-            waitUntil 5 $ readIORef ref >>= (`shouldBe` 1)
-
-            returnFromWait
-            waitUntil 5 $ readIORef ref >>= (`shouldBe` 2)
 
 
 -- | Make a controllable delay function
@@ -117,7 +86,7 @@ getWaitAction = do
     return (waitAction, returnFromWait)
 
 -- | Get a debounce system with access to the internals for testing
-getDebounce :: DebounceEdge -> IO (IORef Int, IO (), MVar (), IO ())
+getDebounce :: DI.DebounceEdge -> IO (IORef Int, IO (), MVar (), IO ())
 getDebounce edge = do
   ref :: IORef Int <- newIORef 0
   let action = modifyIORef ref (+ 1)

@@ -42,7 +42,7 @@ data DebounceSettings = DebounceSettings
     -- ^ Whether to perform the action on the leading edge or trailing edge of
     -- the timeout.
     --
-    -- Default: Leading.
+    -- Default: trailingEdge.
     --
     -- @since 0.1.6
     }
@@ -54,12 +54,8 @@ data DebounceSettings = DebounceSettings
 data DebounceEdge =
   Leading
   -- ^ Perform the action immediately, and then begin a cooldown period.
-  -- If trigger happens again during the cooldown, wait until the end of the cooldown and then
-  -- perform the action again /plus/ enter a new cooldown period.
-  | LeadingAndTrailing
-  -- ^ Perform the action immediately, and then begin a cooldown period.
-  -- If trigger happens again during the cooldown, wait until the end of the cooldown and then
-  -- perform the action again but /do not/ enter a new cooldown period.
+  -- If the trigger happens again during the cooldown, wait until the end of the cooldown
+  -- and then perform the action again, then enter a new cooldown period.
   | Trailing
   -- ^ Start a cooldown period and perform the action when the period ends. If another trigger
   -- happens during the cooldown, it has no effect.
@@ -71,7 +67,6 @@ mkDebounceInternal baton delayFn (DebounceSettings freq action edge) = do
         takeMVar baton
         case edge of
           Leading -> ignoreExc action >> runDelay
-          LeadingAndTrailing -> ignoreExc action >> runDelay
           Trailing -> runDelay
 
     return $ void $ tryPutMVar baton ()
@@ -87,9 +82,6 @@ mkDebounceInternal baton delayFn (DebounceSettings freq action edge) = do
                 Leading ->
                     -- We already fired at the beginning of the interval so do nothing
                     return ()
-                LeadingAndTrailing -> do
-                    firedDuringInterval <- isJust <$> tryTakeMVar baton
-                    when firedDuringInterval $ ignoreExc action
 
 ignoreExc :: IO () -> IO ()
 ignoreExc = handle $ \(_ :: SomeException) -> return ()
