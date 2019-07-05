@@ -4,14 +4,15 @@
 module Control.Debounce.Internal (
   DebounceSettings(..)
   , DebounceEdge(..)
+  , leadingEdge
+  , trailingEdge
   , mkDebounceInternal
   ) where
 
 import           Control.Concurrent      (forkIO)
 import           Control.Concurrent.MVar (takeMVar, tryPutMVar, tryTakeMVar, MVar)
 import           Control.Exception       (SomeException, handle, mask_)
-import           Control.Monad           (forever, void, when)
-import           Data.Maybe              (isJust)
+import           Control.Monad           (forever, void)
 
 -- | Settings to control how debouncing should work.
 --
@@ -42,7 +43,7 @@ data DebounceSettings = DebounceSettings
     -- ^ Whether to perform the action on the leading edge or trailing edge of
     -- the timeout.
     --
-    -- Default: trailingEdge.
+    -- Default: 'trailingEdge'.
     --
     -- @since 0.1.6
     }
@@ -60,6 +61,22 @@ data DebounceEdge =
   -- ^ Start a cooldown period and perform the action when the period ends. If another trigger
   -- happens during the cooldown, it has no effect.
   deriving (Show, Eq)
+
+
+-- | Perform the action immediately, and then begin a cooldown period.
+-- If the trigger happens again during the cooldown, wait until the end of the cooldown
+-- and then perform the action again, then enter a new cooldown period.
+--
+-- @since 0.1.6
+leadingEdge :: DebounceEdge
+leadingEdge = Leading
+
+-- | Start a cooldown period and perform the action when the period ends. If another trigger
+-- happens during the cooldown, it has no effect.
+--
+-- @since 0.1.6
+trailingEdge :: DebounceEdge
+trailingEdge = Trailing
 
 mkDebounceInternal :: MVar () -> (Int -> IO ()) -> DebounceSettings -> IO (IO ())
 mkDebounceInternal baton delayFn (DebounceSettings freq action edge) = do

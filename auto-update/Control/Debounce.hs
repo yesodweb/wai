@@ -11,7 +11,7 @@
 -- printString <- 'mkDebounce' 'defaultDebounceSettings'
 --                  { 'debounceAction' = putStrLn "Running action"
 --                  , 'debounceFreq' = 5000000 -- 5 seconds
---                  , 'debounceEdge' = 'trailingEdge' -- Trigger on the trailing edge
+--                  , 'debounceEdge' = 'DI.trailingEdge' -- Trigger on the trailing edge
 --                  }
 -- @
 --
@@ -32,8 +32,8 @@ module Control.Debounce
     , DI.debounceFreq
     , DI.debounceAction
     , DI.debounceEdge
-    , leadingEdge
-    , trailingEdge
+    , DI.leadingEdge
+    , DI.trailingEdge
       -- * Creation
     , mkDebounce
     ) where
@@ -48,7 +48,7 @@ defaultDebounceSettings :: DI.DebounceSettings
 defaultDebounceSettings = DI.DebounceSettings
     { DI.debounceFreq = 1000000
     , DI.debounceAction = return ()
-    , DI.debounceEdge = leadingEdge
+    , DI.debounceEdge = DI.leadingEdge
     }
 
 -- | Generate an action which will trigger the debounced action to be performed.
@@ -58,14 +58,3 @@ mkDebounce :: DI.DebounceSettings -> IO (IO ())
 mkDebounce settings = do
   baton <- newEmptyMVar
   DI.mkDebounceInternal baton threadDelay settings
-
--- | Perform the action immediately, and then begin a cooldown period.
--- If the trigger happens again during the cooldown, wait until the end of the cooldown
--- and then perform the action again, then enter a new cooldown period.
-leadingEdge :: DI.DebounceEdge
-leadingEdge = DI.Leading
-
--- | Start a cooldown period and perform the action when the period ends. If another trigger
--- happens during the cooldown, it has no effect.
-trailingEdge :: DI.DebounceEdge
-trailingEdge = DI.Trailing
