@@ -14,6 +14,7 @@ module Network.Wai.Middleware.RequestLogger
     , OutputFormat (..)
     , OutputFormatter
     , OutputFormatterWithDetails
+    , OutputFormatterWithDetailsAndHeaders
     , Destination (..)
     , Callback
     , IPAddrSource (..)
@@ -49,14 +50,42 @@ import Network.Wai.Middleware.RequestLogger.Internal
 import Network.Wai.Header (contentLength)
 import Data.Text.Encoding (decodeUtf8')
 
-data OutputFormat = Apache IPAddrSource
-                  | Detailed Bool -- ^ use colors?
-                  | CustomOutputFormat OutputFormatter
-                  | CustomOutputFormatWithDetails OutputFormatterWithDetails
+data OutputFormat
+  = Apache IPAddrSource
+  | Detailed Bool -- ^ use colors?
+  | CustomOutputFormat OutputFormatter
+  | CustomOutputFormatWithDetails OutputFormatterWithDetails
+  | CustomOutputFormatWithDetailsAndHeaders OutputFormatterWithDetailsAndHeaders
 
 type OutputFormatter = ZonedDate -> Request -> Status -> Maybe Integer -> LogStr
-type OutputFormatterWithDetails =
-  ZonedDate -> Request -> Status -> Maybe Integer -> NominalDiffTime -> [S8.ByteString] -> B.Builder -> LogStr
+
+type OutputFormatterWithDetails
+   = ZonedDate
+  -> Request
+  -> Status
+  -> Maybe Integer
+  -> NominalDiffTime
+  -> [S8.ByteString]
+  -> B.Builder
+  -> LogStr
+
+-- | Same as @OutputFormatterWithDetails@ but with response headers included
+--
+-- This is useful if you wish to include arbitrary application data in your
+-- logs, e.g., an authenticated user ID, which you would set in a response
+-- header in your application and retrieve in the log formatter.
+--
+-- @since 3.0.27
+type OutputFormatterWithDetailsAndHeaders
+   = ZonedDate -- ^ When the log message was generated
+  -> Request -- ^ The WAI request
+  -> Status -- ^ HTTP status code
+  -> Maybe Integer -- ^ Response size
+  -> NominalDiffTime -- ^ Duration of the request
+  -> [S8.ByteString] -- ^ The request body
+  -> B.Builder -- ^ Raw response
+  -> [Header] -- ^ The response headers
+  -> LogStr
 
 data Destination = Handle Handle
                  | Logger LoggerSet
@@ -108,6 +137,9 @@ mkRequestLogger RequestLoggerSettings{..} = do
         CustomOutputFormatWithDetails formatter -> do
             getdate <- getDateGetter flusher
             return $ customMiddlewareWithDetails callbackAndFlush getdate formatter
+        CustomOutputFormatWithDetailsAndHeaders formatter -> do
+            getdate <- getDateGetter flusher
+            return $ customMiddlewareWithDetailsAndHeaders callbackAndFlush getdate formatter
 
 apacheMiddleware :: ApacheLoggerActions -> Middleware
 apacheMiddleware ala app req sendResponse = app req $ \res -> do
@@ -138,6 +170,24 @@ customMiddlewareWithDetails cb getdate formatter app req sendResponse = do
       readIORef builderIO
     return rspRcv
 
+customMiddlewareWithDetailsAndHeaders :: Callback -> IO ZonedDate -> OutputFormatterWithDetailsAndHeaders -> Middleware
+customMiddlewareWithDetailsAndHeaders cb getdate formatter app req sendResponse = do
+  (req', reqBody) <- getRequestBody req
+  t0 <- getCurrentTime
+  app req' $ \res -> do
+    t1 <- getCurrentTime
+    date <- liftIO getdate
+    let msize = contentLength (responseHeaders res)
+    builderIO <- newIORef $ B.byteString ""
+    res' <- recordChunks builderIO res
+    rspRcv <- sendResponse res'
+    _ <- do
+      rawResponse <- readIORef builderIO
+      let status = responseStatus res'
+          duration = t1 `diffUTCTime` t0
+          resHeaders = responseHeaders res'
+      liftIO . cb $ formatter date req' status msize duration reqBody rawResponse resHeaders
+    return rspRcv
 -- | Production request logger middleware.
 --
 -- This uses the 'Apache' logging format, and takes IP addresses for clients from
