@@ -1,7 +1,10 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE CPP #-}
 
-module Network.Wai.Middleware.RequestLogger.JSON (formatAsJSON) where
+module Network.Wai.Middleware.RequestLogger.JSON
+  ( formatAsJSON
+  , formatAsJSONWithHeaders
+  ) where
 
 import qualified Data.ByteString.Builder as BB (toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
@@ -35,6 +38,30 @@ formatAsJSON date req status responseSize duration reqBody response =
         , "body"   .=
           if statusCode status >= 400
             then Just . decodeUtf8With lenientDecode . toStrict . BB.toLazyByteString $ response
+            else Nothing
+        ]
+      , "time"     .= decodeUtf8With lenientDecode date
+      ]) <> "\n"
+
+-- | Same as @formatAsJSON@ but with response headers included
+--
+-- This is useful for passing arbitrary data from your application out to the
+-- WAI layer for it to be logged, but you may need to be careful to
+-- subsequently redact any headers which may contain sensitive data.
+--
+-- @since 3.0.27
+formatAsJSONWithHeaders :: OutputFormatterWithDetailsAndHeaders
+formatAsJSONWithHeaders date req status resSize duration reqBody res resHeaders =
+  toLogStr (encode $
+    object
+      [ "request"  .= requestToJSON duration req reqBody
+      , "response" .= object
+        [ "status" .= statusCode status
+        , "size"   .= resSize
+        , "headers" .= responseHeadersToJSON resHeaders
+        , "body"   .=
+          if statusCode status >= 400
+            then Just . decodeUtf8With lenientDecode . toStrict . BB.toLazyByteString $ res
             else Nothing
         ]
       , "time"     .= decodeUtf8With lenientDecode date
@@ -88,6 +115,12 @@ requestHeadersToJSON :: RequestHeaders -> Value
 requestHeadersToJSON = toJSON . map hToJ where
   -- Redact cookies
   hToJ ("Cookie", _) = toJSON ("Cookie" :: Text, "-RDCT-" :: Text)
+  hToJ hd = headerToJSON hd
+
+responseHeadersToJSON :: [Header] -> Value
+responseHeadersToJSON = toJSON . map hToJ where
+  -- Redact cookies
+  hToJ ("Set-Cookie", _) = toJSON ("Set-Cookie" :: Text, "-RDCT-" :: Text)
   hToJ hd = headerToJSON hd
 
 headerToJSON :: Header -> Value
