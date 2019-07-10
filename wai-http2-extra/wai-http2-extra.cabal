@@ -1,5 +1,5 @@
 Name:                wai-http2-extra
-Version:             0.1.1
+Version:             0.1.2
 Synopsis:            WAI utilities for HTTP/2
 License:             MIT
 License-file:        LICENSE
@@ -8,7 +8,7 @@ Maintainer:          kazu@iij.ad.jp
 Homepage:            http://github.com/yesodweb/wai
 Category:            Web
 Build-Type:          Simple
-Cabal-Version:       >=1.8
+Cabal-Version:       >=1.10
 Stability:           Stable
 Description:         WAI utilities for HTTP/2
 
@@ -24,6 +24,9 @@ Library
   Exposed-modules:   Network.Wai.Middleware.Push.Referer
   Other-modules:     Network.Wai.Middleware.Push.Referer.LimitMultiMap
   Ghc-Options:       -Wall
+  if impl(ghc >= 8)
+      default-extensions:  Strict StrictData
+  default-language:    Haskell2010
 
 Test-Suite doctest
   Type:                 exitcode-stdio-1.0
@@ -32,6 +35,10 @@ Test-Suite doctest
   Main-Is:              doctests.hs
   Build-Depends:        base
                       , doctest >= 0.10.1
+  if impl(ghc >= 8)
+      default-extensions:  Strict StrictData
+  default-language:    Haskell2010
+
 Source-Repository head
   Type:     git
   Location: git://github.com/yesodweb/wai.git
