@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module RunSpec (main, spec, withApp, connectTo, MySocket, msWrite, msRead, msClose) where
+module RunSpec (main, spec, withApp, MySocket, msWrite, msRead, withMySocket) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
