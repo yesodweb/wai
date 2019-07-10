@@ -21,14 +21,14 @@ testRange :: S.ByteString -- ^ range value
           -> Maybe String -- ^ expected content-range value
           -> Spec
 testRange range out crange = it title $ withApp defaultSettings app $ \port -> do
-    handle <- connectTo port
-    msWrite handle "GET / HTTP/1.0\r\n"
-    msWrite handle "Range: bytes="
-    msWrite handle range
-    msWrite handle "\r\n\r\n"
+    ms <- connectTo port
+    msWrite ms "GET / HTTP/1.0\r\n"
+    msWrite ms "Range: bytes="
+    msWrite ms range
+    msWrite ms "\r\n\r\n"
     threadDelay 10000
-    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ msRead handle 1024
-    msClose handle
+    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ msRead ms 1024
+    msClose ms
     last bss `shouldBe` out
     let hs = mapMaybe toHeader bss
     lookup "Content-Range" hs `shouldBe` fmap ("bytes " ++) crange
@@ -47,11 +47,11 @@ testPartial :: Integer -- ^ file size
             -> String -- ^ expected output
             -> Spec
 testPartial size offset count out = it title $ withApp defaultSettings app $ \port -> do
-    handle <- connectTo port
-    msWrite handle "GET / HTTP/1.0\r\n\r\n"
+    ms <- connectTo port
+    msWrite ms "GET / HTTP/1.0\r\n\r\n"
     threadDelay 10000
-    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ msRead handle 1024
-    msClose handle
+    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ msRead ms 1024
+    msClose ms
     out `shouldBe` last bss
     let hs = mapMaybe toHeader bss
     lookup "Content-Length" hs `shouldBe` Just (show $ length $ last bss)

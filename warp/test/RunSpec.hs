@@ -169,9 +169,9 @@ runTerminateTest expected input = do
     ref <- I.newIORef Nothing
     let onExc _ = I.writeIORef ref . Just
     withApp (setOnException onExc defaultSettings) dummyApp $ \port -> do
-        handle <- connectTo port
-        msWrite handle input
-        msClose handle
+        ms <- connectTo port
+        msWrite ms input
+        msClose ms
         threadDelay 1000
         res <- I.readIORef ref
         show res `shouldBe` show (Just expected)
@@ -243,12 +243,12 @@ spec = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo port
+                ms <- connectTo port
                 let input = S.concat
                         [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
                         ]
-                msWrite handle input
-                msClose handle
+                msWrite ms input
+                msClose ms
                 threadDelay 1000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
@@ -260,12 +260,12 @@ spec = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo port
+                ms <- connectTo port
                 let input = S.concat
                         [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
                         ]
-                msWrite handle input
-                msClose handle
+                msWrite ms input
+                msClose ms
                 threadDelay 1000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
@@ -282,15 +282,15 @@ spec = do
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo port
+                ms <- connectTo port
                 let input = S.concat
                         [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
                         , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "b\r\nHello World\r\n0\r\n\r\n"
                         ]
-                msWrite handle input
-                msClose handle
+                msWrite ms input
+                msClose ms
                 atomically $ do
                   count <- readTVar countVar
                   check $ count == 2
@@ -308,13 +308,13 @@ spec = do
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo port
+                ms <- connectTo port
                 let input = concat $ replicate 2 $
                         ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
                         (replicate 50 "5\r\n12345\r\n") ++
                         ["0\r\n\r\n"]
-                mapM_ (msWrite handle) input
-                msClose handle
+                mapM_ (msWrite ms) input
+                msClose ms
                 atomically $ do
                   count <- readTVar countVar
                   check $ count == 2
@@ -331,15 +331,15 @@ spec = do
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ \port -> do
-                handle <- connectTo port
+                ms <- connectTo port
                 let input = S.concat
                         [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
                         , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "b\r\nHello World\r\n0\r\n\r\n"
                         ]
-                mapM_ (msWrite handle) $ map S.singleton $ S.unpack input
-                msClose handle
+                mapM_ (msWrite ms) $ map S.singleton $ S.unpack input
+                msClose ms
                 atomically $ do
                   count <- readTVar countVar
                   check $ count == 2
@@ -364,16 +364,16 @@ spec = do
                 let bs1 = S.replicate 2048 88
                     bs2 = "This is short"
                     bs = S.append bs1 bs2
-                handle <- connectTo port
-                msWrite handle "POST / HTTP/1.1\r\n"
-                msWrite handle "content-length: "
-                msWrite handle $ S8.pack $ show $ S.length bs
-                msWrite handle "\r\n\r\n"
+                ms <- connectTo port
+                msWrite ms "POST / HTTP/1.1\r\n"
+                msWrite ms "content-length: "
+                msWrite ms $ S8.pack $ show $ S.length bs
+                msWrite ms "\r\n\r\n"
                 threadDelay 100000
-                msWrite handle bs1
+                msWrite ms bs1
                 threadDelay 100000
-                msWrite handle bs2
-                msClose handle
+                msWrite ms bs2
+                msClose ms
                 threadDelay 5000000
                 front <- I.readIORef ifront
                 S.concat (front []) `shouldBe` bs
