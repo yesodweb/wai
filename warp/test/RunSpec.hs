@@ -410,15 +410,14 @@ spec = do
                         atomically $ modifyTVar countVar (+ 1)
                         loop
              loop
-        withApp defaultSettings app $ \port -> do
-            (sock, _addr) <- getSocketTCP "127.0.0.1" port
-            sendAll sock "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"
+        withApp defaultSettings app $ withMySocket $ \ms -> do
+            msWrite ms "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"
             threadDelay 10000
-            sendAll sock "5\r\nhello\r\n0\r\n\r\n"
+            msWrite ms "5\r\nhello\r\n0\r\n\r\n"
             atomically $ do
               count <- readTVar countVar
               check $ count >= 1
-            bs <- safeRecv sock 4096
+            bs <- safeRecv (msSocket ms) 4096 -- must not use msRead
             S.takeWhile (/= 13) bs `shouldBe` "HTTP/1.1 200 OK"
 
     it "streaming response with length" $ do
