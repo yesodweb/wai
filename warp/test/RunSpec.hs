@@ -78,6 +78,9 @@ connectTo port = do
       , msBuffer = ref
       }
 
+withMySocket :: (MySocket -> IO a) -> Int -> IO a
+withMySocket body port = bracket (connectTo port) msClose body
+
 incr :: MonadIO m => Counter -> m ()
 incr icount = liftIO $ I.atomicModifyIORef icount $ \ecount ->
     ((case ecount of
@@ -154,8 +157,7 @@ runTest :: Int -- ^ expected number of requests
         -> IO ()
 runTest expected app chunks = do
     ref <- I.newIORef (Right 0)
-    withApp defaultSettings (app ref) $ \port -> do
-        ms <- connectTo port
+    withApp defaultSettings (app ref) $ withMySocket $ \ms -> do
         forM_ chunks $ \chunk -> msWrite ms chunk
         _ <- timeout 100000 $ replicateM_ expected $ msRead ms 4096
         res <- I.readIORef ref
@@ -172,10 +174,9 @@ runTerminateTest :: InvalidRequest
 runTerminateTest expected input = do
     ref <- I.newIORef Nothing
     let onExc _ = I.writeIORef ref . Just
-    withApp (setOnException onExc defaultSettings) dummyApp $ \port -> do
-        ms <- connectTo port
+    withApp (setOnException onExc defaultSettings) dummyApp $ withMySocket $ \ms -> do
         msWrite ms input
-        msClose ms
+        msClose ms -- explicitly
         threadDelay 1000
         res <- I.readIORef ref
         show res `shouldBe` show (Just expected)
@@ -246,13 +247,11 @@ spec = do
             let app req f = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
                     f $ responseLBS status200 [] ""
-            withApp defaultSettings app $ \port -> do
-                ms <- connectTo port
+            withApp defaultSettings app $ withMySocket $ \ms -> do
                 let input = S.concat
                         [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
                         ]
                 msWrite ms input
-                msClose ms
                 threadDelay 1000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
@@ -263,13 +262,11 @@ spec = do
             let app req f = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
                     f $ responseLBS status200 [] ""
-            withApp defaultSettings app $ \port -> do
-                ms <- connectTo port
+            withApp defaultSettings app $ withMySocket $ \ms -> do
                 let input = S.concat
                         [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
                         ]
                 msWrite ms input
-                msClose ms
                 threadDelay 1000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
@@ -285,8 +282,7 @@ spec = do
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
-            withApp defaultSettings app $ \port -> do
-                ms <- connectTo port
+            withApp defaultSettings app $ withMySocket $ \ms -> do
                 let input = S.concat
                         [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
@@ -294,7 +290,6 @@ spec = do
                         , "b\r\nHello World\r\n0\r\n\r\n"
                         ]
                 msWrite ms input
-                msClose ms
                 atomically $ do
                   count <- readTVar countVar
                   check $ count == 2
@@ -311,14 +306,12 @@ spec = do
                     I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
-            withApp defaultSettings app $ \port -> do
-                ms <- connectTo port
+            withApp defaultSettings app $ withMySocket $ \ms -> do
                 let input = concat $ replicate 2 $
                         ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
                         (replicate 50 "5\r\n12345\r\n") ++
                         ["0\r\n\r\n"]
                 mapM_ (msWrite ms) input
-                msClose ms
                 atomically $ do
                   count <- readTVar countVar
                   check $ count == 2
@@ -334,8 +327,7 @@ spec = do
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
-            withApp defaultSettings app $ \port -> do
-                ms <- connectTo port
+            withApp defaultSettings app $ withMySocket $ \ms -> do
                 let input = S.concat
                         [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
@@ -343,7 +335,6 @@ spec = do
                         , "b\r\nHello World\r\n0\r\n\r\n"
                         ]
                 mapM_ (msWrite ms) $ map S.singleton $ S.unpack input
-                msClose ms
                 atomically $ do
                   count <- readTVar countVar
                   check $ count == 2
@@ -364,11 +355,10 @@ spec = do
                         E.throwIO (e :: E.SomeException)
                     liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
                     f $ responseLBS status200 [] ""
-            withApp (setTimeout 1 defaultSettings) app $ \port -> do
+            withApp (setTimeout 1 defaultSettings) app $ withMySocket $ \ms -> do
                 let bs1 = S.replicate 2048 88
                     bs2 = "This is short"
                     bs = S.append bs1 bs2
-                ms <- connectTo port
                 msWrite ms "POST / HTTP/1.1\r\n"
                 msWrite ms "content-length: "
                 msWrite ms $ S8.pack $ show $ S.length bs
@@ -377,7 +367,6 @@ spec = do
                 msWrite ms bs1
                 threadDelay 100000
                 msWrite ms bs2
-                msClose ms
                 threadDelay 5000000
                 front <- I.readIORef ifront
                 S.concat (front []) `shouldBe` bs
@@ -393,8 +382,7 @@ spec = do
                                     loop
                         loop
                 doubleBS = S.concatMap $ \w -> S.pack [w, w]
-            withApp defaultSettings app $ \port -> do
-                ms <- connectTo port
+            withApp defaultSettings app $ withMySocket $ \ms -> do
                 msWrite ms "POST / HTTP/1.1\r\n\r\n12345"
                 timeout 100000 (msRead ms 10) >>= (`shouldBe` Just "1122334455")
                 msWrite ms "67890"
