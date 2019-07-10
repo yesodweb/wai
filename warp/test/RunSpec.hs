@@ -37,7 +37,7 @@ type CounterApplication = Counter -> Application
 
 data MySocket = MySocket
   { msSocket :: !Socket
-  , _msBuffer :: !(I.IORef ByteString)
+  , msBuffer :: !(I.IORef ByteString)
   }
 
 msWrite :: MySocket -> ByteString -> IO ()
@@ -70,9 +70,13 @@ msClose :: MySocket -> IO ()
 msClose = Network.Socket.close . msSocket
 
 connectTo :: Int -> IO MySocket
-connectTo port = MySocket
-  <$> (fst <$> getSocketTCP "127.0.0.1" port)
-  <*> I.newIORef mempty
+connectTo port = do
+    s <- fst <$> getSocketTCP "127.0.0.1" port
+    ref <- I.newIORef mempty
+    return MySocket {
+        msSocket = s
+      , msBuffer = ref
+      }
 
 incr :: MonadIO m => Counter -> m ()
 incr icount = liftIO $ I.atomicModifyIORef icount $ \ecount ->
