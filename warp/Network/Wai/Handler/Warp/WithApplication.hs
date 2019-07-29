@@ -2,8 +2,13 @@
 module Network.Wai.Handler.Warp.WithApplication (
   withApplication,
   withApplicationSettings,
+  openApplication,
+  openApplicationSettings,
+  closeApplication,
   testWithApplication,
   testWithApplicationSettings,
+  testOpenApplication,
+  testOpenApplicationSettings,
   openFreePort,
   withFreePort,
 ) where
@@ -27,26 +32,36 @@ import           Network.Wai.Handler.Warp.Types
 withApplication :: IO Application -> (Port -> IO a) -> IO a
 withApplication = withApplicationSettings defaultSettings
 
+openApplication :: IO Application -> IO (Port, Socket, IO (), Async ())
+openApplication = openApplicationSettings defaultSettings
+
 -- | 'withApplication' with given 'Settings'. This will ignore the port value
 -- set by 'setPort' in 'Settings'.
 --
 -- @since 3.2.7
 withApplicationSettings :: Settings -> IO Application -> (Port -> IO a) -> IO a
-withApplicationSettings settings' mkApp action = do
+withApplicationSettings settings mkApp action =
+  bracket
+    (openApplicationSettings settings mkApp)
+    closeApplication
+    (runApplication action)
+
+openApplicationSettings :: Settings -> IO Application -> IO (Port, Socket, IO (), Async ())
+openApplicationSettings settings' mkApp = do
   app <- mkApp
-  withFreePort $ \ (port, sock) -> do
-    started <- mkWaiter
-    let settings =
-          settings' {
-            settingsBeforeMainLoop
-              = notify started () >> settingsBeforeMainLoop settings'
-          }
-    result <- race
-      (runSettingsSocket settings sock app)
-      (waitFor started >> action port)
-    case result of
-      Left () -> throwIO $ ErrorCall "Unexpected: runSettingsSocket exited"
-      Right x -> return x
+  (port, sock) <- openFreePort
+  started <- mkWaiter
+  let settings =
+        settings' {
+          settingsBeforeMainLoop
+            = notify started () >> settingsBeforeMainLoop settings'
+        }
+  serverAsync <- async (runSettingsSocket settings sock app)
+  return (port, sock, waitFor started, serverAsync)
+
+closeApplication :: (Port, Socket, IO (), Async ()) -> IO ()
+closeApplication (_, sock, _, serverAsync) =
+  close sock `finally` cancel serverAsync
 
 -- | Same as 'withApplication' but with different exception handling: If the
 -- given 'Application' throws an exception, 'testWithApplication' will re-throw
@@ -64,11 +79,21 @@ withApplicationSettings settings' mkApp action = do
 testWithApplication :: IO Application -> (Port -> IO a) -> IO a
 testWithApplication = testWithApplicationSettings defaultSettings
 
+testOpenApplication :: IO Application -> IO (Port, Socket, IO (), Async ())
+testOpenApplication = testOpenApplicationSettings defaultSettings
+
 -- | 'testWithApplication' with given 'Settings'.
 --
 -- @since 3.2.7
 testWithApplicationSettings :: Settings -> IO Application -> (Port -> IO a) -> IO a
-testWithApplicationSettings settings mkApp action = do
+testWithApplicationSettings settings mkApp action =
+  bracket
+    (testOpenApplicationSettings settings mkApp)
+    closeApplication
+    (runApplication action)
+
+testOpenApplicationSettings :: Settings -> IO Application -> IO (Port, Socket, IO (), Async ())
+testOpenApplicationSettings settings mkApp = do
   callingThread <- myThreadId
   app <- mkApp
   let wrappedApp request respond =
@@ -77,7 +102,16 @@ testWithApplicationSettings settings mkApp action = do
             (defaultShouldDisplayException e)
             (throwTo callingThread e)
           throwIO e
-  withApplicationSettings settings (return wrappedApp) action
+  openApplicationSettings settings (return wrappedApp)
+
+runApplication :: (Port -> IO a) -> (Port, Socket, IO (), Async ()) -> IO a
+runApplication action (port, _, waitForServer, serverAsync) = do
+  waitForServer
+  withAsync (action port) $ \actionAsync -> do
+    result <- waitEither serverAsync actionAsync
+    case result of
+      Left () -> throwIO $ ErrorCall "Unexpected: runSettingsSocket exited"
+      Right x -> return x
 
 data Waiter a
   = Waiter {
