@@ -89,6 +89,9 @@ defaultCheckMime bs =
 -- if gzip is supported.
 --
 -- File responses will be compressed according to the 'GzipFiles' setting.
+--
+-- Will only be applied based on the 'gzipCheckMime' setting. For default
+-- behavior, see 'defaultCheckMime'.
 gzip :: GzipSettings -> Middleware
 gzip set app env sendResponse = app env $ \res ->
     case res of
