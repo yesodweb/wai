@@ -37,6 +37,17 @@ eventIO = do
                          Nothing
                          [string8 . show $ time]
 
+eventRaw :: (ServerEvent -> IO ()) -> IO () -> IO ()
+eventRaw = handle 0
+    where
+        handle counter emit flush = do
+            threadDelay 1000000
+            emit $ ServerEvent (Just $ string8 "raw")
+                               Nothing
+                               [string8 . show $ counter]
+            flush
+            handle (counter + 1) emit flush
+
 main :: IO ()
 main = do
     chan <- newChan

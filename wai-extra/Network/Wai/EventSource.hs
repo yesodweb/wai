@@ -39,3 +39,18 @@ eventSourceAppIO src _ sendResponse =
             case eventToBuilder se of
                 Nothing -> return ()
                 Just b  -> sendChunk b >> flush >> loop
+
+-- | Make a new WAI EventSource application with a handler that emits events.
+--
+-- @since 3.0.28
+eventStreamAppRaw :: ((ServerEvent -> IO()) -> IO () -> IO ()) -> Application
+eventStreamAppRaw handler _ sendResponse =
+    sendResponse $ responseStream
+        status200
+        [(hContentType, "text/event-stream")]
+        $ \sendChunk flush -> handler (sendEvent sendChunk) flush
+    where
+        sendEvent sendChunk event =
+            case eventToBuilder event of
+                Nothing -> return ()
+                Just b  -> sendChunk b
