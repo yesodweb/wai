@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.0.28
+
+* Add `Network.Wai.EventSource.eventStreamAppRaw` [#767](https://github.com/yesodweb/wai/pull/767)
+
 ## 3.0.27
 
 * Add custom request log formatter which includes response headers [#762](https://github.com/yesodweb/wai/pull/762)
