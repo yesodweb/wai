@@ -5,6 +5,8 @@
     headers:
 
     > [ ("X-Accel-Buffering", "no"), ("Cache-Control", "no-cache")]
+
+    There is a small example using these functions in the @example@ directory.
 -}
 module Network.Wai.EventSource (
     ServerEvent(..),
