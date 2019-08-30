@@ -17,7 +17,12 @@ import Foreign.C.Types
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
 import GHC.Conc (threadWaitRead)
-import Network.Socket (Socket, fdSocket)
+import Network.Socket (Socket)
+#if MIN_VERSION_network(3,1,0)
+import Network.Socket (withFdSocket)
+#else
+import Network.Socket (fdSocket)
+#endif
 import System.Posix.Types (Fd(..))
 
 import Network.Wai.Handler.Warp.Buffer
@@ -91,7 +96,9 @@ spell init0 siz0 recv recvBuf
 
 receive :: Socket -> BufferPool -> Recv
 receive sock pool = withBufferPool pool $ \ (ptr, size) -> do
-#if MIN_VERSION_network(3,0,0)
+#if MIN_VERSION_network(3,1,0)
+  withFdSocket sock $ \fd -> do
+#elif MIN_VERSION_network(3,0,0)
     fd <- fdSocket sock
 #else
     let fd = fdSocket sock
@@ -101,7 +108,9 @@ receive sock pool = withBufferPool pool $ \ (ptr, size) -> do
 
 receiveBuf :: Socket -> RecvBuf
 receiveBuf sock buf0 siz0 = do
-#if MIN_VERSION_network(3,0,0)
+#if MIN_VERSION_network(3,1,0)
+  withFdSocket sock $ \fd -> do
+#elif MIN_VERSION_network(3,0,0)
     fd <- fdSocket sock
 #else
     let fd = fdSocket sock
