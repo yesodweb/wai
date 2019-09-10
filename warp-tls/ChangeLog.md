@@ -1,3 +1,11 @@
+## 3.2.8
+
+* Using gracefullClose of network 3.1.1 or later if available.
+
+## 3.2.7
+
+* Relaxing version constraint.
+
 ## 3.2.6
 
 * Using the Strict and StrictData language extensions for GHC >8.
