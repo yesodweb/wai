@@ -23,6 +23,9 @@ import Foreign.C.Error (Errno(..), eCONNABORTED)
 import GHC.IO.Exception (IOException(..))
 import qualified Network.HTTP2 as H2
 import Network.Socket (Socket, close, accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6), setSocketOption, SocketOption(..))
+#if MIN_VERSION_network(3,1,1)
+import Network.Socket (gracefulClose)
+#endif
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
@@ -64,7 +67,11 @@ socketConnection s = do
         connSendMany = Sock.sendMany s
       , connSendAll = sendall
       , connSendFile = sendFile s writeBuf bufferSize sendall
+#if MIN_VERSION_network(3,1,1)
+      , connClose = gracefulClose s 5000
+#else
       , connClose = close s
+#endif
       , connFree = freeBuffer writeBuf
       , connRecv = receive s bufferPool
       , connRecvBuf = receiveBuf s

@@ -53,6 +53,9 @@ import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, safeRecv)
 import Data.Typeable (Typeable)
 import Network.Socket (Socket, close, withSocketsDo, SockAddr, accept)
+#if MIN_VERSION_network(3,1,1)
+import Network.Socket (gracefulClose)
+#endif
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
 import qualified Crypto.PubKey.DH as DH
@@ -355,7 +358,11 @@ httpOverTls TLSSettings{..} s bs0 params = do
   where
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
+#if MIN_VERSION_network(3,1,1)
+      , TLS.backendClose = gracefulClose s 5000
+#else
       , TLS.backendClose = close s
+#endif
       , TLS.backendSend  = sendAll' s
       , TLS.backendRecv  = recvN
       }
