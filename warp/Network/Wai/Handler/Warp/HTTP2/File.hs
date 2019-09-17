@@ -15,8 +15,12 @@ import Network.Wai.Handler.Warp.SendFile (positionRead)
 
 pReadMaker :: InternalInfo -> PositionReadMaker
 pReadMaker ii path = do
-    (Just fd, refresh) <- getFd ii path
-    return (pread fd, Refresher refresh)
+    (mfd, refresh) <- getFd ii path
+    case mfd of
+      Just fd -> return (pread fd, Refresher refresh)
+      Nothing -> do
+          fd <- openFile path
+          return (pread fd, Closer $ closeFile fd)
   where
     pread :: Fd -> PositionRead
     pread fd off bytes buf = fromIntegral <$> positionRead fd buf bytes' off'
