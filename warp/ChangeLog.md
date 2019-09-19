@@ -1,3 +1,7 @@
+## 3.3.2
+
+* Fixing a bug of HTTP/2 without fd cache.
+
 ## 3.3.1
 
 * Using gracefullClose of network 3.1.1 or later if available.
