@@ -1,5 +1,9 @@
 # ChangeLog for wai
 
+## 3.2.3
+
+* setOnException wasn't called [#770](https://github.com/yesodweb/wai/pull/770)
+
 ## 3.2.2.1
 
 * Fix missing reexport of `getRequestBodyChunk` [#753](https://github.com/yesodweb/wai/issues/753)
