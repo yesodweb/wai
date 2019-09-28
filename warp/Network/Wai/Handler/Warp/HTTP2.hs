@@ -37,7 +37,7 @@ http2 conn ii addr settings readN app =
 
     http2server h2req aux response = do
         req <- toWAIRequest h2req aux
-        ResponseReceived <- app req $ \rsp -> do
+        eResponseReceived <- E.try $ app req $ \rsp -> do
             h2rsp <- fromResponse settings ii req rsp
             pps <- fromPushPromises ii req
             ex <- E.try $ response h2rsp pps
@@ -50,8 +50,23 @@ http2 conn ii addr settings readN app =
                 | Just E.ThreadKilled  <- E.fromException e -> return ()
                 -- killed by the local timeout manager
                 | Just T.TimeoutThread <- E.fromException e -> return ()
-                | otherwise -> S.settingsOnException settings (Just req) e
+                | otherwise -> do
+                    S.settingsOnException settings (Just req) e
             return ResponseReceived
+        case eResponseReceived of
+          Right ResponseReceived -> return ()
+          Left e@(E.SomeException _)
+            -- killed by the local worker manager
+            | Just E.ThreadKilled  <- E.fromException e -> return ()
+            -- killed by the local timeout manager
+            | Just T.TimeoutThread <- E.fromException e -> return ()
+            | otherwise -> do
+                S.settingsOnException settings (Just req) e
+                pps' <- fromPushPromises ii req
+                h2rsp' <- fromResponse settings ii req (S.settingsOnExceptionResponse settings e)
+                response h2rsp' pps'
+                logResponse h2rsp' req
+                mapM_ (logPushPromise req) pps'
         return ()
 
     toWAIRequest h2req aux = toRequest ii settings addr hdr bdylen bdy th
