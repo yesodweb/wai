@@ -6,6 +6,7 @@
 
 module Network.Wai.Handler.Warp.HTTP2 (http2) where
 
+import qualified Data.IORef as I
 import qualified Control.Exception as E
 import qualified Network.HTTP2.Server as H2
 import Network.Socket (SockAddr)
@@ -37,21 +38,29 @@ http2 conn ii addr settings readN app =
 
     http2server h2req aux response = do
         req <- toWAIRequest h2req aux
-        ResponseReceived <- app req $ \rsp -> do
+        ref <- I.newIORef Nothing
+        eResponseReceived <- E.try $ app req $ \rsp -> do
             h2rsp <- fromResponse settings ii req rsp
             pps <- fromPushPromises ii req
-            ex <- E.try $ response h2rsp pps
-            case ex of
-              Right () -> do
-                  logResponse h2rsp req
-                  mapM_ (logPushPromise req) pps
-              Left  e@(E.SomeException _)
-                -- killed by the local worker manager
-                | Just E.ThreadKilled  <- E.fromException e -> return ()
-                -- killed by the local timeout manager
-                | Just T.TimeoutThread <- E.fromException e -> return ()
-                | otherwise -> S.settingsOnException settings (Just req) e
+            I.writeIORef ref $ Just (h2rsp, pps)
+            _ <- response h2rsp pps
             return ResponseReceived
+        case eResponseReceived of
+          Right ResponseReceived -> do
+              Just (h2rsp, pps) <- I.readIORef ref
+              logResponse h2rsp req
+              mapM_ (logPushPromise req) pps
+          Left e@(E.SomeException _)
+            -- killed by the local worker manager
+            | Just E.ThreadKilled  <- E.fromException e -> return ()
+            -- killed by the local timeout manager
+            | Just T.TimeoutThread <- E.fromException e -> return ()
+            | otherwise -> do
+                S.settingsOnException settings (Just req) e
+                let ersp = S.settingsOnExceptionResponse settings e
+                h2rsp' <- fromResponse settings ii req ersp
+                _ <- response h2rsp' []
+                logResponse h2rsp' req
         return ()
 
     toWAIRequest h2req aux = toRequest ii settings addr hdr bdylen bdy th
