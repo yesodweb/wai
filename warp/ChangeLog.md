@@ -1,3 +1,8 @@
+## 3.3.3
+
+* Calling setOnException in HTTP/2.
+  [#771](https://github.com/yesodweb/wai/pull/771)
+
 ## 3.3.2
 
 * Fixing a bug of HTTP/2 without fd cache.
