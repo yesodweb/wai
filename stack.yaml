@@ -25,5 +25,7 @@ image:
       executables:
         - warp
 extra-deps:
+- fast-logger-3.0.0
 - http2-2.0.0
 - network-byte-order-0.1.1.0
+- wai-logger-2.3.6
