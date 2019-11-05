@@ -344,7 +344,7 @@ serveConnection conn ii th origAddr transport settings app = do
         let recvN = wrappedRecvN th istatus (settingsSlowlorisSize settings) rawRecvN
         -- fixme: origAddr
         checkTLS
-        http2 conn ii origAddr settings recvN app
+        http2 conn transport ii origAddr settings recvN app
       else do
         src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
         writeIORef istatus True

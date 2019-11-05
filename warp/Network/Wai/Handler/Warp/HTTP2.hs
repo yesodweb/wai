@@ -24,8 +24,8 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-http2 :: Connection -> InternalInfo -> SockAddr -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
-http2 conn ii addr settings readN app =
+http2 :: Connection -> Transport -> InternalInfo -> SockAddr -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
+http2 conn transport ii addr settings readN app =
     H2.run conf http2server
   where
     conf = H2.Config {
@@ -63,12 +63,13 @@ http2 conn ii addr settings readN app =
                 logResponse h2rsp' req
         return ()
 
-    toWAIRequest h2req aux = toRequest ii settings addr hdr bdylen bdy th
+    toWAIRequest h2req aux = toRequest ii settings addr hdr bdylen bdy th secure
       where
         !hdr = H2.requestHeaders h2req
         !bdy = H2.getRequestBodyChunk h2req
         !bdylen = H2.requestBodySize h2req
         !th = H2.auxTimeHandle aux
+        !secure = isTransportSecure transport
 
     logResponse h2rsp req = logger req st msiz
       where
