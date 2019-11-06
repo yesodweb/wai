@@ -1,3 +1,7 @@
+## 3.3.4
+
+* Setting isSecure of HTTP/2 correctly.
+
 ## 3.3.3
 
 * Calling setOnException in HTTP/2.
