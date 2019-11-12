@@ -169,7 +169,7 @@ import Control.Applicative
 --
 -- as the following example demonstrates.
 --
--- Old versions of the libary could only handle path pieces, not queries.
+-- Old versions of the library could only handle path pieces, not queries.
 -- This could have been supplied to 'rewritePure'.
 --
 -- @
