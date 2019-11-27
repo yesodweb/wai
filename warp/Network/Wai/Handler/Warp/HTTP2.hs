@@ -63,13 +63,12 @@ http2 conn transport ii addr settings readN app =
                 logResponse h2rsp' req
         return ()
 
-    toWAIRequest h2req aux = toRequest ii settings addr hdr bdylen bdy th secure
+    toWAIRequest h2req aux = toRequest ii settings addr hdr bdylen bdy th transport
       where
         !hdr = H2.requestHeaders h2req
         !bdy = H2.getRequestBodyChunk h2req
         !bdylen = H2.requestBodySize h2req
         !th = H2.auxTimeHandle aux
-        !secure = isTransportSecure transport
 
     logResponse h2rsp req = logger req st msiz
       where

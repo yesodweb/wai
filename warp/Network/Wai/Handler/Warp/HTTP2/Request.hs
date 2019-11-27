@@ -26,19 +26,19 @@ import Network.Wai.Handler.Warp.Request (getFileInfoKey, pauseTimeoutKey)
 import qualified Network.Wai.Handler.Warp.Settings as S (Settings, settingsNoParsePath)
 import Network.Wai.Handler.Warp.Types
 
-type ToReq = (TokenHeaderList,ValueTable) -> Maybe Int -> IO ByteString -> T.Handle -> Bool -> IO Request
+type ToReq = (TokenHeaderList,ValueTable) -> Maybe Int -> IO ByteString -> T.Handle -> Transport -> IO Request
 
 ----------------------------------------------------------------
 
 toRequest :: InternalInfo -> S.Settings -> SockAddr -> ToReq
-toRequest ii settings addr ht bodylen body th secure = do
+toRequest ii settings addr ht bodylen body th transport = do
     ref <- newIORef Nothing
-    toRequest' ii settings addr ref ht bodylen body th secure
+    toRequest' ii settings addr ref ht bodylen body th transport
 
 toRequest' :: InternalInfo -> S.Settings -> SockAddr
            -> IORef (Maybe HTTP2Data)
            -> ToReq
-toRequest' ii settings addr ref (reqths,reqvt) bodylen body th secure = return req
+toRequest' ii settings addr ref (reqths,reqvt) bodylen body th transport = return req
   where
     !req = Request {
         requestMethod = colonMethod
@@ -48,7 +48,7 @@ toRequest' ii settings addr ref (reqths,reqvt) bodylen body th secure = return r
       , rawQueryString = query
       , queryString = H.parseQuery query
       , requestHeaders = headers
-      , isSecure = secure
+      , isSecure = isTransportSecure transport
       , remoteHost = addr
       , requestBody = body
       , vault = vaultValue
