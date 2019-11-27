@@ -22,7 +22,7 @@ import qualified System.TimeManager as T
 
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Imports
-import Network.Wai.Handler.Warp.Request (getFileInfoKey, pauseTimeoutKey)
+import Network.Wai.Handler.Warp.Request (getFileInfoKey, pauseTimeoutKey, getClientCertificateKey)
 import qualified Network.Wai.Handler.Warp.Settings as S (Settings, settingsNoParsePath)
 import Network.Wai.Handler.Warp.Types
 
@@ -83,6 +83,7 @@ toRequest' ii settings addr ref (reqths,reqvt) bodylen body th transport = retur
                 $ Vault.insert setHTTP2DataKey (writeIORef ref)
                 $ Vault.insert modifyHTTP2DataKey (modifyIORef' ref)
                 $ Vault.insert pauseTimeoutKey (T.pause th)
+                $ Vault.insert getClientCertificateKey (tlsClientCertificate transport)
                   Vault.empty
 
 getHTTP2DataKey :: Vault.Key (IO (Maybe HTTP2Data))

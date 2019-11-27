@@ -468,11 +468,13 @@ getTLSinfo ctx = do
 #if MIN_VERSION_tls(1,5,0)
                     TLS.TLS13 -> (3,4)
 #endif
+            clientCert <- TLS.getClientCertificateChain ctx
             return TLS {
                 tlsMajorVersion = major
               , tlsMinorVersion = minor
               , tlsNegotiatedProtocol = proto
               , tlsChiperID = TLS.cipherID infoCipher
+              , tlsClientCertificate = clientCert
               }
 
 tryIO :: IO a -> IO (Either IOException a)
