@@ -419,8 +419,7 @@ serveConnection conn ii th origAddr transport settings app = do
     errorResponse e = settingsOnExceptionResponse settings e
 
     http1 firstRequest addr istatus src = do
-        (req', mremainingRef, idxhdr, nextBodyFlush) <- recvRequest firstRequest settings conn ii th addr src
-        let req = req' { isSecure = isTransportSecure transport }
+        (req, mremainingRef, idxhdr, nextBodyFlush) <- recvRequest firstRequest settings conn ii th addr src transport
         keepAlive <- processRequest istatus src req mremainingRef idxhdr nextBodyFlush
             `E.catch` \e -> do
                 settingsOnException settings (Just req) e

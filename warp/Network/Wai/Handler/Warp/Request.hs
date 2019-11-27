@@ -55,6 +55,7 @@ recvRequest :: Bool -- ^ first request on this connection?
             -> Timeout.Handle
             -> SockAddr -- ^ Peer's address.
             -> Source -- ^ Where HTTP request comes from.
+            -> Transport
             -> IO (Request
                   ,Maybe (I.IORef Int)
                   ,IndexedHeader
@@ -64,7 +65,7 @@ recvRequest :: Bool -- ^ first request on this connection?
             -- 'IndexedHeader' of HTTP request for internal use,
             -- Body producing action used for flushing the request body
 
-recvRequest firstRequest settings conn ii th addr src = do
+recvRequest firstRequest settings conn ii th addr src transport = do
     hdrlines <- headerLines firstRequest src
     (method, unparsedPath, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
@@ -89,7 +90,7 @@ recvRequest firstRequest settings conn ii th addr src = do
           , rawQueryString    = query
           , queryString       = H.parseQuery query
           , requestHeaders    = hdr
-          , isSecure          = False
+          , isSecure          = isTransportSecure transport
           , remoteHost        = addr
           , requestBody       = rbody'
           , vault             = vaultValue
