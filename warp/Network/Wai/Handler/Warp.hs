@@ -378,7 +378,7 @@ setProxyProtocolRequired y = y { settingsProxyProtocol = ProxyProtocolRequired }
 --
 -- WARNING: This is contrary to the PROXY protocol specification and
 -- using it can indicate a security problem with your
--- architecture if the web server is directly accessable
+-- architecture if the web server is directly accessible
 -- to the public, since it would allow easy IP address
 -- spoofing.  However, it can be useful in some cases,
 -- such as if a load balancer health check uses regular

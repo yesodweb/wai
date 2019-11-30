@@ -167,7 +167,7 @@ serveFile StaticSettings {..} req file
             -- Note: It would be arguably better to next check
             -- if-modified-since and return a 304 if that indicates a match as
             -- well. However, the circumstances under which such a situation
-            -- could arise would be very anomolous, and should likely warrant a
+            -- could arise would be very anomalous, and should likely warrant a
             -- new file being sent anyway.
             (Just hash, _) -> respond [("ETag", hash)]
 
