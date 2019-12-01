@@ -57,7 +57,7 @@ spec = do
         assertStatus 200 =<<
           request (setRawPathInfo defRequest path)
 
-    it "404 for non-existant files" $ webApp $
+    it "404 for non-existent files" $ webApp $
       assertStatus 404 =<<
         request (setRawPathInfo defRequest "doesNotExist")
 

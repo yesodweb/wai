@@ -83,7 +83,7 @@ spec = do
         it "discards empty lines" $ do
             sanitizeHeaderValue "foo\r\n\r\nbar" `shouldBe` "foo\r\n bar"
 
-        context "when sanitizing single occurences of \n" $ do
+        context "when sanitizing single occurrences of \n" $ do
             it "replaces \n with \r\n" $ do
                 sanitizeHeaderValue "foo\n bar" `shouldBe` "foo\r\n bar"
 

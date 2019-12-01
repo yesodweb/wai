@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP #-}
-{- code adapted by Mathias Billman originaly from Chris Smith https://github.com/cdsmith/gloss-web -}
+{- code adapted by Mathias Billman originally from Chris Smith https://github.com/cdsmith/gloss-web -}
 
 {-|
     Internal module, usually you don't need to use it.
