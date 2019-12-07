@@ -7,6 +7,7 @@ module RequestSpec (main, spec) where
 import Network.Wai.Handler.Warp.File (parseByteRanges)
 import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Settings (settingsMaxTotalHeaderLength, defaultSettings)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import qualified Data.ByteString as S
@@ -16,6 +17,9 @@ import Data.IORef
 
 main :: IO ()
 main = hspec spec
+
+defaultMaxTotalHeaderLength :: Int
+defaultMaxTotalHeaderLength = settingsMaxTotalHeaderLength defaultSettings
 
 spec :: Spec
 spec = do
@@ -63,29 +67,29 @@ spec = do
   describe "headerLines" $ do
       it "can handle a nomarl case" $ do
           src <- mkSourceFunc ["Status: 200\r\nContent-Type: text/plain\r\n\r\n"] >>= mkSource
-          x <- headerLines True src
+          x <- headerLines defaultMaxTotalHeaderLength True src
           x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
       it "can handle a nasty case (1)" $ do
           src <- mkSourceFunc ["Status: 200", "\r\nContent-Type: text/plain", "\r\n\r\n"] >>= mkSource
-          x <- headerLines True src
+          x <- headerLines defaultMaxTotalHeaderLength True src
           x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
       it "can handle a nasty case (1)" $ do
           src <- mkSourceFunc ["Status: 200", "\r", "\nContent-Type: text/plain", "\r", "\n\r\n"] >>= mkSource
-          x <- headerLines True src
+          x <- headerLines defaultMaxTotalHeaderLength True src
           x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
       it "can handle a nasty case (1)" $ do
           src <- mkSourceFunc ["Status: 200", "\r", "\n", "Content-Type: text/plain", "\r", "\n", "\r", "\n"] >>= mkSource
-          x <- headerLines True src
+          x <- headerLines defaultMaxTotalHeaderLength True src
           x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
       it "can handle an illegal case (1)" $ do
           src <- mkSourceFunc ["\nStatus:", "\n 200", "\nContent-Type: text/plain", "\r\n\r\n"] >>= mkSource
-          x <- headerLines True src
+          x <- headerLines defaultMaxTotalHeaderLength True src
           x `shouldBe` []
-          y <- headerLines True src
+          y <- headerLines defaultMaxTotalHeaderLength True src
           y `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
   where
@@ -111,7 +115,7 @@ headerLinesList' orig = do
                     writeIORef ref z
                     return y
     src' <- mkSource src
-    res <- headerLines True src'
+    res <- headerLines defaultMaxTotalHeaderLength True src'
     return (res, src')
 
 consumeLen :: Int -> Source -> IO S8.ByteString
