@@ -58,17 +58,25 @@ import Network.Socket (fdSocket)
 #endif
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
-socketConnection :: Socket -> IO Connection
-socketConnection s = do
+socketConnection :: Settings -> Socket -> IO Connection
+socketConnection set s = do
     bufferPool <- newBufferPool
     writeBuf <- allocateBuffer bufferSize
     let sendall = Sock.sendAll s
+    isH2 <- newIORef False -- HTTP/1.x
     return Connection {
         connSendMany = Sock.sendMany s
       , connSendAll = sendall
       , connSendFile = sendFile s writeBuf bufferSize sendall
 #if MIN_VERSION_network(3,1,1)
-      , connClose = gracefulClose s 5000
+      , connClose = do
+            h2 <- readIORef isH2
+            let tm = if h2 then settingsGracefulCloseTiemout2 set
+                           else settingsGracefulCloseTiemout1 set
+            if tm == 0 then
+                close s
+              else
+                gracefulClose s tm
 #else
       , connClose = close s
 #endif
@@ -77,6 +85,7 @@ socketConnection s = do
       , connRecvBuf = receiveBuf s
       , connWriteBuffer = writeBuf
       , connBufferSize = bufferSize
+      , connHTTP2 = isH2
       }
 
 -- | Run an 'Application' on the given port.
@@ -138,7 +147,7 @@ runSettingsSocket set socket app = do
         setSocketCloseOnExec s
         -- NoDelay causes an error for AF_UNIX.
         setSocketOption s NoDelay 1 `E.catch` \(E.SomeException _) -> return ()
-        conn <- socketConnection s
+        conn <- socketConnection set s
         return (conn, sa)
 
     closeListenSocket = close socket
@@ -344,6 +353,7 @@ serveConnection conn ii th origAddr transport settings app = do
         let recvN = wrappedRecvN th istatus (settingsSlowlorisSize settings) rawRecvN
         -- fixme: origAddr
         checkTLS
+        setConnHTTP2 conn True
         http2 conn transport ii origAddr settings recvN app
       else do
         src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
