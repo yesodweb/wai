@@ -71,8 +71,8 @@ socketConnection set s = do
 #if MIN_VERSION_network(3,1,1)
       , connClose = do
             h2 <- readIORef isH2
-            let tm = if h2 then settingsGracefulCloseTiemout2 set
-                           else settingsGracefulCloseTiemout1 set
+            let tm = if h2 then settingsGracefulCloseTimeout2 set
+                           else settingsGracefulCloseTimeout1 set
             if tm == 0 then
                 close s
               else

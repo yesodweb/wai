@@ -72,8 +72,8 @@ module Network.Wai.Handler.Warp (
   , setLogger
   , setServerPushLogger
   , setGracefulShutdownTimeout
-  , setGracefulCloseTiemout1
-  , setGracefulCloseTiemout2
+  , setGracefulCloseTimeout1
+  , setGracefulCloseTimeout2
     -- ** Getters
   , getPort
   , getHost
@@ -81,8 +81,8 @@ module Network.Wai.Handler.Warp (
   , getOnClose
   , getOnException
   , getGracefulShutdownTimeout
-  , getGracefulCloseTiemout1
-  , getGracefulCloseTiemout2
+  , getGracefulCloseTimeout1
+  , getGracefulCloseTimeout2
     -- ** Exception handler
   , defaultOnException
   , defaultShouldDisplayException
@@ -467,27 +467,27 @@ getFileInfo = fromMaybe (\_ -> throwIO (userError "getFileInfo")) . Vault.lookup
 --   Default: 0.
 --
 -- Since 3.3.5
-setGracefulCloseTiemout1 :: Int -> Settings -> Settings
-setGracefulCloseTiemout1 x y = y { settingsGracefulCloseTiemout1 = x }
+setGracefulCloseTimeout1 :: Int -> Settings -> Settings
+setGracefulCloseTimeout1 x y = y { settingsGracefulCloseTimeout1 = x }
 
 -- | A timeout to limit the time (in milliseconds) waiting for
 --   FIN for HTTP/1.x. 0 means uses immediate close.
 --
 -- Since 3.3.5
-getGracefulCloseTiemout1 :: Settings -> Int
-getGracefulCloseTiemout1 = settingsGracefulCloseTiemout1
+getGracefulCloseTimeout1 :: Settings -> Int
+getGracefulCloseTimeout1 = settingsGracefulCloseTimeout1
 
 -- | A timeout to limit the time (in milliseconds) waiting for
 --   FIN for HTTP/2. 0 means uses immediate close.
 --   Default: 2000.
 --
 -- Since 3.3.5
-setGracefulCloseTiemout2 :: Int -> Settings -> Settings
-setGracefulCloseTiemout2 x y = y { settingsGracefulCloseTiemout2 = x }
+setGracefulCloseTimeout2 :: Int -> Settings -> Settings
+setGracefulCloseTimeout2 x y = y { settingsGracefulCloseTimeout2 = x }
 
 -- | A timeout to limit the time (in milliseconds) waiting for
 --   FIN for HTTP/2. 0 means uses immediate close.
 --
 -- Since 3.3.5
-getGracefulCloseTiemout2 :: Settings -> Int
-getGracefulCloseTiemout2 = settingsGracefulCloseTiemout2
+getGracefulCloseTimeout2 :: Settings -> Int
+getGracefulCloseTimeout2 = settingsGracefulCloseTimeout2

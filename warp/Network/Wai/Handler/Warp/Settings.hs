@@ -109,13 +109,13 @@ data Settings = Settings
       -- a graceful shutdown of the web server.
       --
       -- Since 3.2.8
-    , settingsGracefulCloseTiemout1 :: Int
+    , settingsGracefulCloseTimeout1 :: Int
       -- ^ A timeout to limit the time (in milliseconds) waiting for
       -- FIN for HTTP/1.x. 0 means uses immediate close.
       -- Default: 0.
       --
       -- Since 3.3.5
-    , settingsGracefulCloseTiemout2 :: Int
+    , settingsGracefulCloseTimeout2 :: Int
       -- ^ A timeout to limit the time (in milliseconds) waiting for
       -- FIN for HTTP/2. 0 means uses immediate close.
       -- Default: 2000.
@@ -157,8 +157,8 @@ defaultSettings = Settings
     , settingsLogger = \_ _ _ -> return ()
     , settingsServerPushLogger = \_ _ _ -> return ()
     , settingsGracefulShutdownTimeout = Nothing
-    , settingsGracefulCloseTiemout1 = 0
-    , settingsGracefulCloseTiemout2 = 2000
+    , settingsGracefulCloseTimeout1 = 0
+    , settingsGracefulCloseTimeout2 = 2000
     }
 
 -- | Apply the logic provided by 'defaultOnException' to determine if an
