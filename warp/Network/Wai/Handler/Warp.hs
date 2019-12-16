@@ -72,6 +72,8 @@ module Network.Wai.Handler.Warp (
   , setLogger
   , setServerPushLogger
   , setGracefulShutdownTimeout
+  , setGracefulCloseTimeout1
+  , setGracefulCloseTimeout2
     -- ** Getters
   , getPort
   , getHost
@@ -79,6 +81,8 @@ module Network.Wai.Handler.Warp (
   , getOnClose
   , getOnException
   , getGracefulShutdownTimeout
+  , getGracefulCloseTimeout1
+  , getGracefulCloseTimeout2
     -- ** Exception handler
   , defaultOnException
   , defaultShouldDisplayException
@@ -457,3 +461,33 @@ pauseTimeout = fromMaybe (return ()) . Vault.lookup pauseTimeoutKey . vault
 -- Since 3.1.10
 getFileInfo :: Request -> FilePath -> IO FileInfo
 getFileInfo = fromMaybe (\_ -> throwIO (userError "getFileInfo")) . Vault.lookup getFileInfoKey . vault
+
+-- | A timeout to limit the time (in milliseconds) waiting for
+--   FIN for HTTP/1.x. 0 means uses immediate close.
+--   Default: 0.
+--
+-- Since 3.3.5
+setGracefulCloseTimeout1 :: Int -> Settings -> Settings
+setGracefulCloseTimeout1 x y = y { settingsGracefulCloseTimeout1 = x }
+
+-- | A timeout to limit the time (in milliseconds) waiting for
+--   FIN for HTTP/1.x. 0 means uses immediate close.
+--
+-- Since 3.3.5
+getGracefulCloseTimeout1 :: Settings -> Int
+getGracefulCloseTimeout1 = settingsGracefulCloseTimeout1
+
+-- | A timeout to limit the time (in milliseconds) waiting for
+--   FIN for HTTP/2. 0 means uses immediate close.
+--   Default: 2000.
+--
+-- Since 3.3.5
+setGracefulCloseTimeout2 :: Int -> Settings -> Settings
+setGracefulCloseTimeout2 x y = y { settingsGracefulCloseTimeout2 = x }
+
+-- | A timeout to limit the time (in milliseconds) waiting for
+--   FIN for HTTP/2. 0 means uses immediate close.
+--
+-- Since 3.3.5
+getGracefulCloseTimeout2 :: Settings -> Int
+getGracefulCloseTimeout2 = settingsGracefulCloseTimeout2

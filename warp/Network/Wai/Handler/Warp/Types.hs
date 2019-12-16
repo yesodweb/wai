@@ -122,7 +122,15 @@ data Connection = Connection {
     , connWriteBuffer :: Buffer
     -- | The size of the write buffer.
     , connBufferSize  :: BufSize
+    -- | Is this connection HTTP/2?
+    , connHTTP2       :: IORef Bool
     }
+
+getConnHTTP2 :: Connection -> IO Bool
+getConnHTTP2 conn = readIORef (connHTTP2 conn)
+
+setConnHTTP2 :: Connection -> Bool -> IO ()
+setConnHTTP2 conn b = writeIORef (connHTTP2 conn) b
 
 ----------------------------------------------------------------
 
