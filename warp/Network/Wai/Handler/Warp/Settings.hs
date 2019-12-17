@@ -76,6 +76,13 @@ data Settings = Settings
       --
       -- Since 2.0.3
     , settingsInstallShutdownHandler :: IO () -> IO ()
+      -- ^ An action to install a handler (e.g. Unix signal handler)
+      -- to close a listen socket.
+      -- The first argument is an action to close the listen socket.
+      --
+      -- Default: no action
+      --
+      -- Since 3.0.1
     , settingsServerName :: ByteString
       -- ^ Default server name if application does not set one.
       --
@@ -87,23 +94,23 @@ data Settings = Settings
     , settingsProxyProtocol :: ProxyProtocol
       -- ^ Specify usage of the PROXY protocol.
       --
-      -- Since 3.0.5.
+      -- Since 3.0.5
     , settingsSlowlorisSize :: Int
       -- ^ Size of bytes read to prevent Slowloris protection. Default value: 2048
       --
-      -- Since 3.1.2.
+      -- Since 3.1.2
     , settingsHTTP2Enabled :: Bool
       -- ^ Whether to enable HTTP2 ALPN/upgrades. Default: True
       --
-      -- Since 3.1.7.
+      -- Since 3.1.7
     , settingsLogger :: Request -> H.Status -> Maybe Integer -> IO ()
       -- ^ A log function. Default: no action.
       --
-      -- Since 3.X.X.
+      -- Since 3.1.10
     , settingsServerPushLogger :: Request -> ByteString -> Integer -> IO ()
       -- ^ A HTTP/2 server push log function. Default: no action.
       --
-      -- Since 3.X.X.
+      -- Since 3.2.7
     , settingsGracefulShutdownTimeout :: Maybe Int
       -- ^ An optional timeout to limit the time (in seconds) waiting for
       -- a graceful shutdown of the web server.
