@@ -1,3 +1,10 @@
+## 3.3.5
+
+* New APIs: setGracefulCloseTimeout1 and setGracefulCloseTimeout2.
+  For HTTP/1.x, connections are closed immediately by default.
+  gracefullClose is used for HTTP/2 by default.
+  [#782](https://github.com/yesodweb/wai/pull/782)
+
 ## 3.3.4
 
 * Setting isSecure of HTTP/2 correctly.
