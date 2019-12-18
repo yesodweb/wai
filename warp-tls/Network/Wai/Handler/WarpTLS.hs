@@ -281,7 +281,7 @@ runTLSSocket' :: TLSSettings -> Settings -> TLS.Credential -> TLS.SessionManager
 runTLSSocket' tlsset@TLSSettings{..} set credential mgr sock app =
     runSettingsConnectionMakerSecure set get app
   where
-    get = getter tlsset sock params
+    get = getter tlsset set sock params
     params = def { -- TLS.ServerParams
         TLS.serverWantClientCert = tlsWantClientCert
       , TLS.serverCACertificates = []
@@ -322,39 +322,41 @@ alpn xs
 
 ----------------------------------------------------------------
 
-getter :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (IO (Connection, Transport), SockAddr)
-getter tlsset@TLSSettings{..} sock params = do
+getter :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> params -> IO (IO (Connection, Transport), SockAddr)
+getter tlsset@TLSSettings{..} set sock params = do
 #if WINDOWS
     (s, sa) <- windowsThreadBlockHack $ accept sock
 #else
     (s, sa) <- accept sock
 #endif
     setSocketCloseOnExec s
-    return (mkConn tlsset s params, sa)
+    return (mkConn tlsset set s params, sa)
 
-mkConn :: TLS.TLSParams params => TLSSettings -> Socket -> params -> IO (Connection, Transport)
-mkConn tlsset s params = switch `onException` close s
+mkConn :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> params -> IO (Connection, Transport)
+mkConn tlsset set s params = switch `onException` close s
   where
     switch = do
         firstBS <- safeRecv s 4096
         if not (S.null firstBS) && S.head firstBS == 0x16 then
-            httpOverTls tlsset s firstBS params
+            httpOverTls tlsset set s firstBS params
           else
-            plainHTTP tlsset s firstBS
+            plainHTTP tlsset set s firstBS
 
 ----------------------------------------------------------------
 
-httpOverTls :: TLS.TLSParams params => TLSSettings -> Socket -> S.ByteString -> params -> IO (Connection, Transport)
-httpOverTls TLSSettings{..} s bs0 params = do
+httpOverTls :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> S.ByteString -> params -> IO (Connection, Transport)
+httpOverTls TLSSettings{..} _set s bs0 params = do
     recvN <- makePlainReceiveN s bs0
     ctx <- TLS.contextNew (backend recvN) params
     TLS.contextHookSetLogging ctx tlsLogging
     TLS.handshake ctx
+    h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
+    isH2 <- I.newIORef h2
     writeBuf <- allocateBuffer bufferSize
     -- Creating a cache for leftover input data.
     ref <- I.newIORef ""
     tls <- getTLSinfo ctx
-    return (conn ctx writeBuf ref, tls)
+    return (conn ctx writeBuf ref isH2, tls)
   where
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
@@ -368,7 +370,7 @@ httpOverTls TLSSettings{..} s bs0 params = do
       }
     sendAll' sock bs = sendAll sock bs `E.catch` \(SomeException _) ->
         throwIO ConnectionClosedByPeer
-    conn ctx writeBuf ref = Connection {
+    conn ctx writeBuf ref isH2 = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
       , connSendFile         = sendfile
@@ -378,6 +380,7 @@ httpOverTls TLSSettings{..} s bs0 params = do
       , connRecvBuf          = recvBuf ref
       , connWriteBuffer      = writeBuf
       , connBufferSize       = bufferSize
+      , connHTTP2            = isH2
       }
       where
         sendall = TLS.sendData ctx . L.fromChunks . return
@@ -477,10 +480,10 @@ tryIO = try
 
 ----------------------------------------------------------------
 
-plainHTTP :: TLSSettings -> Socket -> S.ByteString -> IO (Connection, Transport)
-plainHTTP TLSSettings{..} s bs0 = case onInsecure of
+plainHTTP :: TLSSettings -> Settings -> Socket -> S.ByteString -> IO (Connection, Transport)
+plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
     AllowInsecure -> do
-        conn' <- socketConnection s
+        conn' <- socketConnection set s
         cachedRef <- I.newIORef bs0
         let conn'' = conn'
                 { connRecv = recvPlain cachedRef (connRecv conn')
