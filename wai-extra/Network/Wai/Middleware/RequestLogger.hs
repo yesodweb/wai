@@ -33,7 +33,7 @@ import Network.Wai
   )
 import System.Log.FastLogger
 import Network.HTTP.Types as H
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Monoid (mconcat, (<>))
 import Data.Time (getCurrentTime, diffUTCTime, NominalDiffTime)
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File
@@ -50,9 +50,21 @@ import Network.Wai.Middleware.RequestLogger.Internal
 import Network.Wai.Header (contentLength)
 import Data.Text.Encoding (decodeUtf8')
 
+-- | The logging format.
+--
+-- The Detailed format takes two parameters. The first is a `Bool` for whether to use ANSI colors.
+
+-- The second is a `Maybe (Param -> Param)`, to allow you to pass a function to hide confidential
+-- information (such as passwords) from the logs. If the second parameter is `Just`, then POST
+-- bodies are also hidden. For example:
+-- > myformat = Detailed True (Just hidePasswords)
+-- >   where hidePasswords p@(k,v) = if k = "password" then (k, "***REDACTED***") else p
+--
+-- Default is `Detailed True Nothing`
 data OutputFormat
   = Apache IPAddrSource
   | Detailed Bool -- ^ use colors?
+             (Maybe (Param -> Param)) -- ^ @since 3.1.0
   | CustomOutputFormat OutputFormatter
   | CustomOutputFormatWithDetails OutputFormatterWithDetails
   | CustomOutputFormatWithDetailsAndHeaders OutputFormatterWithDetailsAndHeaders
@@ -112,7 +124,7 @@ data RequestLoggerSettings = RequestLoggerSettings
 
 instance Default RequestLoggerSettings where
     def = RequestLoggerSettings
-        { outputFormat = Detailed True
+        { outputFormat = Detailed True Nothing
         , autoFlush = True
         , destination = Handle stdout
         }
@@ -130,7 +142,7 @@ mkRequestLogger RequestLoggerSettings{..} = do
             getdate <- getDateGetter flusher
             apache <- initLogger ipsrc (LogCallback callback flusher) getdate
             return $ apacheMiddleware apache
-        Detailed useColors -> detailedMiddleware callbackAndFlush useColors
+        Detailed useColors modifyParams -> detailedMiddleware callbackAndFlush useColors modifyParams
         CustomOutputFormat formatter -> do
             getDate <- getDateGetter flusher
             return $ customMiddleware callbackAndFlush getDate formatter
@@ -225,14 +237,14 @@ logStdoutDev = unsafePerformIO $ mkRequestLogger def
 -- >   Accept: text/css,*/*;q=0.1
 -- >   Status: 304 Not Modified 0.010555s
 
-detailedMiddleware :: Callback -> Bool -> IO Middleware
-detailedMiddleware cb useColors =
+detailedMiddleware :: Callback -> Bool -> Maybe (Param -> Param) -> IO Middleware
+detailedMiddleware cb useColors mModifyParams =
     let (ansiColor, ansiMethod, ansiStatusCode) =
           if useColors
             then (ansiColor', ansiMethod', ansiStatusCode')
             else (\_ t -> [t], (:[]), \_ t -> [t])
 
-    in return $ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode
+    in return $ detailedMiddleware' cb mModifyParams ansiColor ansiMethod ansiStatusCode
 
 ansiColor' :: Color -> BS.ByteString -> [BS.ByteString]
 ansiColor' color bs =
@@ -294,11 +306,12 @@ getRequestBody req = do
   return (req', body)
 
 detailedMiddleware' :: Callback
+                    -> Maybe (Param -> Param)
                     -> (Color -> BS.ByteString -> [BS.ByteString])
                     -> (BS.ByteString -> [BS.ByteString])
                     -> (BS.ByteString -> BS.ByteString -> [BS.ByteString])
                     -> Middleware
-detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse = do
+detailedMiddleware' cb mModifyParams ansiColor ansiMethod ansiStatusCode app req sendResponse = do
     (req', body) <-
         -- second tuple item should not be necessary, but a test runner might mess it up
         case (requestBodyLength req, contentLength (requestHeaders req)) of
@@ -307,12 +320,18 @@ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse 
             (_, Just len)        | len <= 2048 -> getRequestBody req
             _ -> return (req, [])
 
-    let reqbodylog _ = if null body then [""] else ansiColor White "  Request Body: " <> body <> ["\n"]
+    let reqbodylog _ = if null body || isJust mModifyParams
+                        then [""]
+                        else ansiColor White "  Request Body: " <> body <> ["\n"]
         reqbody = concatMap (either (const [""]) reqbodylog . decodeUtf8') body
     postParams <- if requestMethod req `elem` ["GET", "HEAD"]
         then return []
-        else do postParams <- liftIO $ allPostParams body
-                return $ collectPostParams postParams
+        else do (unmodifiedPostParams, files) <- liftIO $ allPostParams body
+                let postParams =
+                      case mModifyParams of
+                        Just modifyParams -> map modifyParams unmodifiedPostParams
+                        Nothing -> unmodifiedPostParams
+                return $ collectPostParams (postParams, files)
 
     let getParams = map emptyGetParam $ queryString req
         accept = fromMaybe "" $ lookup H.hAccept $ requestHeaders req

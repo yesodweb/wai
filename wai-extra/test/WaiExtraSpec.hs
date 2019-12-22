@@ -65,6 +65,7 @@ spec = do
     it "debug request body" caseDebugRequestBody
     it "stream file" caseStreamFile
     it "stream LBS" caseStreamLBS
+    it "can modify POST params before logging" caseModifyPostParamsInLogs
 
 toRequest :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest ctype content = SRequest defaultRequest
@@ -349,7 +350,7 @@ caseDebugRequestBody = do
         iactual <- I.newIORef mempty
         middleware <- mkRequestLogger def
             { destination = Callback $ \strs -> I.modifyIORef iactual $ (`mappend` strs)
-            , outputFormat = Detailed False
+            , outputFormat = Detailed False Nothing
             }
         res <- middleware (\_req f -> f $ responseLBS status200 [ ] "") req send
         actual <- logToBs <$> I.readIORef iactual
@@ -449,3 +450,37 @@ caseStreamLBS = flip runSession streamLBSApp $ do
     sres <- request defaultRequest
     assertStatus 200 sres
     assertBody "test" sres
+
+caseModifyPostParamsInLogs :: Assertion
+caseModifyPostParamsInLogs = do
+    flip runSession (debugApp (Detailed False Nothing) unredacted) $ do
+        let req = toRequest "application/x-www-form-urlencoded" "username=some_user&password=dont_show_me"
+        res <- srequest req
+        assertStatus 200 res
+
+    flip runSession (debugApp (Detailed False (Just hidePasswords)) redacted) $ do
+        let req = toRequest "application/x-www-form-urlencoded" "username=some_user&password=dont_show_me"
+        res <- srequest req
+        assertStatus 200 res
+
+  where
+    unredacted = [("username", "some_user"), ("password", "dont_show_me")]
+    redacted = [("username", "some_user"), ("password", "***REDACTED***")]
+
+    postOutputStart params = TE.encodeUtf8 $ T.toStrict $ "POST /\n  Params: " <> (T.pack . show $ params)
+    postOutputEnd = TE.encodeUtf8 $ T.toStrict "s\n"
+
+    hidePasswords p@(k,_) = if k == "password" then (k, "***REDACTED***") else p
+
+    debugApp format output req send = do
+        iactual <- I.newIORef mempty
+        middleware <- mkRequestLogger def
+            { destination = Callback $ \strs -> I.modifyIORef iactual $ (`mappend` strs)
+            , outputFormat = format
+            }
+        res <- middleware (\_req f -> f $ responseLBS status200 [ ] "") req send
+        actual <- fromLogStr <$> I.readIORef iactual
+        actual `shouldSatisfy` S.isPrefixOf (postOutputStart output)
+        actual `shouldSatisfy` S.isSuffixOf postOutputEnd
+
+        return res
