@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.0.29
+
+* Export `Network.Wai.EventSource.eventStreamAppRaw` [#786](https://github.com/yesodweb/wai/pull/786)
+
 ## 3.0.28
 
 * Add `Network.Wai.EventSource.eventStreamAppRaw` [#767](https://github.com/yesodweb/wai/pull/767)
