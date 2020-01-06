@@ -11,7 +11,8 @@
 module Network.Wai.EventSource (
     ServerEvent(..),
     eventSourceAppChan,
-    eventSourceAppIO
+    eventSourceAppIO,
+    eventStreamAppRaw
     ) where
 
 import           Data.Function (fix)
