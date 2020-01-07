@@ -18,7 +18,7 @@ description:         SSLv1 and SSLv2 are obsoleted by IETF.
 extra-source-files:  ChangeLog.md README.md
 
 Library
-  Build-Depends:     base                          >= 4.8      && < 5
+  Build-Depends:     base                          >= 4.10     && < 5
                    , bytestring                    >= 0.9
                    , wai                           >= 3.2      && < 3.3
                    , warp                          >= 3.3.6    && < 3.4
