@@ -351,10 +351,11 @@ serveConnection conn ii th origAddr transport settings app = do
     if settingsHTTP2Enabled settings && h2 then do
         rawRecvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
         let recvN = wrappedRecvN th istatus (settingsSlowlorisSize settings) rawRecvN
+            sendBS x = connSendAll conn x >> T.tickle th
         -- fixme: origAddr
         checkTLS
         setConnHTTP2 conn True
-        http2 conn transport ii origAddr settings recvN app
+        http2 conn transport ii origAddr settings recvN sendBS app
       else do
         src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
         writeIORef istatus True

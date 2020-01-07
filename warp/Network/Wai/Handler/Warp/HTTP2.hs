@@ -24,14 +24,14 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-http2 :: Connection -> Transport -> InternalInfo -> SockAddr -> S.Settings -> (BufSize -> IO ByteString) -> Application -> IO ()
-http2 conn transport ii addr settings readN app =
+http2 :: Connection -> Transport -> InternalInfo -> SockAddr -> S.Settings -> (BufSize -> IO ByteString) -> (ByteString -> IO ()) -> Application -> IO ()
+http2 conn transport ii addr settings readN send app =
     H2.run conf http2server
   where
     conf = H2.Config {
         confWriteBuffer       = connWriteBuffer conn
       , confBufferSize        = connBufferSize conn
-      , confSendAll           = connSendAll conn
+      , confSendAll           = send
       , confReadN             = readN
       , confPositionReadMaker = pReadMaker ii
       }
