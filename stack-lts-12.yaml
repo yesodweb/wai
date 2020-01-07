@@ -27,3 +27,5 @@ image:
 extra-deps:
 - http2-2.0.0
 - network-byte-order-0.1.1.0
+- tls-1.5.3
+- x509-1.7.5

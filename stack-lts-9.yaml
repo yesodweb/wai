@@ -18,6 +18,11 @@ extra-deps:
 - http-types-0.12.3@rev:0
 - http2-2.0.0
 - network-byte-order-0.1.1.0
+- tls-1.5.3
+- x509-1.7.5
+- cryptonite-0.26
+- basement-0.0.11
+- memory-0.15.0
 nix:
   enable: false
   packages:
