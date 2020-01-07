@@ -27,7 +27,7 @@
 ## 3.3.0
 
 * Switching from the original implementation to HTTP/2 server library.
-  [#752](https://github.com/yesodweb/wai/pull/752)
+  [#754](https://github.com/yesodweb/wai/pull/754)
 * Breaking change: The type of `http2dataTrailers` is now
   `HTTP2Data -> TrailersMaker`.
 
