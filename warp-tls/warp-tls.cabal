@@ -27,7 +27,7 @@ Library
                    , cryptonite                    >= 0.12
                    , network                       >= 2.2.1
                    , streaming-commons
-                   , tls-session-manager           >= 0.0.0.1
+                   , tls-session-manager           >= 0.0.4
   Exposed-modules:   Network.Wai.Handler.WarpTLS
   ghc-options:       -Wall
   if os(windows)
