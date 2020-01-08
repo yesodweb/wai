@@ -1,4 +1,4 @@
-resolver: lts-11.21
+resolver: nightly-2020-01-08
 packages:
 - ./auto-update
 - ./mime-types
@@ -13,13 +13,6 @@ packages:
 flags:
   wai-extra:
     build-example: true
-extra-deps:
-- streaming-commons-0.2.1.0@sha256:163af02944f374f316e35257c1afbffefd2c2852a85a151d1ea0ad22152cf28d,4990
-- http2-2.0.0
-- network-byte-order-0.1.1.0
-- tls-1.5.3
-- tls-session-manager-0.0.4
-- x509-1.7.5
 nix:
   enable: false
   packages:

@@ -8,6 +8,7 @@ import Control.Exception
 import qualified Data.ByteString as S
 import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 import Data.Typeable (Typeable)
+import Data.X509
 import Foreign.Ptr (Ptr)
 import System.Posix.Types (Fd)
 import qualified System.TimeManager as T
@@ -179,6 +180,7 @@ data Transport = TCP -- ^ Plain channel: TCP
                  , tlsMinorVersion :: Int
                  , tlsNegotiatedProtocol :: Maybe ByteString -- ^ The result of Application Layer Protocol Negociation in RFC 7301
                  , tlsChiperID :: Word16
+                 , tlsClientCertificate :: Maybe CertificateChain
                  }  -- ^ Encrypted channel: TLS or SSL
 
 isTransportSecure :: Transport -> Bool

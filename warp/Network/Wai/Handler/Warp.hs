@@ -97,6 +97,7 @@ module Network.Wai.Handler.Warp (
   , pauseTimeout
   , FileInfo(..)
   , getFileInfo
+  , clientCertificate
   , withApplication
   , withApplicationSettings
   , testWithApplication
@@ -122,9 +123,10 @@ module Network.Wai.Handler.Warp (
   , defaultPushPromise
   ) where
 
-import Control.Exception (SomeException, throwIO)
+import Control.Exception (SomeException, throwIO, throw)
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Vault.Lazy as Vault
+import Data.X509
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai (Request, Response, vault)
@@ -491,3 +493,9 @@ setGracefulCloseTimeout2 x y = y { settingsGracefulCloseTimeout2 = x }
 -- Since 3.3.5
 getGracefulCloseTimeout2 :: Settings -> Int
 getGracefulCloseTimeout2 = settingsGracefulCloseTimeout2
+
+-- | Getting information of client certificate.
+--
+-- Since 3.3.5
+clientCertificate :: Request -> Maybe CertificateChain
+clientCertificate = join . Vault.lookup getClientCertificateKey . vault

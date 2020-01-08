@@ -1,4 +1,4 @@
-resolver: lts-13.14
+resolver: lts-14.20
 packages:
 - ./auto-update
 - ./mime-types
@@ -18,12 +18,8 @@ nix:
   packages:
   - fcgi
   - zlib
-image:
-  containers:
-    - base: "fpco/pid1"
-      name: "yesodweb/warp"
-      executables:
-        - warp
 extra-deps:
 - http2-2.0.0
 - network-byte-order-0.1.1.0
+- tls-1.5.3
+- tls-session-manager-0.0.4
