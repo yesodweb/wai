@@ -350,11 +350,19 @@ serveConnection conn ii th origAddr transport settings app = do
     istatus <- newIORef False
     if settingsHTTP2Enabled settings && h2 then do
         rawRecvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
+        -- This thread becomes the sender in http2 library.
+        -- In the case of event source, one request comes and one
+        -- worker gets busy. But it is likely that the receiver does
+        -- not receive any data at all while the sender is sending
+        -- output data from the worker. It's not good enough to tickle
+        -- the time handler in the receiver only. So, we should tickle
+        -- the time handler in both the receiver and the sender.
         let recvN = wrappedRecvN th istatus (settingsSlowlorisSize settings) rawRecvN
+            sendBS x = connSendAll conn x >> T.tickle th
         -- fixme: origAddr
         checkTLS
         setConnHTTP2 conn True
-        http2 conn transport ii origAddr settings recvN app
+        http2 conn transport ii origAddr settings recvN sendBS app
       else do
         src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
         writeIORef istatus True
