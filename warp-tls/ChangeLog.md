@@ -1,3 +1,13 @@
+## 3.2.10
+
+* Passing client certificate, if any, to Warp
+  [#783](https://github.com/yesodweb/wai/pull/783)
+
+## 3.2.9
+
+* Cooperating setGracefulCloseTimeout1 and setGracefulCloseTimeout2 of Warp.
+  [#782](https://github.com/yesodweb/wai/pull/782)
+
 ## 3.2.8
 
 * Using gracefullClose of network 3.1.1 or later if available.
