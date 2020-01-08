@@ -251,6 +251,7 @@ Benchmark parser
                   , network
                   , time-manager
                   , unix-compat
+                  , x509
   if impl(ghc < 8)
       Build-Depends: semigroups
 
