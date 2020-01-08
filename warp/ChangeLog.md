@@ -1,3 +1,10 @@
+## 3.3.6
+
+* Fixing a bug of thread killed in the case of event source with
+  HTTP/2 (fixing #692 and #785)
+* New APIs: clientCertificate to get client's certificate
+  [#783](https://github.com/yesodweb/wai/pull/783)
+
 ## 3.3.5
 
 * New APIs: setGracefulCloseTimeout1 and setGracefulCloseTimeout2.
