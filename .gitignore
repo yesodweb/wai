@@ -9,3 +9,4 @@ tarballs/
 cabal.sandbox.config
 .stack-work/
 *~
+stack*.yaml.lock
