@@ -17,7 +17,7 @@ import qualified Control.Concurrent as Conc (yield)
 import Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Char (chr)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef')
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno(..), eCONNABORTED)
 import GHC.IO.Exception (IOException(..))
@@ -282,10 +282,7 @@ fork :: Settings
 fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
     -- Call the user-supplied on exception code if any
     -- exceptions are thrown.
-    handle (settingsOnException set Nothing) .
-    -- Allocate a new IORef indicating whether the connection has been
-    -- closed, to avoid double-freeing a connection
-    withClosedRef $ \ref ->
+    handle (settingsOnException set Nothing) $
         -- Run the connection maker to get a new connection, and ensure
         -- that the connection is closed. If the mkConn call throws an
         -- exception, we will leak the connection. If the mkConn call is
@@ -296,21 +293,13 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
         -- We grab the connection before registering timeouts since the
         -- timeouts will be useless during connection creation, due to the
         -- fact that async exceptions are still masked.
-        bracket mkConn (cleanUp ref) (serve unmask ref)
+        bracket mkConn cleanUp (serve unmask)
   where
-    withClosedRef inner = newIORef False >>= inner
-
-    closeConn ref conn = do
-        isClosed <- atomicModifyIORef' ref $ \x -> (True, x)
-        unless isClosed $ connClose conn
-
-    cleanUp ref (conn, _) = closeConn ref conn `finally` connFree conn
+    cleanUp (conn, _) = connClose conn `finally` connFree conn
 
     -- We need to register a timeout handler for this thread, and
-    -- cancel that handler as soon as we exit. We additionally close
-    -- the connection immediately in case the child thread catches the
-    -- async exception or performs some long-running cleanup action.
-    serve unmask ref (conn, transport) = bracket register cancel $ \th -> do
+    -- cancel that handler as soon as we exit.
+    serve unmask (conn, transport) = bracket register cancel $ \th -> do
         -- We now have fully registered a connection close handler in
         -- the case of all exceptions, so it is safe to once again
         -- allow async exceptions.
@@ -322,8 +311,7 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
            -- above ensures the connection is closed.
            when goingon $ serveConnection conn ii th addr transport set app
       where
-        register = T.registerKillThread (timeoutManager ii)
-                                        (closeConn ref conn)
+        register = T.registerKillThread (timeoutManager ii) (return ())
         cancel   = T.cancel
 
     onOpen adr    = increase counter >> settingsOnOpen  set adr
