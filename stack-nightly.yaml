@@ -1,0 +1,20 @@
+resolver: nightly-2020-01-08
+packages:
+- ./auto-update
+- ./mime-types
+- ./wai
+- ./wai-extra
+- ./warp
+- ./warp-tls
+- ./wai-app-static
+- ./wai-websockets
+- ./wai-conduit
+- ./time-manager
+flags:
+  wai-extra:
+    build-example: true
+nix:
+  enable: false
+  packages:
+  - fcgi
+  - zlib
