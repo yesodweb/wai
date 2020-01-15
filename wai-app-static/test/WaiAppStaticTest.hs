@@ -61,18 +61,18 @@ spec = do
       assertStatus 404 =<<
         request (setRawPathInfo defRequest "doesNotExist")
 
-    it "301 redirect when multiple slashes" $ webApp $ do
+    it "302 redirect when multiple slashes" $ webApp $ do
       req <- request (setRawPathInfo defRequest "a//b/c")
-      assertStatus 301 req
+      assertStatus 302 req
       assertHeader "Location" "../../a/b/c" req
 
     let absoluteApp = flip runSession $ staticApp $ (defaultWebAppSettings "test") {
           ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
         }
-    it "301 redirect when multiple slashes" $ absoluteApp $
+    it "302 redirect when multiple slashes" $ absoluteApp $
       flip mapM_ ["/a//b/c", "a//b/c"] $ \path -> do
         req <- request (setRawPathInfo defRequest path)
-        assertStatus 301 req
+        assertStatus 302 req
         assertHeader "Location" "http://www.example.com/a/b/c" req
 
   describe "webApp when requesting a static asset" $ do
@@ -131,10 +131,10 @@ spec = do
       assertStatus 304 req
       assertNoHeader "Cache-Control" req
 
-    context "301 redirect to add a trailing slash on directories if missing" $ do
+    context "302 redirect to add a trailing slash on directories if missing" $ do
       it "works at the root" $ fileServerApp $ do
         req <- request (setRawPathInfo defRequest "/a")
-        assertStatus 301 req
+        assertStatus 302 req
         assertHeader "Location" "/a/" req
 
       it "works when an index.html is delivered" $ do
@@ -144,7 +144,7 @@ spec = do
         inTempDirectory $ fileServerAppWithSettings settings $ do
           liftIO $ touch "foo/index.html"
           req <- request (setRawPathInfo defRequest "/foo")
-          assertStatus 301 req
+          assertStatus 302 req
           assertHeader "Location" "/foo/" req
 
       let urlMapApp = flip runSession $ \req send ->
@@ -158,7 +158,7 @@ spec = do
                     "urlMapApp: only works at subPath"
       it "works with subpath at the root of the file server" $ urlMapApp $ do
         req <- request (setRawPathInfo defRequest "/subPath")
-        assertStatus 301 req
+        assertStatus 302 req
         assertHeader "Location" "/subPath/" req
 
     context "with defaultWebAppSettings" $ do

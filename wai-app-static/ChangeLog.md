@@ -1,5 +1,9 @@
 # wai-app-static changelog
 
+## 3.1.7.1
+
+* Update the test suite too
+
 ## 3.1.7
 
 * Use 302 instead of 301 redirect, to avoid caching the presence of an index.html file
