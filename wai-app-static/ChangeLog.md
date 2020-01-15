@@ -1,3 +1,9 @@
+# wai-app-static changelog
+
+## 3.1.7
+
+* Use 302 instead of 301 redirect, to avoid caching the presence of an index.html file
+
 ## 3.1.6.3
 
 * The executable warp obeys `-h` option properly for host
