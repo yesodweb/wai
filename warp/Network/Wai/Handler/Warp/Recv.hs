@@ -96,6 +96,9 @@ spell init0 siz0 recv recvBuf
                 siz' = siz - len
             loop bss' siz'
 
+-- The timeout manager may close the socket.
+-- In that case, an error of "Bad file descriptor" occurs.
+-- We ignores it because we expect TimeoutThread.
 receive :: Socket -> BufferPool -> Recv
 receive sock pool = E.handle handler $ withBufferPool pool $ \ (ptr, size) -> do
 #if MIN_VERSION_network(3,1,0)
