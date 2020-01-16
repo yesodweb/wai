@@ -311,7 +311,7 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
            -- above ensures the connection is closed.
            when goingon $ serveConnection conn ii th addr transport set app
       where
-        register = T.registerKillThread (timeoutManager ii) (return ())
+        register = T.registerKillThread (timeoutManager ii) (connClose conn)
         cancel   = T.cancel
 
     onOpen adr    = increase counter >> settingsOnOpen  set adr
