@@ -17,7 +17,9 @@ import Foreign.C.Types
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
 import GHC.Conc (threadWaitRead)
+import qualified GHC.IO.Exception as E
 import Network.Socket (Socket)
+import qualified System.IO.Error as E
 #if MIN_VERSION_network(3,1,0)
 import Network.Socket (withFdSocket)
 #else
@@ -94,8 +96,11 @@ spell init0 siz0 recv recvBuf
                 siz' = siz - len
             loop bss' siz'
 
+-- The timeout manager may close the socket.
+-- In that case, an error of "Bad file descriptor" occurs.
+-- We ignores it because we expect TimeoutThread.
 receive :: Socket -> BufferPool -> Recv
-receive sock pool = withBufferPool pool $ \ (ptr, size) -> do
+receive sock pool = E.handle handler $ withBufferPool pool $ \ (ptr, size) -> do
 #if MIN_VERSION_network(3,1,0)
   withFdSocket sock $ \fd -> do
 #elif MIN_VERSION_network(3,0,0)
@@ -105,6 +110,11 @@ receive sock pool = withBufferPool pool $ \ (ptr, size) -> do
 #endif
     let size' = fromIntegral size
     fromIntegral <$> receiveloop fd ptr size'
+  where
+    handler :: E.IOException -> IO ByteString
+    handler e
+      | E.ioeGetErrorType e == E.InvalidArgument = return ""
+      | otherwise                                = E.throwIO e
 
 receiveBuf :: Socket -> RecvBuf
 receiveBuf sock buf0 siz0 = do
