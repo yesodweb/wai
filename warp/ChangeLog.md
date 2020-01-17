@@ -1,3 +1,8 @@
+## 3.3.7
+
+* InvalidArgument (Bad file descriptor) is ignored in `receive`.
+  [#787](https://github.com/yesodweb/wai/pull/787)
+
 ## 3.3.6
 
 * Fixing a bug of thread killed in the case of event source with
