@@ -361,7 +361,7 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
 #if MIN_VERSION_network(3,1,1)
-      , TLS.backendClose = gracefulClose s 5000
+      , TLS.backendClose = gracefulClose s 5000 `E.catch` \(SomeException _) -> return ()
 #else
       , TLS.backendClose = close s
 #endif

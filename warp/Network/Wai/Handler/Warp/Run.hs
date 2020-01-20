@@ -76,7 +76,7 @@ socketConnection set s = do
             if tm == 0 then
                 close s
               else
-                gracefulClose s tm
+                gracefulClose s tm `E.catch` \(E.SomeException _) -> return ()
 #else
       , connClose = close s
 #endif
