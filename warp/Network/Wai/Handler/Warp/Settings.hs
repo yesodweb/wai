@@ -129,7 +129,7 @@ data Settings = Settings
       --
       -- Since 3.3.5
     , settingsMaxTotalHeaderLength :: Int
-      -- ^ Determines the maximum header size that Warp will tolerate.
+      -- ^ Determines the maximum header size that Warp will tolerate when using HTTP/1.x.
       -- 
       -- Since 3.3.8
     }

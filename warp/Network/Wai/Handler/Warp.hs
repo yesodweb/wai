@@ -437,7 +437,7 @@ setGracefulShutdownTimeout :: Maybe Int
                            -> Settings -> Settings
 setGracefulShutdownTimeout time y = y { settingsGracefulShutdownTimeout = time }
 
--- | Set the maximum header size that Warp will tolerate.
+-- | Set the maximum header size that Warp will tolerate when using HTTP/1.x.
 --
 -- Since 3.3.8
 setMaxTotalHeaderLength :: Int -> Settings -> Settings
