@@ -128,6 +128,10 @@ data Settings = Settings
       -- Default: 2000.
       --
       -- Since 3.3.5
+    , settingsMaxTotalHeaderLength :: Int
+      -- ^ Determines the maximum header size that Warp will tolerate when using HTTP/1.x.
+      -- 
+      -- Since 3.3.8
     }
 
 -- | Specify usage of the PROXY protocol.
@@ -166,6 +170,7 @@ defaultSettings = Settings
     , settingsGracefulShutdownTimeout = Nothing
     , settingsGracefulCloseTimeout1 = 0
     , settingsGracefulCloseTimeout2 = 2000
+    , settingsMaxTotalHeaderLength = 50 * 1024
     }
 
 -- | Apply the logic provided by 'defaultOnException' to determine if an

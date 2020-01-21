@@ -1,3 +1,8 @@
+## 3.3.8
+
+* Maximum header size is configurable.
+  [#781](https://github.com/yesodweb/wai/pull/781)
+
 ## 3.3.7
 
 * InvalidArgument (Bad file descriptor) is ignored in `receive`.

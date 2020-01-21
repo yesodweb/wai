@@ -38,13 +38,7 @@ import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Imports hiding (readInt, lines)
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.RequestHeader
-import Network.Wai.Handler.Warp.Settings (Settings, settingsNoParsePath)
-
-----------------------------------------------------------------
-
--- FIXME come up with good values here
-maxTotalHeaderLength :: Int
-maxTotalHeaderLength = 50 * 1024
+import Network.Wai.Handler.Warp.Settings (Settings, settingsNoParsePath, settingsMaxTotalHeaderLength)
 
 ----------------------------------------------------------------
 
@@ -68,7 +62,7 @@ recvRequest :: Bool -- ^ first request on this connection?
             -- Body producing action used for flushing the request body
 
 recvRequest firstRequest settings conn ii th addr src transport = do
-    hdrlines <- headerLines firstRequest src
+    hdrlines <- headerLines (settingsMaxTotalHeaderLength settings) firstRequest src
     (method, unparsedPath, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
         expect = idxhdr ! fromEnum ReqExpect
@@ -107,8 +101,8 @@ recvRequest firstRequest settings conn ii th addr src transport = do
 
 ----------------------------------------------------------------
 
-headerLines :: Bool -> Source -> IO [ByteString]
-headerLines firstRequest src = do
+headerLines :: Int -> Bool -> Source -> IO [ByteString]
+headerLines maxTotalHeaderLength firstRequest src = do
     bs <- readSource src
     if S.null bs
         -- When we're working on a keep-alive connection and trying to
@@ -116,7 +110,7 @@ headerLines firstRequest src = do
         -- lack of data as a real exception. See the http1 function in
         -- the Run module for more details.
         then if firstRequest then throwIO ConnectionClosedByPeer else throwIO NoKeepAliveRequest
-        else push src (THStatus 0 id id) bs
+        else push maxTotalHeaderLength src (THStatus 0 id id) bs
 
 data NoKeepAliveRequest = NoKeepAliveRequest
     deriving (Show, Typeable)
@@ -226,8 +220,8 @@ close :: Sink ByteString IO a
 close = throwIO IncompleteHeaders
 -}
 
-push :: Source -> THStatus -> ByteString -> IO [ByteString]
-push src (THStatus len lines prepend) bs'
+push :: Int -> Source -> THStatus -> ByteString -> IO [ByteString]
+push maxTotalHeaderLength src (THStatus len lines prepend) bs'
         -- Too many bytes
         | len > maxTotalHeaderLength = throwIO OverLargeHeader
         | otherwise = push' mnl
@@ -255,13 +249,13 @@ push src (THStatus len lines prepend) bs'
     push' Nothing = do
         bst <- readSource' src
         when (S.null bst) $ throwIO IncompleteHeaders
-        push src status bst
+        push maxTotalHeaderLength src status bst
       where
         len' = len + bsLen
         prepend' = S.append bs
         status = THStatus len' lines prepend'
     -- Found a newline, but next line continues as a multiline header
-    push' (Just (end, True)) = push src status rest
+    push' (Just (end, True)) = push maxTotalHeaderLength src status rest
       where
         rest = S.drop (end + 1) bs
         prepend' = S.append (SU.unsafeTake (checkCR bs end) bs)
@@ -280,12 +274,12 @@ push src (THStatus len lines prepend) bs'
                       in if start < bsLen then
                              -- more bytes in this chunk, push again
                              let bs'' = SU.unsafeDrop start bs
-                              in push src status bs''
+                              in push maxTotalHeaderLength src status bs''
                            else do
                              -- no more bytes in this chunk, ask for more
                              bst <- readSource' src
                              when (S.null bs) $ throwIO IncompleteHeaders
-                             push src status bst
+                             push maxTotalHeaderLength src status bst
       where
         start = end + 1 -- start of next chunk
         line = SU.unsafeTake (checkCR bs end) bs

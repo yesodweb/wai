@@ -74,6 +74,7 @@ module Network.Wai.Handler.Warp (
   , setGracefulShutdownTimeout
   , setGracefulCloseTimeout1
   , setGracefulCloseTimeout2
+  , setMaxTotalHeaderLength
     -- ** Getters
   , getPort
   , getHost
@@ -435,6 +436,13 @@ setServerPushLogger lgr y = y { settingsServerPushLogger = lgr }
 setGracefulShutdownTimeout :: Maybe Int
                            -> Settings -> Settings
 setGracefulShutdownTimeout time y = y { settingsGracefulShutdownTimeout = time }
+
+-- | Set the maximum header size that Warp will tolerate when using HTTP/1.x.
+--
+-- Since 3.3.8
+setMaxTotalHeaderLength :: Int -> Settings -> Settings
+setMaxTotalHeaderLength maxTotalHeaderLength settings = settings
+  { settingsMaxTotalHeaderLength = maxTotalHeaderLength }
 
 -- | Explicitly pause the slowloris timeout.
 --
