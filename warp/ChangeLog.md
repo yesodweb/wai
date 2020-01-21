@@ -2,6 +2,7 @@
 
 * Maximum header size is configurable.
   [#781](https://github.com/yesodweb/wai/pull/781)
+* Ignoring an exception from shutdown (gracefulClose).
 
 ## 3.3.7
 

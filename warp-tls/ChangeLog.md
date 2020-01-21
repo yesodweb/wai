@@ -1,3 +1,7 @@
+## 3.2.11
+
+* Ignoring an exception from shutdown (gracefulClose).
+
 ## 3.2.10
 
 * Passing client certificate, if any, to Warp
