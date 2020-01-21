@@ -124,7 +124,7 @@ module Network.Wai.Handler.Warp (
   , defaultPushPromise
   ) where
 
-import Control.Exception (SomeException, throwIO, throw)
+import Control.Exception (SomeException, throwIO)
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Vault.Lazy as Vault
 import Data.X509
