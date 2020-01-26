@@ -59,6 +59,8 @@ toPieces :: [Text] -> Maybe Pieces
 toPieces = mapM toPiece
 
 -- | Request coming from a user. Corresponds to @pathInfo@.
+--
+-- The root path is the empty list.
 type Pieces = [Piece]
 
 -- | Values for the max-age component of the cache-control response header.
