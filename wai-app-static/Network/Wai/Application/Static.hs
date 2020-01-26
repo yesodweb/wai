@@ -164,11 +164,13 @@ serveFile StaticSettings {..} req file
             -- Didn't match, but we have a hash value. Send the file contents
             -- with an ETag header.
             --
-            -- Note: It would be arguably better to next check
-            -- if-modified-since and return a 304 if that indicates a match as
-            -- well. However, the circumstances under which such a situation
-            -- could arise would be very anomalous, and should likely warrant a
-            -- new file being sent anyway.
+            -- RFC7232 (HTTP 1.1):
+            -- > A recipient MUST ignore If-Modified-Since if the request contains an
+            -- > If-None-Match header field; the condition in If-None-Match is
+            -- > considered to be a more accurate replacement for the condition in
+            -- > If-Modified-Since, and the two are only combined for the sake of
+            -- > interoperating with older intermediaries that might not implement
+            -- > If-None-Match.
             (Just hash, _) -> respond [("ETag", hash)]
 
             -- No hash value available, fall back to last modified support.
