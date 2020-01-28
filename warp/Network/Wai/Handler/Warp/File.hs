@@ -42,9 +42,7 @@ conditionalRequest finfo hs0 rspidx reqidx = case condition of
     nobody@(WithoutBody _) -> nobody
     WithBody s _ off len   -> let !hs1 = addContentHeaders hs0 off len size
                                   !hasLM = isJust $ rspidx ! fromEnum ResLastModified
-                                  !hs
-                                    | hasLM     = hs1
-                                    | otherwise = (H.hLastModified,date) : hs1
+                                  !hs = [ (H.hLastModified,date) | not hasLM ] ++ hs1
                               in WithBody s hs off len
   where
     !mtime = I.fileInfoTime finfo
