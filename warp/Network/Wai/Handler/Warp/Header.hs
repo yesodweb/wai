@@ -69,6 +69,7 @@ indexResponseHeader hdr = traverseHeader hdr responseMaxIndex responseKeyIndex
 data ResponseHeaderIndex = ResContentLength
                          | ResServer
                          | ResDate
+                         | ResLastModified
                          deriving (Enum,Bounded)
 
 -- | The size for 'IndexedHeader' for HTTP Response.
@@ -79,6 +80,7 @@ responseKeyIndex :: HeaderName -> Int
 responseKeyIndex hn = case BS.length bs of
     4  -> if bs == "date" then fromEnum ResDate else -1
     6  -> if bs == "server" then fromEnum ResServer else -1
+    13 -> if bs == "last-modified" then fromEnum ResLastModified else -1
     14 -> if bs == "content-length" then fromEnum ResContentLength else -1
     _  -> -1
   where

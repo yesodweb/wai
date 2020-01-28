@@ -72,7 +72,8 @@ responseFile _ rsphdr isHead path Nothing ii reqhdr = do
         Left (_ex :: E.IOException) -> return $ response404 rsphdr
         Right finfo -> do
             let reqidx = indexRequestHeader reqhdr
-            case conditionalRequest finfo rsphdr reqidx of
+                rspidx = indexResponseHeader rsphdr
+            case conditionalRequest finfo rsphdr rspidx reqidx of
                 WithoutBody s                -> return $ responseNoBody s rsphdr
                 WithBody s rsphdr' off bytes -> do
                     let !off'   = fromIntegral off
