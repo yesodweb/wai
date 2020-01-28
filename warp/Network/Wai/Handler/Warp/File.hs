@@ -35,8 +35,8 @@ data RspFileInfo = WithoutBody H.Status
 
 conditionalRequest :: I.FileInfo
                    -> H.ResponseHeaders
-                   -> IndexedHeader -- Response
-                   -> IndexedHeader -- Request
+                   -> IndexedHeader -- ^ Response
+                   -> IndexedHeader -- ^ Request
                    -> RspFileInfo
 conditionalRequest finfo hs0 rspidx reqidx = case condition of
     nobody@(WithoutBody _) -> nobody
