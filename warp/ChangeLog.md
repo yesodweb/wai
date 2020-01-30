@@ -1,3 +1,8 @@
+## 3.3.9
+
+* Don't insert Last-Modified: if exists.
+  [#791](https://github.com/yesodweb/wai/pull/791)
+
 ## 3.3.8
 
 * Maximum header size is configurable.
