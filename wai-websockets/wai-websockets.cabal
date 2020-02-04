@@ -45,6 +45,7 @@ Executable           wai-websockets-example
                    , text
                    , file-embed
                    , http-types
+    other-modules:   Network.Wai.Handler.WebSockets
   else
     buildable: False
 

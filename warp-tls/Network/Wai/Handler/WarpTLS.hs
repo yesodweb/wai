@@ -483,9 +483,9 @@ tryIO = try
 ----------------------------------------------------------------
 
 plainHTTP :: TLSSettings -> Settings -> Socket -> S.ByteString -> IO (Connection, Transport)
-plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
+plainHTTP TLSSettings{..} _ s bs0 = case onInsecure of
     AllowInsecure -> do
-        conn' <- socketConnection set s
+        conn' <- socketConnection s
         cachedRef <- I.newIORef bs0
         let conn'' = conn'
                 { connRecv = recvPlain cachedRef (connRecv conn')

@@ -153,6 +153,8 @@ receiveloop sock ptr size = do
        else
         return bytes
 
+#ifndef mingw32_HOST_OS
 -- fixme: the type of the return value
 foreign import ccall unsafe "recv"
     c_recv :: CInt -> Ptr CChar -> CSize -> CInt -> IO CInt
+#endif

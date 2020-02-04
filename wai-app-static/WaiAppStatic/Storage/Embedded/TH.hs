@@ -7,7 +7,6 @@ module WaiAppStatic.Storage.Embedded.TH(
 
 import Data.ByteString.Builder.Extra (byteStringInsert)
 import Codec.Compression.GZip (compress)
-import Control.Applicative
 import Data.ByteString.Unsafe (unsafePackAddressLen)
 import Data.Either (lefts, rights)
 import GHC.Exts (Int(..))

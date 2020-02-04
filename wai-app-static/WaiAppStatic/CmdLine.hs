@@ -39,6 +39,7 @@ data Args = Args
     }
 
 #if MIN_VERSION_optparse_applicative(0, 10, 0)
+option' :: Mod OptionFields Int -> Parser Int
 option' = option auto
 #else
 option' = option

@@ -64,7 +64,7 @@ defaultListing pieces (Folder contents) = do
 
     -- Add a link to the root of the tree
     showFolder' :: Bool -> Pieces -> H.Html
-    showFolder' hasTrailingSlash pieces  = showFolder hasTrailingSlash (unsafeToPiece "root" : pieces)
+    showFolder' hasTrailingSlash pieces' = showFolder hasTrailingSlash (unsafeToPiece "root" : pieces')
 
     showFolder :: Bool -> Pieces -> H.Html
     showFolder _ [] = "/" -- won't happen

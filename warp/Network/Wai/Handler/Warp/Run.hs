@@ -58,8 +58,8 @@ import Network.Socket (fdSocket)
 #endif
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
-socketConnection :: Settings -> Socket -> IO Connection
-socketConnection set s = do
+socketConnection :: Socket -> IO Connection
+socketConnection s = do
     bufferPool <- newBufferPool
     writeBuf <- allocateBuffer bufferSize
     let sendall = Sock.sendAll s
@@ -147,7 +147,7 @@ runSettingsSocket set socket app = do
         setSocketCloseOnExec s
         -- NoDelay causes an error for AF_UNIX.
         setSocketOption s NoDelay 1 `E.catch` \(E.SomeException _) -> return ()
-        conn <- socketConnection set s
+        conn <- socketConnection s
         return (conn, sa)
 
     closeListenSocket = close socket
