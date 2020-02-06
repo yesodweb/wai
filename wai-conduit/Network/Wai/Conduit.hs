@@ -17,17 +17,16 @@ import qualified Data.ByteString as S
 import Control.Monad (unless)
 import Network.HTTP.Types
 import Data.ByteString.Builder (Builder)
-import Data.IORef
 import qualified Data.Conduit.List as CL
 
 -- | Stream the request body.
 --
 -- Since 3.0.0
-sourceRequestBody :: MonadIO m => Request -> Source m ByteString
+sourceRequestBody :: MonadIO m => Request -> ConduitT () ByteString m ()
 sourceRequestBody req =
     loop
   where
-    go = liftIO (requestBody req)
+    go = liftIO (getRequestBodyChunk req)
 
     loop = do
         bs <- go
@@ -38,9 +37,9 @@ sourceRequestBody req =
 -- | Create an HTTP response out of a @Source@.
 --
 -- Since 3.0.0
-responseSource :: Status -> ResponseHeaders -> Source IO (Flush Builder) -> Response
+responseSource :: Status -> ResponseHeaders -> ConduitT () (Flush Builder) IO () -> Response
 responseSource s hs src = responseStream s hs $ \send flush ->
-    src $$ CL.mapM_ (\mbuilder ->
+    runConduit $ src .| CL.mapM_ (\mbuilder ->
         case mbuilder of
             Chunk b -> send b
             Flush -> flush)
@@ -50,7 +49,7 @@ responseSource s hs src = responseStream s hs $ \send flush ->
 --
 -- Since 3.0.0
 responseRawSource :: (MonadIO m, MonadIO n)
-                  => (Source m ByteString -> Sink ByteString n () -> IO ())
+                  => (ConduitT () ByteString m () -> ConduitT ByteString Void n () -> IO ())
                   -> Response
                   -> Response
 responseRawSource app =

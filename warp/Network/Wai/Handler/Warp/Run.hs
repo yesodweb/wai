@@ -59,7 +59,11 @@ import Network.Socket (fdSocket)
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
 socketConnection :: Settings -> Socket -> IO Connection
+#if MIN_VERSION_network(3,1,1)
 socketConnection set s = do
+#else
+socketConnection _ s = do
+#endif
     bufferPool <- newBufferPool
     writeBuf <- allocateBuffer bufferSize
     let sendall = Sock.sendAll s

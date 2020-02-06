@@ -8,6 +8,8 @@ this example, keep the [reference](http://jaspervdj.be/websockets/reference)
 nearby to check out the functions we use.
 
 > {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
+> {-# LANGUAGE CPP #-}
+> {-# OPTIONS_GHC -Wno-unused-top-binds #-} -- for numClients
 > import Data.Char (isPunctuation, isSpace)
 > import Data.Monoid (mappend)
 > import Data.Text (Text)
@@ -99,7 +101,11 @@ stays alive on some browsers.
 
 > application state pending = do
 >     conn <- WS.acceptRequest pending
+#if __GLASGOW_HASKELL__ >= 806
+>     WS.withPingThread conn 30 (return ()) $ do
+#else
 >     WS.forkPingThread conn 30
+#endif
 
 When a client is successfully connected, we read the first message. This should
 be in the format of "Hi! I am Jasper", where Jasper is the requested username.

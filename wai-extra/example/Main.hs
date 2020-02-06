@@ -42,10 +42,10 @@ eventRaw = handle 0
     where
         handle counter emit flush = do
             threadDelay 1000000
-            emit $ ServerEvent (Just $ string8 "raw")
+            _ <- emit $ ServerEvent (Just $ string8 "raw")
                                Nothing
                                [string8 . show $ counter]
-            flush
+            _ <- flush
             handle (counter + 1) emit flush
 
 main :: IO ()

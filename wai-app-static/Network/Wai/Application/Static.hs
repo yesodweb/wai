@@ -245,7 +245,7 @@ staticAppPieces ss rawPieces req sendResponse = liftIO $ do
     response :: StaticResponse -> IO W.ResponseReceived
     response (FileResponse file ch) = do
         mimetype <- ssGetMimeType ss file
-        let filesize = fileGetSize file
+        -- let filesize = fileGetSize file
         let headers = ("Content-Type", mimetype)
                     -- Let Warp provide the content-length, since it takes
                     -- range requests into account
