@@ -106,8 +106,16 @@ data SResponse = SResponse
     , simpleBody :: L.ByteString
     }
     deriving (Show, Eq)
+
 request :: Request -> Session SResponse
-request = srequest . flip SRequest L.empty
+request req = do
+    app <- ask
+    req' <- addCookiesToRequest req
+    response <- liftIO $ do
+        ref <- newIORef $ error "runResponse gave no result"
+        ResponseReceived <- app req' (runResponse ref)
+        readIORef ref
+    extractSetCookieFromSResponse response
 
 -- | Set whole path (request path + query string).
 setPath :: Request -> S8.ByteString -> Request
@@ -168,20 +176,14 @@ extractSetCookieFromSResponse response = do
 
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
-    app <- ask
     refChunks <- liftIO $ newIORef $ L.toChunks bod
-    let req' = req
-            { requestBody = atomicModifyIORef refChunks $ \bss ->
-                case bss of
-                    [] -> ([], S.empty)
-                    x:y -> (y, x)
-            }
-    req'' <- addCookiesToRequest req'
-    response <- liftIO $ do
-        ref <- newIORef $ error "runResponse gave no result"
-        ResponseReceived <- app req'' (runResponse ref)
-        readIORef ref
-    extractSetCookieFromSResponse response
+    request $
+      req
+        { requestBody = atomicModifyIORef refChunks $ \bss ->
+            case bss of
+                [] -> ([], S.empty)
+                x:y -> (y, x)
+        }
 
 runResponse :: IORef SResponse -> Response -> IO ResponseReceived
 runResponse ref res = do
