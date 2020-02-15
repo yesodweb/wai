@@ -99,6 +99,10 @@ runSession session app = ST.evalStateT (runReaderT session app) initState
 data SRequest = SRequest
     { simpleRequest :: Request
     , simpleRequestBody :: L.ByteString
+    -- ^ Request body that will override the one set in 'simpleRequest'.
+    --
+    -- This is usually simpler than setting the body as a stateful IO-action
+    -- in 'simpleRequest'.
     }
 data SResponse = SResponse
     { simpleStatus :: H.Status
@@ -174,6 +178,8 @@ extractSetCookieFromSResponse response = do
        (Map.fromList [(Cookie.setCookieName c, c) | c <- newClientCookies ]))
   return response
 
+-- | Similar to 'request', but allows setting the request body as a plain
+-- 'L.ByteString'.
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
     refChunks <- liftIO $ newIORef $ L.toChunks bod
