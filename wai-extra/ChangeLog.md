@@ -2,7 +2,7 @@
 
 ## 3.0.29.1
 
-* Fix `Network.Wai.request` always sending an empty request body [#794](https://github.com/yesodweb/wai/pull/794)
+* Fix `Network.Wai.Test.request` always sending an empty request body [#794](https://github.com/yesodweb/wai/pull/794)
 
 ## 3.0.29
 
