@@ -3,6 +3,8 @@ module Network.Wai.TestSpec (main, spec) where
 
 import           Control.Monad (void)
 
+import qualified Data.IORef as IORef
+
 import qualified Data.Text.Encoding as TE
 
 import           Data.Time.Calendar (fromGregorian)
@@ -53,25 +55,53 @@ spec = do
       it "sets rawQueryString to empty string" $ do
         rawQueryString (setPath defaultRequest "/foo/bar/baz") `shouldBe` ""
 
-  describe "request" $ do
+  describe "srequest" $ do
 
-    let simpleApp _req respond =
+    let echoApp req respond = do
+          reqBody <- L8.fromStrict <$> getRequestBodyChunk req
+          let reqHeaders = requestHeaders req
           respond $
             responseLBS
               status200
-              [("foo", "bar")]
-              "simple"
+              reqHeaders
+              reqBody
 
-    it "returns the status code      of a simple app on default request" $ do
-      sresp <- runSession (request defaultRequest) simpleApp
+    it "returns the response body    of an echo app" $ do
+      sresp <- flip runSession echoApp $
+        srequest $ SRequest defaultRequest "request body"
+      simpleBody sresp `shouldBe` "request body"
+
+  describe "request" $ do
+
+    let echoApp req respond = do
+          reqBody <- L8.fromStrict <$> getRequestBodyChunk req
+          let reqHeaders = requestHeaders req
+          respond $
+            responseLBS
+              status200
+              reqHeaders
+              reqBody
+
+    it "returns the status code      of an echo app on default request" $ do
+      sresp <- runSession (request defaultRequest) echoApp
       simpleStatus sresp `shouldBe` status200
 
-    it "returns the response body    of a simple app on default request" $ do
-      sresp <- runSession (request defaultRequest) simpleApp
-      simpleBody sresp `shouldBe` "simple"
+    it "returns the response body    of an echo app" $ do
+      bodyRef <- IORef.newIORef "request body"
+      let getBodyChunk = IORef.atomicModifyIORef bodyRef $ \leftover -> ("", leftover)
+      sresp <- flip runSession echoApp $
+        request $
+          defaultRequest
+            { requestBody = getBodyChunk
+            }
+      simpleBody sresp `shouldBe` "request body"
 
-    it "returns the response headers of a simple app on default request" $ do
-      sresp <- runSession (request defaultRequest) simpleApp
+    it "returns the response headers of an echo app" $ do
+      sresp <- flip runSession echoApp $
+        request $
+          defaultRequest
+            { requestHeaders = [("foo", "bar")]
+            }
       simpleHeaders sresp `shouldBe` [("foo", "bar")]
 
     let cookieApp req respond =

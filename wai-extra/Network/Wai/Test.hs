@@ -99,6 +99,10 @@ runSession session app = ST.evalStateT (runReaderT session app) initState
 data SRequest = SRequest
     { simpleRequest :: Request
     , simpleRequestBody :: L.ByteString
+    -- ^ Request body that will override the one set in 'simpleRequest'.
+    --
+    -- This is usually simpler than setting the body as a stateful IO-action
+    -- in 'simpleRequest'.
     }
 data SResponse = SResponse
     { simpleStatus :: H.Status
@@ -106,8 +110,16 @@ data SResponse = SResponse
     , simpleBody :: L.ByteString
     }
     deriving (Show, Eq)
+
 request :: Request -> Session SResponse
-request = srequest . flip SRequest L.empty
+request req = do
+    app <- ask
+    req' <- addCookiesToRequest req
+    response <- liftIO $ do
+        ref <- newIORef $ error "runResponse gave no result"
+        ResponseReceived <- app req' (runResponse ref)
+        readIORef ref
+    extractSetCookieFromSResponse response
 
 -- | Set whole path (request path + query string).
 setPath :: Request -> S8.ByteString -> Request
@@ -166,22 +178,18 @@ extractSetCookieFromSResponse response = do
        (Map.fromList [(Cookie.setCookieName c, c) | c <- newClientCookies ]))
   return response
 
+-- | Similar to 'request', but allows setting the request body as a plain
+-- 'L.ByteString'.
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
-    app <- ask
     refChunks <- liftIO $ newIORef $ L.toChunks bod
-    let req' = req
-            { requestBody = atomicModifyIORef refChunks $ \bss ->
-                case bss of
-                    [] -> ([], S.empty)
-                    x:y -> (y, x)
-            }
-    req'' <- addCookiesToRequest req'
-    response <- liftIO $ do
-        ref <- newIORef $ error "runResponse gave no result"
-        ResponseReceived <- app req'' (runResponse ref)
-        readIORef ref
-    extractSetCookieFromSResponse response
+    request $
+      req
+        { requestBody = atomicModifyIORef refChunks $ \bss ->
+            case bss of
+                [] -> ([], S.empty)
+                x:y -> (y, x)
+        }
 
 runResponse :: IORef SResponse -> Response -> IO ResponseReceived
 runResponse ref res = do
