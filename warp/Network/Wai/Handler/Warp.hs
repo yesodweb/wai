@@ -194,7 +194,13 @@ setOnOpen x y = y { settingsOnOpen = x }
 setOnClose :: (SockAddr -> IO ()) -> Settings -> Settings
 setOnClose x y = y { settingsOnClose = x }
 
--- | Timeout value in seconds. Default value: 30
+-- | "Slow-loris" timeout lower-bound value in seconds.  Connections where
+-- network progress is made less frequently than this may be closed.  In
+-- practice many connections may be allowed to go without progress for up to
+-- twice this amount of time.  Note that this timeout is not applied to
+-- application code, only network progress.
+--
+-- Default value: 30
 --
 -- Since 2.1.0
 setTimeout :: Int -> Settings -> Settings
