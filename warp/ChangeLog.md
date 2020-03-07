@@ -1,3 +1,8 @@
+## Unreleased
+
+* Expand the documentation for `setTimeout`.
+  [#796](https://github.com/yesodweb/wai/pull/796)
+
 ## 3.3.9
 
 * Don't insert Last-Modified: if exists.
