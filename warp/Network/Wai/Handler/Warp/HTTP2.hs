@@ -40,15 +40,17 @@ http2 conn transport ii addr settings readN send app =
         req <- toWAIRequest h2req aux
         ref <- I.newIORef Nothing
         eResponseReceived <- E.try $ app req $ \rsp -> do
+            let st = responseStatus rsp
             h2rsp <- fromResponse settings ii req rsp
             pps <- fromPushPromises ii req
-            I.writeIORef ref $ Just (h2rsp, pps)
+            I.writeIORef ref $ Just (h2rsp, pps, st)
             _ <- response h2rsp pps
             return ResponseReceived
         case eResponseReceived of
           Right ResponseReceived -> do
-              Just (h2rsp, pps) <- I.readIORef ref
-              logResponse h2rsp req
+              Just (h2rsp, pps, st) <- I.readIORef ref
+              let msiz = fromIntegral <$> H2.responseBodySize h2rsp
+              logResponse req st msiz
               mapM_ (logPushPromise req) pps
           Left e@(E.SomeException _)
             -- killed by the local worker manager
@@ -58,9 +60,11 @@ http2 conn transport ii addr settings readN send app =
             | otherwise -> do
                 S.settingsOnException settings (Just req) e
                 let ersp = S.settingsOnExceptionResponse settings e
+                    st = responseStatus ersp
                 h2rsp' <- fromResponse settings ii req ersp
+                let msiz = fromIntegral <$> H2.responseBodySize h2rsp'
                 _ <- response h2rsp' []
-                logResponse h2rsp' req
+                logResponse req st msiz
         return ()
 
     toWAIRequest h2req aux = toRequest ii settings addr hdr bdylen bdy th transport
@@ -70,11 +74,7 @@ http2 conn transport ii addr settings readN send app =
         !bdylen = H2.requestBodySize h2req
         !th = H2.auxTimeHandle aux
 
-    logResponse h2rsp req = logger req st msiz
-      where
-        !logger = S.settingsLogger settings
-        !st = H2.responseStatus h2rsp
-        !msiz = fromIntegral <$> H2.responseBodySize h2rsp
+    logResponse = S.settingsLogger settings
 
     logPushPromise req pp = logger req path siz
       where
