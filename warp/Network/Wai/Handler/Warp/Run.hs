@@ -20,7 +20,7 @@ import Data.Char (chr)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno(..), eCONNABORTED)
-import GHC.IO.Exception (IOException(..))
+import GHC.IO.Exception (IOException(..), IOErrorType(..))
 import qualified Network.HTTP2 as H2
 import Network.Socket (Socket, close, accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6), setSocketOption, SocketOption(..))
 #if MIN_VERSION_network(3,1,1)
@@ -30,6 +30,7 @@ import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
 import System.Environment (lookupEnv)
+import System.IO.Error (ioeGetErrorType)
 import qualified System.TimeManager as T
 import System.Timeout (timeout)
 
@@ -66,7 +67,7 @@ socketConnection _ s = do
 #endif
     bufferPool <- newBufferPool
     writeBuf <- allocateBuffer bufferSize
-    let sendall = Sock.sendAll s
+    let sendall = sendAll' s
     isH2 <- newIORef False -- HTTP/1.x
     return Connection {
         connSendMany = Sock.sendMany s
@@ -91,6 +92,13 @@ socketConnection _ s = do
       , connBufferSize = bufferSize
       , connHTTP2 = isH2
       }
+  where
+    sendAll' sock bs = E.handleJust
+      (\ e -> if ioeGetErrorType e == ResourceVanished
+        then Just ConnectionClosedByPeer
+        else Nothing)
+      throwIO
+      $ Sock.sendAll sock bs
 
 -- | Run an 'Application' on the given port.
 -- This calls 'runSettings' with 'defaultSettings'.

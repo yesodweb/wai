@@ -52,6 +52,7 @@ import Data.Default.Class (def)
 import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, safeRecv)
 import Data.Typeable (Typeable)
+import GHC.IO.Exception (IOErrorType(..))
 import Network.Socket (Socket, close, withSocketsDo, SockAddr, accept)
 #if MIN_VERSION_network(3,1,1)
 import Network.Socket (gracefulClose)
@@ -64,7 +65,7 @@ import qualified Network.TLS.SessionManager as SM
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal
-import System.IO.Error (isEOFError)
+import System.IO.Error (isEOFError, ioeGetErrorType)
 
 ----------------------------------------------------------------
 
@@ -368,8 +369,12 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
       , TLS.backendSend  = sendAll' s
       , TLS.backendRecv  = recvN
       }
-    sendAll' sock bs = sendAll sock bs `E.catch` \(SomeException _) ->
-        throwIO ConnectionClosedByPeer
+    sendAll' sock bs = E.handleJust
+      (\ e -> if ioeGetErrorType e == ResourceVanished
+        then Just ConnectionClosedByPeer
+        else Nothing)
+      throwIO
+      $ sendAll sock bs
     conn ctx writeBuf ref isH2 = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
