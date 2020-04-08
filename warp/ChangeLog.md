@@ -1,5 +1,7 @@
-## Unreleased
+## 3.3.10
 
+* Convert ResourceVanished error to ConnectionClosedByPeer exception
+  [#795](https://github.com/yesodweb/wai/pull/795)
 * Expand the documentation for `setTimeout`.
   [#796](https://github.com/yesodweb/wai/pull/796)
 
