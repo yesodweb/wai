@@ -67,6 +67,9 @@ module Network.Wai.Handler.Warp.Internal (
     -- * Platform dependent helper functions
   , setSocketCloseOnExec
   , windowsThreadBlockHack
+    -- * Misc
+  , http2server
+  , withII
   ) where
 
 import System.TimeManager
@@ -75,6 +78,7 @@ import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Date
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.FileInfoCache
+import Network.Wai.Handler.Warp.HTTP2
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.Request

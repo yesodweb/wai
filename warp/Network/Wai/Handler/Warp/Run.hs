@@ -200,16 +200,17 @@ runSettingsConnectionMakerSecure :: Settings -> IO (IO (Connection, Transport), 
 runSettingsConnectionMakerSecure set getConnMaker app = do
     settingsBeforeMainLoop set
     counter <- newCounter
-    withII $ acceptConnection set getConnMaker app counter
-  where
-    withII action =
-        withTimeoutManager $ \tm ->
-        D.withDateCache $ \dc ->
-        F.withFdCache fdCacheDurationInSeconds $ \fdc ->
-        I.withFileInfoCache fdFileInfoDurationInSeconds $ \fic -> do
-            let ii = InternalInfo tm dc fdc fic
-            action ii
+    withII set $ acceptConnection set getConnMaker app counter
 
+withII :: Settings -> (InternalInfo -> IO a) -> IO a
+withII set action =
+    withTimeoutManager $ \tm ->
+    D.withDateCache $ \dc ->
+    F.withFdCache fdCacheDurationInSeconds $ \fdc ->
+    I.withFileInfoCache fdFileInfoDurationInSeconds $ \fic -> do
+        let ii = InternalInfo tm dc fdc fic
+        action ii
+  where
     !fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
     !fdFileInfoDurationInSeconds = settingsFileInfoCacheDuration set * 1000000
     !timeoutInSeconds = settingsTimeout set * 1000000
@@ -362,7 +363,7 @@ serveConnection conn ii th origAddr transport settings app = do
         -- fixme: origAddr
         checkTLS
         setConnHTTP2 conn True
-        http2 conn transport ii origAddr settings recvN sendBS app
+        http2 settings ii conn transport origAddr recvN sendBS app
       else do
         src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
         writeIORef istatus True
