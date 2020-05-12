@@ -202,6 +202,9 @@ runSettingsConnectionMakerSecure set getConnMaker app = do
     counter <- newCounter
     withII set $ acceptConnection set getConnMaker app counter
 
+-- | Running an action with internal info.
+--
+-- Since 3.3.11
 withII :: Settings -> (InternalInfo -> IO a) -> IO a
 withII set action =
     withTimeoutManager $ \tm ->

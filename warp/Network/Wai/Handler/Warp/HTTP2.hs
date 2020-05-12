@@ -47,6 +47,9 @@ http2 settings ii conn transport addr readN send app =
       , confPositionReadMaker = pReadMaker ii
       }
 
+-- | Converting WAI application to the server type of http2 library.
+--
+-- Since 3.3.11
 http2server :: S.Settings
             -> InternalInfo
             -> Transport
