@@ -52,10 +52,7 @@ http2server :: S.Settings
             -> Transport
             -> SockAddr
             -> Application
-            -> H2.Request
-            -> H2.Aux
-            -> (H2.Response -> [H2.PushPromise] -> IO ())
-            -> IO ()
+            -> H2.Server
 http2server settings ii transport addr app h2req0 aux0 response = do
     req <- toWAIRequest h2req0 aux0
     ref <- I.newIORef Nothing
