@@ -1,3 +1,11 @@
+## 3.3.11
+
+* Adding setAltSvc.
+  [#801](https://github.com/yesodweb/wai/pull/801)
+* Fixing timeout of builder for HTTP/1.1.
+  [#800](https://github.com/yesodweb/wai/pull/800)
+* `http2server` and `withII` are exported from `Internal` module.
+
 ## 3.3.10
 
 * Convert ResourceVanished error to ConnectionClosedByPeer exception
