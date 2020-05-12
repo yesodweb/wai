@@ -11,6 +11,7 @@ module Network.Wai.Handler.Warp.Response (
   , hasBody
   , replaceHeader
   , addServer -- testing
+  , addAltSvc
   ) where
 
 import Data.ByteString.Builder.HTTP.Chunked (chunkedTransferEncoding, chunkedTransferTerminator)
@@ -108,7 +109,7 @@ sendResponse :: Settings
              -> Response -- ^ HTTP response including status code and response header.
              -> IO Bool -- ^ Returing True if the connection is persistent.
 sendResponse settings conn ii th req reqidxhdr src response = do
-    hs <- addServerAndDate hs0
+    hs <- addAltSvc settings <$> addServerAndDate hs0
     if hasBody s then do
         -- The response to HEAD does not have body.
         -- But to handle the conditional requests defined RFC 7232 and
@@ -411,6 +412,11 @@ addServer "" rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
 addServer serverName rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
     Nothing -> (H.hServer, serverName) : hdrs
     _       -> hdrs
+
+addAltSvc :: Settings -> H.ResponseHeaders -> H.ResponseHeaders
+addAltSvc settings hs = case settingsAltSvc settings of
+                Nothing -> hs
+                Just  v -> ("Alt-Svc", v) : hs
 
 ----------------------------------------------------------------
 

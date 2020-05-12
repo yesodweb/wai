@@ -48,7 +48,8 @@ fromResponse settings ii req rsp = do
     !isHead = requestMethod req == H.methodHead
     !reqhdr = requestHeaders req
     !svr    = S.settingsServerName settings
-    add date server rsphdr = (H.hDate, date) : (H.hServer, server) : rsphdr
+    add date server rsphdr = R.addAltSvc settings $
+        (H.hDate, date) : (H.hServer, server) : rsphdr
     -- fixme: not adding svr if already exists
 
 ----------------------------------------------------------------
