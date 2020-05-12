@@ -75,6 +75,7 @@ module Network.Wai.Handler.Warp (
   , setGracefulCloseTimeout1
   , setGracefulCloseTimeout2
   , setMaxTotalHeaderLength
+  , setAltSvc
     -- ** Getters
   , getPort
   , getHost
@@ -449,6 +450,13 @@ setGracefulShutdownTimeout time y = y { settingsGracefulShutdownTimeout = time }
 setMaxTotalHeaderLength :: Int -> Settings -> Settings
 setMaxTotalHeaderLength maxTotalHeaderLength settings = settings
   { settingsMaxTotalHeaderLength = maxTotalHeaderLength }
+
+
+-- | Setting the header value of Alternative Services (AltSvc:).
+--
+-- Since 3.3.11
+setAltSvc :: ByteString -> Settings -> Settings
+setAltSvc altsvc settings = settings { settingsAltSvc = Just altsvc }
 
 -- | Explicitly pause the slowloris timeout.
 --
