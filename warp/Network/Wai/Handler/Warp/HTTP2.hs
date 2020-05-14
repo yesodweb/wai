@@ -60,8 +60,8 @@ http2server settings ii transport addr app h2req0 aux0 response = do
     req <- toWAIRequest h2req0 aux0
     ref <- I.newIORef Nothing
     eResponseReceived <- E.try $ app req $ \rsp -> do
-        (h2rsp,st) <- fromResponse settings ii req rsp
-        pps <- fromPushPromises ii req
+        (h2rsp,st,hasBody) <- fromResponse settings ii req rsp
+        pps <- if hasBody then fromPushPromises ii req else return []
         I.writeIORef ref $ Just (h2rsp, pps, st)
         _ <- response h2rsp pps
         return ResponseReceived
@@ -80,7 +80,7 @@ http2server settings ii transport addr app h2req0 aux0 response = do
             S.settingsOnException settings (Just req) e
             let ersp = S.settingsOnExceptionResponse settings e
                 st = responseStatus ersp
-            (h2rsp',_) <- fromResponse settings ii req ersp
+            (h2rsp',_,_) <- fromResponse settings ii req ersp
             let msiz = fromIntegral <$> H2.responseBodySize h2rsp'
             _ <- response h2rsp' []
             logResponse req st msiz

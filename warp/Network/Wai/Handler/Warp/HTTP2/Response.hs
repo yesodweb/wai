@@ -24,10 +24,10 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-fromResponse :: S.Settings -> InternalInfo -> Request -> Response -> IO (H2.Response, H.Status)
+fromResponse :: S.Settings -> InternalInfo -> Request -> Response -> IO (H2.Response, H.Status, Bool)
 fromResponse settings ii req rsp = do
     date <- getDate ii
-    rspst@(h2rsp,st) <- case rsp of
+    rspst@(h2rsp, st, hasBody) <- case rsp of
       ResponseFile    st rsphdr path mpart -> do
           let rsphdr' = add date svr rsphdr
           responseFile    st rsphdr' isHead path mpart ii reqhdr
@@ -44,7 +44,7 @@ fromResponse settings ii req rsp = do
       Just h2data -> do
           let !trailers = http2dataTrailers h2data
               !h2rsp' = H2.setResponseTrailersMaker h2rsp trailers
-          return (h2rsp', st)
+          return (h2rsp', st, hasBody)
   where
     !isHead = requestMethod req == H.methodHead
     !reqhdr = requestHeaders req
@@ -57,7 +57,7 @@ fromResponse settings ii req rsp = do
 
 responseFile :: H.Status -> H.ResponseHeaders -> Bool
              -> FilePath -> Maybe FilePart -> InternalInfo -> H.RequestHeaders
-             -> IO (H2.Response, H.Status)
+             -> IO (H2.Response, H.Status, Bool)
 responseFile st rsphdr _ _ _ _ _
   | noBody st = return $ responseNoBody st rsphdr
 
@@ -85,40 +85,40 @@ responseFile _ rsphdr isHead path Nothing ii reqhdr = do
 
 ----------------------------------------------------------------
 
-responseFile2XX :: H.Status -> H.ResponseHeaders -> Bool -> H2.FileSpec -> (H2.Response, H.Status)
+responseFile2XX :: H.Status -> H.ResponseHeaders -> Bool -> H2.FileSpec -> (H2.Response, H.Status, Bool)
 responseFile2XX st rsphdr isHead fileSpec
   | isHead = responseNoBody st rsphdr
-  | otherwise = (H2.responseFile st rsphdr fileSpec, st)
+  | otherwise = (H2.responseFile st rsphdr fileSpec, st, True)
 
 ----------------------------------------------------------------
 
 responseBuilder :: H.Status -> H.ResponseHeaders -> Bool
                 -> BB.Builder
-                -> (H2.Response, H.Status)
+                -> (H2.Response, H.Status, Bool)
 responseBuilder st rsphdr isHead builder
   | noBody st = responseNoBody st rsphdr
   | isHead    = responseNoBody st rsphdr
-  | otherwise = (H2.responseBuilder st rsphdr builder, st)
+  | otherwise = (H2.responseBuilder st rsphdr builder, st, True)
 
 ----------------------------------------------------------------
 
 responseStream :: H.Status -> H.ResponseHeaders -> Bool
                -> StreamingBody
-               -> (H2.Response, H.Status)
+               -> (H2.Response, H.Status, Bool)
 responseStream st rsphdr isHead strmbdy
   | noBody st = responseNoBody st rsphdr
   | isHead    = responseNoBody st rsphdr
-  | otherwise = (H2.responseStreaming st rsphdr strmbdy, st)
+  | otherwise = (H2.responseStreaming st rsphdr strmbdy, st, True)
 
 ----------------------------------------------------------------
 
-responseNoBody :: H.Status -> H.ResponseHeaders -> (H2.Response, H.Status)
-responseNoBody st rsphdr = (H2.responseNoBody st rsphdr, st)
+responseNoBody :: H.Status -> H.ResponseHeaders -> (H2.Response, H.Status, Bool)
+responseNoBody st rsphdr = (H2.responseNoBody st rsphdr, st, False)
 
 ----------------------------------------------------------------
 
-response404 :: H.ResponseHeaders -> (H2.Response, H.Status)
-response404 rsphdr = (h2rsp, st)
+response404 :: H.ResponseHeaders -> (H2.Response, H.Status, Bool)
+response404 rsphdr = (h2rsp, st, True)
   where
     h2rsp = H2.responseBuilder st rsphdr' body
     st = H.notFound404
