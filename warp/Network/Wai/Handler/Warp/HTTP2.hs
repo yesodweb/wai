@@ -60,8 +60,7 @@ http2server settings ii transport addr app h2req0 aux0 response = do
     req <- toWAIRequest h2req0 aux0
     ref <- I.newIORef Nothing
     eResponseReceived <- E.try $ app req $ \rsp -> do
-        let st = responseStatus rsp
-        h2rsp <- fromResponse settings ii req rsp
+        (h2rsp,st) <- fromResponse settings ii req rsp
         pps <- fromPushPromises ii req
         I.writeIORef ref $ Just (h2rsp, pps, st)
         _ <- response h2rsp pps
@@ -81,7 +80,7 @@ http2server settings ii transport addr app h2req0 aux0 response = do
             S.settingsOnException settings (Just req) e
             let ersp = S.settingsOnExceptionResponse settings e
                 st = responseStatus ersp
-            h2rsp' <- fromResponse settings ii req ersp
+            (h2rsp',_) <- fromResponse settings ii req ersp
             let msiz = fromIntegral <$> H2.responseBodySize h2rsp'
             _ <- response h2rsp' []
             logResponse req st msiz
