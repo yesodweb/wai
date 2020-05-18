@@ -1,10 +1,15 @@
 -- from https://jaspervdj.be/posts/2015-02-24-lru-cache.html
-module Network.Wai.Middleware.Push.Referer.LRU where
+module Network.Wai.Middleware.Push.Referer.LRU (
+    Cache(..)
+  , Priority
+  , empty
+  , insert
+  , lookup
+  ) where
 
 import Data.OrdPSQ (OrdPSQ)
 import qualified Data.OrdPSQ as PSQ
 import Data.Int (Int64)
-import Data.Maybe (isNothing)
 import Prelude hiding (lookup)
 
 import Network.Wai.Middleware.Push.Referer.Multi (Multi)

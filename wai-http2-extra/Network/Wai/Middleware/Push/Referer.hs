@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | Middleware for server push learning dependency based on Referer:.
 module Network.Wai.Middleware.Push.Referer (
@@ -6,25 +7,22 @@ module Network.Wai.Middleware.Push.Referer (
     pushOnReferer
   -- * Making push promise
   , URLPath
-  , MakePushPromise
-  , defaultMakePushPromise
+  , M.MakePushPromise
+  , M.defaultMakePushPromise
   -- * Settings
   , Settings
-  , defaultSettings
+  , M.defaultSettings
   , makePushPromise
   , duration
   , keyLimit
   , valueLimit
   ) where
 
-import Control.Monad (when, unless)
-import Control.Reaper
+import Control.Monad (when)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..), memchr)
-import Data.IORef
 import Data.Maybe (isNothing)
-import Data.Word (Word8)
 import Data.Word8
 import Foreign.ForeignPtr (withForeignPtr, ForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr, nullPtr)
@@ -33,91 +31,29 @@ import Network.HTTP.Types (Status(..))
 import Network.Wai
 import Network.Wai.Handler.Warp hiding (Settings, defaultSettings)
 import Network.Wai.Internal (Response(..))
-import System.IO.Unsafe (unsafePerformIO)
 
-import qualified Network.Wai.Middleware.Push.Referer.LimitMultiMap as M
+import Network.Wai.Middleware.Push.Referer.Manager (URLPath, Settings(..))
+import qualified Network.Wai.Middleware.Push.Referer.Manager as M
 
 -- $setup
 -- >>> :set -XOverloadedStrings
 
--- | Making a push promise based on Referer:,
---   path to be pushed and file to be pushed.
---   If the middleware should push this file in the next time when
---   the page of Referer: is accessed,
---   this function should return 'Just'.
---   If 'Nothing' is returned,
---   the middleware learns nothing.
-type MakePushPromise = URLPath  -- ^ path in referer  (key: /index.html)
-                    -> URLPath  -- ^ path to be pushed (value: /style.css)
-                    -> FilePath -- ^ file to be pushed (file_path/style.css)
-                    -> IO (Maybe PushPromise)
-
--- | Type for URL path.
-type URLPath = ByteString
-
-type Cache = M.LimitMultiMap URLPath PushPromise
-
-initialized :: IORef Bool
-initialized = unsafePerformIO $ newIORef False
-{-# NOINLINE initialized #-}
-
-cacheReaper :: IORef (Maybe (Reaper Cache (URLPath,PushPromise)))
-cacheReaper = unsafePerformIO $ newIORef Nothing
-{-# NOINLINE cacheReaper #-}
-
--- | Settings for server push based on Referer:.
-data Settings = Settings {
-    makePushPromise :: MakePushPromise -- ^ Default: 'defaultMakePushPromise'
-  , duration :: Int -- ^ Duration (in micro seconds) to keep the learning information. The information completely cleared every this duration. Default: 30000000
-  , keyLimit :: Int -- ^ Max number of keys (e.g. index.html) in the learning information. Default: 20
-  , valueLimit :: Int -- ^ Max number of values (e.g. style.css) in the learning information. Default: 20
-  }
-
--- | Default settings.
-defaultSettings :: Settings
-defaultSettings = Settings {
-    makePushPromise = defaultMakePushPromise
-  , duration = 30000000
-  , keyLimit = 20
-  , valueLimit = 20
-  }
-
-tryInitialize :: Settings -> IO ()
-tryInitialize Settings{..} = do
-    isInitialized <- atomicModifyIORef' initialized $ \x -> (True, x)
-    unless isInitialized $ do
-        reaper <- mkReaper settings
-        writeIORef cacheReaper (Just reaper)
-  where
-    emptyCache = M.empty keyLimit valueLimit
-    settings :: ReaperSettings Cache (URLPath,PushPromise)
-    settings = defaultReaperSettings {
-        reaperAction = \_ -> return (\_ -> emptyCache)
-      , reaperCons   = M.insert
-      , reaperNull   = M.isEmpty
-      , reaperEmpty  = emptyCache
-      , reaperDelay  = duration
-      }
-
 -- | The middleware to push files based on Referer:.
 --   Learning strategy is implemented in the first argument.
 pushOnReferer :: Settings -> Middleware
-pushOnReferer settings@Settings{..} app req sendResponse = do
-    tryInitialize settings
-    mreaper <- readIORef cacheReaper
-    case mreaper of
-        Nothing     -> app req sendResponse
-        Just reaper -> app req (push reaper)
+pushOnReferer settings app req sendResponse = do
+    mgr <- M.tryInitialize settings
+    app req $ push mgr
   where
     path = rawPathInfo req
-    push reaper res@(ResponseFile (Status 200 "OK") _ file Nothing)
+    push mgr res@(ResponseFile (Status 200 "OK") _ file Nothing)
       -- file:    /index.html
       -- path:    /
       -- referer:
       -- refPath:
       | isHTML path = do
-            m <- reaperRead reaper
-            case M.lookup path m of
+            xs <- M.lookup path mgr
+            case xs of
               [] -> return ()
               ps -> do
                   let h2d = defaultHTTP2Data { http2dataPushPromise = ps }
@@ -136,32 +72,12 @@ pushOnReferer settings@Settings{..} app req sendResponse = do
                   && isHTML refPath) $ do
                   let path' = BS.copy path
                       refPath' = BS.copy refPath
-                  mpp <- makePushPromise refPath' path' file
+                  mpp <- makePushPromise settings refPath' path' file
                   case mpp of
                     Nothing -> return ()
-                    Just pp -> reaperAdd reaper (refPath',pp)
+                    Just pp -> M.insert refPath' pp mgr
               sendResponse res
     push _ res = sendResponse res
-
-
--- | Learn if the file to be pushed is CSS (.css) or JavaScript (.js) file.
-defaultMakePushPromise :: MakePushPromise
-defaultMakePushPromise refPath path file = case getCT path of
-  Nothing -> return Nothing
-  Just ct -> do
-      let pp = defaultPushPromise {
-                   promisedPath = path
-                 , promisedFile = file
-                 , promisedResponseHeaders = [("content-type", ct)
-                                             ,("x-http2-push", refPath)]
-                 }
-      return $ Just pp
-
-getCT :: URLPath -> Maybe ByteString
-getCT p
-  | ".js"  `BS.isSuffixOf` p = Just "application/javascript"
-  | ".css" `BS.isSuffixOf` p = Just "text/css"
-  | otherwise                = Nothing
 
 isHTML :: URLPath -> Bool
 isHTML p = ("/" `BS.isSuffixOf` p)
