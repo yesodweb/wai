@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 
 -- | Middleware for server push learning dependency based on Referer:.
 module Network.Wai.Middleware.Push.Referer (
@@ -109,45 +109,53 @@ pushOnReferer settings@Settings{..} app req sendResponse = do
         Nothing     -> app req sendResponse
         Just reaper -> app req (push reaper)
   where
-    push reaper res@(ResponseFile (Status 200 "OK") _ file Nothing) = do
-        let !path = rawPathInfo req
-        m <- reaperRead reaper
-        case M.lookup path m of
-            [] -> case requestHeaderReferer req of
-                Nothing      -> return ()
-                Just referer -> do
-                    (mauth,refPath) <- parseUrl referer
-                    when (isNothing mauth
-                       || requestHeaderHost req == mauth) $ do
-                        when (path /= refPath) $ do -- just in case
-                            let !path' = BS.copy path
-                                !refPath' = BS.copy refPath
-                            mpp <- makePushPromise refPath' path' file
-                            case mpp of
-                                Nothing -> return ()
-                                Just pp -> reaperAdd reaper (refPath',pp)
-            ps -> do
-                let !h2d = defaultHTTP2Data { http2dataPushPromise = ps}
-                setHTTP2Data req (Just h2d)
-        sendResponse res
+    path = rawPathInfo req
+    push reaper res@(ResponseFile (Status 200 "OK") _ file Nothing)
+      -- file:    /index.html
+      -- path:    /
+      -- referer:
+      -- refPath:
+      | isHTML path = do
+            m <- reaperRead reaper
+            case M.lookup path m of
+              [] -> return ()
+              ps -> do
+                  let h2d = defaultHTTP2Data { http2dataPushPromise = ps }
+                  setHTTP2Data req $ Just h2d
+            sendResponse res
+      -- file:    /style.css
+      -- path:    /style.css
+      -- referer: /index.html
+      -- refPath: /
+      | otherwise = case requestHeaderReferer req of
+          Nothing      -> sendResponse res
+          Just referer -> do
+              (mauth,refPath) <- parseUrl referer
+              when ((isNothing mauth || requestHeaderHost req == mauth)
+                  && path /= refPath
+                  && isHTML refPath) $ do
+                  let path' = BS.copy path
+                      refPath' = BS.copy refPath
+                  mpp <- makePushPromise refPath' path' file
+                  case mpp of
+                    Nothing -> return ()
+                    Just pp -> reaperAdd reaper (refPath',pp)
+              sendResponse res
     push _ res = sendResponse res
 
 
--- | Learn if the file to be pushed is CSS (.css) or JavaScript (.js) file
---   AND the Referer: ends with \"/\" or \".html\" or \".htm\".
+-- | Learn if the file to be pushed is CSS (.css) or JavaScript (.js) file.
 defaultMakePushPromise :: MakePushPromise
-defaultMakePushPromise refPath path file
-  | isHTML refPath = case getCT path of
-      Nothing -> return Nothing
-      Just ct -> do
-          let pp = defaultPushPromise {
-                       promisedPath = path
-                     , promisedFile = file
-                     , promisedResponseHeaders = [("content-type", ct)
-                                                 ,("x-http2-push", refPath)]
-                     }
-          return $ Just pp
-  | otherwise = return Nothing
+defaultMakePushPromise refPath path file = case getCT path of
+  Nothing -> return Nothing
+  Just ct -> do
+      let pp = defaultPushPromise {
+                   promisedPath = path
+                 , promisedFile = file
+                 , promisedResponseHeaders = [("content-type", ct)
+                                             ,("x-http2-push", refPath)]
+                 }
+      return $ Just pp
 
 getCT :: URLPath -> Maybe ByteString
 getCT p
@@ -203,7 +211,7 @@ parseUrl' fptr0 ptr0 begptr limptr len0 = do
           if colonptr == nullPtr then
               return (Nothing, "")
             else do
-              let !authptr = colonptr `plusPtr` 1
+              let authptr = colonptr `plusPtr` 1
               doubleSlashed authptr (limptr `minusPtr` authptr)
   where
     -- // / ?
@@ -216,7 +224,7 @@ parseUrl' fptr0 ptr0 begptr limptr len0 = do
           if pathptr == nullPtr then
               return (Nothing, "")
             else do
-              let !auth = bs ptr0 ptr1 pathptr
+              let auth = bs ptr0 ptr1 pathptr
               slashed pathptr (limptr `minusPtr` pathptr) (Just auth)
 
     -- / ?
@@ -224,13 +232,13 @@ parseUrl' fptr0 ptr0 begptr limptr len0 = do
     slashed ptr len mauth = do
         questionptr <- memchr ptr _question $ fromIntegral len
         if questionptr == nullPtr then do
-            let !path = bs ptr0 ptr limptr
+            let path = bs ptr0 ptr limptr
             return (mauth, path)
           else do
-            let !path = bs ptr0 ptr questionptr
+            let path = bs ptr0 ptr questionptr
             return (mauth, path)
     bs p0 p1 p2 = path
       where
-        !off = p1 `minusPtr` p0
-        !siz = p2 `minusPtr` p1
-        !path = PS fptr0 off siz
+        off = p1 `minusPtr` p0
+        siz = p2 `minusPtr` p1
+        path = PS fptr0 off siz
