@@ -18,6 +18,7 @@ Library
                    , bytestring
                    , containers
                    , http-types
+                   , psqueues
                    , wai
                    , warp
                    , word8
