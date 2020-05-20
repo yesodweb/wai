@@ -53,11 +53,12 @@ insert k v c = case PSQ.alter lookupAndBump k (cQueue c) of
     lookupAndBump Nothing       = (True,  Just (cTick c, M.singleton (cValLimit c) v))
     lookupAndBump (Just (_, x)) = (False, Just (cTick c, M.insert v x))
 
-lookup :: Ord k => k -> Cache k v -> Maybe ([v], Cache k v)
+lookup :: Ord k => k -> Cache k v -> (Cache k v, [v])
 lookup k c = case PSQ.alter lookupAndBump k (cQueue c) of
-    (Nothing, _) -> Nothing
+    (Nothing, _) -> (c, [])
     (Just x, q)  -> let c' = trim $ c { cTick = cTick c + 1, cQueue = q }
-                    in Just (M.list x, c')
+                        xs = M.list x
+                    in (c', xs)
   where
     lookupAndBump Nothing       = (Nothing, Nothing)
     lookupAndBump (Just (_, x)) = (Just x,  Just (cTick c, x))

@@ -25,6 +25,8 @@ Library
   Other-modules:     Network.Wai.Middleware.Push.Referer.LRU
                      Network.Wai.Middleware.Push.Referer.Manager
                      Network.Wai.Middleware.Push.Referer.Multi
+                     Network.Wai.Middleware.Push.Referer.ParseURL
+                     Network.Wai.Middleware.Push.Referer.Types
   Ghc-Options:       -Wall
   if impl(ghc >= 8)
       default-extensions:  Strict StrictData
