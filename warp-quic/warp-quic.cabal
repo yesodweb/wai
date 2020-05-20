@@ -1,0 +1,26 @@
+name:                warp-quic
+version:             0.0.0
+author:              Kazu Yamamoto <kazu@iij.ad.jp>
+maintainer:          Kazu Yamamoto <kazu@iij.ad.jp>
+license:             BSD3
+license-file:        LICENSE
+synopsis:            Warp based on QUIC
+description:         WAI handler for HTTP/3 based on QUIC
+homepage:            https://github.com/kazu-yamamoto/warp-quic
+category:            Network
+cabal-version:       >=1.10
+build-type:          Simple
+extra-source-files:  CHANGELOG.md
+
+library
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+  exposed-modules:     Network.Wai.Handler.WarpQUIC
+  build-depends:       base >= 4.13 && < 5
+                     , http3
+                     , quic
+                     , tls
+                     , wai
+                     , warp
+  if impl(ghc >= 8)
+      default-extensions:  Strict StrictData
