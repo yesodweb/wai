@@ -182,7 +182,21 @@ data Transport = TCP -- ^ Plain channel: TCP
                  , tlsChiperID :: Word16
                  , tlsClientCertificate :: Maybe CertificateChain
                  }  -- ^ Encrypted channel: TLS or SSL
+               | QUIC {
+                   quicNegotiatedProtocol :: Maybe ByteString
+                 , quicChiperID :: Word16
+                 , quicClientCertificate :: Maybe CertificateChain
+                 }
 
 isTransportSecure :: Transport -> Bool
 isTransportSecure TCP = False
 isTransportSecure _   = True
+
+isTransportQUIC :: Transport -> Bool
+isTransportQUIC QUIC{} = True
+isTransportQUIC _      = False
+
+getTransportClientCertificate :: Transport -> Maybe CertificateChain
+getTransportClientCertificate TCP              = Nothing
+getTransportClientCertificate (TLS _ _ _ _ cc) = cc
+getTransportClientCertificate (QUIC _ _ cc)    = cc

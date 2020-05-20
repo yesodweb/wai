@@ -30,6 +30,9 @@ type ToReq = (TokenHeaderList,ValueTable) -> Maybe Int -> IO ByteString -> T.Han
 
 ----------------------------------------------------------------
 
+http30 :: H.HttpVersion
+http30 = H.HttpVersion 3 0
+
 toRequest :: InternalInfo -> S.Settings -> SockAddr -> ToReq
 toRequest ii settings addr ht bodylen body th transport = do
     ref <- newIORef Nothing
@@ -42,7 +45,7 @@ toRequest' ii settings addr ref (reqths,reqvt) bodylen body th transport = retur
   where
     !req = Request {
         requestMethod = colonMethod
-      , httpVersion = H.http20
+      , httpVersion = if isTransportQUIC transport then http30 else H.http20
       , rawPathInfo = rawPath
       , pathInfo = H.decodePathSegments path
       , rawQueryString = query
@@ -83,7 +86,7 @@ toRequest' ii settings addr ref (reqths,reqvt) bodylen body th transport = retur
                 $ Vault.insert setHTTP2DataKey (writeIORef ref)
                 $ Vault.insert modifyHTTP2DataKey (modifyIORef' ref)
                 $ Vault.insert pauseTimeoutKey (T.pause th)
-                $ Vault.insert getClientCertificateKey (tlsClientCertificate transport)
+                $ Vault.insert getClientCertificateKey (getTransportClientCertificate transport)
                   Vault.empty
 
 getHTTP2DataKey :: Vault.Key (IO (Maybe HTTP2Data))

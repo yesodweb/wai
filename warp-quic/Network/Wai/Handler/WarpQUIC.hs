@@ -16,11 +16,9 @@ runQUIC quicsettings settings app = do
            info <- getConnectionInfo conn
            mccc <- clientCertificateChain conn
            let addr = remoteSockAddr info
-           let transport = TLS {
-                   tlsMajorVersion = 3
-                 , tlsMinorVersion = 4
-                 , tlsNegotiatedProtocol = alpn info
-                 , tlsChiperID = cipherID $ cipher info
-                 , tlsClientCertificate = mccc
+           let transport = QUIC {
+                   quicNegotiatedProtocol = alpn info
+                 , quicChiperID = cipherID $ cipher info
+                 , quicClientCertificate = mccc
                  }
            H3.run conn $ http2server settings ii transport addr app

@@ -72,7 +72,7 @@ recvRequest firstRequest settings conn ii th addr src transport = do
         rawPath = if settingsNoParsePath settings then unparsedPath else path
         vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
                    $ Vault.insert getFileInfoKey (getFileInfo ii)
-                   $ Vault.insert getClientCertificateKey (tlsClientCertificate transport)
+                   $ Vault.insert getClientCertificateKey (getTransportClientCertificate transport)
                      Vault.empty
     (rbody, remainingRef, bodyLength) <- bodyAndSource src cl te
     -- body producing function which will produce '100-continue', if needed
