@@ -32,6 +32,7 @@ module Network.Wai.Handler.WarpTLS (
     , tlsServerHooks
     , tlsServerDHEParams
     , tlsSessionManagerConfig
+    , tlsSessionManager
     , onInsecure
     , OnInsecure (..)
     -- * Runner
@@ -165,6 +166,11 @@ data TLSSettings = TLSSettings {
     --   specified, other fields such as 'certFile' are ignored.
     --
     --   Since 3.2.12
+  , tlsSessionManager :: Maybe TLS.SessionManager
+    -- ^ Specifying 'TLS.SessionManager' directly. If this value is
+    --   specified, 'tlsSessionManagerConfig' is ignored.
+    --
+    --   Since 3.2.12
   }
 
 -- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name (aka accessors).
@@ -189,6 +195,7 @@ defaultTlsSettings = TLSSettings {
   , tlsServerDHEParams = Nothing
   , tlsSessionManagerConfig = Nothing
   , tlsCredentials = Nothing
+  , tlsSessionManager = Nothing
   }
 
 -- taken from stunnel example in tls-extra
@@ -281,14 +288,19 @@ loadCredentials TLSSettings{..} = case (certMemory, keyMemory) of
         cred <- either error return $ TLS.credentialLoadX509ChainFromMemory cert chainCertsMemory key
         return $ TLS.Credentials [cred]
 
+getSessionManager :: TLSSettings -> IO TLS.SessionManager
+getSessionManager TLSSettings{..}
+  | isJust tlsSessionManager = return $ fromJust tlsSessionManager
+  | otherwise = case tlsSessionManagerConfig of
+      Nothing     -> return TLS.noSessionManager
+      Just config -> SM.newSessionManager config
+
 -- | Running 'Application' with 'TLSSettings' and 'Settings' using
 --   specified 'Socket'.
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
-runTLSSocket tlsset@TLSSettings{..} set sock app = do
+runTLSSocket tlsset set sock app = do
     credentials <- loadCredentials tlsset
-    mgr <- case tlsSessionManagerConfig of
-      Nothing     -> return TLS.noSessionManager
-      Just config -> SM.newSessionManager config
+    mgr <- getSessionManager tlsset
     runTLSSocket' tlsset set credentials mgr sock app
 
 runTLSSocket' :: TLSSettings -> Settings -> TLS.Credentials -> TLS.SessionManager -> Socket -> Application -> IO ()
