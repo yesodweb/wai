@@ -24,6 +24,7 @@ module Network.Wai.Handler.WarpTLS (
     -- * Accessors
     , certFile
     , keyFile
+    , tlsCredentials
     , tlsLogging
     , tlsAllowedVersions
     , tlsCiphers
@@ -50,6 +51,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Data.Default.Class (def)
 import qualified Data.IORef as I
+import Data.Maybe (isJust, fromJust)
 import Data.Streaming.Network (bindPortTCP, safeRecv)
 import Data.Typeable (Typeable)
 import GHC.IO.Exception (IOErrorType(..))
@@ -158,6 +160,11 @@ data TLSSettings = TLSSettings {
     -- Default: Nothing
     --
     -- Since 3.2.4
+  , tlsCredentials :: Maybe TLS.Credentials
+    -- ^ Specifying 'TLS.Credentials' directly.  If this value is
+    --   specified, other fields such as 'certFile' are ignored.
+    --
+    --   Since 3.2.12
   }
 
 -- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name (aka accessors).
@@ -181,6 +188,7 @@ defaultTlsSettings = TLSSettings {
   , tlsServerHooks = def
   , tlsServerDHEParams = Nothing
   , tlsSessionManagerConfig = Nothing
+  , tlsCredentials = Nothing
   }
 
 -- taken from stunnel example in tls-extra
@@ -260,26 +268,31 @@ runTLS tset set app = withSocketsDo $
 
 ----------------------------------------------------------------
 
+loadCredentials :: TLSSettings -> IO TLS.Credentials
+loadCredentials TLSSettings{..}
+  | isJust tlsCredentials = return $ fromJust tlsCredentials
+loadCredentials TLSSettings{..} = case (certMemory, keyMemory) of
+    (Nothing, Nothing) -> do
+        cred <- either error id <$> TLS.credentialLoadX509Chain certFile chainCertFiles keyFile
+        return $ TLS.Credentials [cred]
+    (mcert, mkey) -> do
+        cert <- maybe (S.readFile certFile) return mcert
+        key <- maybe (S.readFile keyFile) return mkey
+        cred <- either error return $ TLS.credentialLoadX509ChainFromMemory cert chainCertsMemory key
+        return $ TLS.Credentials [cred]
+
 -- | Running 'Application' with 'TLSSettings' and 'Settings' using
 --   specified 'Socket'.
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket tlsset@TLSSettings{..} set sock app = do
-    credential <- case (certMemory, keyMemory) of
-        (Nothing, Nothing) ->
-            either error id <$>
-            TLS.credentialLoadX509Chain certFile chainCertFiles keyFile
-        (mcert, mkey) -> do
-            cert <- maybe (S.readFile certFile) return mcert
-            key <- maybe (S.readFile keyFile) return mkey
-            either error return $
-              TLS.credentialLoadX509ChainFromMemory cert chainCertsMemory key
+    credentials <- loadCredentials tlsset
     mgr <- case tlsSessionManagerConfig of
       Nothing     -> return TLS.noSessionManager
       Just config -> SM.newSessionManager config
-    runTLSSocket' tlsset set credential mgr sock app
+    runTLSSocket' tlsset set credentials mgr sock app
 
-runTLSSocket' :: TLSSettings -> Settings -> TLS.Credential -> TLS.SessionManager -> Socket -> Application -> IO ()
-runTLSSocket' tlsset@TLSSettings{..} set credential mgr sock app =
+runTLSSocket' :: TLSSettings -> Settings -> TLS.Credentials -> TLS.SessionManager -> Socket -> Application -> IO ()
+runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock app =
     runSettingsConnectionMakerSecure set get app
   where
     get = getter tlsset set sock params
@@ -300,7 +313,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credential mgr sock app =
           (if settingsHTTP2Enabled set then Just alpn else Nothing)
       }
     shared = def {
-        TLS.sharedCredentials    = TLS.Credentials [credential]
+        TLS.sharedCredentials    = credentials
       , TLS.sharedSessionManager = mgr
       }
     supported = def { -- TLS.Supported
