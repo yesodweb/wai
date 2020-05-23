@@ -37,11 +37,13 @@ eventSourceAppIO src _ sendResponse =
     sendResponse $ responseStream
         status200
         [(hContentType, "text/event-stream")]
-        $ \sendChunk flush -> fix $ \loop -> do
-            se <- src
-            case eventToBuilder se of
-                Nothing -> return ()
-                Just b  -> sendChunk b >> flush >> loop
+        $ \sendChunk flush -> do
+            flush
+            fix $ \loop -> do
+                se <- src
+                case eventToBuilder se of
+                    Nothing -> return ()
+                    Just b  -> sendChunk b >> flush >> loop
 
 -- | Make a new WAI EventSource application with a handler that emits events.
 --
