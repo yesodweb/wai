@@ -52,7 +52,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Data.Default.Class (def)
 import qualified Data.IORef as I
-import Data.Maybe (isJust, fromJust)
 import Data.Streaming.Network (bindPortTCP, safeRecv)
 import Data.Typeable (Typeable)
 import GHC.IO.Exception (IOErrorType(..))
@@ -276,8 +275,7 @@ runTLS tset set app = withSocketsDo $
 ----------------------------------------------------------------
 
 loadCredentials :: TLSSettings -> IO TLS.Credentials
-loadCredentials TLSSettings{..}
-  | isJust tlsCredentials = return $ fromJust tlsCredentials
+loadCredentials TLSSettings{ tlsCredentials = Just creds } = return creds
 loadCredentials TLSSettings{..} = case (certMemory, keyMemory) of
     (Nothing, Nothing) -> do
         cred <- either error id <$> TLS.credentialLoadX509Chain certFile chainCertFiles keyFile
@@ -289,9 +287,8 @@ loadCredentials TLSSettings{..} = case (certMemory, keyMemory) of
         return $ TLS.Credentials [cred]
 
 getSessionManager :: TLSSettings -> IO TLS.SessionManager
-getSessionManager TLSSettings{..}
-  | isJust tlsSessionManager = return $ fromJust tlsSessionManager
-  | otherwise = case tlsSessionManagerConfig of
+getSessionManager TLSSettings{ tlsSessionManager = Just mgr } = return mgr
+getSessionManager TLSSettings{..} = case tlsSessionManagerConfig of
       Nothing     -> return TLS.noSessionManager
       Just config -> SM.newSessionManager config
 
