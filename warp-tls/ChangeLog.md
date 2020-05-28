@@ -1,3 +1,8 @@
+## 3.2.12
+
+* A config field: tlsCredentials and tlsSessionManager.
+  [#805](https://github.com/yesodweb/wai/pull/805)
+
 ## 3.2.11
 
 * Ignoring an exception from shutdown (gracefulClose).
