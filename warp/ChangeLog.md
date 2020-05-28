@@ -1,3 +1,8 @@
+## 3.3.12
+
+* Fixing HTTP/2 logging relating to status and push.
+* Adding QUIC constructor to Transport.
+
 ## 3.3.11
 
 * Adding setAltSvc.
