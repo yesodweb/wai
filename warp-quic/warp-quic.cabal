@@ -21,6 +21,6 @@ library
                      , quic
                      , tls
                      , wai
-                     , warp
+                     , warp >= 3.3.13
   if impl(ghc >= 8)
       default-extensions:  Strict StrictData

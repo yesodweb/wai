@@ -21,4 +21,6 @@ runQUIC quicsettings settings app = do
                  , quicChiperID = cipherID $ cipher info
                  , quicClientCertificate = mccc
                  }
-           H3.run conn $ http2server settings ii transport addr app
+               pread = pReadMaker ii
+               conf = H3.Config pread
+           H3.run conn conf $ http2server settings ii transport addr app
