@@ -1,3 +1,8 @@
+## 3.2.13
+
+* Config fields for retrieving TLS credentials from an IORef.
+  [#806](https://github.com/yesodweb/wai/pull/806)
+
 ## 3.2.12
 
 * A config field: tlsCredentials and tlsSessionManager.
