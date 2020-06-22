@@ -21,6 +21,8 @@ module Network.Wai.Handler.WarpTLS (
     , tlsSettingsMemory
     , tlsSettingsChain
     , tlsSettingsChainMemory
+    , tlsSettingsRef
+    , tlsSettingsChainRef
     -- * Accessors
     , certFile
     , keyFile
@@ -82,6 +84,12 @@ data TLSSettings = TLSSettings {
   , certMemory :: Maybe S.ByteString
   , chainCertsMemory :: [S.ByteString]
   , keyMemory :: Maybe S.ByteString
+  , certRef :: Maybe (I.IORef S.ByteString)
+    -- ^ An optional reference to the certifiate in memory.
+  , chainCertsRef :: Maybe (I.IORef [S.ByteString])
+    -- ^ An optional reference to a list of chain certificates in memory.
+  , keyRef :: Maybe (I.IORef S.ByteString)
+    -- ^ An optional reference to the key in memory.
   , onInsecure :: OnInsecure
     -- ^ Do we allow insecure connections with this server as well?
     --
@@ -181,6 +189,9 @@ defaultTlsSettings = TLSSettings {
   , certMemory = Nothing
   , chainCertsMemory = []
   , keyMemory = Nothing
+  , certRef = Nothing
+  , chainCertsRef = Nothing 
+  , keyRef = Nothing
   , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
   , tlsLogging = def
 #if MIN_VERSION_tls(1,5,0)
@@ -262,6 +273,34 @@ tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings
     , keyMemory = Just key
     }
 
+-- | A smart constructor for 'TLSSettings', but uses references to in-memory
+-- representations of the certificate and key based on 'defaultTlsSettings'.
+--
+-- Since ???
+tlsSettingsRef 
+    :: I.IORef S.ByteString -- ^ Reference to certificate bytes
+    -> I.IORef (S.ByteString) -- ^ Reference to key bytes 
+    -> TLSSettings 
+tlsSettingsRef cert key = defaultTlsSettings
+    { certRef = Just cert 
+    , keyRef = Just key
+    }
+
+-- | A smart constructor for 'TLSSettings', but uses references to in-memory
+-- representations of the certificate and key based on 'defaultTlsSettings'.
+--
+-- Since ???
+tlsSettingsChainRef 
+    :: I.IORef S.ByteString -- ^ Reference to certificate bytes
+    -> I.IORef [S.ByteString] -- ^ Reference to chain certificate bytes
+    -> I.IORef (S.ByteString) -- ^ Reference to key bytes 
+    -> TLSSettings 
+tlsSettingsChainRef cert chainCerts key = defaultTlsSettings
+    { certRef = Just cert 
+    , chainCertsRef = Just chainCerts
+    , keyRef = Just key
+    }
+
 ----------------------------------------------------------------
 
 -- | Running 'Application' with 'TLSSettings' and 'Settings'.
@@ -277,9 +316,16 @@ runTLS tset set app = withSocketsDo $
 loadCredentials :: TLSSettings -> IO TLS.Credentials
 loadCredentials TLSSettings{ tlsCredentials = Just creds } = return creds
 loadCredentials TLSSettings{..} = case (certMemory, keyMemory) of
-    (Nothing, Nothing) -> do
-        cred <- either error id <$> TLS.credentialLoadX509Chain certFile chainCertFiles keyFile
-        return $ TLS.Credentials [cred]
+    (Nothing, Nothing) -> case (certRef, chainCertsRef, keyRef) of 
+        (Nothing, Nothing, Nothing) -> do
+          cred <- either error id <$> TLS.credentialLoadX509Chain certFile chainCertFiles keyFile
+          return $ TLS.Credentials [cred]
+        (mCertRef, mChainCertsRef, mKeyRef) -> do 
+          cert <- maybe (S.readFile certFile) I.readIORef mCertRef
+          chainCerts <- maybe (pure []) I.readIORef mChainCertsRef
+          key <- maybe (S.readFile keyFile) I.readIORef mKeyRef
+          cred <- either error return $ TLS.credentialLoadX509ChainFromMemory cert chainCerts key
+          return $ TLS.Credentials [cred]
     (mcert, mkey) -> do
         cert <- maybe (S.readFile certFile) return mcert
         key <- maybe (S.readFile keyFile) return mkey
