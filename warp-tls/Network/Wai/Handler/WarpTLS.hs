@@ -276,7 +276,7 @@ tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings
 -- | A smart constructor for 'TLSSettings', but uses references to in-memory
 -- representations of the certificate and key based on 'defaultTlsSettings'.
 --
--- Since ???
+-- @since 3.2.13
 tlsSettingsRef 
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
     -> I.IORef (S.ByteString) -- ^ Reference to key bytes 
@@ -289,7 +289,7 @@ tlsSettingsRef cert key = defaultTlsSettings
 -- | A smart constructor for 'TLSSettings', but uses references to in-memory
 -- representations of the certificate and key based on 'defaultTlsSettings'.
 --
--- Since ???
+-- @since 3.2.13
 tlsSettingsChainRef 
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
     -> I.IORef [S.ByteString] -- ^ Reference to chain certificate bytes
