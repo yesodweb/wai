@@ -73,23 +73,52 @@ import System.IO.Error (isEOFError, ioeGetErrorType)
 
 ----------------------------------------------------------------
 
--- | Settings for WarpTLS.
-data TLSSettings = TLSSettings {
+-- | Determines where to load the certificate, chain 
+-- certificates, and key from.
+data CertSettings 
+  = CertFromFile {
     certFile :: FilePath
     -- ^ File containing the certificate.
   , chainCertFiles :: [FilePath]
     -- ^ Files containing chain certificates.
   , keyFile :: FilePath
     -- ^ File containing the key
-  , certMemory :: Maybe S.ByteString
+  }
+  | CertFromMemory {
+    certMemory :: S.ByteString
+    -- ^ The certificate data.
   , chainCertsMemory :: [S.ByteString]
-  , keyMemory :: Maybe S.ByteString
-  , certRef :: Maybe (I.IORef S.ByteString)
-    -- ^ An optional reference to the certifiate in memory.
-  , chainCertsRef :: Maybe (I.IORef [S.ByteString])
-    -- ^ An optional reference to a list of chain certificates in memory.
-  , keyRef :: Maybe (I.IORef S.ByteString)
-    -- ^ An optional reference to the key in memory.
+    -- ^ The chain certificate data.
+  , keyMemory :: S.ByteString
+    -- ^ The key data.
+  }
+  | CertFromRef {
+    certRef :: I.IORef S.ByteString
+    -- ^ A reference to the certifiate in memory.
+  , chainCertsRef :: [I.IORef S.ByteString]
+    -- ^ A reference to a list of chain certificates in memory.
+  , keyRef :: I.IORef S.ByteString
+    -- ^ A reference to the key in memory.
+  }
+
+-- | The default 'CertSettings'.
+defaultCertSettings :: CertSettings
+defaultCertSettings = CertFromFile {
+    certFile = "certificate.pem"
+  , chainCertFiles = []
+  , keyFile = "key.pem"
+  }
+
+----------------------------------------------------------------
+
+-- | Settings for WarpTLS.
+data TLSSettings = TLSSettings {
+    certSettings :: CertSettings
+    -- ^ Where are the certificate, chain certificates, and key
+    -- loaded from?
+    --
+    -- >>> certSettings defaultTlsSettings
+    -- 
   , onInsecure :: OnInsecure
     -- ^ Do we allow insecure connections with this server as well?
     --
@@ -183,15 +212,7 @@ data TLSSettings = TLSSettings {
 -- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name (aka accessors).
 defaultTlsSettings :: TLSSettings
 defaultTlsSettings = TLSSettings {
-    certFile = "certificate.pem"
-  , chainCertFiles = []
-  , keyFile = "key.pem"
-  , certMemory = Nothing
-  , chainCertsMemory = []
-  , keyMemory = Nothing
-  , certRef = Nothing
-  , chainCertsRef = Nothing 
-  , keyRef = Nothing
+    certSettings = defaultCertSettings
   , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
   , tlsLogging = def
 #if MIN_VERSION_tls(1,5,0)
@@ -226,8 +247,11 @@ tlsSettings :: FilePath -- ^ Certificate file
             -> FilePath -- ^ Key file
             -> TLSSettings
 tlsSettings cert key = defaultTlsSettings {
-    certFile = cert
-  , keyFile = key
+    certSettings = CertFromFile {
+      certFile = cert
+    , chainCertFiles = []
+    , keyFile = key
+    }
   }
 
 -- | A smart constructor for 'TLSSettings' that allows specifying
@@ -240,9 +264,11 @@ tlsSettingsChain
             -> FilePath -- ^ Key file
             -> TLSSettings
 tlsSettingsChain cert chainCerts key = defaultTlsSettings {
-    certFile = cert
-  , chainCertFiles = chainCerts
-  , keyFile = key
+    certSettings = CertFromFile {
+      certFile = cert
+    , chainCertFiles = chainCerts
+    , keyFile = key
+    }
   }
 
 -- | A smart constructor for 'TLSSettings', but uses in-memory representations
@@ -253,10 +279,13 @@ tlsSettingsMemory
     :: S.ByteString -- ^ Certificate bytes
     -> S.ByteString -- ^ Key bytes
     -> TLSSettings
-tlsSettingsMemory cert key = defaultTlsSettings
-    { certMemory = Just cert
-    , keyMemory = Just key
+tlsSettingsMemory cert key = defaultTlsSettings { 
+  certSettings = CertFromMemory {
+      certMemory = cert
+    , chainCertsMemory = []
+    , keyMemory = key
     }
+  }
 
 -- | A smart constructor for 'TLSSettings', but uses in-memory representations
 -- of the certificate and key based on 'defaultTlsSettings'.
@@ -267,11 +296,13 @@ tlsSettingsChainMemory
     -> [S.ByteString] -- ^ Chain certificate bytes
     -> S.ByteString -- ^ Key bytes
     -> TLSSettings
-tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings
-    { certMemory = Just cert
+tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings { 
+  certSettings = CertFromMemory {
+      certMemory = cert
     , chainCertsMemory = chainCerts
-    , keyMemory = Just key
+    , keyMemory = key
     }
+  }
 
 -- | A smart constructor for 'TLSSettings', but uses references to in-memory
 -- representations of the certificate and key based on 'defaultTlsSettings'.
@@ -281,10 +312,13 @@ tlsSettingsRef
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
     -> I.IORef (S.ByteString) -- ^ Reference to key bytes 
     -> TLSSettings 
-tlsSettingsRef cert key = defaultTlsSettings
-    { certRef = Just cert 
-    , keyRef = Just key
+tlsSettingsRef cert key = defaultTlsSettings { 
+  certSettings = CertFromRef {
+      certRef = cert
+    , chainCertsRef = []
+    , keyRef = key
     }
+  }
 
 -- | A smart constructor for 'TLSSettings', but uses references to in-memory
 -- representations of the certificate and key based on 'defaultTlsSettings'.
@@ -292,14 +326,16 @@ tlsSettingsRef cert key = defaultTlsSettings
 -- @since 3.2.13
 tlsSettingsChainRef 
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
-    -> I.IORef [S.ByteString] -- ^ Reference to chain certificate bytes
+    -> [I.IORef S.ByteString] -- ^ Reference to chain certificate bytes
     -> I.IORef (S.ByteString) -- ^ Reference to key bytes 
     -> TLSSettings 
-tlsSettingsChainRef cert chainCerts key = defaultTlsSettings
-    { certRef = Just cert 
-    , chainCertsRef = Just chainCerts
-    , keyRef = Just key
+tlsSettingsChainRef cert chainCerts key = defaultTlsSettings { 
+  certSettings = CertFromRef {
+      certRef = cert
+    , chainCertsRef = chainCerts
+    , keyRef = key
     }
+  }
 
 ----------------------------------------------------------------
 
@@ -315,22 +351,19 @@ runTLS tset set app = withSocketsDo $
 
 loadCredentials :: TLSSettings -> IO TLS.Credentials
 loadCredentials TLSSettings{ tlsCredentials = Just creds } = return creds
-loadCredentials TLSSettings{..} = case (certMemory, keyMemory) of
-    (Nothing, Nothing) -> case (certRef, chainCertsRef, keyRef) of 
-        (Nothing, Nothing, Nothing) -> do
-          cred <- either error id <$> TLS.credentialLoadX509Chain certFile chainCertFiles keyFile
-          return $ TLS.Credentials [cred]
-        (mCertRef, mChainCertsRef, mKeyRef) -> do 
-          cert <- maybe (S.readFile certFile) I.readIORef mCertRef
-          chainCerts <- maybe (pure []) I.readIORef mChainCertsRef
-          key <- maybe (S.readFile keyFile) I.readIORef mKeyRef
-          cred <- either error return $ TLS.credentialLoadX509ChainFromMemory cert chainCerts key
-          return $ TLS.Credentials [cred]
-    (mcert, mkey) -> do
-        cert <- maybe (S.readFile certFile) return mcert
-        key <- maybe (S.readFile keyFile) return mkey
-        cred <- either error return $ TLS.credentialLoadX509ChainFromMemory cert chainCertsMemory key
-        return $ TLS.Credentials [cred]
+loadCredentials TLSSettings{..} = case certSettings of 
+  CertFromFile{..} -> do
+    cred <- either error id <$> TLS.credentialLoadX509Chain certFile chainCertFiles keyFile
+    return $ TLS.Credentials [cred]
+  CertFromRef{..} -> do 
+    cert <- I.readIORef certRef
+    chainCerts <- mapM I.readIORef chainCertsRef
+    key <- I.readIORef keyRef
+    cred <- either error return $ TLS.credentialLoadX509ChainFromMemory cert chainCerts key
+    return $ TLS.Credentials [cred]
+  CertFromMemory{..} -> do
+    cred <- either error return $ TLS.credentialLoadX509ChainFromMemory certMemory chainCertsMemory keyMemory
+    return $ TLS.Credentials [cred]
 
 getSessionManager :: TLSSettings -> IO TLS.SessionManager
 getSessionManager TLSSettings{ tlsSessionManager = Just mgr } = return mgr
