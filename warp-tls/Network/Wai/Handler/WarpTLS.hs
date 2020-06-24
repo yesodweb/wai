@@ -91,7 +91,9 @@ data TLSSettings = TLSSettings {
     -- loaded from?
     --
     -- >>> certSettings defaultTlsSettings
+    -- tlsSettings "certificate.pem" "key.pem"
     -- 
+    -- @since 3.3.0
   , onInsecure :: OnInsecure
     -- ^ Do we allow insecure connections with this server as well?
     --
@@ -264,7 +266,7 @@ tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings {
 -- | A smart constructor for 'TLSSettings', but uses references to in-memory
 -- representations of the certificate and key based on 'defaultTlsSettings'.
 --
--- @since 3.2.13
+-- @since 3.3.0
 tlsSettingsRef 
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
     -> I.IORef (S.ByteString) -- ^ Reference to key bytes 
@@ -276,7 +278,7 @@ tlsSettingsRef cert key = defaultTlsSettings {
 -- | A smart constructor for 'TLSSettings', but uses references to in-memory
 -- representations of the certificate and key based on 'defaultTlsSettings'.
 --
--- @since 3.2.13
+-- @since 3.3.0
 tlsSettingsChainRef 
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
     -> [I.IORef S.ByteString] -- ^ Reference to chain certificate bytes
