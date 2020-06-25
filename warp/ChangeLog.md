@@ -1,3 +1,7 @@
+## 3.3.13
+
+* pReadMaker is exported from the Internal module.
+
 ## 3.3.12
 
 * Fixing HTTP/2 logging relating to status and push.
