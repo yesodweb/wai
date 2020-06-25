@@ -376,7 +376,7 @@ alpn xs
 ----------------------------------------------------------------
 
 getter :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> params -> IO (IO (Connection, Transport), SockAddr)
-getter tlsset@TLSSettings{..} set sock params = do
+getter tlsset set sock params = do
 #if WINDOWS
     (s, sa) <- windowsThreadBlockHack $ accept sock
 #else
