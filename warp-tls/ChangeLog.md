@@ -1,5 +1,6 @@
 ## 3.3.0
 
+* Breaking changes: certFile and keyFile are not exported anymore.
 * Allow TLS credentials to be retrieved from an IORef.
   [#806](https://github.com/yesodweb/wai/pull/806)
 
