@@ -13,14 +13,20 @@
 --   Support for SSL is now obsoleted.
 
 module Network.Wai.Handler.WarpTLS (
+    -- * Runner
+      runTLS
+    , runTLSSocket
     -- * Settings
-      TLSSettings
+    , TLSSettings
     , defaultTlsSettings
     -- * Smart constructors
+    -- ** From files
     , tlsSettings
-    , tlsSettingsMemory
     , tlsSettingsChain
+    -- ** From memory
+    , tlsSettingsMemory
     , tlsSettingsChainMemory
+    -- ** From references
     , tlsSettingsRef
     , tlsSettingsChainRef
     -- * Accessors
@@ -35,11 +41,12 @@ module Network.Wai.Handler.WarpTLS (
     , tlsSessionManager
     , onInsecure
     , OnInsecure (..)
-    -- * Runner
-    , runTLS
-    , runTLSSocket
     -- * Exception
     , WarpTLSException (..)
+    -- * DH parameters (re-exports)
+    --
+    -- | This custom DH parameters are not necessary anymore because
+    --   pre-defined DH parameters are supported in the TLS package.
     , DH.Params
     , DH.generateParams
     ) where
