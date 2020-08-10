@@ -217,6 +217,19 @@ mkListAction f =
 -- $example1
 -- In this example code, we use a 'Data.Map.Strict.Map' to cache fibonacci numbers, and a 'Reaper' to prune the cache.
 --
+-- NOTE: When using this module as a cache you should keep in mind that while
+-- the reaper thread is active running your "reaperAction", the cache will
+-- appear empty to concurrently running threads.  Any newly created cache
+-- entries will be on the temporary worklist, and will merged back into the the
+-- main cache only once the "reaperAction" completes (together with the portion
+-- of the extant worklist that the @cleaner@ callback decided to retain).
+--
+-- If you're looking for a cache that supports concurrent purging of stale
+-- items, but without exposing a transient empty cache during cleanup, this is
+-- not the cache implementation you need.  This module was primarily designed
+-- for cleaning up /stuck/ processes, or idle threads in a thread pool.  The cache
+-- use-case was not a primary design focus.
+--
 -- The @main@ function first creates a 'Reaper', with fields to initialize the
 -- cache ('reaperEmpty'), add items to it ('reaperCons'), and prune it ('reaperAction').
 -- The reaper will run every two seconds ('reaperDelay'), but will stop running while
