@@ -114,5 +114,9 @@ runCommandLine middleware = do
     where
       helperOption :: Parser (a -> a)
       helperOption =
+#if MIN_VERSION_optparse_applicative(0,16,0)
+        abortOption (ShowHelpText Nothing) $
+#else
         abortOption ShowHelpText $
+#endif
         mconcat [long "help", help "Show this help text", hidden]

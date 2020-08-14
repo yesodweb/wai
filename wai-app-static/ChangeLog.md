@@ -1,5 +1,9 @@
 # wai-app-static changelog
 
+## 3.1.7.2
+
+* optparse-applicative 0.16.0.0 support
+
 ## 3.1.7.1
 
 * Update the test suite too
