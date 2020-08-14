@@ -62,7 +62,6 @@ library
                      WaiAppStatic.Storage.Embedded.Runtime
                      WaiAppStatic.Storage.Embedded.TH
     ghc-options:     -Wall
-    extensions:     CPP
 
     if flag(print)
       cpp-options:  -DPRINT

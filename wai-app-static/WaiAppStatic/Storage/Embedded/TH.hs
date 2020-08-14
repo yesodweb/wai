@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, QuasiQuotes, OverloadedStrings, MagicHash #-}
+{-# LANGUAGE TemplateHaskell, QuasiQuotes, OverloadedStrings, MagicHash, CPP #-}
 module WaiAppStatic.Storage.Embedded.TH(
     Etag
   , EmbeddableEntry(..)
