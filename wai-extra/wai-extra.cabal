@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.0.29.2
+Version:             3.0.30
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
@@ -116,6 +116,8 @@ Library
                    , aeson
                    , iproute
                    , http2
+                   , HUnit
+                   , call-stack
 
   if os(windows)
       cpp-options:   -DWINDOWS
