@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.0.32
+
+* Fix the GHC 7.10 build [#813](https://github.com/yesodweb/wai/pull/813)
+
 ## 3.0.31
 
 * Undo WaiTestFailure change in previous release
