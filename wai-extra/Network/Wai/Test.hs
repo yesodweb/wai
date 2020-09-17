@@ -29,7 +29,6 @@ module Network.Wai.Test
     , assertClientCookieExists
     , assertNoClientCookieExists
     , assertClientCookieValue
-    , WaiTestFailure (..)
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -62,6 +61,8 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.IORef
 import Data.Time.Clock (getCurrentTime)
+import qualified Test.HUnit as HUnit
+import Data.CallStack (HasCallStack)
 
 -- |
 --
@@ -206,20 +207,16 @@ runResponse ref res = do
   where
     (s, h, withBody) = responseToStream res
 
-assertBool :: String -> Bool -> Session ()
+assertBool :: HasCallStack => String -> Bool -> Session ()
 assertBool s b = unless b $ assertFailure s
 
-assertString :: String -> Session ()
+assertString :: HasCallStack => String -> Session ()
 assertString s = unless (null s) $ assertFailure s
 
-assertFailure :: String -> Session ()
-assertFailure msg = msg `deepseq` liftIO (throwIO (WaiTestFailure msg))
+assertFailure :: HasCallStack => String -> Session ()
+assertFailure = liftIO . HUnit.assertFailure
 
-data WaiTestFailure = WaiTestFailure String
-    deriving (Show, Eq, Typeable)
-instance Exception WaiTestFailure
-
-assertContentType :: ByteString -> SResponse -> Session ()
+assertContentType :: HasCallStack => ByteString -> SResponse -> Session ()
 assertContentType ct SResponse{simpleHeaders = h} =
     case lookup "content-type" h of
         Nothing -> assertString $ concat
@@ -236,7 +233,7 @@ assertContentType ct SResponse{simpleHeaders = h} =
   where
     go = S8.takeWhile (/= ';')
 
-assertStatus :: Int -> SResponse -> Session ()
+assertStatus :: HasCallStack => Int -> SResponse -> Session ()
 assertStatus i SResponse{simpleStatus = s} = assertBool (concat
     [ "Expected status code "
     , show i
@@ -246,7 +243,7 @@ assertStatus i SResponse{simpleStatus = s} = assertBool (concat
   where
     sc = H.statusCode s
 
-assertBody :: L.ByteString -> SResponse -> Session ()
+assertBody :: HasCallStack => L.ByteString -> SResponse -> Session ()
 assertBody lbs SResponse{simpleBody = lbs'} = assertBool (concat
     [ "Expected response body "
     , show $ L8.unpack lbs
@@ -254,7 +251,7 @@ assertBody lbs SResponse{simpleBody = lbs'} = assertBool (concat
     , show $ L8.unpack lbs'
     ]) $ lbs == lbs'
 
-assertBodyContains :: L.ByteString -> SResponse -> Session ()
+assertBodyContains :: HasCallStack => L.ByteString -> SResponse -> Session ()
 assertBodyContains lbs SResponse{simpleBody = lbs'} = assertBool (concat
     [ "Expected response body to contain "
     , show $ L8.unpack lbs
@@ -264,7 +261,7 @@ assertBodyContains lbs SResponse{simpleBody = lbs'} = assertBool (concat
   where
     strict = S.concat . L.toChunks
 
-assertHeader :: CI ByteString -> ByteString -> SResponse -> Session ()
+assertHeader :: HasCallStack => CI ByteString -> ByteString -> SResponse -> Session ()
 assertHeader header value SResponse{simpleHeaders = h} =
     case lookup header h of
         Nothing -> assertString $ concat
@@ -283,7 +280,7 @@ assertHeader header value SResponse{simpleHeaders = h} =
             , show value'
             ]) (value == value')
 
-assertNoHeader :: CI ByteString -> SResponse -> Session ()
+assertNoHeader :: HasCallStack => CI ByteString -> SResponse -> Session ()
 assertNoHeader header SResponse{simpleHeaders = h} =
     case lookup header h of
         Nothing -> return ()
@@ -297,7 +294,7 @@ assertNoHeader header SResponse{simpleHeaders = h} =
 -- |
 --
 -- Since 3.0.6
-assertClientCookieExists :: String -> ByteString -> Session ()
+assertClientCookieExists :: HasCallStack => String -> ByteString -> Session ()
 assertClientCookieExists s cookieName = do
   cookies <- getClientCookies
   assertBool s $ Map.member cookieName cookies
@@ -305,7 +302,7 @@ assertClientCookieExists s cookieName = do
 -- |
 --
 -- Since 3.0.6
-assertNoClientCookieExists :: String -> ByteString -> Session ()
+assertNoClientCookieExists :: HasCallStack => String -> ByteString -> Session ()
 assertNoClientCookieExists s cookieName = do
   cookies <- getClientCookies
   assertBool s $ not $ Map.member cookieName cookies
@@ -313,7 +310,7 @@ assertNoClientCookieExists s cookieName = do
 -- |
 --
 -- Since 3.0.6
-assertClientCookieValue :: String -> ByteString -> ByteString -> Session ()
+assertClientCookieValue :: HasCallStack => String -> ByteString -> ByteString -> Session ()
 assertClientCookieValue s cookieName cookieValue = do
   cookies <- getClientCookies
   case Map.lookup cookieName cookies of
