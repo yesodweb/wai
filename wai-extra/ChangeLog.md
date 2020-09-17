@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.0
+
+* `Network.Wai.Test`: Add support for source locations to assertion primitives [#817](https://github.com/yesodweb/wai/pull/817)
+
 ## 3.0.32
 
 * Undo previous two release, restore code from 3.0.29.2
@@ -10,7 +14,7 @@
 
 ## 3.0.30
 
-* `Network.Wai.Test`: Add support source locations to assertion primitives [#812](https://github.com/yesodweb/wai/pull/812)
+* `Network.Wai.Test`: Add support for source locations to assertion primitives [#812](https://github.com/yesodweb/wai/pull/812)
 
 ## 3.0.29.2
 

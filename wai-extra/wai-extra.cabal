@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.0.32
+Version:             3.1.0
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
@@ -87,7 +87,7 @@ flag build-example
   default:            False
 
 Library
-  Build-Depends:     base                      >= 4.8 && < 5
+  Build-Depends:     base                      >= 4.10 && < 5
                    , bytestring                >= 0.10.4
                    , wai                       >= 3.0.3.0  && < 3.3
                    , old-locale                >= 1.0.0.2  && < 1.1
@@ -116,6 +116,8 @@ Library
                    , aeson
                    , iproute
                    , http2
+                   , HUnit
+                   , call-stack
 
   if os(windows)
       cpp-options:   -DWINDOWS
