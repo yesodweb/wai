@@ -3,6 +3,9 @@
 ## 3.0.32
 
 * Fix the GHC 7.10 build [#813](https://github.com/yesodweb/wai/pull/813)
+* `Network.Wai.Test`: Turn `WaiTestFailure` into a pattern synonym for
+  `HUnitFailure` and re-enable support for source locations
+  [#814](https://github.com/yesodweb/wai/pull/814)
 
 ## 3.0.31
 

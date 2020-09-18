@@ -2,6 +2,7 @@
 module Network.Wai.TestSpec (main, spec) where
 
 import           Control.Monad (void)
+import           Control.Exception
 
 import qualified Data.IORef as IORef
 
@@ -11,6 +12,7 @@ import           Data.Time.Calendar (fromGregorian)
 import           Data.Time.Clock (UTCTime(..))
 
 import           Test.Hspec
+import           Test.HUnit.Lang (HUnitFailure)
 
 import           Network.Wai
 import           Network.Wai.Test
@@ -28,6 +30,9 @@ main = hspec spec
 
 toByteString :: Builder -> ByteString
 toByteString = L8.toStrict . toLazyByteString
+
+instanceOf :: a -> a -> Bool
+instanceOf _ _ = True
 
 spec :: Spec
 spec = do
@@ -223,5 +228,15 @@ spec = do
                    setPath defaultRequest "/get"
       simpleBody sresp `shouldBe` "[]"
 
+  describe "WaiTestFailure" $ do
+    context "when used as a pattern" $ do
+      it "matches HUnitFailure" $ do
+        Left (WaiTestFailure err) <- try $ 23 `shouldBe` (42 :: Int)
+        err `shouldBe` "expected: 42\n but got: 23"
 
+    context "when used as an expression" $ do
+      it "it types as HUnitFailure" $ do
+        throwIO (WaiTestFailure "foo") `shouldThrow` instanceOf (undefined :: HUnitFailure)
 
+      it "it types as WaiTestFailure" $ do
+        throwIO (WaiTestFailure "foo") `shouldThrow` instanceOf (undefined :: WaiTestFailure)

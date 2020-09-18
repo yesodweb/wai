@@ -2,6 +2,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 module Network.Wai.Test
     ( -- * Session
       Session
@@ -30,7 +32,8 @@ module Network.Wai.Test
     , assertClientCookieExists
     , assertNoClientCookieExists
     , assertClientCookieValue
-    , WaiTestFailure (..)
+    , WaiTestFailure
+    , pattern WaiTestFailure
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -46,9 +49,6 @@ import Control.Monad.Trans.Class (lift)
 import qualified Control.Monad.Trans.State as ST
 import Control.Monad.Trans.Reader (runReaderT, ask)
 import Control.Monad (unless)
-import Control.DeepSeq (deepseq)
-import Control.Exception (throwIO, Exception)
-import Data.Typeable (Typeable)
 import qualified Data.Map as Map
 import qualified Web.Cookie as Cookie
 import Data.ByteString (ByteString)
@@ -63,6 +63,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.IORef
 import Data.Time.Clock (getCurrentTime)
+import qualified Test.HUnit.Lang as HUnit
 import Data.CallStack (HasCallStack)
 
 -- |
@@ -215,11 +216,14 @@ assertString :: HasCallStack => String -> Session ()
 assertString s = unless (null s) $ assertFailure s
 
 assertFailure :: HasCallStack => String -> Session ()
-assertFailure msg = msg `deepseq` liftIO (throwIO (WaiTestFailure msg))
+assertFailure = liftIO . HUnit.assertFailure
 
-data WaiTestFailure = WaiTestFailure String
-    deriving (Show, Eq, Typeable)
-instance Exception WaiTestFailure
+{-# DEPRECATED WaiTestFailure "Use `HUnit.HUnitFailure` instead." #-}
+type WaiTestFailure = HUnit.HUnitFailure
+
+pattern WaiTestFailure :: String -> HUnit.HUnitFailure
+pattern WaiTestFailure err <- HUnit.HUnitFailure _ (HUnit.formatFailureReason -> err) where
+  WaiTestFailure err = HUnit.HUnitFailure Nothing (HUnit.Reason err)
 
 assertContentType :: HasCallStack => ByteString -> SResponse -> Session ()
 assertContentType ct SResponse{simpleHeaders = h} =

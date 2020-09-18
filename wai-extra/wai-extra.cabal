@@ -107,7 +107,6 @@ Library
                    , containers
                    , base64-bytestring
                    , word8
-                   , deepseq
                    , streaming-commons         >= 0.2
                    , unix-compat
                    , cookie
@@ -116,6 +115,7 @@ Library
                    , aeson
                    , iproute
                    , http2
+                   , HUnit
                    , call-stack
 
   if os(windows)
