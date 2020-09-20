@@ -29,7 +29,6 @@ module Network.Wai.Test
     , assertClientCookieExists
     , assertNoClientCookieExists
     , assertClientCookieValue
-    , WaiTestFailure (..)
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -62,6 +61,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.IORef
 import Data.Time.Clock (getCurrentTime)
+import qualified Test.HUnit as HUnit
 import Data.CallStack (HasCallStack)
 
 -- |
@@ -214,11 +214,7 @@ assertString :: HasCallStack => String -> Session ()
 assertString s = unless (null s) $ assertFailure s
 
 assertFailure :: HasCallStack => String -> Session ()
-assertFailure msg = msg `deepseq` liftIO (throwIO (WaiTestFailure msg))
-
-data WaiTestFailure = WaiTestFailure String
-    deriving (Show, Eq, Typeable)
-instance Exception WaiTestFailure
+assertFailure = liftIO . HUnit.assertFailure
 
 assertContentType :: HasCallStack => ByteString -> SResponse -> Session ()
 assertContentType ct SResponse{simpleHeaders = h} =
