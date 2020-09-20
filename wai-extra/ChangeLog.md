@@ -1,9 +1,5 @@
 # Changelog for wai-extra
 
-## 3.0.30
-
-* `Network.Wai.Test`: Add support source locations to assertion primitives [#812](https://github.com/yesodweb/wai/pull/812)
-
 ## 3.0.29.2
 
 * flush SSE headers early [#804](https://github.com/yesodweb/wai/pull/804)
