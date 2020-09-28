@@ -2,9 +2,9 @@
 
 ## 3.2.3
 
-* Add documentation recommending streaming request bodies
+* Add documentation recommending streaming request bodies. [#818](https://github.com/yesodweb/wai/pull/818)
 * Add two functions, `consumeRequestBodyStrict` and `consumeRequestBodyLazy`,
-  that are synonyms for `strictRequestBody` and `lazyRequestBody`.
+  that are synonyms for `strictRequestBody` and `lazyRequestBody`. [#818](https://github.com/yesodweb/wai/pull/818)
 
 ## 3.2.2.1
 
