@@ -1,5 +1,11 @@
 # ChangeLog for wai
 
+## 3.2.3
+
+* Add documentation recommending streaming request bodies
+* Add two functions, `consumeRequestBodyStrict` and `consumeRequestBodyLazy`,
+  that are synonyms for `strictRequestBody` and `lazyRequestBody`.
+
 ## 3.2.2.1
 
 * Fix missing reexport of `getRequestBodyChunk` [#753](https://github.com/yesodweb/wai/issues/753)

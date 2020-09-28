@@ -61,8 +61,11 @@ module Network.Wai
     , requestHeaderRange
     , requestHeaderReferer
     , requestHeaderUserAgent
+    -- $streamingRequestBodies
     , strictRequestBody
+    , consumeRequestBodyStrict
     , lazyRequestBody
+    , consumeRequestBodyLazy
       -- * Response
     , Response
     , StreamingBody
@@ -315,10 +318,60 @@ ifRequest :: (Request -> Bool) -> Middleware -> Middleware
 ifRequest rpred middle app req | rpred req = middle app req
                                | otherwise =        app req
 
-
+-- $streamingRequestBodies
+--
+-- == Streaming Request Bodies
+--
+-- WAI is designed for streaming in request bodies, which allows you to process them incrementally.
+-- You can stream in the request body using functions like 'getRequestBodyChunk',
+-- the @wai-conduit@ package, or Yesod's @rawRequestBody@.
+--
+-- In the normal case, incremental processing is more efficient, since it
+-- reduces maximum total memory usage.
+-- In the worst case, it helps protect your server against denial-of-service (DOS) attacks, in which
+-- an attacker sends huge request bodies to your server.
+--
+-- Consider these tips to avoid reading the entire request body into memory:
+--
+-- * Look for library functions that support incremental processing. Sometimes these will use streaming
+-- libraries like @conduit@, @pipes@, or @streaming@.
+-- * Any attoparsec parser supports streaming input. For an example of this, see the
+-- "Data.Conduit.Attoparsec" module in @conduit-extra@.
+-- * Consider streaming directly to a file on disk. For an example of this, see the
+-- "Data.Conduit.Binary" module in @conduit-extra@.
+-- * If you need to direct the request body to multiple destinations, you can stream to both those
+-- destinations at the same time.
+-- For example, if you wanted to run an HMAC on the request body as well as parse it into JSON,
+-- you could use Conduit's @zipSinks@ to send the data to @cryptonite-conduit@'s 'sinkHMAC' and
+-- @aeson@'s Attoparsec parser.
+-- * If possible, avoid processing large data on your server at all.
+-- For example, instead of uploading a file to your server and then to AWS S3,
+-- you can have the browser upload directly to S3.
+--
+-- That said, sometimes it is convenient, or even necessary to read the whole request body into memory.
+-- For these purposes, functions like 'strictRequestBody' or 'lazyRequestBody' can be used.
+-- When this is the case, consider these strategies to mitigating potential DOS attacks:
+--
+-- * Set a limit on the request body size you allow.
+-- If certain endpoints need larger bodies, whitelist just those endpoints for the large size.
+-- Be especially cautious about endpoints that don't require authentication, since these are easier to DOS.
+-- * Consider rate limiting not just on total requests, but also on total bytes sent in.
+-- * Consider using services that allow you to identify and blacklist attackers.
+-- * Minimize the amount of time the request body stays in memory.
+-- * If you need to share request bodies across middleware and your application, you can do so using Wai's 'vault'.
+-- If you do this, remove the request body from the vault as soon as possible.
+--
+-- Warning: Incremental processing will not always be sufficient to prevent a DOS attack.
+-- For example, if an attacker sends you a JSON body with a 2MB long string inside,
+-- even if you process the body incrementally, you'll still end up with a 2MB-sized 'Text'.
+--
+-- To mitigate this, employ some of the countermeasures listed above,
+-- and try to reject such payloads as early as possible in your codebase.
 
 -- | Get the request body as a lazy ByteString. However, do /not/ use any lazy
 -- I\/O, instead reading the entire body into memory strictly.
+--
+-- Note: Since this function consumes the request body, future calls to it will return the empty string.
 --
 -- Since 3.0.1
 strictRequestBody :: Request -> IO L.ByteString
@@ -331,8 +384,17 @@ strictRequestBody req =
             then return $ front LI.Empty
             else loop (front . LI.Chunk bs)
 
+-- | Synonym for 'strictRequestBody'.
+-- This function name is meant to signal the non-idempotent nature of 'strictRequestBody'.
+--
+-- @since 3.2.3
+consumeRequestBodyStrict :: Request -> IO L.ByteString
+consumeRequestBodyStrict = strictRequestBody
+
 -- | Get the request body as a lazy ByteString. This uses lazy I\/O under the
 -- surface, and therefore all typical warnings regarding lazy I/O apply.
+--
+-- Note: Since this function consumes the request body, future calls to it will return the empty string.
 --
 -- Since 1.4.1
 lazyRequestBody :: Request -> IO L.ByteString
@@ -346,3 +408,10 @@ lazyRequestBody req =
             else do
                 bss <- loop
                 return $ LI.Chunk bs bss
+
+-- | Synonym for 'lazyRequestBody'.
+-- This function name is meant to signal the non-idempotent nature of 'lazyRequestBody'.
+--
+-- @since 3.2.3
+consumeRequestBodyLazy :: Request -> IO L.ByteString
+consumeRequestBodyLazy = lazyRequestBody
