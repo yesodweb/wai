@@ -23,6 +23,7 @@ module Network.Wai.Application.Static
     , ssRedirectToIndex
     , ssAddTrailingSlash
     , ss404Handler
+    , ssUnhandledRequestHandler
     ) where
 
 import Prelude hiding (FilePath)
@@ -228,11 +229,11 @@ staticApp :: StaticSettings -> W.Application
 staticApp set req = staticAppPieces set (W.pathInfo req) req
 
 staticAppPieces :: StaticSettings -> [Text] -> W.Application
-staticAppPieces _ _ req sendResponse
-    | notElem (W.requestMethod req) ["GET", "HEAD"] = sendResponse $ W.responseLBS
-        H.status405
-        [("Content-Type", "text/plain")]
-        "Only GET or HEAD is supported"
+staticAppPieces ss _ req sendResponse
+    | notElem (W.requestMethod req) ["GET", "HEAD"] =
+        case (ssUnhandledRequestHandler ss) of
+          Nothing -> sendResponse $ W.responseLBS H.status405 [("Content-Type", "text/plain")] "Only GET or HEAD is supported"
+          Just app -> app req sendResponse
 staticAppPieces _ [".hidden", "folder.png"] _ sendResponse = sendResponse $ W.responseLBS H.status200 [("Content-Type", "image/png")] $ L.fromChunks [$(embedFile "images/folder.png")]
 staticAppPieces _ [".hidden", "haskell.png"] _ sendResponse = sendResponse $ W.responseLBS H.status200 [("Content-Type", "image/png")] $ L.fromChunks [$(embedFile "images/haskell.png")]
 staticAppPieces ss rawPieces req sendResponse = liftIO $ do

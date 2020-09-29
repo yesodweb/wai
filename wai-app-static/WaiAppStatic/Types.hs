@@ -150,4 +150,14 @@ data StaticSettings = StaticSettings
       --
       -- Since 3.1.3
     , ss404Handler :: Maybe W.Application
+
+      -- | Optional `W.Application` to be used in case of requests that cannot
+      -- be handled by wai-app-static, for example, @POST@, @PUT@, @DELETE@,
+      -- etc. requests. In absence of this configuration, wai-app-static will
+      -- respond wit a @405 Method Not Allowed@ error.
+      --
+      -- __IMPORTANT:__ Be careful of how this interacts with 'ss404Handler'
+      --
+      -- @since 3.1.8.0
+    , ssUnhandledRequestHandler :: Maybe W.Application
     }
