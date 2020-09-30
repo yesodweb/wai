@@ -355,6 +355,7 @@ ifRequest rpred middle app req | rpred req = middle app req
 -- * Set a limit on the request body size you allow.
 -- If certain endpoints need larger bodies, whitelist just those endpoints for the large size.
 -- Be especially cautious about endpoints that don't require authentication, since these are easier to DOS.
+-- You can accomplish this with @wai-extra@'s @requestSizeLimitMiddleware@ or Yesod's @maximumContentLength@.
 -- * Consider rate limiting not just on total requests, but also on total bytes sent in.
 -- * Consider using services that allow you to identify and blacklist attackers.
 -- * Minimize the amount of time the request body stays in memory.

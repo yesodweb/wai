@@ -2,46 +2,27 @@ module Network.Wai.Middleware.RequestSizeLimit (requestSizeLimit) where
 
 import Network.Wai
 import Network.Wai.Request
-import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as BSL
-import           Data.Word                    (Word64)
-import           Data.IORef              (newIORef, readIORef, writeIORef)
+import Data.Word (Word64)
 import Network.HTTP.Types.Status (requestEntityTooLarge413)
 import qualified Data.ByteString.Lazy.Char8 as LS8
-import Control.Exception
+import Control.Exception (try, catch)
 
--- Should this inherit from some general WaiException?
-newtype TooLargeRequestException = TooLargeRequestException Response
+-- | Middleware to limit request bodies to a certain size. This uses 'requestSizeCheck' under the hood; see that function for details.
+--
+-- @since 3.1.1
+requestSizeLimitMiddleware :: Word64 -> Middleware
+requestSizeLimitMiddleware maxLen app req sendResponse = do
+    let sendTooLargeResponse = sendResponse (tooLargeResponse maxLen (requestBodyLength req))
 
-instance Show TooLargeRequestException where
-    show (TooLargeRequestException r) = "TooLargeRequestException: The request exceeded the total available limit. This exception is automatically caught by WAI to provide a proper response"
-instance Exception TooLargeRequestException
+    eitherSizeExceptionOrNewReq <- try (requestSizeCheck maxLen req)
+    case eitherSizeExceptionOrNewReq of
+        -- In the case of a known-length request, RequestSizeException will be thrown immediately
+        Left (RequestSizeException _maxLen) -> sendTooLargeResponse
+        -- In the case of a chunked request (unknown length), RequestSizeException will be thrown during the processing of a body
+        Right newReq -> app newReq sendResponse `catch` \(RequestSizeException _maxLen) -> sendTooLargeResponse
 
-requestSizeLimit :: Word64 -> Middleware
-requestSizeLimit maxLen app req sendResponse = do
-  putStrLn "In request size limit"
-  case requestBodyLength req of
-    KnownLength actualLen -> if actualLen > maxLen then
-      sendResponse (tooLargeResponse maxLen actualLen)
-      else app req sendResponse
-    ChunkedBody -> do
-        ref <- newIORef maxLen
-        let newReq = req
-                { requestBody = do
-                    bs <- getRequestBodyChunk req
-                    remaining <- readIORef ref
-                    let len = fromIntegral $ S8.length bs
-                        remaining' = remaining - len
-                    if remaining < len
-                        then do
-                            throwIO (TooLargeRequestException $ tooLargeResponse maxLen len)
-                        else do
-                            writeIORef ref remaining'
-                            return bs
-                }
-        app newReq sendResponse `catch` \(TooLargeRequestException resp) -> sendResponse resp
-
-tooLargeResponse :: Word64 -> Word64 -> Response
+tooLargeResponse :: Word64 -> RequestBodyLength -> Response
 tooLargeResponse maxLen bodyLen = responseLBS
     requestEntityTooLarge413
     [("Content-Type", "text/plain")]
@@ -49,25 +30,8 @@ tooLargeResponse maxLen bodyLen = responseLBS
         [ "Request body too large to be processed. The maximum size is "
         , (LS8.pack (show maxLen))
         , " bytes; your request body was "
-        , (LS8.pack (show bodyLen))
-        , " bytes. If you're the developer of this site, you can configure the maximum length with the `requestSizeLimit` middleware."
+        , case bodyLen of
+            KnownLength bodyLen -> (LS8.pack (show bodyLen)) <> " bytes."
+            ChunkedBody -> "split into chunks, whose total size is unknown, but exceeded the limit."
+        , " . If you're the developer of this site, you can configure the maximum length with the `requestSizeLimit` middleware."
         ])
-
--- Yesod implementation below
-
--- -- | Impose a limit on the size of the request body.
--- limitRequestBody :: Word64 -> W.Request -> IO W.Request
--- limitRequestBody maxLen req = do
---     ref <- newIORef maxLen
---     return req
---         { W.requestBody = do
---             bs <- W.requestBody req
---             remaining <- readIORef ref
---             let len = fromIntegral $ S8.length bs
---                 remaining' = remaining - len
---             if remaining < len
---                 then throwIO $ HCWai $ tooLargeResponse maxLen len
---                 else do
---                     writeIORef ref remaining'
---                     return bs
---         }

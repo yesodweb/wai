@@ -9,91 +9,72 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
-import Data.Text (Text)
-import qualified Data.Text as T
 import Network.Wai.Middleware.RequestSizeLimit
-import Network.HTTP.Types.Status (status200, requestEntityTooLarge413)
+import Network.HTTP.Types.Status (status200, status413, Status)
+import Control.Monad (replicateM)
 
 main :: IO ()
 main = hspec spec
 
 spec :: Spec
 spec = describe "RequestSizeLimitMiddleware" $ do
+  runStrictBodyTests "returns 413 for request bodies > 10 bytes, when streaming the whole body" "1234567890a" status413
+  runStrictBodyTests "returns 200 for request bodies <= 10 bytes, when streaming the whole body" "1234567890" status200
 
-    it "rejects too large of requests" $ do
-        let req = mkRequest "12lk;dfjdskljfaskl;jfsdkl;fjasklfjddk" True
-        resp <- runApp (requestSizeLimit 10) req
+  describe "streaming chunked bodies" $ do
+    let streamingReq = defaultRequest
+                    { isSecure = False
+                    , requestBodyLength = ChunkedBody
+                    , requestBody = return "a"
+                    }
+    it "413s if the combined chunk size is > the size limit" $ do
+      resp <- runStreamingChunkApp 11 (requestSizeLimitMiddleware 10) streamingReq
+      simpleStatus resp `shouldBe` status413
+    it "200s if the combined chunk size is <= the size limit" $ do
+      resp <- runStreamingChunkApp 10 (requestSizeLimitMiddleware 10) streamingReq
+      simpleStatus resp `shouldBe` status200
 
-        simpleStatus resp `shouldBe` requestEntityTooLarge413
-    it "rejects too large of requests chunked" $ do
-        let req = mkRequest "12lk;dfjdskljfaskl;jfsdkl;fjasklfjddk" False
-        resp <- runApp (requestSizeLimit 10) req
+data LengthType = UseKnownLength | UseChunked
+  deriving (Show, Eq)  
 
-        simpleStatus resp `shouldBe` requestEntityTooLarge413
+runStrictBodyTests :: String -> ByteString -> Status -> Spec
+runStrictBodyTests name requestBody expectedStatus = describe name $ do
+  it "chunked" $ do
+    let req = mkRequestWithBytestring requestBody UseChunked
+    resp <- runStrictBodyApp (requestSizeLimitMiddleware 10) req
 
-    where
-  
-runTest :: String -> ByteString    
+    simpleStatus resp `shouldBe` expectedStatus
+  it "non-chunked" $ do
+    let req = mkRequestWithBytestring requestBody UseKnownLength
+    resp <- runStrictBodyApp (requestSizeLimitMiddleware 10) req
 
-mkRequest body includeLength = SRequest defaultRequest
-  { requestHeaders =
-      if includeLength
-          then [("content-length", S8.pack $ show $ S.length body)]
-          else []
-  , requestMethod = "POST"
-  , requestBodyLength =
-      if includeLength
-          then KnownLength $ fromIntegral $ S.length body
-          else ChunkedBody
-  } $ L.fromChunks $ map S.singleton $ S.unpack body
+    simpleStatus resp `shouldBe` expectedStatus
+  where
+    mkRequestWithBytestring :: ByteString -> LengthType -> SRequest
+    mkRequestWithBytestring body lengthType = SRequest defaultRequest
+      { requestHeaders =
+          if lengthType == UseKnownLength
+              then [("content-length", S8.pack $ show $ S.length body)]
+              else []
+      , requestMethod = "POST"
+      , requestBodyLength =
+          if lengthType == UseKnownLength
+              then KnownLength $ fromIntegral $ S.length body
+              else ChunkedBody
+      } $ L.fromChunks $ map S.singleton $ S.unpack body
 
-runApp :: Middleware -> SRequest -> IO SResponse
-runApp mw req = runSession
+runStrictBodyApp :: Middleware -> SRequest -> IO SResponse
+runStrictBodyApp mw req = runSession
     (srequest req) $ mw app
   where
     app req respond = do
       _body <- strictRequestBody req
-      putStrLn "Got body"
       respond $ responseLBS status200 [] ""
 
-
-
--- caseHelper :: String -- ^ name
---            -> Text -- ^ pathinfo
---            -> ByteString -- ^ request body
---            -> Int -- ^ expected status code, chunked
---            -> Int -- ^ expected status code, non-chunked
---            -> Spec
--- caseHelper name path body statusChunked statusNonChunked = describe name $ do
---     it "chunked" $ runner $ do
---         res <- mkRequest False
---         assertStatus statusChunked res
---     it "non-chunked" $ runner $ do
---         res <- mkRequest True
---         assertStatus statusNonChunked res
---   where
-    -- mkRequest includeLength = srequest $ SRequest defaultRequest
-    --     { pathInfo = [path]
-    --     , requestHeaders =
-    --         ("content-type", "application/x-www-form-urlencoded") :
-
-    --         if includeLength
-    --             then [("content-length", S8.pack $ show $ S.length body)]
-    --             else []
-    --     , requestMethod = "POST"
-    --     , requestBodyLength =
-    --         if includeLength
-    --             then KnownLength $ fromIntegral $ S.length body
-    --             else ChunkedBody
-    --     } $ L.fromChunks $ map S.singleton $ S.unpack body
-
--- specs :: Spec
--- specs = describe "Test.RequestBodySize" $ do
---     caseHelper "lookupPostParam- large" "post" "foobarbaz=bin" 413 413
---     caseHelper "lookupPostParam- small" "post" "foo=bin" 200 200
---     caseHelper "total consume- large" "consume" "this is longer than 10" 413 413
---     caseHelper "total consume- small" "consume" "smaller" 200 200
---     caseHelper "partial consume- large" "partial-consume" "this is longer than 10" 200 413
---     caseHelper "partial consume- small" "partial-consume" "smaller" 200 200
---     caseHelper "unused- large" "unused" "this is longer than 10" 200 413
---     caseHelper "unused- small" "unused" "smaller" 200 200
+runStreamingChunkApp :: Int -> Middleware -> Request -> IO SResponse
+runStreamingChunkApp times mw req = runSession
+    (request req) $ mw app
+  where
+    app req respond = do
+      _chunks <- replicateM times (getRequestBodyChunk req)
+      respond $ responseLBS status200 [] ""
