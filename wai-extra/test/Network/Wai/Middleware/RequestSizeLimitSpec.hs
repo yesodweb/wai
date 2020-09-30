@@ -32,18 +32,20 @@ spec = describe "RequestSizeLimitMiddleware" $ do
         simpleStatus resp `shouldBe` requestEntityTooLarge413
 
     where
-      mkRequest body includeLength = SRequest defaultRequest
-        { requestHeaders =
-            if includeLength
-                then [("content-length", S8.pack $ show $ S.length body)]
-                else []
-        , requestMethod = "POST"
-        , requestBodyLength =
-            if includeLength
-                then KnownLength $ fromIntegral $ S.length body
-                else ChunkedBody
-        } $ L.fromChunks $ map S.singleton $ S.unpack body
+  
+runTest :: String -> ByteString    
 
+mkRequest body includeLength = SRequest defaultRequest
+  { requestHeaders =
+      if includeLength
+          then [("content-length", S8.pack $ show $ S.length body)]
+          else []
+  , requestMethod = "POST"
+  , requestBodyLength =
+      if includeLength
+          then KnownLength $ fromIntegral $ S.length body
+          else ChunkedBody
+  } $ L.fromChunks $ map S.singleton $ S.unpack body
 
 runApp :: Middleware -> SRequest -> IO SResponse
 runApp mw req = runSession

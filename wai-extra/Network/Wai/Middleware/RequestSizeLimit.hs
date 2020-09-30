@@ -8,6 +8,14 @@ import           Data.Word                    (Word64)
 import           Data.IORef              (newIORef, readIORef, writeIORef)
 import Network.HTTP.Types.Status (requestEntityTooLarge413)
 import qualified Data.ByteString.Lazy.Char8 as LS8
+import Control.Exception
+
+-- Should this inherit from some general WaiException?
+newtype TooLargeRequestException = TooLargeRequestException Response
+
+instance Show TooLargeRequestException where
+    show (TooLargeRequestException r) = "TooLargeRequestException: The request exceeded the total available limit. This exception is automatically caught by WAI to provide a proper response"
+instance Exception TooLargeRequestException
 
 requestSizeLimit :: Word64 -> Middleware
 requestSizeLimit maxLen app req sendResponse = do
@@ -26,16 +34,12 @@ requestSizeLimit maxLen app req sendResponse = do
                         remaining' = remaining - len
                     if remaining < len
                         then do
-                            putStrLn "Too large; sending too large response here"
-                            -- This won't work, because execution continues after sendResponse
-                            sendResponse $ tooLargeResponse maxLen len
-                            putStrLn "Too large; just sent too large response here"
-                            pure ""
+                            throwIO (TooLargeRequestException $ tooLargeResponse maxLen len)
                         else do
                             writeIORef ref remaining'
                             return bs
                 }
-        app newReq sendResponse
+        app newReq sendResponse `catch` \(TooLargeRequestException resp) -> sendResponse resp
 
 tooLargeResponse :: Word64 -> Word64 -> Response
 tooLargeResponse maxLen bodyLen = responseLBS
@@ -46,7 +50,7 @@ tooLargeResponse maxLen bodyLen = responseLBS
         , (LS8.pack (show maxLen))
         , " bytes; your request body was "
         , (LS8.pack (show bodyLen))
-        , " bytes. If you're the developer of this site, you can configure the maximum length with the `maximumContentLength` or `maximumContentLengthIO` function on the Yesod typeclass."
+        , " bytes. If you're the developer of this site, you can configure the maximum length with the `requestSizeLimit` middleware."
         ])
 
 -- Yesod implementation below
