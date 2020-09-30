@@ -8,7 +8,10 @@ import Network.HTTP.Types.Status (requestEntityTooLarge413)
 import qualified Data.ByteString.Lazy.Char8 as LS8
 import Control.Exception (try, catch)
 
--- | Middleware to limit request bodies to a certain size. This uses 'requestSizeCheck' under the hood; see that function for details.
+-- | Middleware to limit request bodies to a certain size. 
+-- If the body is too large, this middleware returns HTTP 413, with a plain text body describing the error.
+--
+-- This uses 'requestSizeCheck' under the hood; see that function for details.
 --
 -- @since 3.1.1
 requestSizeLimitMiddleware :: Word64 -> Middleware
