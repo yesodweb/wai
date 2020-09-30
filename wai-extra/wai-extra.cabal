@@ -157,6 +157,7 @@ Library
                      Network.Wai.Test.Internal
                      Network.Wai.EventSource
                      Network.Wai.EventSource.EventStream
+                     Network.Wai.Middleware.RequestSizeLimit
   other-modules:     Network.Wai.Middleware.RequestLogger.Internal
   default-language:          Haskell2010
   ghc-options:       -Wall
