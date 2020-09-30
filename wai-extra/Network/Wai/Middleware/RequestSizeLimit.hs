@@ -1,4 +1,4 @@
-module Network.Wai.Middleware.RequestSizeLimit (requestSizeLimit) where
+module Network.Wai.Middleware.RequestSizeLimit (requestSizeLimitMiddleware) where
 
 import Network.Wai
 import Network.Wai.Request
@@ -33,5 +33,5 @@ tooLargeResponse maxLen bodyLen = responseLBS
         , case bodyLen of
             KnownLength bodyLen -> (LS8.pack (show bodyLen)) <> " bytes."
             ChunkedBody -> "split into chunks, whose total size is unknown, but exceeded the limit."
-        , " . If you're the developer of this site, you can configure the maximum length with the `requestSizeLimit` middleware."
+        , " . If you're the developer of this site, you can configure the maximum length with `requestSizeLimitMiddleware`."
         ])
