@@ -158,7 +158,9 @@ Library
                      Network.Wai.EventSource
                      Network.Wai.EventSource.EventStream
                      Network.Wai.Middleware.RequestSizeLimit
+                     Network.Wai.Middleware.RequestSizeLimit.Internal
   other-modules:     Network.Wai.Middleware.RequestLogger.Internal
+
   default-language:          Haskell2010
   ghc-options:       -Wall
 
@@ -207,6 +209,7 @@ test-suite spec
                    , time
                    , case-insensitive
                    , http2
+                   , aeson
     ghc-options:     -Wall
     default-language:          Haskell2010
 
