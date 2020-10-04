@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 module Network.Wai.Middleware.RequestSizeLimit 
     ( requestSizeLimitMiddleware
     -- * Constructing 'RequestSizeLimitSettings'
