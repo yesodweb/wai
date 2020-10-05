@@ -10,8 +10,8 @@ module Network.Wai.Middleware.RequestSizeLimit
     , defaultRequestSizeLimitSettings
     -- * 'RequestSizeLimitSettings' and accessors
     , RequestSizeLimitSettings
-    , maxLengthForRequest
-    , onLengthExceeded
+    , setMaxLengthForRequest
+    , setOnLengthExceeded
     ) where
 
 import Network.Wai
@@ -22,7 +22,7 @@ import Network.HTTP.Types.Status (requestEntityTooLarge413)
 import qualified Data.ByteString.Lazy.Char8 as LS8
 import Control.Exception (try, catch)
 import Data.Monoid ((<>))
-import Network.Wai.Middleware.RequestSizeLimit.Internal (RequestSizeLimitSettings(..))
+import Network.Wai.Middleware.RequestSizeLimit.Internal (RequestSizeLimitSettings(..), setMaxLengthForRequest, setOnLengthExceeded)
 
 -- | Create a 'RequestSizeLimitSettings' with these settings:
 --

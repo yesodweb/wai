@@ -34,9 +34,10 @@ spec = describe "RequestSizeLimitMiddleware" $ do
       let req = SRequest defaultRequest
             { pathInfo = ["upload", "image"]
             } "1234567890a"
-          settings = defaultRequestSizeLimitSettings 
-            { maxLengthForRequest = \req -> if pathInfo req == ["upload", "image"] then pure $ Just 20 else pure $ Just 10
-            }
+          settings =
+            setMaxLengthForRequest 
+              (\req -> if pathInfo req == ["upload", "image"] then pure $ Just 20 else pure $ Just 10)
+              defaultRequestSizeLimitSettings
       resp <- runStrictBodyApp settings req
       isStatus200 resp
 
@@ -54,10 +55,14 @@ spec = describe "RequestSizeLimitMiddleware" $ do
       simpleStatus resp `shouldBe` status200
 
   where
-    tenByteLimitSettings = defaultRequestSizeLimitSettings { maxLengthForRequest = \_req -> pure $ Just 10 }
-    tenByteLimitJSONSettings = tenByteLimitSettings 
-      { onLengthExceeded = \_maxLen _app _req sendResponse -> sendResponse $ responseLBS status413 [("Content-Type", "application/json")] (encode $ object ["error" .= ("request size too large" :: Text)])
-      }
+    tenByteLimitSettings = 
+      setMaxLengthForRequest
+        (\_req -> pure $ Just 10)
+        defaultRequestSizeLimitSettings
+    tenByteLimitJSONSettings = 
+      setOnLengthExceeded
+        (\_maxLen _app _req sendResponse -> sendResponse $ responseLBS status413 [("Content-Type", "application/json")] (encode $ object ["error" .= ("request size too large" :: Text)]))
+        tenByteLimitSettings
 
     isStatus413 = \sResp -> simpleStatus sResp `shouldBe` status413
     isStatus200 = \sResp -> simpleStatus sResp `shouldBe` status200
