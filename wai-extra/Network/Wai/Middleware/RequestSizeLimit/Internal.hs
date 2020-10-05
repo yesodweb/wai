@@ -50,7 +50,7 @@ data RequestSizeLimitSettings = RequestSizeLimitSettings
 setMaxLengthForRequest :: (Request -> IO (Maybe Word64)) -> RequestSizeLimitSettings -> RequestSizeLimitSettings
 setMaxLengthForRequest fn settings = settings { maxLengthForRequest = fn }
 
--- | Callback function when maximum length is exceeded. The 'Word64' argument is the limit computed by 'maxLengthForRequest'.
+-- | Callback function when maximum length is exceeded. The 'Word64' argument is the limit computed by 'setMaxLengthForRequest'.
 --
 -- @since 3.1.1
 setOnLengthExceeded :: (Word64 -> Middleware) -> RequestSizeLimitSettings -> RequestSizeLimitSettings
