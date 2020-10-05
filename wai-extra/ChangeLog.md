@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.1
+
+* 'Network.Wai.Middleware.RequestSizeLimit': Add a new middleware to reject request bodies above a certain size. [#818](https://github.com/yesodweb/wai/pull/818/files)
+
 ## 3.1.0
 
 * `Network.Wai.Test`: Add support for source locations to assertion primitives [#817](https://github.com/yesodweb/wai/pull/817)
