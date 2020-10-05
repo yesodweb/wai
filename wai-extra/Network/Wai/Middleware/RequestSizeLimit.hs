@@ -3,7 +3,9 @@
 -- Limiting incoming request body size helps protect your server against denial-of-service (DOS) attacks, 
 -- in which an attacker sends huge bodies to your server.
 module Network.Wai.Middleware.RequestSizeLimit 
-    ( requestSizeLimitMiddleware
+    ( 
+    -- * Middleware
+      requestSizeLimitMiddleware
     -- * Constructing 'RequestSizeLimitSettings'
     , defaultRequestSizeLimitSettings
     -- * 'RequestSizeLimitSettings' and accessors
