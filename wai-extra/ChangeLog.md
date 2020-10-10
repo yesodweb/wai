@@ -2,7 +2,7 @@
 
 ## 3.1.1
 
-* 'Network.Wai.Middleware.RequestSizeLimit': Add a new middleware to reject request bodies above a certain size. [#818](https://github.com/yesodweb/wai/pull/818/files)
+* `Network.Wai.Middleware.RequestSizeLimit`: Add a new middleware to reject request bodies above a certain size. [#818](https://github.com/yesodweb/wai/pull/818/files)
 
 ## 3.1.0
 
