@@ -1,9 +1,9 @@
 -- | The functions in this module allow you to limit the total size of incoming request bodies.
 --
--- Limiting incoming request body size helps protect your server against denial-of-service (DOS) attacks, 
+-- Limiting incoming request body size helps protect your server against denial-of-service (DOS) attacks,
 -- in which an attacker sends huge bodies to your server.
-module Network.Wai.Middleware.RequestSizeLimit 
-    ( 
+module Network.Wai.Middleware.RequestSizeLimit
+    (
     -- * Middleware
       requestSizeLimitMiddleware
     -- * Constructing 'RequestSizeLimitSettings'
@@ -62,12 +62,12 @@ tooLargeResponse :: Word64 -> RequestBodyLength -> Response
 tooLargeResponse maxLen bodyLen = responseLBS
     requestEntityTooLarge413
     [("Content-Type", "text/plain")]
-    (BSL.concat 
+    (BSL.concat
         [ "Request body too large to be processed. The maximum size is "
         , (LS8.pack (show maxLen))
         , " bytes; your request body was "
         , case bodyLen of
             KnownLength knownLen -> (LS8.pack (show knownLen)) <> " bytes."
             ChunkedBody -> "split into chunks, whose total size is unknown, but exceeded the limit."
-        , " . If you're the developer of this site, you can configure the maximum length with `requestSizeLimitMiddleware`."
+        , " If you're the developer of this site, you can configure the maximum length with `requestSizeLimitMiddleware`."
         ])

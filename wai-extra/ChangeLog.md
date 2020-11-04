@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.2
+
+* Remove an extraneous dot from the error message for `defaultRequestSizeLimitSettings`
+
 ## 3.1.1
 
 * `Network.Wai.Middleware.RequestSizeLimit`: Add a new middleware to reject request bodies above a certain size. [#818](https://github.com/yesodweb/wai/pull/818/files)
