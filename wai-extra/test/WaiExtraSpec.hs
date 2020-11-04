@@ -350,7 +350,7 @@ caseDebugRequestBody = do
         iactual <- I.newIORef mempty
         middleware <- mkRequestLogger def
             { destination = Callback $ \strs -> I.modifyIORef iactual $ (`mappend` strs)
-            , outputFormat = Detailed False Nothing
+            , outputFormat = Detailed $ DetailedSettings False Nothing Nothing
             }
         res <- middleware (\_req f -> f $ responseLBS status200 [ ] "") req send
         actual <- logToBs <$> I.readIORef iactual
@@ -453,12 +453,12 @@ caseStreamLBS = flip runSession streamLBSApp $ do
 
 caseModifyPostParamsInLogs :: Assertion
 caseModifyPostParamsInLogs = do
-    flip runSession (debugApp (Detailed False Nothing) unredacted) $ do
+    flip runSession (debugApp (Detailed $ DetailedSettings False Nothing Nothing) unredacted) $ do
         let req = toRequest "application/x-www-form-urlencoded" "username=some_user&password=dont_show_me"
         res <- srequest req
         assertStatus 200 res
 
-    flip runSession (debugApp (Detailed False (Just hidePasswords)) redacted) $ do
+    flip runSession (debugApp (Detailed $ DetailedSettings False (Just hidePasswords) Nothing) redacted) $ do
         let req = toRequest "application/x-www-form-urlencoded" "username=some_user&password=dont_show_me"
         res <- srequest req
         assertStatus 200 res
