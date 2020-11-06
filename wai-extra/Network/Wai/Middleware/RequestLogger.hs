@@ -71,7 +71,7 @@ data OutputFormat
 data DetailedSettings = DetailedSettings
     { useColors :: Bool
     , mModifyParams :: Maybe (Param -> Param)
-    , mFilterRequests :: Maybe (Request -> Bool)
+    , mFilterRequests :: Maybe (Request -> Response -> Bool)
     }
 instance Default DetailedSettings where
     def = DetailedSettings
@@ -323,39 +323,40 @@ detailedMiddleware' :: Callback
                     -> (BS.ByteString -> [BS.ByteString])
                     -> (BS.ByteString -> BS.ByteString -> [BS.ByteString])
                     -> Middleware
-detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode app req sendResponse =
-  case mFilterRequests of
-    Just f | f req -> do
-      (req', body) <-
-          -- second tuple item should not be necessary, but a test runner might mess it up
-          case (requestBodyLength req, contentLength (requestHeaders req)) of
-              -- log the request body if it is small
-              (KnownLength len, _) | len <= 2048 -> getRequestBody req
-              (_, Just len)        | len <= 2048 -> getRequestBody req
-              _ -> return (req, [])
+detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode app req sendResponse = do
+  (req', body) <-
+      -- second tuple item should not be necessary, but a test runner might mess it up
+      case (requestBodyLength req, contentLength (requestHeaders req)) of
+          -- log the request body if it is small
+          (KnownLength len, _) | len <= 2048 -> getRequestBody req
+          (_, Just len)        | len <= 2048 -> getRequestBody req
+          _ -> return (req, [])
 
-      let reqbodylog _ = if null body || isJust mModifyParams
-                          then [""]
-                          else ansiColor White "  Request Body: " <> body <> ["\n"]
-          reqbody = concatMap (either (const [""]) reqbodylog . decodeUtf8') body
-      postParams <- if requestMethod req `elem` ["GET", "HEAD"]
-          then return []
-          else do (unmodifiedPostParams, files) <- liftIO $ allPostParams body
-                  let postParams =
-                        case mModifyParams of
-                          Just modifyParams -> map modifyParams unmodifiedPostParams
-                          Nothing -> unmodifiedPostParams
-                  return $ collectPostParams (postParams, files)
+  let reqbodylog _ = if null body || isJust mModifyParams
+                      then [""]
+                      else ansiColor White "  Request Body: " <> body <> ["\n"]
+      reqbody = concatMap (either (const [""]) reqbodylog . decodeUtf8') body
+  postParams <- if requestMethod req `elem` ["GET", "HEAD"]
+      then return []
+      else do (unmodifiedPostParams, files) <- liftIO $ allPostParams body
+              let postParams =
+                    case mModifyParams of
+                      Just modifyParams -> map modifyParams unmodifiedPostParams
+                      Nothing -> unmodifiedPostParams
+              return $ collectPostParams (postParams, files)
 
-      let getParams = map emptyGetParam $ queryString req
-          accept = fromMaybe "" $ lookup H.hAccept $ requestHeaders req
-          params = let par | not $ null postParams = [pack (show postParams)]
-                          | not $ null getParams  = [pack (show getParams)]
-                          | otherwise             = []
-                  in if null par then [""] else ansiColor White "  Params: " <> par <> ["\n"]
+  let getParams = map emptyGetParam $ queryString req
+      accept = fromMaybe "" $ lookup H.hAccept $ requestHeaders req
+      params = let par | not $ null postParams = [pack (show postParams)]
+                      | not $ null getParams  = [pack (show getParams)]
+                      | otherwise             = []
+              in if null par then [""] else ansiColor White "  Params: " <> par <> ["\n"]
 
-      t0 <- getCurrentTime
-      app req' $ \rsp -> do
+  t0 <- getCurrentTime
+  app req' $ \rsp -> do
+      case mFilterRequests of
+        Just f | not $ f req' rsp -> pure ()
+        _ -> do
           let isRaw =
                   case rsp of
                       ResponseRaw{} -> True
@@ -373,9 +374,7 @@ detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode 
                   ansiColor White "  Status: " ++
                   ansiStatusCode stCode (stCode <> " " <> stMsg) ++
                   [" ", pack $ show $ diffUTCTime t1 t0, "\n"]
-
-          sendResponse rsp
-    _ -> app req sendResponse
+      sendResponse rsp
   where
     allPostParams body =
         case getRequestBodyType req of
