@@ -54,7 +54,8 @@ import Data.Text.Encoding (decodeUtf8')
 -- | The logging format.
 data OutputFormat
   = Apache IPAddrSource
-  | Detailed DetailedSettings
+  | Detailed Bool -- ^ use colors?
+  | DetailedWithSettings DetailedSettings
   | CustomOutputFormat OutputFormatter
   | CustomOutputFormatWithDetails OutputFormatterWithDetails
   | CustomOutputFormatWithDetailsAndHeaders OutputFormatterWithDetailsAndHeaders
@@ -136,7 +137,7 @@ data RequestLoggerSettings = RequestLoggerSettings
 
 instance Default RequestLoggerSettings where
     def = RequestLoggerSettings
-        { outputFormat = Detailed def
+        { outputFormat = Detailed True
         , autoFlush = True
         , destination = Handle stdout
         }
@@ -154,7 +155,11 @@ mkRequestLogger RequestLoggerSettings{..} = do
             getdate <- getDateGetter flusher
             apache <- initLogger ipsrc (LogCallback callback flusher) getdate
             return $ apacheMiddleware apache
-        Detailed settings -> detailedMiddleware callbackAndFlush settings
+        Detailed useColors ->
+          let settings = def { useColors = useColors}
+          in detailedMiddleware callbackAndFlush settings
+        DetailedWithSettings settings ->
+          detailedMiddleware callbackAndFlush settings
         CustomOutputFormat formatter -> do
             getDate <- getDateGetter flusher
             return $ customMiddleware callbackAndFlush getDate formatter
