@@ -470,7 +470,7 @@ caseModifyPostParamsInLogs = do
     postOutputStart params = TE.encodeUtf8 $ T.toStrict $ "POST /\n  Params: " <> (T.pack . show $ params)
     postOutputEnd = TE.encodeUtf8 $ T.toStrict "s\n"
 
-    hidePasswords p@(k,_) = if k == "password" then (k, "***REDACTED***") else p
+    hidePasswords p@(k,_) = Just $ if k == "password" then (k, "***REDACTED***") else p
 
     debugApp format output req send = do
         iactual <- I.newIORef mempty

@@ -34,7 +34,7 @@ import Network.Wai
   )
 import System.Log.FastLogger
 import Network.HTTP.Types as H
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe, isJust, mapMaybe)
 import Data.Monoid (mconcat, (<>))
 import Data.Time (getCurrentTime, diffUTCTime, NominalDiffTime)
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File
@@ -71,7 +71,7 @@ data OutputFormat
 -- `requestFilter` allows you to filter which requests are logged.
 data DetailedSettings = DetailedSettings
     { useColors :: Bool
-    , mModifyParams :: Maybe (Param -> Param)
+    , mModifyParams :: Maybe (Param -> Maybe Param)
     , mFilterRequests :: Maybe (Request -> Response -> Bool)
     }
 instance Default DetailedSettings where
@@ -346,7 +346,7 @@ detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode 
       else do (unmodifiedPostParams, files) <- liftIO $ allPostParams body
               let postParams =
                     case mModifyParams of
-                      Just modifyParams -> map modifyParams unmodifiedPostParams
+                      Just modifyParams -> mapMaybe modifyParams unmodifiedPostParams
                       Nothing -> unmodifiedPostParams
               return $ collectPostParams (postParams, files)
 
