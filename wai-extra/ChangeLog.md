@@ -2,7 +2,7 @@
 
 ## 3.1.3
 
-* Add a `DetailedWithSettings` output format for `RequestLogger` that allows to hide requests and modify query parameters
+* Add a `DetailedWithSettings` output format for `RequestLogger` that allows to hide requests and modify query parameters [#826](https://github.com/yesodweb/wai/pull/826)
 
 ## 3.1.2
 
