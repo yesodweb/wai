@@ -453,29 +453,29 @@ caseStreamLBS = flip runSession streamLBSApp $ do
 
 caseModifyPostParamsInLogs :: Assertion
 caseModifyPostParamsInLogs = do
-    flip runSession (debugApp (DetailedWithSettings $ DetailedSettings False Nothing Nothing) unredacted) $ do
-        let req = toRequest "application/x-www-form-urlencoded" "username=some_user&password=dont_show_me"
-        res <- srequest req
-        assertStatus 200 res
+    let formatUnredacted = DetailedWithSettings $ DetailedSettings False Nothing Nothing
+        outputUnredacted = [("username", "some_user"), ("password", "dont_show_me")]
+        formatRedacted = DetailedWithSettings $ DetailedSettings False (Just hidePasswords) Nothing
+        hidePasswords p@(k,_) = Just $ if k == "password" then (k, "***REDACTED***") else p
+        outputRedacted = [("username", "some_user"), ("password", "***REDACTED***")]
 
-    flip runSession (debugApp (DetailedWithSettings $ DetailedSettings False (Just hidePasswords) Nothing) redacted) $ do
-        let req = toRequest "application/x-www-form-urlencoded" "username=some_user&password=dont_show_me"
-        res <- srequest req
-        assertStatus 200 res
-
+    testLogs formatUnredacted outputUnredacted
+    testLogs formatRedacted outputRedacted
   where
-    unredacted = [("username", "some_user"), ("password", "dont_show_me")]
-    redacted = [("username", "some_user"), ("password", "***REDACTED***")]
+    testLogs :: OutputFormat -> [(String, String)] -> Assertion
+    testLogs format output = flip runSession (debugApp format output) $ do
+        let req = toRequest "application/x-www-form-urlencoded" "username=some_user&password=dont_show_me"
+        res <- srequest req
+        assertStatus 200 res
 
     postOutputStart params = TE.encodeUtf8 $ T.toStrict $ "POST /\n  Params: " <> (T.pack . show $ params)
     postOutputEnd = TE.encodeUtf8 $ T.toStrict "s\n"
 
-    hidePasswords p@(k,_) = Just $ if k == "password" then (k, "***REDACTED***") else p
 
     debugApp format output req send = do
         iactual <- I.newIORef mempty
         middleware <- mkRequestLogger def
-            { destination = Callback $ \strs -> I.modifyIORef iactual $ (`mappend` strs)
+            { destination = Callback $ \strs -> I.modifyIORef iactual (`mappend` strs)
             , outputFormat = format
             }
         res <- middleware (\_req f -> f $ responseLBS status200 [ ] "") req send
