@@ -62,13 +62,14 @@ data OutputFormat
 
 -- | Settings for the `Detailed` `OutputFormat`.
 --
--- `paramFilter` allows you to pass a function to hide confidential
--- information (such as passwords) from the logs. If the second parameter is `Just`, then POST
--- bodies are also hidden. For example:
+-- `mModifyParams` allows you to pass a function to hide confidential
+-- information (such as passwords) from the logs. If result is `Nothing`, then
+-- the parameter is hidden. For example:
 -- > myformat = Detailed True (Just hidePasswords)
 -- >   where hidePasswords p@(k,v) = if k = "password" then (k, "***REDACTED***") else p
 --
--- `requestFilter` allows you to filter which requests are logged.
+-- `mFilterRequests` allows you to filter which requests are logged, based on
+-- the request and response.
 data DetailedSettings = DetailedSettings
     { useColors :: Bool
     , mModifyParams :: Maybe (Param -> Maybe Param)
@@ -81,8 +82,7 @@ instance Default DetailedSettings where
         , mFilterRequests = Nothing
         }
 
-type OutputFormatter
-  = ZonedDate -> Request -> Status -> Maybe Integer -> LogStr
+type OutputFormatter = ZonedDate -> Request -> Status -> Maybe Integer -> LogStr
 
 type OutputFormatterWithDetails
    = ZonedDate
@@ -156,10 +156,10 @@ mkRequestLogger RequestLoggerSettings{..} = do
             apache <- initLogger ipsrc (LogCallback callback flusher) getdate
             return $ apacheMiddleware apache
         Detailed useColors ->
-          let settings = def { useColors = useColors}
-          in detailedMiddleware callbackAndFlush settings
+            let settings = def { useColors = useColors}
+            in detailedMiddleware callbackAndFlush settings
         DetailedWithSettings settings ->
-          detailedMiddleware callbackAndFlush settings
+            detailedMiddleware callbackAndFlush settings
         CustomOutputFormat formatter -> do
             getDate <- getDateGetter flusher
             return $ customMiddleware callbackAndFlush getDate formatter
