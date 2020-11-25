@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.3
+
+* Add a `DetailedWithSettings` output format for `RequestLogger` that allows to hide requests and modify query parameters
+
 ## 3.1.2
 
 * Remove an extraneous dot from the error message for `defaultRequestSizeLimitSettings`
