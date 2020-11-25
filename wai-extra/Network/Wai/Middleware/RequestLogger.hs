@@ -55,7 +55,7 @@ import Data.Text.Encoding (decodeUtf8')
 data OutputFormat
   = Apache IPAddrSource
   | Detailed Bool -- ^ use colors?
-  | DetailedWithSettings DetailedSettings
+  | DetailedWithSettings DetailedSettings -- ^ @since 3.1.3
   | CustomOutputFormat OutputFormatter
   | CustomOutputFormatWithDetails OutputFormatterWithDetails
   | CustomOutputFormatWithDetailsAndHeaders OutputFormatterWithDetailsAndHeaders
@@ -70,6 +70,8 @@ data OutputFormat
 --
 -- `mFilterRequests` allows you to filter which requests are logged, based on
 -- the request and response.
+--
+-- @since 3.1.3
 data DetailedSettings = DetailedSettings
     { useColors :: Bool
     , mModifyParams :: Maybe (Param -> Maybe Param)
