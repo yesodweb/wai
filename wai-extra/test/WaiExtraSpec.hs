@@ -66,6 +66,7 @@ spec = do
     it "stream file" caseStreamFile
     it "stream LBS" caseStreamLBS
     it "can modify POST params before logging" caseModifyPostParamsInLogs
+    it "can filter requests in logs" caseFilterRequestsInLogs
 
 toRequest :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest ctype content = SRequest defaultRequest
@@ -482,5 +483,45 @@ caseModifyPostParamsInLogs = do
         actual <- fromLogStr <$> I.readIORef iactual
         actual `shouldSatisfy` S.isPrefixOf (postOutputStart output)
         actual `shouldSatisfy` S.isSuffixOf postOutputEnd
+
+        return res
+
+caseFilterRequestsInLogs :: Assertion
+caseFilterRequestsInLogs = do
+    let formatUnfiltered = DetailedWithSettings $ DetailedSettings False Nothing Nothing
+        formatFiltered = DetailedWithSettings . DetailedSettings False Nothing $ Just hideHealthCheck
+        pathHidden = "/health-check"
+        pathNotHidden = "/foobar"
+
+    -- filter is off
+    testLogs formatUnfiltered pathNotHidden True
+    testLogs formatUnfiltered pathHidden True
+    -- filter is on, path does not match
+    testLogs formatFiltered pathNotHidden True
+    -- filter is on, path matches
+    testLogs formatFiltered pathHidden False
+  where
+    testLogs :: OutputFormat -> S8.ByteString -> Bool -> Assertion
+    testLogs format rpath haslogs = flip runSession (debugApp format rpath haslogs) $ do
+        let req = flip SRequest "" $ setPath defaultRequest rpath
+        res <- srequest req
+        assertStatus 200 res
+
+    hideHealthCheck req _res = pathInfo req /= ["health-check"]
+
+    debugApp format rpath haslogs req send = do
+        iactual <- I.newIORef mempty
+        middleware <- mkRequestLogger def
+            { destination = Callback $ \strs -> I.modifyIORef iactual (`mappend` strs)
+            , outputFormat = format
+            }
+        res <- middleware (\_req f -> f $ responseLBS status200 [ ] "") req send
+        actual <- fromLogStr <$> I.readIORef iactual
+        if haslogs
+          then do
+            actual `shouldSatisfy` S.isPrefixOf ("GET " <> rpath <> "\n")
+            actual `shouldSatisfy` S.isSuffixOf "s\n"
+          else
+            actual `shouldBe` ""
 
         return res
