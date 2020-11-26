@@ -12,6 +12,7 @@ module Network.Wai.Middleware.RequestLogger
     , autoFlush
     , destination
     , OutputFormat (..)
+    , DetailedSettings(..)
     , OutputFormatter
     , OutputFormatterWithDetails
     , OutputFormatterWithDetailsAndHeaders
@@ -33,7 +34,7 @@ import Network.Wai
   )
 import System.Log.FastLogger
 import Network.HTTP.Types as H
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust, mapMaybe)
 import Data.Monoid (mconcat, (<>))
 import Data.Time (getCurrentTime, diffUTCTime, NominalDiffTime)
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File
@@ -50,12 +51,38 @@ import Network.Wai.Middleware.RequestLogger.Internal
 import Network.Wai.Header (contentLength)
 import Data.Text.Encoding (decodeUtf8')
 
+-- | The logging format.
 data OutputFormat
   = Apache IPAddrSource
   | Detailed Bool -- ^ use colors?
+  | DetailedWithSettings DetailedSettings -- ^ @since 3.1.3
   | CustomOutputFormat OutputFormatter
   | CustomOutputFormatWithDetails OutputFormatterWithDetails
   | CustomOutputFormatWithDetailsAndHeaders OutputFormatterWithDetailsAndHeaders
+
+-- | Settings for the `Detailed` `OutputFormat`.
+--
+-- `mModifyParams` allows you to pass a function to hide confidential
+-- information (such as passwords) from the logs. If result is `Nothing`, then
+-- the parameter is hidden. For example:
+-- > myformat = Detailed True (Just hidePasswords)
+-- >   where hidePasswords p@(k,v) = if k = "password" then (k, "***REDACTED***") else p
+--
+-- `mFilterRequests` allows you to filter which requests are logged, based on
+-- the request and response.
+--
+-- @since 3.1.3
+data DetailedSettings = DetailedSettings
+    { useColors :: Bool
+    , mModifyParams :: Maybe (Param -> Maybe Param)
+    , mFilterRequests :: Maybe (Request -> Response -> Bool)
+    }
+instance Default DetailedSettings where
+    def = DetailedSettings
+        { useColors = True
+        , mModifyParams = Nothing
+        , mFilterRequests = Nothing
+        }
 
 type OutputFormatter = ZonedDate -> Request -> Status -> Maybe Integer -> LogStr
 
@@ -130,7 +157,11 @@ mkRequestLogger RequestLoggerSettings{..} = do
             getdate <- getDateGetter flusher
             apache <- initLogger ipsrc (LogCallback callback flusher) getdate
             return $ apacheMiddleware apache
-        Detailed useColors -> detailedMiddleware callbackAndFlush useColors
+        Detailed useColors ->
+            let settings = def { useColors = useColors}
+            in detailedMiddleware callbackAndFlush settings
+        DetailedWithSettings settings ->
+            detailedMiddleware callbackAndFlush settings
         CustomOutputFormat formatter -> do
             getDate <- getDateGetter flusher
             return $ customMiddleware callbackAndFlush getDate formatter
@@ -225,14 +256,14 @@ logStdoutDev = unsafePerformIO $ mkRequestLogger def
 -- >   Accept: text/css,*/*;q=0.1
 -- >   Status: 304 Not Modified 0.010555s
 
-detailedMiddleware :: Callback -> Bool -> IO Middleware
-detailedMiddleware cb useColors =
+detailedMiddleware :: Callback -> DetailedSettings -> IO Middleware
+detailedMiddleware cb settings =
     let (ansiColor, ansiMethod, ansiStatusCode) =
-          if useColors
+          if useColors settings
             then (ansiColor', ansiMethod', ansiStatusCode')
             else (\_ t -> [t], (:[]), \_ t -> [t])
 
-    in return $ detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode
+    in return $ detailedMiddleware' cb settings ansiColor ansiMethod ansiStatusCode
 
 ansiColor' :: Color -> BS.ByteString -> [BS.ByteString]
 ansiColor' color bs =
@@ -294,54 +325,63 @@ getRequestBody req = do
   return (req', body)
 
 detailedMiddleware' :: Callback
+                    -> DetailedSettings
                     -> (Color -> BS.ByteString -> [BS.ByteString])
                     -> (BS.ByteString -> [BS.ByteString])
                     -> (BS.ByteString -> BS.ByteString -> [BS.ByteString])
                     -> Middleware
-detailedMiddleware' cb ansiColor ansiMethod ansiStatusCode app req sendResponse = do
-    (req', body) <-
-        -- second tuple item should not be necessary, but a test runner might mess it up
-        case (requestBodyLength req, contentLength (requestHeaders req)) of
-            -- log the request body if it is small
-            (KnownLength len, _) | len <= 2048 -> getRequestBody req
-            (_, Just len)        | len <= 2048 -> getRequestBody req
-            _ -> return (req, [])
+detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode app req sendResponse = do
+  (req', body) <-
+      -- second tuple item should not be necessary, but a test runner might mess it up
+      case (requestBodyLength req, contentLength (requestHeaders req)) of
+          -- log the request body if it is small
+          (KnownLength len, _) | len <= 2048 -> getRequestBody req
+          (_, Just len)        | len <= 2048 -> getRequestBody req
+          _ -> return (req, [])
 
-    let reqbodylog _ = if null body then [""] else ansiColor White "  Request Body: " <> body <> ["\n"]
-        reqbody = concatMap (either (const [""]) reqbodylog . decodeUtf8') body
-    postParams <- if requestMethod req `elem` ["GET", "HEAD"]
-        then return []
-        else do postParams <- liftIO $ allPostParams body
-                return $ collectPostParams postParams
+  let reqbodylog _ = if null body || isJust mModifyParams
+                      then [""]
+                      else ansiColor White "  Request Body: " <> body <> ["\n"]
+      reqbody = concatMap (either (const [""]) reqbodylog . decodeUtf8') body
+  postParams <- if requestMethod req `elem` ["GET", "HEAD"]
+      then return []
+      else do (unmodifiedPostParams, files) <- liftIO $ allPostParams body
+              let postParams =
+                    case mModifyParams of
+                      Just modifyParams -> mapMaybe modifyParams unmodifiedPostParams
+                      Nothing -> unmodifiedPostParams
+              return $ collectPostParams (postParams, files)
 
-    let getParams = map emptyGetParam $ queryString req
-        accept = fromMaybe "" $ lookup H.hAccept $ requestHeaders req
-        params = let par | not $ null postParams = [pack (show postParams)]
-                         | not $ null getParams  = [pack (show getParams)]
-                         | otherwise             = []
-                 in if null par then [""] else ansiColor White "  Params: " <> par <> ["\n"]
+  let getParams = map emptyGetParam $ queryString req
+      accept = fromMaybe "" $ lookup H.hAccept $ requestHeaders req
+      params = let par | not $ null postParams = [pack (show postParams)]
+                      | not $ null getParams  = [pack (show getParams)]
+                      | otherwise             = []
+              in if null par then [""] else ansiColor White "  Params: " <> par <> ["\n"]
 
-    t0 <- getCurrentTime
-    app req' $ \rsp -> do
-        let isRaw =
-                case rsp of
-                    ResponseRaw{} -> True
-                    _ -> False
-            stCode = statusBS rsp
-            stMsg = msgBS rsp
-        t1 <- getCurrentTime
+  t0 <- getCurrentTime
+  app req' $ \rsp -> do
+      case mFilterRequests of
+        Just f | not $ f req' rsp -> pure ()
+        _ -> do
+          let isRaw =
+                  case rsp of
+                      ResponseRaw{} -> True
+                      _ -> False
+              stCode = statusBS rsp
+              stMsg = msgBS rsp
+          t1 <- getCurrentTime
 
-        -- log the status of the response
-        cb $ mconcat $ map toLogStr $
-            ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
-            params ++ reqbody ++
-            ansiColor White "  Accept: " ++ [accept, "\n"] ++
-            if isRaw then [] else
-                ansiColor White "  Status: " ++
-                ansiStatusCode stCode (stCode <> " " <> stMsg) ++
-                [" ", pack $ show $ diffUTCTime t1 t0, "\n"]
-
-        sendResponse rsp
+          -- log the status of the response
+          cb $ mconcat $ map toLogStr $
+              ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
+              params ++ reqbody ++
+              ansiColor White "  Accept: " ++ [accept, "\n"] ++
+              if isRaw then [] else
+                  ansiColor White "  Status: " ++
+                  ansiStatusCode stCode (stCode <> " " <> stMsg) ++
+                  [" ", pack $ show $ diffUTCTime t1 t0, "\n"]
+      sendResponse rsp
   where
     allPostParams body =
         case getRequestBodyType req of

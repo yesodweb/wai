@@ -65,6 +65,8 @@ spec = do
     it "debug request body" caseDebugRequestBody
     it "stream file" caseStreamFile
     it "stream LBS" caseStreamLBS
+    it "can modify POST params before logging" caseModifyPostParamsInLogs
+    it "can filter requests in logs" caseFilterRequestsInLogs
 
 toRequest :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest ctype content = SRequest defaultRequest
@@ -449,3 +451,77 @@ caseStreamLBS = flip runSession streamLBSApp $ do
     sres <- request defaultRequest
     assertStatus 200 sres
     assertBody "test" sres
+
+caseModifyPostParamsInLogs :: Assertion
+caseModifyPostParamsInLogs = do
+    let formatUnredacted = DetailedWithSettings $ DetailedSettings False Nothing Nothing
+        outputUnredacted = [("username", "some_user"), ("password", "dont_show_me")]
+        formatRedacted = DetailedWithSettings $ DetailedSettings False (Just hidePasswords) Nothing
+        hidePasswords p@(k,_) = Just $ if k == "password" then (k, "***REDACTED***") else p
+        outputRedacted = [("username", "some_user"), ("password", "***REDACTED***")]
+
+    testLogs formatUnredacted outputUnredacted
+    testLogs formatRedacted outputRedacted
+  where
+    testLogs :: OutputFormat -> [(String, String)] -> Assertion
+    testLogs format output = flip runSession (debugApp format output) $ do
+        let req = toRequest "application/x-www-form-urlencoded" "username=some_user&password=dont_show_me"
+        res <- srequest req
+        assertStatus 200 res
+
+    postOutputStart params = TE.encodeUtf8 $ T.toStrict $ "POST /\n  Params: " <> (T.pack . show $ params)
+    postOutputEnd = TE.encodeUtf8 $ T.toStrict "s\n"
+
+
+    debugApp format output req send = do
+        iactual <- I.newIORef mempty
+        middleware <- mkRequestLogger def
+            { destination = Callback $ \strs -> I.modifyIORef iactual (`mappend` strs)
+            , outputFormat = format
+            }
+        res <- middleware (\_req f -> f $ responseLBS status200 [ ] "") req send
+        actual <- fromLogStr <$> I.readIORef iactual
+        actual `shouldSatisfy` S.isPrefixOf (postOutputStart output)
+        actual `shouldSatisfy` S.isSuffixOf postOutputEnd
+
+        return res
+
+caseFilterRequestsInLogs :: Assertion
+caseFilterRequestsInLogs = do
+    let formatUnfiltered = DetailedWithSettings $ DetailedSettings False Nothing Nothing
+        formatFiltered = DetailedWithSettings . DetailedSettings False Nothing $ Just hideHealthCheck
+        pathHidden = "/health-check"
+        pathNotHidden = "/foobar"
+
+    -- filter is off
+    testLogs formatUnfiltered pathNotHidden True
+    testLogs formatUnfiltered pathHidden True
+    -- filter is on, path does not match
+    testLogs formatFiltered pathNotHidden True
+    -- filter is on, path matches
+    testLogs formatFiltered pathHidden False
+  where
+    testLogs :: OutputFormat -> S8.ByteString -> Bool -> Assertion
+    testLogs format rpath haslogs = flip runSession (debugApp format rpath haslogs) $ do
+        let req = flip SRequest "" $ setPath defaultRequest rpath
+        res <- srequest req
+        assertStatus 200 res
+
+    hideHealthCheck req _res = pathInfo req /= ["health-check"]
+
+    debugApp format rpath haslogs req send = do
+        iactual <- I.newIORef mempty
+        middleware <- mkRequestLogger def
+            { destination = Callback $ \strs -> I.modifyIORef iactual (`mappend` strs)
+            , outputFormat = format
+            }
+        res <- middleware (\_req f -> f $ responseLBS status200 [ ] "") req send
+        actual <- fromLogStr <$> I.readIORef iactual
+        if haslogs
+          then do
+            actual `shouldSatisfy` S.isPrefixOf ("GET " <> rpath <> "\n")
+            actual `shouldSatisfy` S.isSuffixOf "s\n"
+          else
+            actual `shouldBe` ""
+
+        return res
