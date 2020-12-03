@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.4
+
+* Export `Network.Wai.Middleware.RequestLogger.JSON.requestToJSON` [#827](https://github.com/yesodweb/wai/pull/827)
+
 ## 3.1.3
 
 * Add a `DetailedWithSettings` output format for `RequestLogger` that allows to hide requests and modify query parameters [#826](https://github.com/yesodweb/wai/pull/826)
