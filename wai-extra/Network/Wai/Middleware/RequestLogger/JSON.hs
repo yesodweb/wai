@@ -4,12 +4,15 @@
 module Network.Wai.Middleware.RequestLogger.JSON
   ( formatAsJSON
   , formatAsJSONWithHeaders
+
+  , requestToJSON
   ) where
 
 import qualified Data.ByteString.Builder as BB (toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
 import Data.Aeson
 import Data.CaseInsensitive (original)
+import Data.Maybe (maybeToList)
 import Data.Monoid ((<>))
 import qualified Data.ByteString.Char8 as S8
 import Data.IP
@@ -30,7 +33,7 @@ formatAsJSON :: OutputFormatterWithDetails
 formatAsJSON date req status responseSize duration reqBody response =
   toLogStr (encode $
     object
-      [ "request"  .= requestToJSON duration req reqBody
+      [ "request"  .= requestToJSON req reqBody (Just duration)
       , "response" .=
       object
         [ "status" .= statusCode status
@@ -54,7 +57,7 @@ formatAsJSONWithHeaders :: OutputFormatterWithDetailsAndHeaders
 formatAsJSONWithHeaders date req status resSize duration reqBody res resHeaders =
   toLogStr (encode $
     object
-      [ "request"  .= requestToJSON duration req reqBody
+      [ "request"  .= requestToJSON req reqBody (Just duration)
       , "response" .= object
         [ "status" .= statusCode status
         , "size"   .= resSize
@@ -73,19 +76,26 @@ word32ToHostAddress = T.intercalate "." . map (T.pack . show) . fromIPv4 . fromH
 readAsDouble :: String -> Double
 readAsDouble = read
 
-requestToJSON :: NominalDiffTime -> Request -> [S8.ByteString] -> Value
-requestToJSON duration req reqBody =
-  object
+-- | Get the JSON output for a request
+--
+-- This gives a sensible JSON representation for the given request. You can
+-- optionally include a request body, as well as a duration.
+--
+-- @since 3.1.4
+requestToJSON ::  Request -> [S8.ByteString] -> Maybe NominalDiffTime -> Value
+requestToJSON req reqBody duration =
+  object $
     [ "method" .= decodeUtf8With lenientDecode (requestMethod req)
     , "path" .= decodeUtf8With lenientDecode (rawPathInfo req)
     , "queryString" .= map queryItemToJSON (queryString req)
-    , "durationMs" .= (readAsDouble . printf "%.2f" . rationalToDouble $ toRational duration * 1000)
     , "size" .= requestBodyLengthToJSON (requestBodyLength req)
     , "body" .= decodeUtf8With lenientDecode (S8.concat reqBody)
     , "remoteHost" .= sockToJSON (remoteHost req)
     , "httpVersion" .= httpVersionToJSON (httpVersion req)
     , "headers" .= requestHeadersToJSON (requestHeaders req)
     ]
+    <>
+    maybeToList (("durationMs" .=) . readAsDouble . printf "%.2f" . rationalToDouble . (* 1000) . toRational <$> duration)
   where
     rationalToDouble :: Rational -> Double
     rationalToDouble = fromRational
