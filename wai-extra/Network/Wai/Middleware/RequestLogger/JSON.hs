@@ -96,6 +96,9 @@ readAsDouble = read
 --   [@durationMs@] The duration, formatted in milliseconds, to 2 decimal
 --   places
 --
+-- This representation is not an API, and may change at any time (within reason)
+-- without a major version bump.
+--
 -- @since 3.1.4
 requestToJSON :: Request -- ^ The WAI request
               -> [S8.ByteString] -- ^ Chunked request body
