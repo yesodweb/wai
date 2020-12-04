@@ -76,13 +76,31 @@ word32ToHostAddress = T.intercalate "." . map (T.pack . show) . fromIPv4 . fromH
 readAsDouble :: String -> Double
 readAsDouble = read
 
--- | Get the JSON output for a request
+-- | Get the JSON representation for a request
 --
--- This gives a sensible JSON representation for the given request. You can
--- optionally include a request body, as well as a duration.
+-- This representation is identical to that used in 'formatAsJSON' for the
+-- request. It includes:
+--
+--   [@method@]:
+--   [@path@]:
+--   [@queryString@]:
+--   [@size@]: The size of the body, as defined in the request. This may differ
+--   from the size of the data passed in the second argument.
+--   [@body@]: The body, concatenated directly from the chunks passed in
+--   [@remoteHost@]:
+--   [@httpVersion@]:
+--   [@headers@]:
+--
+-- If a @'Just' duration@ is passed in, then additionally the JSON includes:
+--
+--   [@durationMs@] The duration, formatted in milliseconds, to 2 decimal
+--   places
 --
 -- @since 3.1.4
-requestToJSON ::  Request -> [S8.ByteString] -> Maybe NominalDiffTime -> Value
+requestToJSON :: Request -- ^ The WAI request
+              -> [S8.ByteString] -- ^ Chunked request body
+              -> Maybe NominalDiffTime -- ^ Optional request duration
+              -> Value
 requestToJSON req reqBody duration =
   object $
     [ "method" .= decodeUtf8With lenientDecode (requestMethod req)
