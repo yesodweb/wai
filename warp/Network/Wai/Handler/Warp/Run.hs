@@ -21,7 +21,6 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno(..), eCONNABORTED)
 import GHC.IO.Exception (IOException(..), IOErrorType(..))
-import qualified Network.HTTP2 as H2
 import Network.Socket (Socket, close, accept, withSocketsDo, SockAddr(SockAddrInet, SockAddrInet6), setSocketOption, SocketOption(..))
 #if MIN_VERSION_network(3,1,1)
 import Network.Socket (gracefulClose)
@@ -352,36 +351,9 @@ serveConnection conn ii th origAddr transport settings app = do
                      else
                        return (False, bs0)
     if settingsHTTP2Enabled settings && h2 then do
-        istatus <- newIORef False
-        rawRecvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
-        -- This thread becomes the sender in http2 library.
-        -- In the case of event source, one request comes and one
-        -- worker gets busy. But it is likely that the receiver does
-        -- not receive any data at all while the sender is sending
-        -- output data from the worker. It's not good enough to tickle
-        -- the time handler in the receiver only. So, we should tickle
-        -- the time handler in both the receiver and the sender.
-        let recvN = wrappedRecvN th istatus (settingsSlowlorisSize settings) rawRecvN
-            sendBS x = connSendAll conn x >> T.tickle th
-        -- fixme: origAddr
-        checkTLS
-        setConnHTTP2 conn True
-        http2 settings ii conn transport origAddr recvN sendBS app
+        http2 settings ii conn transport app origAddr th bs
       else do
-        http1 settings ii conn transport origAddr app True th bs
-  where
-    checkTLS = case transport of
-        TCP -> return () -- direct
-        tls -> unless (tls12orLater tls) $ goaway conn H2.InadequateSecurity "Weak TLS"
-    tls12orLater tls = tlsMajorVersion tls == 3 && tlsMinorVersion tls >= 3
-
--- connClose must not be called here since Run:fork calls it
-goaway :: Connection -> H2.ErrorCodeId -> ByteString -> IO ()
-goaway Connection{..} etype debugmsg = connSendAll bytestream
-  where
-    einfo = H2.encodeInfo id 0
-    frame = H2.GoAwayFrame 0 etype debugmsg
-    bytestream = H2.encodeFrame einfo frame
+        http1 settings ii conn transport app origAddr th bs
 
 flushEntireBody :: IO ByteString -> IO ()
 flushEntireBody src =
@@ -414,19 +386,6 @@ wrappedRecv Connection { connRecv = recv } th istatus slowlorisSize = do
         when (S.length bs >= slowlorisSize) $ T.tickle th
     return bs
 
-wrappedRecvN :: T.Handle -> IORef Bool -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
-wrappedRecvN th istatus slowlorisSize readN bufsize = do
-    bs <- readN bufsize
-    unless (S.null bs) $ do
-        writeIORef istatus True
-    -- TODO: think about the slowloris protection in HTTP2: current code
-    -- might open a slow-loris attack vector. Rather than timing we should
-    -- consider limiting the per-client connections assuming that in HTTP2
-    -- we should allow only few connections per host (real-world
-    -- deployments with large NATs may be trickier).
-        when (S.length bs >= slowlorisSize || bufsize <= slowlorisSize) $ T.tickle th
-    return bs
-
 -- | Set flag FileCloseOnExec flag on a socket (on Unix)
 --
 -- Copied from: https://github.com/mzero/plush/blob/master/src/Plush/Server/Warp.hs
@@ -454,13 +413,13 @@ gracefulShutdown set counter =
             void (timeout (seconds * microsPerSecond) (waitForZero counter))
             where microsPerSecond = 1000000
 
-http1 :: Settings -> InternalInfo -> Connection -> Transport -> SockAddr -> (Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived) -> Bool -> T.Handle -> ByteString -> IO ()
-http1 settings ii conn transport origAddr app firstRequest0 th bs = do
+http1 :: Settings -> InternalInfo -> Connection -> Transport -> (Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived) -> SockAddr -> T.Handle -> ByteString -> IO ()
+http1 settings ii conn transport app origAddr th bs = do
     istatus <- newIORef True
     src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
     leftoverSource src bs
     addr <- getProxyProtocolAddr src
-    loop firstRequest0 addr istatus src `E.catch` \e ->
+    loop True addr istatus src `E.catch` \e ->
           case () of
             ()
              -- See comment below referencing
