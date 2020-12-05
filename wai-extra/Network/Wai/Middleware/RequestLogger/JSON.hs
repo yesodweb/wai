@@ -4,12 +4,15 @@
 module Network.Wai.Middleware.RequestLogger.JSON
   ( formatAsJSON
   , formatAsJSONWithHeaders
+
+  , requestToJSON
   ) where
 
 import qualified Data.ByteString.Builder as BB (toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
 import Data.Aeson
 import Data.CaseInsensitive (original)
+import Data.Maybe (maybeToList)
 import Data.Monoid ((<>))
 import qualified Data.ByteString.Char8 as S8
 import Data.IP
@@ -30,7 +33,7 @@ formatAsJSON :: OutputFormatterWithDetails
 formatAsJSON date req status responseSize duration reqBody response =
   toLogStr (encode $
     object
-      [ "request"  .= requestToJSON duration req reqBody
+      [ "request"  .= requestToJSON req reqBody (Just duration)
       , "response" .=
       object
         [ "status" .= statusCode status
@@ -54,7 +57,7 @@ formatAsJSONWithHeaders :: OutputFormatterWithDetailsAndHeaders
 formatAsJSONWithHeaders date req status resSize duration reqBody res resHeaders =
   toLogStr (encode $
     object
-      [ "request"  .= requestToJSON duration req reqBody
+      [ "request"  .= requestToJSON req reqBody (Just duration)
       , "response" .= object
         [ "status" .= statusCode status
         , "size"   .= resSize
@@ -73,19 +76,47 @@ word32ToHostAddress = T.intercalate "." . map (T.pack . show) . fromIPv4 . fromH
 readAsDouble :: String -> Double
 readAsDouble = read
 
-requestToJSON :: NominalDiffTime -> Request -> [S8.ByteString] -> Value
-requestToJSON duration req reqBody =
-  object
+-- | Get the JSON representation for a request
+--
+-- This representation is identical to that used in 'formatAsJSON' for the
+-- request. It includes:
+--
+--   [@method@]:
+--   [@path@]:
+--   [@queryString@]:
+--   [@size@]: The size of the body, as defined in the request. This may differ
+--   from the size of the data passed in the second argument.
+--   [@body@]: The body, concatenated directly from the chunks passed in
+--   [@remoteHost@]:
+--   [@httpVersion@]:
+--   [@headers@]:
+--
+-- If a @'Just' duration@ is passed in, then additionally the JSON includes:
+--
+--   [@durationMs@] The duration, formatted in milliseconds, to 2 decimal
+--   places
+--
+-- This representation is not an API, and may change at any time (within reason)
+-- without a major version bump.
+--
+-- @since 3.1.4
+requestToJSON :: Request -- ^ The WAI request
+              -> [S8.ByteString] -- ^ Chunked request body
+              -> Maybe NominalDiffTime -- ^ Optional request duration
+              -> Value
+requestToJSON req reqBody duration =
+  object $
     [ "method" .= decodeUtf8With lenientDecode (requestMethod req)
     , "path" .= decodeUtf8With lenientDecode (rawPathInfo req)
     , "queryString" .= map queryItemToJSON (queryString req)
-    , "durationMs" .= (readAsDouble . printf "%.2f" . rationalToDouble $ toRational duration * 1000)
     , "size" .= requestBodyLengthToJSON (requestBodyLength req)
     , "body" .= decodeUtf8With lenientDecode (S8.concat reqBody)
     , "remoteHost" .= sockToJSON (remoteHost req)
     , "httpVersion" .= httpVersionToJSON (httpVersion req)
     , "headers" .= requestHeadersToJSON (requestHeaders req)
     ]
+    <>
+    maybeToList (("durationMs" .=) . readAsDouble . printf "%.2f" . rationalToDouble . (* 1000) . toRational <$> duration)
   where
     rationalToDouble :: Rational -> Double
     rationalToDouble = fromRational
