@@ -93,7 +93,7 @@ http1server settings ii conn transport app addr th istatus src =
       -- No valid request
       | Just (BadFirstLine _)   <- fromException e = return ()
       | otherwise = do
-          _ <- sendErrorResponse dummyreq e
+          _ <- sendErrorResponse settings ii conn th istatus defaultRequest { remoteHost = addr } e
           throwIO e
 
     loop firstRequest = do
@@ -137,7 +137,7 @@ http1server settings ii conn transport app addr th istatus src =
             Left e@(SomeException _)
               | Just (ExceptionInsideResponseBody e') <- fromException e -> throwIO e'
               | otherwise -> do
-                    keepAlive <- sendErrorResponse req e
+                    keepAlive <- sendErrorResponse settings ii conn th istatus req e
                     settingsOnException settings (Just req) e
                     writeIORef keepAliveRef keepAlive
 
@@ -183,19 +183,18 @@ http1server settings ii conn transport app addr th istatus src =
           else
             return False
 
+sendErrorResponse :: Settings -> InternalInfo -> Connection -> T.Handle -> IORef Bool -> Request -> SomeException -> IO Bool
+sendErrorResponse settings ii conn th istatus req e = do
+    status <- readIORef istatus
+    if shouldSendErrorResponse e && status then
+        sendResponse settings conn ii th req defaultIndexRequestHeader (return BS.empty) errorResponse
+      else
+        return False
+  where
     shouldSendErrorResponse se
-        | Just ConnectionClosedByPeer <- fromException se = False
-        | otherwise                                       = True
-
-    sendErrorResponse req e = do
-        status <- readIORef istatus
-        if shouldSendErrorResponse e && status
-            then do
-                sendResponse settings conn ii th req defaultIndexRequestHeader (return BS.empty) (errorResponse e)
-            else return False
-
-    dummyreq = defaultRequest { remoteHost = addr }
-    errorResponse e = settingsOnExceptionResponse settings e
+      | Just ConnectionClosedByPeer <- fromException se = False
+      | otherwise                                       = True
+    errorResponse = settingsOnExceptionResponse settings e
 
 flushEntireBody :: IO ByteString -> IO ()
 flushEntireBody src =
