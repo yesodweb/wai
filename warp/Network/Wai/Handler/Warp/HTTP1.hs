@@ -84,18 +84,18 @@ http1 settings ii conn transport app origAddr th bs0 = do
 
 http1server :: Settings -> InternalInfo -> Connection -> Transport -> Application  -> SockAddr -> T.Handle -> IORef Bool -> Source -> IO ()
 http1server settings ii conn transport app addr th istatus src =
-    loop True `E.catch` \e ->
-          case () of
-            ()
-             -- See comment below referencing
-             -- https://github.com/yesodweb/wai/issues/618
-             | Just NoKeepAliveRequest <- fromException e -> return ()
-             -- No valid request
-             | Just (BadFirstLine _)   <- fromException e -> return ()
-             | otherwise -> do
-                   _ <- sendErrorResponse dummyreq e
-                   throwIO e
+    loop True `E.catch` handler
   where
+    handler e
+      -- See comment below referencing
+      -- https://github.com/yesodweb/wai/issues/618
+      | Just NoKeepAliveRequest <- fromException e = return ()
+      -- No valid request
+      | Just (BadFirstLine _)   <- fromException e = return ()
+      | otherwise = do
+          _ <- sendErrorResponse dummyreq e
+          throwIO e
+
     loop firstRequest = do
         (req, mremainingRef, idxhdr, nextBodyFlush) <- recvRequest firstRequest settings conn ii th addr src transport
         keepAlive <- processRequest req mremainingRef idxhdr nextBodyFlush
@@ -208,8 +208,7 @@ flushEntireBody src =
 flushBody :: IO ByteString -- ^ get next chunk
           -> Int -- ^ maximum to flush
           -> IO Bool -- ^ True == flushed the entire body, False == we didn't
-flushBody src =
-    loop
+flushBody src = loop
   where
     loop toRead = do
         bs <- src
