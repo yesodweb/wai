@@ -32,7 +32,7 @@ import Network.Wai.Handler.Warp.Recv
 ----------------------------------------------------------------
 
 http2 :: S.Settings -> InternalInfo -> Connection -> Transport -> Application -> SockAddr -> T.Handle -> ByteString -> IO ()
-http2 settings ii conn transport app addr th bs = do
+http2 settings ii conn transport app origAddr th bs = do
     istatus <- newIORef False
     rawRecvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
     -- This thread becomes the sender in http2 library.
@@ -51,10 +51,9 @@ http2 settings ii conn transport app addr th bs = do
           , confReadN             = recvN
           , confPositionReadMaker = pReadMaker ii
           }
-    -- fixme: origAddr
     checkTLS
     setConnHTTP2 conn True
-    H2.run conf $ http2server settings ii transport addr app
+    H2.run conf $ http2server settings ii transport origAddr app
   where
     checkTLS = case transport of
         TCP -> return () -- direct
