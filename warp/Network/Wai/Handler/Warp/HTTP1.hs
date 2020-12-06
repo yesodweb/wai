@@ -1,12 +1,8 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Network.Wai.Handler.Warp.HTTP1 (
     http1
@@ -15,7 +11,7 @@ module Network.Wai.Handler.Warp.HTTP1 (
 import "iproute" Data.IP (toHostAddress, toHostAddress6)
 import qualified Control.Concurrent as Conc (yield)
 import Control.Exception as E
-import qualified Data.ByteString as S
+import qualified Data.ByteString as BS
 import Data.Char (chr)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Network.Socket (SockAddr(SockAddrInet, SockAddrInet6))
@@ -31,7 +27,7 @@ import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
 
-http1 :: Settings -> InternalInfo -> Connection -> Transport -> (Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived) -> SockAddr -> T.Handle -> ByteString -> IO ()
+http1 :: Settings -> InternalInfo -> Connection -> Transport -> Application -> SockAddr -> T.Handle -> ByteString -> IO ()
 http1 settings ii conn transport app origAddr th bs = do
     istatus <- newIORef True
     src <- mkSource (wrappedRecv conn th istatus (settingsSlowlorisSize settings))
@@ -144,7 +140,7 @@ http1 settings ii conn transport app origAddr th bs = do
         status <- readIORef istatus
         if shouldSendErrorResponse e && status
             then do
-                sendResponse settings conn ii th req defaultIndexRequestHeader (return S.empty) (errorResponse e)
+                sendResponse settings conn ii th req defaultIndexRequestHeader (return BS.empty) (errorResponse e)
             else return False
 
     getProxyProtocolAddr src =
@@ -156,14 +152,14 @@ http1 settings ii conn transport app origAddr th bs = do
                 parseProxyProtocolHeader src seg
             ProxyProtocolOptional -> do
                 seg <- readSource src
-                if S.isPrefixOf "PROXY " seg
+                if BS.isPrefixOf "PROXY " seg
                     then parseProxyProtocolHeader src seg
                     else do leftoverSource src seg
                             return origAddr
 
     parseProxyProtocolHeader src seg = do
-        let (header,seg') = S.break (== 0x0d) seg -- 0x0d == CR
-            maybeAddr = case S.split 0x20 header of -- 0x20 == space
+        let (header,seg') = BS.break (== 0x0d) seg -- 0x0d == CR
+            maybeAddr = case BS.split 0x20 header of -- 0x20 == space
                 ["PROXY","TCP4",clientAddr,_,clientPort,_] ->
                     case [x | (x, t) <- reads (decodeAscii clientAddr), null t] of
                         [a] -> Just (SockAddrInet (readInt clientPort)
@@ -182,19 +178,19 @@ http1 settings ii conn transport app origAddr th bs = do
                     Nothing
         case maybeAddr of
             Nothing -> throwIO (BadProxyHeader (decodeAscii header))
-            Just a -> do leftoverSource src (S.drop 2 seg') -- drop CRLF
+            Just a -> do leftoverSource src (BS.drop 2 seg') -- drop CRLF
                          return a
 
-    decodeAscii = map (chr . fromEnum) . S.unpack
+    decodeAscii = map (chr . fromEnum) . BS.unpack
     errorResponse e = settingsOnExceptionResponse settings e
     dummyreq addr = defaultRequest { remoteHost = addr }
 
 wrappedRecv :: Connection -> T.Handle -> IORef Bool -> Int -> IO ByteString
 wrappedRecv Connection { connRecv = recv } th istatus slowlorisSize = do
     bs <- recv
-    unless (S.null bs) $ do
+    unless (BS.null bs) $ do
         writeIORef istatus True
-        when (S.length bs >= slowlorisSize) $ T.tickle th
+        when (BS.length bs >= slowlorisSize) $ T.tickle th
     return bs
 flushEntireBody :: IO ByteString -> IO ()
 flushEntireBody src =
@@ -202,7 +198,7 @@ flushEntireBody src =
   where
     loop = do
         bs <- src
-        unless (S.null bs) loop
+        unless (BS.null bs) loop
 
 flushBody :: IO ByteString -- ^ get next chunk
           -> Int -- ^ maximum to flush
@@ -212,9 +208,9 @@ flushBody src =
   where
     loop toRead = do
         bs <- src
-        let toRead' = toRead - S.length bs
+        let toRead' = toRead - BS.length bs
         case () of
             ()
-                | S.null bs -> return True
+                | BS.null bs -> return True
                 | toRead' >= 0 -> loop toRead'
                 | otherwise -> return False
