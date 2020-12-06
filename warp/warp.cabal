@@ -74,6 +74,7 @@ Library
                      Network.Wai.Handler.Warp.File
                      Network.Wai.Handler.Warp.FileInfoCache
                      Network.Wai.Handler.Warp.HashMap
+                     Network.Wai.Handler.Warp.HTTP1
                      Network.Wai.Handler.Warp.HTTP2
                      Network.Wai.Handler.Warp.HTTP2.File
                      Network.Wai.Handler.Warp.HTTP2.PushPromise
@@ -150,6 +151,7 @@ Test-Suite spec
                      Network.Wai.Handler.Warp.FdCache
                      Network.Wai.Handler.Warp.File
                      Network.Wai.Handler.Warp.FileInfoCache
+                     Network.Wai.Handler.Warp.HTTP1
                      Network.Wai.Handler.Warp.HTTP2
                      Network.Wai.Handler.Warp.HTTP2.File
                      Network.Wai.Handler.Warp.HTTP2.PushPromise
