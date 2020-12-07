@@ -9,8 +9,11 @@ module Network.Wai.Handler.Warp.HTTP2 (
   , http2server
   ) where
 
-import qualified Data.IORef as I
 import qualified Control.Exception as E
+import qualified Data.ByteString as BS
+import Data.IORef (IORef, newIORef, writeIORef)
+import qualified Data.IORef as I
+import qualified Network.HTTP2 as H2
 import qualified Network.HTTP2.Server as H2
 import Network.Socket (SockAddr)
 import Network.Wai
@@ -24,28 +27,38 @@ import Network.Wai.Handler.Warp.HTTP2.Response
 import Network.Wai.Handler.Warp.Imports
 import qualified Network.Wai.Handler.Warp.Settings as S
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Recv
 
 ----------------------------------------------------------------
 
-http2 :: S.Settings
-      -> InternalInfo
-      -> Connection
-      -> Transport
-      -> SockAddr
-      -> (BufSize -> IO ByteString)
-      -> (ByteString -> IO ())
-      -> Application
-      -> IO ()
-http2 settings ii conn transport addr readN send app =
-    H2.run conf $ http2server settings ii transport addr app
+http2 :: S.Settings -> InternalInfo -> Connection -> Transport -> Application -> SockAddr -> T.Handle -> ByteString -> IO ()
+http2 settings ii conn transport app origAddr th bs = do
+    istatus <- newIORef False
+    rawRecvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
+    -- This thread becomes the sender in http2 library.
+    -- In the case of event source, one request comes and one
+    -- worker gets busy. But it is likely that the receiver does
+    -- not receive any data at all while the sender is sending
+    -- output data from the worker. It's not good enough to tickle
+    -- the time handler in the receiver only. So, we should tickle
+    -- the time handler in both the receiver and the sender.
+    let recvN = wrappedRecvN th istatus (S.settingsSlowlorisSize settings) rawRecvN
+        sendBS x = connSendAll conn x >> T.tickle th
+        conf = H2.Config {
+            confWriteBuffer       = connWriteBuffer conn
+          , confBufferSize        = connBufferSize conn
+          , confSendAll           = sendBS
+          , confReadN             = recvN
+          , confPositionReadMaker = pReadMaker ii
+          }
+    checkTLS
+    setConnHTTP2 conn True
+    H2.run conf $ http2server settings ii transport origAddr app
   where
-    conf = H2.Config {
-        confWriteBuffer       = connWriteBuffer conn
-      , confBufferSize        = connBufferSize conn
-      , confSendAll           = send
-      , confReadN             = readN
-      , confPositionReadMaker = pReadMaker ii
-      }
+    checkTLS = case transport of
+        TCP -> return () -- direct
+        tls -> unless (tls12orLater tls) $ goaway conn H2.InadequateSecurity "Weak TLS"
+    tls12orLater tls = tlsMajorVersion tls == 3 && tlsMinorVersion tls >= 3
 
 -- | Converting WAI application to the server type of http2 library.
 --
@@ -102,3 +115,24 @@ http2server settings ii transport addr app h2req0 aux0 response = do
         !siz = case H2.responseBodySize $ H2.promiseResponse pp of
             Nothing -> 0
             Just s  -> fromIntegral s
+
+wrappedRecvN :: T.Handle -> IORef Bool -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
+wrappedRecvN th istatus slowlorisSize readN bufsize = do
+    bs <- readN bufsize
+    unless (BS.null bs) $ do
+        writeIORef istatus True
+    -- TODO: think about the slowloris protection in HTTP2: current code
+    -- might open a slow-loris attack vector. Rather than timing we should
+    -- consider limiting the per-client connections assuming that in HTTP2
+    -- we should allow only few connections per host (real-world
+    -- deployments with large NATs may be trickier).
+        when (BS.length bs >= slowlorisSize || bufsize <= slowlorisSize) $ T.tickle th
+    return bs
+
+-- connClose must not be called here since Run:fork calls it
+goaway :: Connection -> H2.ErrorCodeId -> ByteString -> IO ()
+goaway Connection{..} etype debugmsg = connSendAll bytestream
+  where
+    einfo = H2.encodeInfo id 0
+    frame = H2.GoAwayFrame 0 etype debugmsg
+    bytestream = H2.encodeFrame einfo frame
