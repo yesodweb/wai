@@ -29,6 +29,7 @@ import qualified Data.ByteString as S
 import Data.Default.Class
 import Network.HTTP.Types ( Status, Header, hContentEncoding, hUserAgent
                           , hContentType, hContentLength)
+import Network.HTTP.Types.Header (hVary)
 import System.Directory (doesFileExist, createDirectoryIfMissing)
 import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Builder.Extra as Blaze (flush)
@@ -93,7 +94,7 @@ defaultCheckMime bs =
 -- Will only be applied based on the 'gzipCheckMime' setting. For default
 -- behavior, see 'defaultCheckMime'.
 gzip :: GzipSettings -> Middleware
-gzip set app env sendResponse = app env $ \res ->
+gzip set app env sendResponse' = app env $ \res ->
     case res of
         ResponseRaw{} -> sendResponse res
         ResponseFile{} | gzipFiles set == GzipIgnore -> sendResponse res
@@ -118,6 +119,8 @@ gzip set app env sendResponse = app env $ \res ->
                     in runAction (res, gzipFiles set)
                 else sendResponse res
   where
+    sendResponse = sendResponse' . mapResponseHeaders (vary:)
+    vary = (hVary, "Accept-Encoding")
     enc = fromMaybe [] $ (splitCommas . S8.unpack)
                     `fmap` lookup "Accept-Encoding" (requestHeaders env)
     ua = fromMaybe "" $ lookup hUserAgent $ requestHeaders env
