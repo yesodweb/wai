@@ -44,7 +44,7 @@ import Data.Function (fix)
 import Control.Exception (throwIO)
 import qualified System.IO as IO
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
-import Data.Word8 (_semicolon)
+import Data.Word8 (_semicolon, _space, _comma)
 
 data GzipSettings = GzipSettings
     { gzipFiles :: GzipFiles
@@ -121,7 +121,7 @@ gzip set app env sendResponse' = app env $ \res ->
   where
     sendResponse = sendResponse' . mapResponseHeaders (vary:)
     vary = (hVary, "Accept-Encoding")
-    enc = fromMaybe [] $ (splitCommas . S8.unpack)
+    enc = fromMaybe [] $ splitCommas
                     `fmap` lookup "Accept-Encoding" (requestHeaders env)
     ua = fromMaybe "" $ lookup hUserAgent $ requestHeaders env
     isMSIE6 = "MSIE 6" `S.isInfixOf` ua
@@ -226,8 +226,5 @@ fixHeaders =
   where
     notLength (x, _) = x /= hContentLength
 
-splitCommas :: String -> [String]
-splitCommas [] = []
-splitCommas x =
-    let (y, z) = break (== ',') x
-     in y : splitCommas (dropWhile (== ' ') $ drop 1 z)
+splitCommas :: S.ByteString -> [S.ByteString]
+splitCommas = map (S.dropWhile (== _space)) . S.split _comma
