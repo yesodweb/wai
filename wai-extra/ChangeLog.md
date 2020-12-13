@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.4.1
+
+* `Network.Wai.Middleware.Gzip`: Add `Vary: Accept-Encoding` header to responses [#829](https://github.com/yesodweb/wai/pull/829)
+
 ## 3.1.4
 
 * Export `Network.Wai.Middleware.RequestLogger.JSON.requestToJSON` [#827](https://github.com/yesodweb/wai/pull/827)

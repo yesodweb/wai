@@ -176,12 +176,14 @@ caseGzip = flip runSession gzipApp $ do
                 { requestHeaders = [("Accept-Encoding", "gzip")]
                 }
     assertHeader "Content-Encoding" "gzip" sres1
+    assertHeader "Vary" "Accept-Encoding" sres1
     liftIO $ decompress (simpleBody sres1) @?= "test"
 
     sres2 <- request defaultRequest
                 { requestHeaders = []
                 }
     assertNoHeader "Content-Encoding" sres2
+    assertHeader "Vary" "Accept-Encoding" sres2
     assertBody "test" sres2
 
 caseDefaultCheckMime :: Assertion
@@ -203,6 +205,7 @@ caseGzipMSIE = flip runSession gzipApp $ do
                     ]
                 }
     assertNoHeader "Content-Encoding" sres1
+    assertHeader "Vary" "Accept-Encoding" sres1
     liftIO $ simpleBody sres1 @?= "test"
 
 caseGzipBypassPre :: Assertion
@@ -211,6 +214,7 @@ caseGzipBypassPre = flip runSession gzipPrecompressedApp $ do
                 { requestHeaders = [("Accept-Encoding", "gzip")]
                 }
     assertHeader "Content-Encoding" "gzip" sres1
+    assertHeader "Vary" "Accept-Encoding" sres1
     assertBody "test" sres1 -- the body is not actually compressed
 
 vhostApp1, vhostApp2, vhostApp :: Application

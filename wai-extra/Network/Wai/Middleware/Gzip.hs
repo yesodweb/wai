@@ -29,6 +29,7 @@ import qualified Data.ByteString as S
 import Data.Default.Class
 import Network.HTTP.Types ( Status, Header, hContentEncoding, hUserAgent
                           , hContentType, hContentLength)
+import Network.HTTP.Types.Header (hVary)
 import System.Directory (doesFileExist, createDirectoryIfMissing)
 import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Builder.Extra as Blaze (flush)
@@ -43,7 +44,7 @@ import Data.Function (fix)
 import Control.Exception (throwIO)
 import qualified System.IO as IO
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
-import Data.Word8 (_semicolon)
+import Data.Word8 (_semicolon, _space, _comma)
 
 data GzipSettings = GzipSettings
     { gzipFiles :: GzipFiles
@@ -93,7 +94,7 @@ defaultCheckMime bs =
 -- Will only be applied based on the 'gzipCheckMime' setting. For default
 -- behavior, see 'defaultCheckMime'.
 gzip :: GzipSettings -> Middleware
-gzip set app env sendResponse = app env $ \res ->
+gzip set app env sendResponse' = app env $ \res ->
     case res of
         ResponseRaw{} -> sendResponse res
         ResponseFile{} | gzipFiles set == GzipIgnore -> sendResponse res
@@ -118,7 +119,9 @@ gzip set app env sendResponse = app env $ \res ->
                     in runAction (res, gzipFiles set)
                 else sendResponse res
   where
-    enc = fromMaybe [] $ (splitCommas . S8.unpack)
+    sendResponse = sendResponse' . mapResponseHeaders (vary:)
+    vary = (hVary, "Accept-Encoding")
+    enc = fromMaybe [] $ splitCommas
                     `fmap` lookup "Accept-Encoding" (requestHeaders env)
     ua = fromMaybe "" $ lookup hUserAgent $ requestHeaders env
     isMSIE6 = "MSIE 6" `S.isInfixOf` ua
@@ -223,8 +226,5 @@ fixHeaders =
   where
     notLength (x, _) = x /= hContentLength
 
-splitCommas :: String -> [String]
-splitCommas [] = []
-splitCommas x =
-    let (y, z) = break (== ',') x
-     in y : splitCommas (dropWhile (== ' ') $ drop 1 z)
+splitCommas :: S.ByteString -> [S.ByteString]
+splitCommas = map (S.dropWhile (== _space)) . S.split _comma
