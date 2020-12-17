@@ -15,7 +15,7 @@ import UnliftIO (toException)
 import qualified Data.ByteString as S
 import Data.IORef (newIORef, readIORef)
 import Data.Streaming.Network (bindPortTCP)
-import Foreign.C.Error (Errno(..), eCONNABORTED)
+import Foreign.C.Error (Errno(..), eCONNABORTED, eMFILE)
 import GHC.IO.Exception (IOException(..), IOErrorType(..))
 import Network.Socket (Socket, close, accept, withSocketsDo, SockAddr, setSocketOption, SocketOption(..))
 #if MIN_VERSION_network(3,1,1)
@@ -269,9 +269,11 @@ acceptConnection set getConnMaker app counter ii = do
         case ex of
             Right x -> return $ Just x
             Left e -> do
-                let eConnAborted = getErrno eCONNABORTED
-                    getErrno (Errno cInt) = cInt
-                if ioe_errno e == Just eConnAborted
+                let getErrno (Errno cInt) = cInt
+                    eConnAborted = getErrno eCONNABORTED
+                    eMfile = getErrno eMFILE
+                    merrno = ioe_errno e
+                if merrno == Just eConnAborted || merrno == Just eMfile
                     then acceptNewConnection
                     else do
                         settingsOnException set Nothing $ toException e
