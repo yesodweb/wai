@@ -236,7 +236,7 @@ acceptConnection set getConnMaker app counter ii = do
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
     --
-    -- acceptLoop can be broken by closing the listing socket.
+    -- acceptLoop can be broken by closing the listening socket.
     void $ mask_ acceptLoop
     -- In some cases, we want to stop Warp here without graceful shutdown.
     -- So, async exceptions are allowed here.
