@@ -44,8 +44,15 @@ responseSource s hs src = responseStream s hs $ \send flush ->
             Chunk b -> send b
             Flush -> flush)
 
--- | Create a raw response using a @Source@ and @Sink@ to represent the input
--- and output, respectively.
+-- | Create a raw response using @Source@ and @Sink@ conduits.
+--
+-- This is an adapter to Wai's @responseRaw@ for conduits.
+--
+-- @Source@ and @Sink@ data are provided. The @Source@ is a byte conduit from
+-- the client's socket. The @Sink@ is a byte conduit to the client's socket.
+--
+-- The @Response@ argument is a backup response. It is sent to the client if
+-- the handler does not support @responseRaw@.
 --
 -- Since 3.0.0
 responseRawSource :: (MonadIO m, MonadIO n)
