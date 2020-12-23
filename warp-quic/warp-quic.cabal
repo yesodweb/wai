@@ -17,6 +17,7 @@ library
   ghc-options:         -Wall
   exposed-modules:     Network.Wai.Handler.WarpQUIC
   build-depends:       base >= 4.13 && < 5
+                     , bytestring
                      , http3
                      , quic
                      , tls
