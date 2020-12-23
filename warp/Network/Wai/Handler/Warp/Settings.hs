@@ -15,7 +15,7 @@ import qualified Data.Text.IO as TIO
 import Data.Version (showVersion)
 import GHC.IO.Exception (IOErrorType(..))
 import qualified Network.HTTP.Types as H
-import Network.HTTP2( HTTP2Error (..), ErrorCodeId (..) )
+import Network.HTTP2.Frame (HTTP2Error (..), ErrorCodeId (..))
 import Network.Socket (SockAddr)
 import Network.Wai
 import qualified Paths_warp
