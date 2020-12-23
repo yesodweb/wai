@@ -22,5 +22,6 @@ runQUIC quicsettings settings app = do
                  , quicClientCertificate = mccc
                  }
                pread = pReadMaker ii
-               conf = H3.Config pread
+               timmgr = timeoutManager ii
+               conf = H3.Config pread timmgr
            H3.run conn conf $ http2server settings ii transport addr app
