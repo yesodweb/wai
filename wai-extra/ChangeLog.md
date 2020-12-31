@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.5
+
+* `Network.Wai.Middleware.RealIp`: Add a new middleware to infer the remote IP address from headers [#834](https://github.com/yesodweb/wai/pull/834)
+
 ## 3.1.4.1
 
 * `Network.Wai.Middleware.Gzip`: Add `Vary: Accept-Encoding` header to responses [#829](https://github.com/yesodweb/wai/pull/829)
