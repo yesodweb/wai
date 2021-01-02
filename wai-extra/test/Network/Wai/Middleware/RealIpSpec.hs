@@ -71,11 +71,16 @@ spec = do
             simpleBody resp `shouldBe` "2.2.2.2"
 
     describe "realIpTrusted" $ do
-        it "uses specified trusted ip ranges" $ do
+        it "uses provided trusted predicate" $ do
             let headers = [("X-Forwarded-For", "10.0.0.1, 1.1.1.1")]
-                trusted = ["127.0.0.1/32", "1.1.1.1/32"]
-            resp <- runApp "127.0.0.1" headers $ realIpTrusted "X-Forwarded-For" trusted
-            simpleBody resp `shouldBe` "10.0.0.1"
+                isTrusted1 ip = any (ipInRange ip) ["127.0.0.1/32", "1.1.1.1/32"]
+                isTrusted2 = flip ipInRange "1.1.1.1/32"
+
+            resp1 <- runApp "127.0.0.1" headers $ realIpTrusted "X-Forwarded-For" isTrusted1
+            resp2 <- runApp "10.0.0.2" headers $ realIpTrusted "X-Forwarded-For" isTrusted2
+
+            simpleBody resp1 `shouldBe` "10.0.0.1"
+            simpleBody resp2 `shouldBe` "10.0.0.2"
 
 
 runApp :: IP.IP -> RequestHeaders -> Middleware -> IO SResponse
