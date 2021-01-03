@@ -114,7 +114,7 @@ Library
                    , vault
                    , zlib
                    , aeson
-                   , iproute
+                   , iproute                   >= 1.7.8
                    , http2
                    , HUnit
                    , call-stack
