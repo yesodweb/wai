@@ -8,7 +8,7 @@ import Network.Wai (responseStream)
 import Network.Wai.Internal
 import Network.Wai (Middleware, responseToStream)
 import qualified Data.ByteString.Char8 as S8
-import System.PosixCompat (getFileStatus, fileSize, FileOffset)
+import System.Directory (getFileSize)
 import Network.HTTP.Types (hContentLength)
 
 -- |Convert ResponseFile type responses into ResponseStream type
@@ -36,8 +36,3 @@ streamFile app env sendResponse = app env $ \res ->
                let hs' = (hContentLength, (S8.pack (show len))) : hs
                sendResponse $ responseStream s hs' body
       _ -> sendResponse res
-
-getFileSize :: FilePath -> IO FileOffset
-getFileSize path = do
-    stat <- getFileStatus path
-    return (fileSize stat)
