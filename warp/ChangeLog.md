@@ -1,6 +1,7 @@
 ## 3.3.14
 
 * UTF-8 encoding in `exceptionResponseForDebug`.
+  [#836](https://github.com/yesodweb/wai/pull/836)
 
 ## 3.3.13
 
