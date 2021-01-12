@@ -11,6 +11,7 @@ import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Lazy (fromStrict)
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import Data.Version (showVersion)
 import GHC.IO.Exception (IOErrorType(..))
@@ -235,4 +236,4 @@ exceptionResponseForDebug :: SomeException -> Response
 exceptionResponseForDebug e =
     responseBuilder H.internalServerError500
                     [(H.hContentType, "text/plain; charset=utf-8")]
-                    $ byteString . C8.pack $ "Exception: " ++ show e
+                    $ byteString . TE.encodeUtf8 . T.pack $ "Exception: " ++ show e
