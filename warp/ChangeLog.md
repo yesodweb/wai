@@ -1,3 +1,7 @@
+## 3.3.14
+
+* UTF-8 encoding in `exceptionResponseForDebug`.
+
 ## 3.3.13
 
 * pReadMaker is exported from the Internal module.
