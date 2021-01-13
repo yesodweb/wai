@@ -7,10 +7,10 @@ module Network.Wai.Handler.Warp.Settings where
 import Control.Concurrent (forkIOWithUnmask)
 import Control.Exception
 import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Builder as Builder
 import Data.ByteString.Lazy (fromStrict)
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import Data.Version (showVersion)
 import GHC.IO.Exception (IOErrorType(..))
@@ -235,4 +235,4 @@ exceptionResponseForDebug :: SomeException -> Response
 exceptionResponseForDebug e =
     responseBuilder H.internalServerError500
                     [(H.hContentType, "text/plain; charset=utf-8")]
-                    $ TE.encodeUtf8Builder . T.pack $ "Exception: " ++ show e
+                    $ "Exception: " <> Builder.stringUtf8 (show e)
