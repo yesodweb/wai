@@ -28,7 +28,7 @@ runQUIC quicsettings settings app = do
                  }
                pread = pReadMaker ii
                timmgr = timeoutManager ii
-               conf = H3.Config pread timmgr
+               conf = H3.Config H3.defaultHooks pread timmgr
                Just appProto = malpn
                run | "h3" `BS.isPrefixOf` appProto = H3.run
                    | otherwise                     = HQ.run
