@@ -44,9 +44,6 @@ import Control.Monad.Trans.Class (lift)
 import qualified Control.Monad.Trans.State as ST
 import Control.Monad.Trans.Reader (runReaderT, ask)
 import Control.Monad (unless)
-import Control.DeepSeq (deepseq)
-import Control.Exception (throwIO, Exception)
-import Data.Typeable (Typeable)
 import qualified Data.Map as Map
 import qualified Web.Cookie as Cookie
 import Data.ByteString (ByteString)

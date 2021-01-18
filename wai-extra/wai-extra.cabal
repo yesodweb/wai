@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.1.5
+Version:             3.1.6
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
@@ -90,10 +90,9 @@ Library
   Build-Depends:     base                      >= 4.10 && < 5
                    , bytestring                >= 0.10.4
                    , wai                       >= 3.0.3.0  && < 3.3
-                   , old-locale                >= 1.0.0.2  && < 1.1
                    , time                      >= 1.1.4
                    , network                   >= 2.6.1.0
-                   , directory                 >= 1.0.1
+                   , directory                 >= 1.2.7.0
                    , transformers              >= 0.2.2
                    , http-types                >= 0.7
                    , text                      >= 0.7
@@ -103,16 +102,12 @@ Library
                    , wai-logger                >= 2.3.2
                    , ansi-terminal
                    , resourcet                 >= 0.4.6    && < 1.3
-                   , void                      >= 0.5
                    , containers
                    , base64-bytestring
                    , word8
-                   , deepseq
                    , streaming-commons         >= 0.2
-                   , unix-compat
                    , cookie
                    , vault
-                   , zlib
                    , aeson
                    , iproute                   >= 1.7.8
                    , http2
@@ -189,10 +184,11 @@ test-suite spec
                      Network.Wai.RequestSpec
                      Network.Wai.Middleware.ApprootSpec
                      Network.Wai.Middleware.ForceSSLSpec
+                     Network.Wai.Middleware.RealIpSpec
+                     Network.Wai.Middleware.RequestSizeLimitSpec
                      Network.Wai.Middleware.RoutedSpec
                      Network.Wai.Middleware.StripHeadersSpec
                      Network.Wai.Middleware.TimeoutSpec
-                     Network.Wai.Middleware.RealIpSpec
                      WaiExtraSpec
     build-depends:   base                      >= 4        && < 5
                    , wai-extra

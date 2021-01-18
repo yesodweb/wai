@@ -10,7 +10,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
 import Network.Wai.Middleware.RequestSizeLimit
-import Network.HTTP.Types.Status (status200, status413, Status)
+import Network.HTTP.Types.Status (status200, status413)
 import Control.Monad (replicateM)
 import Data.Aeson (encode, object, (.=))
 import Data.Text (Text)

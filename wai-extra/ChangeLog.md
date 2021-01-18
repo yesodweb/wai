@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.6
+
+* Remove unused dependencies [#837](https://github.com/yesodweb/wai/pull/837)
+
 ## 3.1.5
 
 * `Network.Wai.Middleware.RealIp`: Add a new middleware to infer the remote IP address from headers [#834](https://github.com/yesodweb/wai/pull/834)
