@@ -110,7 +110,7 @@ headerLines maxTotalHeaderLength firstRequest src = do
         -- lack of data as a real exception. See the http1 function in
         -- the Run module for more details.
         then if firstRequest then throwIO ConnectionClosedByPeer else throwIO NoKeepAliveRequest
-        else push maxTotalHeaderLength src (THStatus 0 id id) bs
+        else push maxTotalHeaderLength src (THStatus 0 0 id id) bs
 
 data NoKeepAliveRequest = NoKeepAliveRequest
     deriving (Show, Typeable)
@@ -209,7 +209,8 @@ type BSEndo = ByteString -> ByteString
 type BSEndoList = [ByteString] -> [ByteString]
 
 data THStatus = THStatus
-    {-# UNPACK #-} !Int -- running total byte count
+    {-# UNPACK #-} !Int -- running total byte count (excluding current header chunk)
+    {-# UNPACK #-} !Int -- current header chunk byte count
     BSEndoList -- previously parsed lines
     BSEndo -- bytestrings to be prepended
 
@@ -221,15 +222,20 @@ close = throwIO IncompleteHeaders
 -}
 
 push :: Int -> Source -> THStatus -> ByteString -> IO [ByteString]
-push maxTotalHeaderLength src (THStatus len lines prepend) bs'
+push maxTotalHeaderLength src (THStatus totalLen chunkLen lines prepend) bs'
         -- Too many bytes
-        | len > maxTotalHeaderLength = throwIO OverLargeHeader
+        | currentTotal > maxTotalHeaderLength = throwIO OverLargeHeader
         | otherwise = push' mnl
   where
+    currentTotal = totalLen + chunkLen + thisChunkLen
+    thisChunkLen = S.length bs'
+    -- bs: current header chunk, plus maybe (parts of) next header
     bs = prepend bs'
     bsLen = S.length bs
+    -- 10 is the code point for newline (\n)
+    findNewLine = S.elemIndex 10
     mnl = do
-        nl <- S.elemIndex 10 bs
+        nl <- findNewLine bs
         -- check if there are two more bytes in the bs
         -- if so, see if the second of those is a horizontal space
         if bsLen > nl + 1 then
@@ -251,16 +257,22 @@ push maxTotalHeaderLength src (THStatus len lines prepend) bs'
         when (S.null bst) $ throwIO IncompleteHeaders
         push maxTotalHeaderLength src status bst
       where
-        len' = len + bsLen
         prepend' = S.append bs
-        status = THStatus len' lines prepend'
+        newChunkLen = chunkLen + thisChunkLen
+        status = THStatus totalLen newChunkLen lines prepend'
     -- Found a newline, but next line continues as a multiline header
     push' (Just (end, True)) = push maxTotalHeaderLength src status rest
       where
         rest = S.drop (end + 1) bs
         prepend' = S.append (SU.unsafeTake (checkCR bs end) bs)
-        len' = len + end
-        status = THStatus len' lines prepend'
+        -- This is safe or we wouldn't have an 'end'
+        Just thisChunkUpToNL = findNewLine bs'
+        -- If we'd just update the entire current chunk up to newline
+        -- we wouldn't count all the dropped newlines in between.
+        -- So update 'chunkLen' with current chunk up to newline
+        -- and use 'chunkLen' later on to add to 'totalLen'.
+        newChunkLen = chunkLen + thisChunkUpToNL + 1
+        status = THStatus totalLen newChunkLen lines prepend'
     -- Found a newline at position end.
     push' (Just (end, False))
       -- leftover
@@ -268,9 +280,11 @@ push maxTotalHeaderLength src (THStatus len lines prepend) bs'
             when (start < bsLen) $ leftoverSource src (SU.unsafeDrop start bs)
             return (lines [])
       -- more headers
-      | otherwise   = let len' = len + start
-                          lines' = lines . (line:)
-                          status = THStatus len' lines' id
+      | otherwise   = let lines' = lines . (line:)
+                          -- This is safe or we wouldn't have an 'end'
+                          Just thisChunkUpToNL = findNewLine bs'
+                          newTotalLength = totalLen + chunkLen + thisChunkUpToNL + 1
+                          status = THStatus newTotalLength 0 lines' id
                       in if start < bsLen then
                              -- more bytes in this chunk, push again
                              let bs'' = SU.unsafeDrop start bs
@@ -286,7 +300,7 @@ push maxTotalHeaderLength src (THStatus len lines prepend) bs'
 
 {-# INLINE checkCR #-}
 checkCR :: ByteString -> Int -> Int
-checkCR bs pos = if pos > 0 && 13 == S.index bs p then p else pos -- 13 is CR
+checkCR bs pos = if pos > 0 && 13 == S.index bs p then p else pos -- 13 is CR (\r)
   where
     !p = pos - 1
 
