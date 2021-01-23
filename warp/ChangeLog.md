@@ -1,3 +1,8 @@
+## 3.3.15
+
+* Fix header length calculation for `settingsMaxTotalHeaderLength`
+  [#838](https://github.com/yesodweb/wai/pull/838)
+
 ## 3.3.14
 
 * UTF-8 encoding in `exceptionResponseForDebug`.
