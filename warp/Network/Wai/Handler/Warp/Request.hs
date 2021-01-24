@@ -227,8 +227,7 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen lines prepend) bs'
         | currentTotal > maxTotalHeaderLength = throwIO OverLargeHeader
         | otherwise = push' mnl
   where
-    currentTotal = totalLen + chunkLen + thisChunkLen
-    thisChunkLen = S.length bs'
+    currentTotal = totalLen + chunkLen
     -- bs: current header chunk, plus maybe (parts of) next header
     bs = prepend bs'
     bsLen = S.length bs
@@ -258,6 +257,7 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen lines prepend) bs'
         push maxTotalHeaderLength src status bst
       where
         prepend' = S.append bs
+        thisChunkLen = S.length bs'
         newChunkLen = chunkLen + thisChunkLen
         status = THStatus totalLen newChunkLen lines prepend'
     -- Found a newline, but next line continues as a multiline header
