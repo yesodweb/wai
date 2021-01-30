@@ -209,8 +209,8 @@ type BSEndo = ByteString -> ByteString
 type BSEndoList = [ByteString] -> [ByteString]
 
 data THStatus = THStatus
-    {-# UNPACK #-} !Int -- running total byte count (excluding current header chunk)
-    {-# UNPACK #-} !Int -- current header chunk byte count
+    !Int -- running total byte count (excluding current header chunk)
+    !Int -- current header chunk byte count
     BSEndoList -- previously parsed lines
     BSEndo -- bytestrings to be prepended
 
