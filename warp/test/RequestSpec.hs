@@ -65,7 +65,7 @@ spec = do
     test "bytes=0-0,-1" $ Just [HH.ByteRangeFromTo 0 0, HH.ByteRangeSuffix 1]
 
   describe "headerLines" $ do
-      it "can handle a nomarl case" $ do
+      it "can handle a normal case" $ do
           src <- mkSourceFunc ["Status: 200\r\nContent-Type: text/plain\r\n\r\n"] >>= mkSource
           x <- headerLines defaultMaxTotalHeaderLength True src
           x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
@@ -91,6 +91,17 @@ spec = do
           x `shouldBe` []
           y <- headerLines defaultMaxTotalHeaderLength True src
           y `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+
+      -- Length is 39, this shouldn't fail
+      let testLengthHeaders = ["Sta", "tus: 200\r", "\n", "Content-Type: ", "text/plain\r\n\r\n"]
+      it "doesn't throw on correct length" $ do
+          src <- mkSourceFunc testLengthHeaders >>= mkSource
+          x <- headerLines 39 True src
+          x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+      -- Length is still 39, this should fail
+      it "throws error on correct length too long" $ do
+          src <- mkSourceFunc testLengthHeaders >>= mkSource
+          headerLines 38 True src `shouldThrow` (== OverLargeHeader)
 
   where
     blankSafe = headerLinesList ["f", "oo\n", "bar\nbaz\n\r\n"]
