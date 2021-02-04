@@ -1,10 +1,8 @@
-## 3.3.15
-
-* Fix header length calculation for `settingsMaxTotalHeaderLength`
-  [#838](https://github.com/yesodweb/wai/pull/838)
-
 ## 3.3.14
 
+* Drop support for GHC < 8.2.
+* Fix header length calculation for `settingsMaxTotalHeaderLength`
+  [#838](https://github.com/yesodweb/wai/pull/838)
 * UTF-8 encoding in `exceptionResponseForDebug`.
   [#836](https://github.com/yesodweb/wai/pull/836)
 
