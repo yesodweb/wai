@@ -29,6 +29,7 @@ module Network.Wai.Handler.WarpTLS (
     -- ** From references
     , tlsSettingsRef
     , tlsSettingsChainRef
+    , getCertSettings
     -- * Accessors
     , tlsCredentials
     , tlsLogging
@@ -294,6 +295,12 @@ tlsSettingsChainRef
 tlsSettingsChainRef cert chainCerts key = defaultTlsSettings { 
     certSettings = CertFromRef cert chainCerts key
   }
+
+
+-- Since 3.3.1
+-- | Some programs need access to cert settings
+getCertSettings :: TLSSettings -> CertSettings
+getCertSettings tlsSetgs = certSettings tlsSetgs
 
 ----------------------------------------------------------------
 
