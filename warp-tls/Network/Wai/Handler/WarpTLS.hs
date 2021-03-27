@@ -30,6 +30,7 @@ module Network.Wai.Handler.WarpTLS (
     , tlsSettingsRef
     , tlsSettingsChainRef
     , getCertSettings
+    , CertSettings(..)
     -- * Accessors
     , tlsCredentials
     , tlsLogging
