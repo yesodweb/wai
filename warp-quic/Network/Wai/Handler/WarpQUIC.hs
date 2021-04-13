@@ -29,7 +29,9 @@ runQUIC quicsettings settings app = do
                pread = pReadMaker ii
                timmgr = timeoutManager ii
                conf = H3.Config H3.defaultHooks pread timmgr
-               Just appProto = malpn
-               run | "h3" `BS.isPrefixOf` appProto = H3.run
-                   | otherwise                     = HQ.run
-           run conn conf $ http2server settings ii transport addr app
+           case malpn of
+             Nothing -> return ()
+             Just appProto -> do
+                 let run | "h3" `BS.isPrefixOf` appProto = H3.run
+                         | otherwise                     = HQ.run
+                 run conn conf $ http2server settings ii transport addr app
