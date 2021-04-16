@@ -1,10 +1,14 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Network.Wai.Handler.WarpQUIC where
 
+import qualified Data.ByteString as BS
+import qualified Network.HQ.Server as HQ
 import qualified Network.HTTP3.Server as H3
 import Network.QUIC
 import Network.TLS (cipherID)
 import Network.Wai
-import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Handler.Warp.Internal
 
 type QUICSettings = ServerConfig
@@ -16,11 +20,18 @@ runQUIC quicsettings settings app = do
            info <- getConnectionInfo conn
            mccc <- clientCertificateChain conn
            let addr = remoteSockAddr info
-           let transport = QUIC {
-                   quicNegotiatedProtocol = alpn info
+               malpn = alpn info
+               transport = QUIC {
+                   quicNegotiatedProtocol = malpn
                  , quicChiperID = cipherID $ cipher info
                  , quicClientCertificate = mccc
                  }
                pread = pReadMaker ii
-               conf = H3.Config pread
-           H3.run conn conf $ http2server settings ii transport addr app
+               timmgr = timeoutManager ii
+               conf = H3.Config H3.defaultHooks pread timmgr
+           case malpn of
+             Nothing -> return ()
+             Just appProto -> do
+                 let run | "h3" `BS.isPrefixOf` appProto = H3.run
+                         | otherwise                     = HQ.run
+                 run conn conf $ http2server settings ii transport addr app

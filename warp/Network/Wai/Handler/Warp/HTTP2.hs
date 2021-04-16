@@ -13,7 +13,7 @@ import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.IORef (IORef, newIORef, writeIORef)
 import qualified Data.IORef as I
-import qualified Network.HTTP2 as H2
+import qualified Network.HTTP2.Frame as H2
 import qualified Network.HTTP2.Server as H2
 import Network.Socket (SockAddr)
 import Network.Wai
@@ -50,6 +50,7 @@ http2 settings ii conn transport app origAddr th bs = do
           , confSendAll           = sendBS
           , confReadN             = recvN
           , confPositionReadMaker = pReadMaker ii
+          , confTimeoutManager    = timeoutManager ii
           }
     checkTLS
     setConnHTTP2 conn True
