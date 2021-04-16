@@ -1,3 +1,7 @@
+## 3.3.15
+
+* Using http2 v3.
+
 ## 3.3.14
 
 * Drop support for GHC < 8.2.
