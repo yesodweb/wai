@@ -103,6 +103,7 @@ module Network.Wai.Handler.Warp (
   , withApplication
   , withApplicationSettings
   , testWithApplication
+  , testWithApplication'
   , testWithApplicationSettings
   , openFreePort
     -- * Version

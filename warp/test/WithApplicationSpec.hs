@@ -36,6 +36,13 @@ spec = do
           readProcess "curl" ["-s", "localhost:" ++ show port] "")
         `shouldThrow` (errorCall "foo")
 
+  describe "testWithApplication'" $ do
+    it "propagates exceptions from the server to the executing thread" $ do
+      let mkApp _request _respond = throwIO $ ErrorCall "foo"
+      (testWithApplication' mkApp $ \ port -> do
+          readProcess "curl" ["-s", "localhost:" ++ show port] "")
+        `shouldThrow` (errorCall "foo")
+
 {- The future netwrok library will not export MkSocket.
   describe "withFreePort" $ do
     it "closes the socket before exiting" $ do

@@ -1,3 +1,8 @@
+## 3.3.16
+
+* Add `testWithApplication'` function
+  Same as `testWithApplication` but accepts pure `Application` instead of `IO Application`
+
 ## 3.3.15
 
 * Using http2 v3.
