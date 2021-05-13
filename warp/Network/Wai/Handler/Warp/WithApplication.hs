@@ -3,6 +3,7 @@ module Network.Wai.Handler.Warp.WithApplication (
   withApplication,
   withApplicationSettings,
   testWithApplication,
+  testWithApplication',
   testWithApplicationSettings,
   openFreePort,
   withFreePort,
@@ -47,6 +48,20 @@ withApplicationSettings settings' mkApp action = do
     case result of
       Left () -> throwIO $ ErrorCall "Unexpected: runSettingsSocket exited"
       Right x -> return x
+
+-- | Same as 'testWithApplication'
+-- but accepts @app :: 'Application'@ as a first argument instead of @mkApp :: 'IO' 'Application'@.  
+--
+-- Except for the purity of its first argument, the behaviour of this function is identical to 'testWithApplication'.
+--
+-- 'testWithApplication' can be expressed via 'testWithApplication'' as:
+--
+-- >>> testWithApplication mkApp action = mkApp >>= flip testWithApplication' action
+--
+-- @since 3.3.16
+testWithApplication' :: Application -> (Port -> IO a) -> IO a
+testWithApplication' =
+  testWithApplication . return
 
 -- | Same as 'withApplication' but with different exception handling: If the
 -- given 'Application' throws an exception, 'testWithApplication' will re-throw
