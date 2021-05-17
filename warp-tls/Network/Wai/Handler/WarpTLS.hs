@@ -393,14 +393,12 @@ getter tlsset set sock params = do
     return (mkConn tlsset set s params, sa)
 
 mkConn :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> params -> IO (Connection, Transport)
-mkConn tlsset set s params = switch `onException` close s
+mkConn tlsset set s params = (safeRecv s 4096 >>= switch) `onException` close s
   where
-    switch = do
-        firstBS <- safeRecv s 4096
-        if not (S.null firstBS) && S.head firstBS == 0x16 then
-            httpOverTls tlsset set s firstBS params
-          else
-            plainHTTP tlsset set s firstBS
+    switch firstBS
+        | S.null firstBS = close s >> throwIO ClientClosedConnectionPrematurely
+        | S.head firstBS == 0x16 = httpOverTls tlsset set s firstBS params
+        | otherwise = plainHTTP tlsset set s firstBS
 
 ----------------------------------------------------------------
 
@@ -590,6 +588,8 @@ recvPlain ref fallback = do
 
 ----------------------------------------------------------------
 
-data WarpTLSException = InsecureConnectionDenied
+data WarpTLSException
+    = InsecureConnectionDenied
+    | ClientClosedConnectionPrematurely
     deriving (Show, Typeable)
 instance Exception WarpTLSException
