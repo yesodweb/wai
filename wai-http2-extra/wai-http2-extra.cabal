@@ -13,7 +13,7 @@ Stability:           Stable
 Description:         WAI utilities for HTTP/2
 
 Library
-  Build-Depends:     base                      >= 4.10     && < 5
+  Build-Depends:     base                      >= 4.12     && < 5
                    , bytestring
                    , containers
                    , http-types

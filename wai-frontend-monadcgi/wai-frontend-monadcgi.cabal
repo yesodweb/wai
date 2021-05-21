@@ -13,7 +13,7 @@ build-type:      Simple
 extra-source-files: README.md ChangeLog.md
 
 library
-    build-depends: base              >= 4.10     && < 5
+    build-depends: base              >= 4.12     && < 5
                  , bytestring
                  , containers        >= 0.2
                  , cgi

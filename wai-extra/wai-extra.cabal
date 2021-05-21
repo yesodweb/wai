@@ -87,7 +87,7 @@ flag build-example
   default:            False
 
 Library
-  Build-Depends:     base                      >= 4.10 && < 5
+  Build-Depends:     base                      >= 4.12 && < 5
                    , bytestring                >= 0.10.4
                    , wai                       >= 3.0.3.0  && < 3.3
                    , time                      >= 1.1.4

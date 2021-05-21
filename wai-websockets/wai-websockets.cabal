@@ -18,7 +18,7 @@ extra-source-files: static/client.js, static/client.html, static/screen.css
 flag example
 
 Library
-  Build-Depends:     base               >= 4.10     && < 5
+  Build-Depends:     base               >= 4.12     && < 5
                    , bytestring         >= 0.9.1.4
                    , wai                >= 3.0      && < 3.3
                    , case-insensitive   >= 0.2

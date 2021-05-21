@@ -21,7 +21,7 @@ Source-repository head
 
 Library
   default-language: Haskell2010
-  Build-Depends:     base                      >= 4.10     && < 5
+  Build-Depends:     base                      >= 4.12     && < 5
                    , bytestring                >= 0.10.4
                    , network                   >= 2.2.1.5
                    , http-types                >= 0.7
