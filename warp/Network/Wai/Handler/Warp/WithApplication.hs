@@ -10,7 +10,7 @@ module Network.Wai.Handler.Warp.WithApplication (
 
 import           Control.Concurrent
 import           Control.Concurrent.Async
-import           Control.Exception
+import qualified UnliftIO
 import           Control.Monad (when)
 import           Data.Streaming.Network (bindRandomPortTCP)
 import           Network.Socket
@@ -45,7 +45,7 @@ withApplicationSettings settings' mkApp action = do
       (runSettingsSocket settings sock app)
       (waitFor started >> action port)
     case result of
-      Left () -> throwIO $ ErrorCall "Unexpected: runSettingsSocket exited"
+      Left () -> UnliftIO.throwString "Unexpected: runSettingsSocket exited"
       Right x -> return x
 
 -- | Same as 'withApplication' but with different exception handling: If the
@@ -72,11 +72,11 @@ testWithApplicationSettings settings mkApp action = do
   callingThread <- myThreadId
   app <- mkApp
   let wrappedApp request respond =
-        app request respond `catch` \ e -> do
+        app request respond `UnliftIO.catchAny` \ e -> do
           when
             (defaultShouldDisplayException e)
             (throwTo callingThread e)
-          throwIO e
+          UnliftIO.throwIO e
   withApplicationSettings settings (return wrappedApp) action
 
 data Waiter a
@@ -101,4 +101,4 @@ openFreePort = bindRandomPortTCP "127.0.0.1"
 
 -- | Like 'openFreePort' but closes the socket before exiting.
 withFreePort :: ((Port, Socket) -> IO a) -> IO a
-withFreePort = bracket openFreePort (close . snd)
+withFreePort = UnliftIO.bracket openFreePort (close . snd)

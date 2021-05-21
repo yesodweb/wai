@@ -6,7 +6,7 @@ module Network.Wai.Handler.Warp.FileInfoCache (
   , getInfo -- test purpose only
   ) where
 
-import Control.Exception as E
+import qualified UnliftIO (onException, bracket, throwIO)
 import Control.Reaper
 import Network.HTTP.Date
 import System.PosixCompat.Files
@@ -49,7 +49,7 @@ getInfo path = do
               }
         return info
       else
-        throwIO (userError "FileInfoCache:getInfo")
+        UnliftIO.throwIO (userError "FileInfoCache:getInfo")
 
 getInfoNaive :: FilePath -> IO FileInfo
 getInfoNaive = getInfo
@@ -60,10 +60,10 @@ getAndRegisterInfo :: FileInfoCache -> FilePath -> IO FileInfo
 getAndRegisterInfo reaper@Reaper{..} path = do
     cache <- reaperRead
     case M.lookup path cache of
-        Just Negative     -> throwIO (userError "FileInfoCache:getAndRegisterInfo")
+        Just Negative     -> UnliftIO.throwIO (userError "FileInfoCache:getAndRegisterInfo")
         Just (Positive x) -> return x
         Nothing           -> positive reaper path
-                               `E.onException` negative reaper path
+                               `UnliftIO.onException` negative reaper path
 
 positive :: FileInfoCache -> FilePath -> IO FileInfo
 positive Reaper{..} path = do
@@ -74,7 +74,7 @@ positive Reaper{..} path = do
 negative :: FileInfoCache -> FilePath -> IO FileInfo
 negative Reaper{..} path = do
     reaperAdd (path, Negative)
-    throwIO (userError "FileInfoCache:negative")
+    UnliftIO.throwIO (userError "FileInfoCache:negative")
 
 ----------------------------------------------------------------
 
@@ -86,9 +86,10 @@ withFileInfoCache :: Int
                   -> IO a
 withFileInfoCache 0        action = action getInfoNaive
 withFileInfoCache duration action =
-    E.bracket (initialize duration)
-              terminate
-              (action . getAndRegisterInfo)
+    UnliftIO.bracket
+      (initialize duration)
+      terminate
+      (action . getAndRegisterInfo)
 
 initialize :: Int -> IO FileInfoCache
 initialize duration = mkReaper settings

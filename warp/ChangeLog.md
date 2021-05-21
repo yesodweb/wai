@@ -1,3 +1,9 @@
+# ChangeLog for warp
+
+## 3.3.16
+
+* Move exception handling over to `unliftio` for better async exception support [#845](https://github.com/yesodweb/wai/issues/845)
+
 ## 3.3.15
 
 * Using http2 v3.

@@ -4,7 +4,7 @@
 
 module Network.Wai.Handler.Warp.HTTP2.PushPromise where
 
-import qualified Control.Exception as E
+import qualified UnliftIO
 import qualified Network.HTTP.Types as H
 import qualified Network.HTTP2.Server as H2
 
@@ -25,9 +25,9 @@ fromPushPromises ii req = do
 
 fromPushPromise :: InternalInfo -> PushPromise -> IO (Maybe H2.PushPromise)
 fromPushPromise ii (PushPromise path file rsphdr w) = do
-    efinfo <- E.try $ getFileInfo ii file
+    efinfo <- UnliftIO.tryIO $ getFileInfo ii file
     case efinfo of
-      Left (_ex :: E.IOException) -> return Nothing
+      Left (_ex :: UnliftIO.IOException) -> return Nothing
       Right finfo -> do
           let !siz = fromIntegral $ fileInfoSize finfo
               !fileSpec = H2.FileSpec file 0 siz

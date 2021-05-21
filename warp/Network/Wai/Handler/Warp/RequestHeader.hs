@@ -4,7 +4,7 @@ module Network.Wai.Handler.Warp.RequestHeader (
       parseHeaderLines
     ) where
 
-import Control.Exception (throwIO)
+import UnliftIO (throwIO)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C8 (unpack)
 import Data.ByteString.Internal (memchr)

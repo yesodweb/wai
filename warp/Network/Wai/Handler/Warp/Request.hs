@@ -14,7 +14,7 @@ module Network.Wai.Handler.Warp.Request (
   ) where
 
 import qualified Control.Concurrent as Conc (yield)
-import Control.Exception (throwIO, Exception)
+import UnliftIO (throwIO, Exception)
 import Data.Array ((!))
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as SU

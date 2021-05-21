@@ -17,7 +17,7 @@ import Foreign.ForeignPtr (newForeignPtr_)
 import Foreign.Ptr (plusPtr)
 import qualified System.IO as IO
 #else
-import Control.Exception
+import qualified UnliftIO
 import Foreign.C.Error (throwErrno)
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
@@ -112,7 +112,7 @@ readSendFile buf siz send fid off0 len0 hook headers = do
 #else
 readSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 readSendFile buf siz send fid off0 len0 hook headers =
-  bracket setup teardown $ \fd -> do
+  UnliftIO.bracket setup teardown $ \fd -> do
     hn <- packHeader buf siz send hook headers 0
     let room = siz - hn
         buf' = buf `plusPtr` hn

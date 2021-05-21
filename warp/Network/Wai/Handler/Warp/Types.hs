@@ -4,7 +4,7 @@
 
 module Network.Wai.Handler.Warp.Types where
 
-import Control.Exception
+import qualified UnliftIO
 import qualified Data.ByteString as S
 import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 import Data.Typeable (Typeable)
@@ -49,7 +49,7 @@ instance Show InvalidRequest where
     show OverLargeHeader = "Warp: Request headers too large, possible memory attack detected. Closing connection."
     show (BadProxyHeader s) = "Warp: Invalid PROXY protocol header: " ++ show s
 
-instance Exception InvalidRequest
+instance UnliftIO.Exception InvalidRequest
 
 ----------------------------------------------------------------
 
@@ -60,10 +60,10 @@ instance Exception InvalidRequest
 -- Used to determine whether keeping the HTTP1.1 connection / HTTP2 stream alive is safe
 -- or irrecoverable.
 
-newtype ExceptionInsideResponseBody = ExceptionInsideResponseBody SomeException
+newtype ExceptionInsideResponseBody = ExceptionInsideResponseBody UnliftIO.SomeException
     deriving (Show, Typeable)
 
-instance Exception ExceptionInsideResponseBody
+instance UnliftIO.Exception ExceptionInsideResponseBody
 
 ----------------------------------------------------------------
 

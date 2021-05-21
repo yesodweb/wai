@@ -7,7 +7,7 @@ module Network.Wai.Handler.Warp.HTTP2.Response (
     fromResponse
   ) where
 
-import qualified Control.Exception as E
+import qualified UnliftIO
 import qualified Data.ByteString.Builder as BB
 import qualified Network.HTTP.Types as H
 import qualified Network.HTTP2.Server as H2
@@ -69,9 +69,9 @@ responseFile st rsphdr isHead path (Just fp) _ _ =
     !fileSpec = H2.FileSpec path off' bytes'
 
 responseFile _ rsphdr isHead path Nothing ii reqhdr = do
-    efinfo <- E.try $ getFileInfo ii path
+    efinfo <- UnliftIO.tryIO $ getFileInfo ii path
     case efinfo of
-        Left (_ex :: E.IOException) -> return $ response404 rsphdr
+        Left (_ex :: UnliftIO.IOException) -> return $ response404 rsphdr
         Right finfo -> do
             let reqidx = indexRequestHeader reqhdr
                 rspidx = indexResponseHeader rsphdr
