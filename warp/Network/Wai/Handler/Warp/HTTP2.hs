@@ -9,7 +9,7 @@ module Network.Wai.Handler.Warp.HTTP2 (
   , http2server
   ) where
 
-import qualified Control.Exception as E
+import qualified UnliftIO
 import qualified Data.ByteString as BS
 import Data.IORef (IORef, newIORef, writeIORef)
 import qualified Data.IORef as I
@@ -73,7 +73,7 @@ http2server :: S.Settings
 http2server settings ii transport addr app h2req0 aux0 response = do
     req <- toWAIRequest h2req0 aux0
     ref <- I.newIORef Nothing
-    eResponseReceived <- E.try $ app req $ \rsp -> do
+    eResponseReceived <- UnliftIO.tryAny $ app req $ \rsp -> do
         (h2rsp,st,hasBody) <- fromResponse settings ii req rsp
         pps <- if hasBody then fromPushPromises ii req else return []
         I.writeIORef ref $ Just (h2rsp, pps, st)
@@ -85,12 +85,7 @@ http2server settings ii transport addr app h2req0 aux0 response = do
           let msiz = fromIntegral <$> H2.responseBodySize h2rsp
           logResponse req st msiz
           mapM_ (logPushPromise req) pps
-      Left e@(E.SomeException _)
-        -- killed by the local worker manager
-        | Just E.ThreadKilled  <- E.fromException e -> return ()
-        -- killed by the local timeout manager
-        | Just T.TimeoutThread <- E.fromException e -> return ()
-        | otherwise -> do
+      Left e -> do
             S.settingsOnException settings (Just req) e
             let ersp = S.settingsOnExceptionResponse settings e
                 st = responseStatus ersp

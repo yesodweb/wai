@@ -2,7 +2,7 @@
 
 module Network.Wai.Handler.Warp.Conduit where
 
-import Control.Exception
+import UnliftIO (assert, throwIO)
 import qualified Data.ByteString as S
 import qualified Data.IORef as I
 

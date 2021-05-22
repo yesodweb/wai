@@ -8,7 +8,9 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
-import Control.Exception as E
+import Control.Exception (allowInterrupt)
+import qualified UnliftIO
+import UnliftIO (toException)
 import qualified Data.ByteString as S
 import Data.IORef (newIORef, readIORef)
 import Data.Streaming.Network (bindPortTCP)
@@ -69,7 +71,7 @@ socketConnection _ s = do
             if tm == 0 then
                 close s
               else
-                gracefulClose s tm `E.catch` \(E.SomeException _) -> return ()
+                gracefulClose s tm `UnliftIO.catchAny` \(UnliftIO.SomeException _) -> return ()
 #else
       , connClose = close s
 #endif
@@ -81,11 +83,11 @@ socketConnection _ s = do
       , connHTTP2 = isH2
       }
   where
-    sendAll' sock bs = E.handleJust
+    sendAll' sock bs = UnliftIO.handleJust
       (\ e -> if ioeGetErrorType e == ResourceVanished
         then Just ConnectionClosedByPeer
         else Nothing)
-      throwIO
+      UnliftIO.throwIO
       $ Sock.sendAll sock bs
 
 -- | Run an 'Application' on the given port.
@@ -115,7 +117,7 @@ runEnv p app = do
 -- calls 'runSettingsSocket'.
 runSettings :: Settings -> Application -> IO ()
 runSettings set app = withSocketsDo $
-    bracket
+    UnliftIO.bracket
         (bindPortTCP (settingsPort set) (settingsHost set))
         close
         (\socket -> do
@@ -146,7 +148,7 @@ runSettingsSocket set socket app = do
 #endif
         setSocketCloseOnExec s
         -- NoDelay causes an error for AF_UNIX.
-        setSocketOption s NoDelay 1 `E.catch` \(E.SomeException _) -> return ()
+        setSocketOption s NoDelay 1 `UnliftIO.catchAny` \(UnliftIO.SomeException _) -> return ()
         conn <- socketConnection set s
         return (conn, sa)
 
@@ -207,7 +209,7 @@ withII set action =
     !timeoutInSeconds = settingsTimeout set * 1000000
     withTimeoutManager f = case settingsManager set of
         Just tm -> f tm
-        Nothing -> bracket
+        Nothing -> UnliftIO.bracket
                    (T.initialize timeoutInSeconds)
                    T.stopManager
                    f
@@ -237,7 +239,7 @@ acceptConnection set getConnMaker app counter ii = do
     -- acceptNewConnection and the registering of connClose.
     --
     -- acceptLoop can be broken by closing the listening socket.
-    void $ mask_ acceptLoop
+    void $ UnliftIO.mask_ acceptLoop
     -- In some cases, we want to stop Warp here without graceful shutdown.
     -- So, async exceptions are allowed here.
     -- That's why `finally` is not used.
@@ -262,7 +264,7 @@ acceptConnection set getConnMaker app counter ii = do
                 acceptLoop
 
     acceptNewConnection = do
-        ex <- try getConnMaker
+        ex <- UnliftIO.tryIO getConnMaker
         case ex of
             Right x -> return $ Just x
             Left e -> do
@@ -286,7 +288,7 @@ fork :: Settings
 fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
     -- Call the user-supplied on exception code if any
     -- exceptions are thrown.
-    handle (settingsOnException set Nothing) $
+    UnliftIO.handleAny (settingsOnException set Nothing) $
         -- Run the connection maker to get a new connection, and ensure
         -- that the connection is closed. If the mkConn call throws an
         -- exception, we will leak the connection. If the mkConn call is
@@ -297,20 +299,20 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
         -- We grab the connection before registering timeouts since the
         -- timeouts will be useless during connection creation, due to the
         -- fact that async exceptions are still masked.
-        bracket mkConn cleanUp (serve unmask)
+        UnliftIO.bracket mkConn cleanUp (serve unmask)
   where
-    cleanUp (conn, _) = connClose conn `finally` connFree conn
+    cleanUp (conn, _) = connClose conn `UnliftIO.finally` connFree conn
 
     -- We need to register a timeout handler for this thread, and
     -- cancel that handler as soon as we exit.
-    serve unmask (conn, transport) = bracket register cancel $ \th -> do
+    serve unmask (conn, transport) = UnliftIO.bracket register cancel $ \th -> do
         -- We now have fully registered a connection close handler in
         -- the case of all exceptions, so it is safe to once again
         -- allow async exceptions.
         unmask .
             -- Call the user-supplied code for connection open and
             -- close events
-           bracket (onOpen addr) (onClose addr) $ \goingon ->
+           UnliftIO.bracket (onOpen addr) (onClose addr) $ \goingon ->
            -- Actually serve this connection.  bracket with closeConn
            -- above ensures the connection is closed.
            when goingon $ serveConnection conn ii th addr transport set app

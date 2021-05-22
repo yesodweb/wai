@@ -1,5 +1,5 @@
 Name:                warp
-Version:             3.3.15
+Version:             3.3.16
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -57,6 +57,7 @@ Library
                    , wai                       >= 3.2      && < 3.3
                    , word8
                    , x509
+                   , unliftio
   if impl(ghc < 8)
       Build-Depends: semigroups
   if flag(network-bytestring)
@@ -215,6 +216,7 @@ Test-Suite spec
                    , wai                       >= 3.2      && < 3.3
                    , word8
                    , x509
+                   , unliftio
     -- Build-Tool-Depends: hspec-discover:hspec-discover
   if impl(ghc < 8)
       Build-Depends: semigroups
@@ -254,6 +256,7 @@ Benchmark parser
                   , time-manager
                   , unix-compat
                   , x509
+                  , unliftio
   if impl(ghc < 8)
       Build-Depends: semigroups
 

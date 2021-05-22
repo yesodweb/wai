@@ -9,7 +9,7 @@ module Network.Wai.Handler.Warp.Recv (
   , spell
   ) where
 
-import qualified Control.Exception as E
+import qualified UnliftIO
 import qualified Data.ByteString as BS
 import Data.IORef
 import Foreign.C.Error (eAGAIN, getErrno, throwErrno)
@@ -55,13 +55,13 @@ makePlainReceiveN s bs0 = do
     return $ receiveN ref (receive s pool) (receiveBuf s)
 
 receiveN :: IORef ByteString -> Recv -> RecvBuf -> BufSize -> IO ByteString
-receiveN ref recv recvBuf size = E.handle handler $ do
+receiveN ref recv recvBuf size = UnliftIO.handleAny handler $ do
     cached <- readIORef ref
     (bs, leftover) <- spell cached size recv recvBuf
     writeIORef ref leftover
     return bs
  where
-   handler :: E.SomeException -> IO ByteString
+   handler :: UnliftIO.SomeException -> IO ByteString
    handler _ = return ""
 
 ----------------------------------------------------------------
@@ -100,7 +100,7 @@ spell init0 siz0 recv recvBuf
 -- In that case, an error of "Bad file descriptor" occurs.
 -- We ignores it because we expect TimeoutThread.
 receive :: Socket -> BufferPool -> Recv
-receive sock pool = E.handle handler $ withBufferPool pool $ \ (ptr, size) -> do
+receive sock pool = UnliftIO.handleIO handler $ withBufferPool pool $ \ (ptr, size) -> do
 #if MIN_VERSION_network(3,1,0)
   withFdSocket sock $ \fd -> do
 #elif MIN_VERSION_network(3,0,0)
@@ -111,10 +111,10 @@ receive sock pool = E.handle handler $ withBufferPool pool $ \ (ptr, size) -> do
     let size' = fromIntegral size
     fromIntegral <$> receiveloop fd ptr size'
   where
-    handler :: E.IOException -> IO ByteString
+    handler :: UnliftIO.IOException -> IO ByteString
     handler e
       | E.ioeGetErrorType e == E.InvalidArgument = return ""
-      | otherwise                                = E.throwIO e
+      | otherwise                                = UnliftIO.throwIO e
 
 receiveBuf :: Socket -> RecvBuf
 receiveBuf sock buf0 siz0 = do

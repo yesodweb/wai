@@ -14,7 +14,7 @@ module Network.Wai.Handler.Warp.FdCache (
   ) where
 
 #ifndef WINDOWS
-import Control.Exception (bracket)
+import UnliftIO.Exception (bracket)
 import Control.Reaper
 import Data.IORef
 import Network.Wai.Handler.Warp.MultiMap as MM

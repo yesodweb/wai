@@ -10,7 +10,8 @@ module Network.Wai.Handler.Warp.HTTP1 (
 
 import "iproute" Data.IP (toHostAddress, toHostAddress6)
 import qualified Control.Concurrent as Conc (yield)
-import Control.Exception as E
+import qualified UnliftIO
+import UnliftIO (SomeException, fromException, throwIO)
 import qualified Data.ByteString as BS
 import Data.Char (chr)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
@@ -84,7 +85,7 @@ http1 settings ii conn transport app origAddr th bs0 = do
 
 http1server :: Settings -> InternalInfo -> Connection -> Transport -> Application  -> SockAddr -> T.Handle -> IORef Bool -> Source -> IO ()
 http1server settings ii conn transport app addr th istatus src =
-    loop True `E.catch` handler
+    loop True `UnliftIO.catchAny` handler
   where
     handler e
       -- See comment below referencing
@@ -99,7 +100,7 @@ http1server settings ii conn transport app addr th istatus src =
     loop firstRequest = do
         (req, mremainingRef, idxhdr, nextBodyFlush) <- recvRequest firstRequest settings conn ii th addr src transport
         keepAlive <- processRequest settings ii conn app th istatus src req mremainingRef idxhdr nextBodyFlush
-            `E.catch` \e -> do
+            `UnliftIO.catchAny` \e -> do
                 settingsOnException settings (Just req) e
                 -- Don't throw the error again to prevent calling settingsOnException twice.
                 return False
@@ -124,7 +125,7 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
     -- creating the request, we need to make sure that we don't get
     -- an async exception before calling the ResponseSource.
     keepAliveRef <- newIORef $ error "keepAliveRef not filled"
-    r <- E.try $ app req $ \res -> do
+    r <- UnliftIO.tryAny $ app req $ \res -> do
         T.resume th
         -- FIXME consider forcing evaluation of the res here to
         -- send more meaningful error messages to the user.
@@ -135,7 +136,7 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
         return ResponseReceived
     case r of
         Right ResponseReceived -> return ()
-        Left e@(SomeException _)
+        Left (e :: SomeException)
           | Just (ExceptionInsideResponseBody e') <- fromException e -> throwIO e'
           | otherwise -> do
                 keepAlive <- sendErrorResponse settings ii conn th istatus req e
