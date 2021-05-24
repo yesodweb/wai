@@ -11,9 +11,9 @@ import Network.Wai hiding (Response, responseStatus)
 import Network.Wai.Internal (Request(..))
 import Network.Wai.Handler.Warp
 import Test.Hspec
-import Control.Exception
+import UnliftIO.Exception
 import qualified Data.Streaming.Network as N
-import Control.Concurrent.Async (withAsync)
+import UnliftIO.Async (withAsync)
 import Network.Socket (close)
 
 import HTTP

@@ -4,7 +4,6 @@
 
 module Main where
 
-import Control.Exception (throwIO, throw)
 import Control.Monad
 import qualified Data.ByteString as S
 --import Data.ByteString.Char8 (ByteString)
@@ -12,6 +11,7 @@ import qualified Data.ByteString.Char8 as B (unpack)
 import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.Types
 import Prelude hiding (lines)
+import UnliftIO.Exception (throwIO, impureThrow)
 
 import Data.ByteString.Internal
 import Data.Word
@@ -70,14 +70,14 @@ parseRequestLine3 requestLine = ret
   where
     (!method,!rest) = S.break (== 32) requestLine -- ' '
     (!pathQuery,!httpVer')
-      | rest == "" = throw badmsg
+      | rest == "" = impureThrow badmsg
       | otherwise  = S.break (== 32) (S.drop 1 rest) -- ' '
     (!path,!query) = S.break (== 63) pathQuery -- '?'
     !httpVer = S.drop 1 httpVer'
     (!http,!ver)
-      | httpVer == "" = throw badmsg
+      | httpVer == "" = impureThrow badmsg
       | otherwise     = S.break (== 47) httpVer -- '/'
-    !hv | http /= "HTTP" = throw NonHttp
+    !hv | http /= "HTTP" = impureThrow NonHttp
         | ver == "/1.1"  = H.http11
         | otherwise      = H.http10
     !ret = (method,path,query,hv)

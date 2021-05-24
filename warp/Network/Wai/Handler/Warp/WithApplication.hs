@@ -9,8 +9,8 @@ module Network.Wai.Handler.Warp.WithApplication (
 ) where
 
 import           Control.Concurrent
-import           Control.Concurrent.Async
 import qualified UnliftIO
+import           UnliftIO.Async
 import           Control.Monad (when)
 import           Data.Streaming.Network (bindRandomPortTCP)
 import           Network.Socket
