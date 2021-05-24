@@ -52,8 +52,8 @@ module Network.Wai.Handler.WarpTLS (
     ) where
 
 import Control.Applicative ((<|>))
-import Control.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException, SomeException(..), handleJust)
-import qualified Control.Exception as E
+import UnliftIO.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException, SomeException(..), handleJust)
+import qualified UnliftIO.Exception as E
 import Control.Monad (void, guard)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L

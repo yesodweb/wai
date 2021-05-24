@@ -28,6 +28,7 @@ Library
                    , network                       >= 2.2.1
                    , streaming-commons
                    , tls-session-manager           >= 0.0.4
+                   , unliftio
   Exposed-modules:   Network.Wai.Handler.WarpTLS
   ghc-options:       -Wall
   if os(windows)

@@ -2,7 +2,6 @@
 
 module SendFileSpec where
 
-import Control.Exception
 import Control.Monad (when)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -14,6 +13,7 @@ import System.Exit
 import qualified System.IO as IO
 import System.Process (system)
 import Test.Hspec
+import UnliftIO.Exception
 
 main :: IO ()
 main = hspec spec

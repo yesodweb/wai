@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Control.Concurrent
-import Control.Concurrent.Async
+import UnliftIO.Async
 import Network
 import Network.Wai
 import Network.Wai.Handler.Warp (defaultSettings)
