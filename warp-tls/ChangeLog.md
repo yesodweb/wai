@@ -1,3 +1,8 @@
+## 3.3.1
+
+* Move exception handling over to `unliftio` for better async exception support [#845](https://github.com/yesodweb/wai/issues/845)
+* Cleanly close connection when client closes connection prematurely [#844](https://github.com/yesodweb/wai/issues/844)
+
 ## 3.3.0
 
 * Breaking changes: certFile and keyFile are not exported anymore.
