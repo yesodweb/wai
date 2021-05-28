@@ -6,6 +6,7 @@ import qualified Data.ByteString as BS
 import qualified Network.HQ.Server as HQ
 import qualified Network.HTTP3.Server as H3
 import Network.QUIC
+import Network.QUIC.Server as Q
 import Network.TLS (cipherID)
 import Network.Wai
 import Network.Wai.Handler.Warp hiding (run)
@@ -16,7 +17,7 @@ type QUICSettings = ServerConfig
 runQUIC :: QUICSettings -> Settings -> Application -> IO ()
 runQUIC quicsettings settings app = do
     withII settings $ \ii ->
-        runQUICServer quicsettings $ \conn -> do
+        Q.run quicsettings $ \conn -> do
            info <- getConnectionInfo conn
            mccc <- clientCertificateChain conn
            let addr = remoteSockAddr info
@@ -32,6 +33,6 @@ runQUIC quicsettings settings app = do
            case malpn of
              Nothing -> return ()
              Just appProto -> do
-                 let run | "h3" `BS.isPrefixOf` appProto = H3.run
-                         | otherwise                     = HQ.run
-                 run conn conf $ http2server settings ii transport addr app
+                 let runX | "h3" `BS.isPrefixOf` appProto = H3.run
+                          | otherwise                     = HQ.run
+                 runX conn conf $ http2server settings ii transport addr app
