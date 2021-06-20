@@ -9,6 +9,7 @@ module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
 import Control.Exception (allowInterrupt)
+import qualified Control.Exception
 import qualified UnliftIO
 import UnliftIO (toException)
 import qualified Data.ByteString as S
@@ -288,7 +289,12 @@ fork :: Settings
 fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
     -- Call the user-supplied on exception code if any
     -- exceptions are thrown.
-    UnliftIO.handleAny (settingsOnException set Nothing) $
+    --
+    -- Intentionally using Control.Exception.handle, since we want to
+    -- catch all exceptions and avoid them from propagating, even
+    -- async exceptions. See:
+    -- https://github.com/yesodweb/wai/issues/850
+    Control.Exception.handle (settingsOnException set Nothing) $
         -- Run the connection maker to get a new connection, and ensure
         -- that the connection is closed. If the mkConn call throws an
         -- exception, we will leak the connection. If the mkConn call is
