@@ -15,7 +15,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         args:
-        - "--resolver nightly"
+        # Missing some packages now
+        #- "--resolver nightly"
         - "--resolver lts-17"
         - "--resolver lts-16"
         - "--resolver lts-14 --stack-yaml stack-lts-14.yaml"
