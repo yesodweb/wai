@@ -3,6 +3,7 @@
 ## 3.3.17
 
 * Modify exception handling to swallow async exceptions in forked thread [#850](https://github.com/yesodweb/wai/issues/850)
+* Switch default forking function to not install the global exception handler (minor optimization)
 
 ## 3.3.16
 
