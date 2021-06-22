@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.17
+
+* Modify exception handling to swallow async exceptions in forked thread [#850](https://github.com/yesodweb/wai/issues/850)
+* Switch default forking function to not install the global exception handler (minor optimization) [#851](https://github.com/yesodweb/wai/pull/851)
+
 ## 3.3.16
 
 * Move exception handling over to `unliftio` for better async exception support [#845](https://github.com/yesodweb/wai/issues/845)
