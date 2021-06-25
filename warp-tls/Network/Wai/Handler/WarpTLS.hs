@@ -29,7 +29,6 @@ module Network.Wai.Handler.WarpTLS (
     -- ** From references
     , tlsSettingsRef
     , tlsSettingsChainRef
-    , getCertSettings
     , CertSettings(..)
     -- * Accessors
     , tlsCredentials
@@ -76,7 +75,7 @@ import qualified Network.TLS.SessionManager as SM
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal
-import Network.Wai.Handler.WarpTLS.Internal
+import Network.Wai.Handler.WarpTLS.Internal(CertSettings(..), TLSSettings(..), OnInsecure(..))
 import System.IO.Error (isEOFError, ioeGetErrorType)
 
 -- | The default 'CertSettings'.
