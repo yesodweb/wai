@@ -28,7 +28,7 @@ Library
                    , network                       >= 2.2.1
                    , streaming-commons
                    , tls-session-manager           >= 0.0.4
-  Exposed-modules:   Network.Wai.Handler.WarpTLS
+  Exposed-modules:   Network.Wai.Handler.WarpTLS, Network.Wai.Handler.WarpTLS.Internal
   ghc-options:       -Wall
   if os(windows)
       Cpp-Options:   -DWINDOWS
