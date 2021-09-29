@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | WAI handler for HTTP/3 based on QUIC.
 module Network.Wai.Handler.WarpQUIC where
 
 import qualified Data.ByteString as BS
@@ -12,8 +13,10 @@ import Network.Wai
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Handler.Warp.Internal
 
+-- | QUIC server settings.
 type QUICSettings = ServerConfig
 
+-- | Running warp with HTTP/3 on QUIC.
 runQUIC :: QUICSettings -> Settings -> Application -> IO ()
 runQUIC quicsettings settings app = do
     withII settings $ \ii ->
