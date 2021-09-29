@@ -1,3 +1,8 @@
+## 3.3.2
+
+* Providing the Internal module.
+  [#841](https://github.com/yesodweb/wai/issues/841)
+
 ## 3.3.1
 
 * Move exception handling over to `unliftio` for better async exception support [#845](https://github.com/yesodweb/wai/issues/845)
