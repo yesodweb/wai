@@ -1,10 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
+
 -- NOTE: Due to https://github.com/yesodweb/wai/issues/192, this module should
 -- not use CPP.
 module Network.Wai.Middleware.RequestLogger
     ( -- * Basic stdout logging
       logStdout
     , logStdoutDev
+    , logStdoutDevWithRequestPrelogging
       -- * Create more versions
     , mkRequestLogger
     , RequestLoggerSettings
@@ -35,7 +37,6 @@ import Network.Wai
 import System.Log.FastLogger
 import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe, isJust, mapMaybe)
-import Data.Monoid (mconcat, (<>))
 import Data.Time (getCurrentTime, diffUTCTime, NominalDiffTime)
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File
                          , getRequestBodyType)
@@ -76,12 +77,14 @@ data DetailedSettings = DetailedSettings
     { useColors :: Bool
     , mModifyParams :: Maybe (Param -> Maybe Param)
     , mFilterRequests :: Maybe (Request -> Response -> Bool)
+    , mPrelogRequests :: Bool
     }
 instance Default DetailedSettings where
     def = DetailedSettings
         { useColors = True
         , mModifyParams = Nothing
         , mFilterRequests = Nothing
+        , mPrelogRequests = False
         }
 
 type OutputFormatter = ZonedDate -> Request -> Status -> Maybe Integer -> LogStr
@@ -234,6 +237,13 @@ logStdout = unsafePerformIO $ mkRequestLogger def { outputFormat = Apache FromSo
 logStdoutDev :: Middleware
 logStdoutDev = unsafePerformIO $ mkRequestLogger def
 
+-- | Development request logger middleware.
+--
+-- This uses the 'Detailed' 'True' logging format and logs to 'stdout'.
+{-# NOINLINE logStdoutDevWithRequestPrelogging #-}
+logStdoutDevWithRequestPrelogging :: Middleware
+logStdoutDevWithRequestPrelogging = unsafePerformIO $ mkRequestLogger def { outputFormat = DetailedWithSettings (def { mPrelogRequests = True }) }
+
 -- | Prints a message using the given callback function for each request.
 -- This is not for serious production use- it is inefficient.
 -- It immediately consumes a POST body and fills it back in and is otherwise inefficient
@@ -360,6 +370,15 @@ detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode 
               in if null par then [""] else ansiColor White "  Params: " <> par <> ["\n"]
 
   t0 <- getCurrentTime
+
+  -- Optionally prelog the request
+  when mPrelogRequests $ do
+    cb $ mconcat $ map toLogStr $
+        ["PRELOGGING REQUEST: "] ++
+        ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
+        params ++ reqbody ++
+        ansiColor White "  Accept: " ++ [accept, "\n"]
+
   app req' $ \rsp -> do
       case mFilterRequests of
         Just f | not $ f req' rsp -> pure ()
