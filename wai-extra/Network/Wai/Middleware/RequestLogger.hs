@@ -77,8 +77,9 @@ data DetailedSettings = DetailedSettings
     { useColors :: Bool
     , mModifyParams :: Maybe (Param -> Maybe Param)
     , mFilterRequests :: Maybe (Request -> Response -> Bool)
-    , mPrelogRequests :: Bool
+    , mPrelogRequests :: Bool -- ^ @since 3.1.7
     }
+
 instance Default DetailedSettings where
     def = DetailedSettings
         { useColors = True
@@ -240,6 +241,7 @@ logStdoutDev = unsafePerformIO $ mkRequestLogger def
 -- | Development request logger middleware.
 --
 -- This uses the 'Detailed' 'True' logging format and logs to 'stdout'.
+-- @since 3.1.7
 {-# NOINLINE logStdoutDevWithRequestPrelogging #-}
 logStdoutDevWithRequestPrelogging :: Middleware
 logStdoutDevWithRequestPrelogging = unsafePerformIO $ mkRequestLogger def { outputFormat = DetailedWithSettings (def { mPrelogRequests = True }) }
