@@ -36,6 +36,7 @@ import Network.Wai
 import System.Log.FastLogger
 import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe, isJust, mapMaybe)
+import Data.Monoid (mconcat, (<>))
 import Data.Time (getCurrentTime, diffUTCTime, NominalDiffTime, UTCTime)
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File
                          , getRequestBodyType)
