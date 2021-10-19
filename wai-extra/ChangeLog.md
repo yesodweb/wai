@@ -2,7 +2,7 @@
 
 ## 3.1.7
 
-* Added new `logStdoutDevWithRequestPrelogging` middleware [#857](https://github.com/yesodweb/wai/pull/857)
+* Added new `mPrelogRequests` option to `DetailedSettings` [#857](https://github.com/yesodweb/wai/pull/857)
 
 ## 3.1.6
 

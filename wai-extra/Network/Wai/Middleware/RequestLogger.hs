@@ -6,7 +6,6 @@ module Network.Wai.Middleware.RequestLogger
     ( -- * Basic stdout logging
       logStdout
     , logStdoutDev
-    , logStdoutDevWithRequestPrelogging
       -- * Create more versions
     , mkRequestLogger
     , RequestLoggerSettings
@@ -237,14 +236,6 @@ logStdout = unsafePerformIO $ mkRequestLogger def { outputFormat = Apache FromSo
 {-# NOINLINE logStdoutDev #-}
 logStdoutDev :: Middleware
 logStdoutDev = unsafePerformIO $ mkRequestLogger def
-
--- | Development request logger middleware.
---
--- This uses the 'Detailed' 'True' logging format and logs to 'stdout'.
--- @since 3.1.7
-{-# NOINLINE logStdoutDevWithRequestPrelogging #-}
-logStdoutDevWithRequestPrelogging :: Middleware
-logStdoutDevWithRequestPrelogging = unsafePerformIO $ mkRequestLogger def { outputFormat = DetailedWithSettings (def { mPrelogRequests = True }) }
 
 -- | Prints a message using the given callback function for each request.
 -- This is not for serious production use- it is inefficient.
