@@ -458,9 +458,9 @@ caseStreamLBS = flip runSession streamLBSApp $ do
 
 caseModifyPostParamsInLogs :: Assertion
 caseModifyPostParamsInLogs = do
-    let formatUnredacted = DetailedWithSettings $ DetailedSettings False Nothing Nothing
+    let formatUnredacted = DetailedWithSettings $ DetailedSettings False Nothing Nothing False
         outputUnredacted = [("username", "some_user"), ("password", "dont_show_me")]
-        formatRedacted = DetailedWithSettings $ DetailedSettings False (Just hidePasswords) Nothing
+        formatRedacted = DetailedWithSettings $ DetailedSettings False (Just hidePasswords) Nothing False
         hidePasswords p@(k,_) = Just $ if k == "password" then (k, "***REDACTED***") else p
         outputRedacted = [("username", "some_user"), ("password", "***REDACTED***")]
 
@@ -492,8 +492,8 @@ caseModifyPostParamsInLogs = do
 
 caseFilterRequestsInLogs :: Assertion
 caseFilterRequestsInLogs = do
-    let formatUnfiltered = DetailedWithSettings $ DetailedSettings False Nothing Nothing
-        formatFiltered = DetailedWithSettings . DetailedSettings False Nothing $ Just hideHealthCheck
+    let formatUnfiltered = DetailedWithSettings $ DetailedSettings False Nothing Nothing False
+        formatFiltered = DetailedWithSettings $ DetailedSettings False Nothing (Just hideHealthCheck) False
         pathHidden = "/health-check"
         pathNotHidden = "/foobar"
 
