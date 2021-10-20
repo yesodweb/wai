@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.7
+
+* Added new `mPrelogRequests` option to `DetailedSettings` [#857](https://github.com/yesodweb/wai/pull/857)
+
 ## 3.1.6
 
 * Remove unused dependencies [#837](https://github.com/yesodweb/wai/pull/837)

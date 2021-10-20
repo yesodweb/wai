@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+
 -- NOTE: Due to https://github.com/yesodweb/wai/issues/192, this module should
 -- not use CPP.
 module Network.Wai.Middleware.RequestLogger
@@ -36,7 +37,7 @@ import System.Log.FastLogger
 import Network.HTTP.Types as H
 import Data.Maybe (fromMaybe, isJust, mapMaybe)
 import Data.Monoid (mconcat, (<>))
-import Data.Time (getCurrentTime, diffUTCTime, NominalDiffTime)
+import Data.Time (getCurrentTime, diffUTCTime, NominalDiffTime, UTCTime)
 import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File
                          , getRequestBodyType)
 import qualified Data.ByteString.Lazy as LBS
@@ -76,12 +77,15 @@ data DetailedSettings = DetailedSettings
     { useColors :: Bool
     , mModifyParams :: Maybe (Param -> Maybe Param)
     , mFilterRequests :: Maybe (Request -> Response -> Bool)
+    , mPrelogRequests :: Bool -- ^ @since 3.1.7
     }
+
 instance Default DetailedSettings where
     def = DetailedSettings
         { useColors = True
         , mModifyParams = Nothing
         , mFilterRequests = Nothing
+        , mPrelogRequests = False
         }
 
 type OutputFormatter = ZonedDate -> Request -> Status -> Maybe Integer -> LogStr
@@ -360,6 +364,11 @@ detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode 
               in if null par then [""] else ansiColor White "  Params: " <> par <> ["\n"]
 
   t0 <- getCurrentTime
+
+  -- Optionally prelog the request
+  when mPrelogRequests $
+    cb $ "PRELOGGING REQUEST: " <> mkRequestLog params reqbody accept
+
   app req' $ \rsp -> do
       case mFilterRequests of
         Just f | not $ f req' rsp -> pure ()
@@ -373,14 +382,10 @@ detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode 
           t1 <- getCurrentTime
 
           -- log the status of the response
-          cb $ mconcat $ map toLogStr $
-              ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
-              params ++ reqbody ++
-              ansiColor White "  Accept: " ++ [accept, "\n"] ++
-              if isRaw then [] else
-                  ansiColor White "  Status: " ++
-                  ansiStatusCode stCode (stCode <> " " <> stMsg) ++
-                  [" ", pack $ show $ diffUTCTime t1 t0, "\n"]
+          cb $
+            mkRequestLog params reqbody accept
+            <> mkResponseLog isRaw stCode stMsg t1 t0
+
       sendResponse rsp
   where
     allPostParams body =
@@ -401,8 +406,27 @@ detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode 
     collectPostParams :: ([Param], [File LBS.ByteString]) -> [Param]
     collectPostParams (postParams, files) = postParams ++
       map (\(k,v) -> (k, "FILE: " <> fileName v)) files
+    
+    mkRequestLog :: (Foldable t, ToLogStr m) => t m -> t m -> m -> LogStr
+    mkRequestLog params reqbody accept =
+        foldMap toLogStr (ansiMethod (requestMethod req))
+        <> " "
+        <> toLogStr (rawPathInfo req)
+        <> "\n"
+        <> foldMap toLogStr params
+        <> foldMap toLogStr reqbody
+        <> foldMap toLogStr (ansiColor White "  Accept: ")
+        <> toLogStr accept
+        <> "\n"
 
-
+    mkResponseLog :: Bool -> S8.ByteString -> S8.ByteString -> UTCTime -> UTCTime -> LogStr
+    mkResponseLog isRaw stCode stMsg t1 t0 =
+      if isRaw then "" else
+        foldMap toLogStr (ansiColor White "  Status: ")
+        <> foldMap toLogStr (ansiStatusCode stCode (stCode <> " " <> stMsg))
+        <> " "
+        <> toLogStr (pack $ show $ diffUTCTime t1 t0)
+        <> "\n"
 
 statusBS :: Response -> BS.ByteString
 statusBS = pack . show . statusCode . responseStatus
