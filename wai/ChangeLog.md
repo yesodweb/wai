@@ -1,5 +1,9 @@
 # ChangeLog for wai
 
+## 3.2.4
+
+* Overhaul documentation of `Middleware`. [#858](https://github.com/yesodweb/wai/pull/858)
+
 ## 3.2.3
 
 * Add documentation recommending streaming request bodies. [#818](https://github.com/yesodweb/wai/pull/818)

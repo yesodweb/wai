@@ -1,6 +1,6 @@
 Cabal-Version:       >=1.10
 Name:                wai
-Version:             3.2.3
+Version:             3.2.4
 Synopsis:            Web Application Interface.
 Description:         Provides a common protocol for communication between web applications and web servers.
                      .

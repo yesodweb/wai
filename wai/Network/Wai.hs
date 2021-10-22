@@ -291,20 +291,149 @@ defaultRequest = Request
     }
 
 
--- | Middleware is a component that sits between the server and application. It
--- can do such tasks as GZIP encoding or response caching. What follows is the
--- general definition of middleware, though a middleware author should feel
--- free to modify this.
+-- | A @Middleware@ is a component that sits between the server and application.
 --
--- As an example of an alternate type for middleware, suppose you write a
--- function to load up session information. The session information is simply a
--- string map \[(String, String)\]. A logical type signature for this middleware
--- might be:
+-- It can modify both the 'Request' and 'Response',
+-- to provide simple transformations that are required for all (or most of)
+-- your web server’s routes.
 --
--- @ loadSession :: ([(String, String)] -> Application) -> Application @
+-- = Users of middleware
 --
--- Here, instead of taking a standard 'Application' as its first argument, the
--- middleware takes a function which consumes the session information as well.
+-- If you are trying to apply one or more 'Middleware's to your 'Application',
+-- just call them as functions.
+--
+-- For example, if you have @corsMiddleware@ and @authorizationMiddleware@,
+-- and you want to authorize first, you can do:
+--
+-- @
+-- let allMiddleware app = authorizationMiddleware (corsMiddleware app)
+-- @
+--
+-- to get a new 'Middleware', which first authorizes, then sets, CORS headers.
+-- The “outer” middleware is called first.
+--
+-- You can also chain them via '(.)':
+--
+-- @
+-- let allMiddleware =
+--         authorizationMiddleware
+--       . corsMiddleware
+--       . … more middleware here …
+-- @
+--
+-- Then, once you have an @app :: Application@, you can wrap it
+-- in your middleware:
+--
+-- @
+-- let myApp = allMiddleware app :: Application
+-- @
+--
+-- and run it as usual:
+--
+-- @
+-- Warp.run port myApp
+-- @
+--
+-- = Authors of middleware
+--
+-- When fully expanded, 'Middleware' has the type signature:
+--
+-- > (Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived) -> Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
+--
+-- or if we shorten to @type Respond = Response -> IO ResponseReceived@:
+--
+-- > (Request -> Respond -> IO ResponseReceived) -> Request -> Respond -> IO ResponseReceived
+--
+-- so a middleware definition takes 3 arguments, an inner application, a request and a response callback.
+--
+-- Compare with the type of a simple `Application`:
+--
+-- > Request -> Respond -> IO ResponseReceived
+--
+-- It takes the 'Request' and @Respond@, but not the extra application.
+--
+-- Said differently, a middleware has the power of a normal 'Application'
+-- — it can inspect the 'Request' and return a 'Response' —
+-- but it can (and in many cases it /should/) also call the 'Application' which was passed to it.
+--
+-- == Modifying the 'Request'
+--
+-- A lot of middleware just looks at the request and does something based on its values.
+--
+-- For example, the @authorizationMiddleware@ from above could look at the @Authorization@
+-- HTTP header and run <https://jwt.io/ JWT> verification logic against the database.
+--
+-- @
+-- authorizationMiddleware app req respond = do
+--   case verifyJWT ('requestHeaders' req) of
+--     InvalidJWT err -> respond (invalidJWTResponse err)
+--     ValidJWT -> app req respond
+-- @
+--
+-- Notice how the inner app is called when the validation was successful.
+-- If it was not, we can respond
+-- e.g. with <https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401 HTTP 401 Unauthorized>,
+-- by constructing a 'Response' with 'responseLBS' and passing it to @respond@.
+--
+-- == Passing arguments to and from your 'Middleware'
+--
+-- Middleware must often be configurable.
+-- Let’s say you have a type @JWTSettings@ that you want to be passed to the middleware.
+-- Simply pass an extra argument to your middleware. Then your middleware type turns into:
+--
+-- @
+-- authorizationMiddleware :: JWTSettings -> Application -> Request -> Respond -> IO ResponseReceived
+-- authorizationMiddleware jwtSettings req respond =
+--   case verifyJWT jwtSettings ('requestHeaders' req) of
+--     InvalidJWT err -> respond (invalidJWTResponse err)
+--     ValidJWT -> app req respond
+-- @
+--
+-- or alternatively:
+--
+-- @
+-- authorizationMiddleware :: JWTSettings -> Middleware
+-- @
+--
+-- Perhaps less intuitively, you can also /pass on/ data from middleware to the wrapped 'Application':
+--
+-- @
+-- authorizationMiddleware :: JWTSettings -> (JWT -> Application) -> Request -> Respond -> IO ResponseReceived
+-- authorizationMiddleware jwtSettings req respond =
+--   case verifyJWT jwtSettings ('requestHeaders' req) of
+--     InvalidJWT err -> respond (invalidJWTResponse err)
+--     ValidJWT jwt -> app jwt req respond
+-- @
+--
+-- although then, chaining different middleware has to take this extra argument into account:
+--
+-- @
+-- let finalApp =
+--       authorizationMiddleware
+--         (\\jwt -> corsMiddleware
+--            (… more middleware here …
+--              (app jwt)))
+-- @
+--
+-- == Modifying the 'Response'
+--
+-- 'Middleware' can also modify the 'Response' that is returned by the inner application.
+--
+-- This is done by taking the @respond@ callback, using it to define a new @respond'@,
+-- and passing this new @respond'@ to the @app@:
+--
+-- @
+-- gzipMiddleware app req respond = do
+--   let respond' resp = do
+--         resp' <- gzipResponseBody resp
+--         respond resp'
+--   app req respond'
+-- @
+--
+-- However, modifying the response (especially the response body) is not trivial,
+-- so in order to get a sense of how to do it (dealing with the type of 'responseToStream'),
+-- it’s best to look at an example, for example <https://hackage.haskell.org/package/wai-extra/docs/src/Network.Wai.Middleware.Gzip.html#gzip the GZIP middleware of wai-extra>.
+
 type Middleware = Application -> Application
 
 
