@@ -2,7 +2,7 @@
 
 # Unreleased 
 
-* Export `Network.Wai.Middleware.Gzip.GzipSettings`.
+* Export `Network.Wai.Middleware.Gzip.GzipSettings`. [#860](https://github.com/yesodweb/wai/pull/860)
 
 ## 3.1.7
 
