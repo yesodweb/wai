@@ -14,7 +14,7 @@
 ---------------------------------------------------------
 module Network.Wai.Middleware.Gzip
     ( gzip
-    , GzipSettings
+    , GzipSettings (..)
     , gzipFiles
     , GzipFiles (..)
     , gzipCheckMime
