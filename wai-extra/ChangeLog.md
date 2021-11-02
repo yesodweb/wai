@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+# Unreleased 
+
+* Export `Network.Wai.Middleware.Gzip.GzipSettings`.
+
 ## 3.1.7
 
 * Added new `mPrelogRequests` option to `DetailedSettings` [#857](https://github.com/yesodweb/wai/pull/857)

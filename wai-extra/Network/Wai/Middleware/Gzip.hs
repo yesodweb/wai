@@ -46,9 +46,10 @@ import qualified System.IO as IO
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Data.Word8 (_semicolon, _space, _comma)
 
+-- | Settings for the Gzip middleware. 
 data GzipSettings = GzipSettings
-    { gzipFiles :: GzipFiles
-    , gzipCheckMime :: S.ByteString -> Bool
+    { gzipFiles :: GzipFiles -- ^ What action do we take on files?
+    , gzipCheckMime :: S.ByteString -> Bool -- ^ Which files do we compress?
     }
 
 -- | Gzip behavior for files.
