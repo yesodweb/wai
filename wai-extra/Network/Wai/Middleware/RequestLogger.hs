@@ -13,7 +13,12 @@ module Network.Wai.Middleware.RequestLogger
     , autoFlush
     , destination
     , OutputFormat (..)
-    , DetailedSettings(..)
+    , ApacheSettings
+    , defaultApacheSettings
+    , setApacheIPAddrSource
+    , setApacheRequestFilter
+    , setApacheUserGetter
+    , DetailedSettings (..)
     , OutputFormatter
     , OutputFormatterWithDetails
     , OutputFormatterWithDetailsAndHeaders
@@ -51,15 +56,64 @@ import Network.Wai.Logger
 import Network.Wai.Middleware.RequestLogger.Internal
 import Network.Wai.Header (contentLength)
 import Data.Text.Encoding (decodeUtf8')
+import Network.Wai (Request)
 
 -- | The logging format.
 data OutputFormat
   = Apache IPAddrSource
+  | ApacheWithSettings ApacheSettings -- ^ @since 3.1.8
   | Detailed Bool -- ^ use colors?
   | DetailedWithSettings DetailedSettings -- ^ @since 3.1.3
   | CustomOutputFormat OutputFormatter
   | CustomOutputFormatWithDetails OutputFormatterWithDetails
   | CustomOutputFormatWithDetailsAndHeaders OutputFormatterWithDetailsAndHeaders
+
+-- | Settings for the `ApacheWithSettings` `OutputFormat`. This is purposely kept as an abstract data
+-- type so that new settings can be added without breaking backwards
+-- compatibility. In order to create an 'ApacheSettings' value, use 'defaultApacheSettings'
+-- and the various \'setApache\' functions to modify individual fields. For example:
+--
+-- > setApacheIPAddrSource FromHeader defaultApacheSettings
+--
+-- @since 3.1.8
+data ApacheSettings = ApacheSettings
+    { apacheIPAddrSource :: IPAddrSource
+    , apacheUserGetter :: Request -> Maybe BS.ByteString
+    , apacheRequestFilter :: Request -> Response -> Bool
+    }
+
+defaultApacheSettings :: ApacheSettings
+defaultApacheSettings = ApacheSettings
+    { apacheIPAddrSource = FromSocket
+    , apacheRequestFilter = \_ _ -> True
+    , apacheUserGetter = \_ -> Nothing
+    }
+
+-- | Where to take IP addresses for clients from. See 'IPAddrSource' for more information.
+--
+-- Default value: FromSocket
+--
+-- @since 3.1.8
+setApacheIPAddrSource :: IPAddrSource -> ApacheSettings -> ApacheSettings
+setApacheIPAddrSource x y = y { apacheIPAddrSource = x }
+
+-- | Function that allows you to filter which requests are logged, based on
+-- the request and response
+--
+-- Default: log all requests
+--
+-- @since 3.1.8
+setApacheRequestFilter :: (Request -> Response -> Bool) -> ApacheSettings -> ApacheSettings
+setApacheRequestFilter x y = y { apacheRequestFilter = x }
+
+-- | Function that allows you to get the current user from the request, which
+-- will then be added in the log.
+--
+-- Default: return no user
+--
+-- @since 3.1.8
+setApacheUserGetter :: (Request -> Maybe BS.ByteString) -> ApacheSettings -> ApacheSettings
+setApacheUserGetter x y = y { apacheUserGetter = x }
 
 -- | Settings for the `Detailed` `OutputFormat`.
 --
@@ -160,7 +214,11 @@ mkRequestLogger RequestLoggerSettings{..} = do
         Apache ipsrc -> do
             getdate <- getDateGetter flusher
             apache <- initLogger ipsrc (LogCallback callback flusher) getdate
-            return $ apacheMiddleware apache
+            return $ apacheMiddleware (\_ _ -> True) apache
+        ApacheWithSettings ApacheSettings{..} -> do
+            getdate <- getDateGetter flusher
+            apache <- initLoggerUser (Just apacheUserGetter) apacheIPAddrSource (LogCallback callback flusher) getdate
+            return $ apacheMiddleware apacheRequestFilter apache
         Detailed useColors ->
             let settings = def { useColors = useColors}
             in detailedMiddleware callbackAndFlush settings
@@ -176,10 +234,10 @@ mkRequestLogger RequestLoggerSettings{..} = do
             getdate <- getDateGetter flusher
             return $ customMiddlewareWithDetailsAndHeaders callbackAndFlush getdate formatter
 
-apacheMiddleware :: ApacheLoggerActions -> Middleware
-apacheMiddleware ala app req sendResponse = app req $ \res -> do
-    let msize = contentLength (responseHeaders res)
-    apacheLogger ala req (responseStatus res) msize
+apacheMiddleware :: (Request -> Response -> Bool) -> ApacheLoggerActions -> Middleware
+apacheMiddleware applyRequestFilter ala app req sendResponse = app req $ \res -> do
+    when (applyRequestFilter req res) $
+        apacheLogger ala req (responseStatus res) $ contentLength (responseHeaders res)
     sendResponse res
 
 customMiddleware :: Callback -> IO ZonedDate -> OutputFormatter -> Middleware
