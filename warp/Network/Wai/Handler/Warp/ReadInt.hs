@@ -41,7 +41,7 @@ data Table = Table !Addr#
 
 {-# NOINLINE mhDigitToInt #-}
 mhDigitToInt :: Word8 -> Int
-mhDigitToInt (W8# i) = I# (word2Int# (indexWord8OffAddr# addr (word2Int# i)))
+mhDigitToInt (W8# i) = I# (int8ToInt# (word8ToInt8# (indexWord8OffAddr# addr (int8ToInt# (word8ToInt8# i)))))
   where
     !(Table addr) = table
     table :: Table
