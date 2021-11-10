@@ -30,13 +30,8 @@ isEmpty (HashMap hm) = I.null hm
 ----------------------------------------------------------------
 
 insert :: FilePath -> v -> HashMap v -> HashMap v
-insert path v (HashMap hm) = HashMap $ I.insertWith f h m hm
-  where
-    !h = hash path
-    !m = M.singleton path v
-    f = M.union -- fimxe
+insert path v (HashMap hm) = HashMap
+  $ I.insertWith M.union (hash path) (M.singleton path v) hm
 
 lookup :: FilePath -> HashMap v -> Maybe v
-lookup path (HashMap hm) = I.lookup h hm >>= M.lookup path
-  where
-    !h = hash path
+lookup path (HashMap hm) = I.lookup (hash path) hm >>= M.lookup path
