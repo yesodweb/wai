@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.18
+
+* Tidy up HashMap and MultiMap [#864](https://github.com/yesodweb/wai/pull/864)
+* Support GHC 9.2 [#863](https://github.com/yesodweb/wai/pull/863)
+
 ## 3.3.17
 
 * Modify exception handling to swallow async exceptions in forked thread [#850](https://github.com/yesodweb/wai/issues/850)
