@@ -312,7 +312,7 @@ getGracefulShutdownTimeout = settingsGracefulShutdownTimeout
 --
 -- Note that by default, the graceful shutdown mode lasts indefinitely
 -- (see 'setGracefulShutdownTimeout'). If you install a signal handler as above,
--- upon receiving that signal, the custon shutdown action will run /and/ all
+-- upon receiving that signal, the custom shutdown action will run /and/ all
 -- outstanding requests will be handled.
 --
 -- You may instead prefer to do one or both of the following:
