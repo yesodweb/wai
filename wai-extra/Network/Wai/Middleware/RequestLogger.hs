@@ -9,6 +9,7 @@ module Network.Wai.Middleware.RequestLogger
       -- * Create more versions
     , mkRequestLogger
     , RequestLoggerSettings
+    , defaultRequestLoggerSettings
     , outputFormat
     , autoFlush
     , destination
@@ -195,12 +196,15 @@ data RequestLoggerSettings = RequestLoggerSettings
     , destination :: Destination
     }
 
+defaultRequestLoggerSettings :: RequestLoggerSettings
+defaultRequestLoggerSettings = RequestLoggerSettings
+    { outputFormat = Detailed True
+    , autoFlush = True
+    , destination = Handle stdout
+    }
+
 instance Default RequestLoggerSettings where
-    def = RequestLoggerSettings
-        { outputFormat = Detailed True
-        , autoFlush = True
-        , destination = Handle stdout
-        }
+    def = defaultRequestLoggerSettings
 
 mkRequestLogger :: RequestLoggerSettings -> IO Middleware
 mkRequestLogger RequestLoggerSettings{..} = do
