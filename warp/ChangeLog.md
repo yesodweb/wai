@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.19
+
+* Allowing the eMFILE exception in acceptNewConnection.
+  [#831](https://github.com/yesodweb/wai/pull/831)
+
 ## 3.3.18
 
 * Tidy up HashMap and MultiMap [#864](https://github.com/yesodweb/wai/pull/864)
