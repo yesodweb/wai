@@ -32,6 +32,10 @@ Flag warp-debug
     Description: print debug output. not suitable for production
     Default:     False
 
+Flag x509
+    Description: Adds a dependency on the x509 library to enable getting TLS client certificates.
+    Default:     True
+
 Library
   Build-Depends:     base                      >= 4.12       && < 5
                    , array
@@ -55,8 +59,9 @@ Library
                    , vault                     >= 0.3
                    , wai                       >= 3.2      && < 3.3
                    , word8
-                   , x509
                    , unliftio
+  if flag(x509)
+      Build-Depends: x509
   if impl(ghc < 8)
       Build-Depends: semigroups
   if flag(network-bytestring)
@@ -213,9 +218,10 @@ Test-Suite spec
                    , vault
                    , wai                       >= 3.2      && < 3.3
                    , word8
-                   , x509
                    , unliftio
     -- Build-Tool-Depends: hspec-discover:hspec-discover
+  if flag(x509)
+      Build-Depends: x509
   if impl(ghc < 8)
       Build-Depends: semigroups
                    , transformers
@@ -253,8 +259,9 @@ Benchmark parser
                   , network
                   , time-manager
                   , unix-compat
-                  , x509
                   , unliftio
+  if flag(x509)
+      Build-Depends: x509
   if impl(ghc < 8)
       Build-Depends: semigroups
 
