@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- | Lookup files stored in memory instead of from the filesystem.
 module WaiAppStatic.Storage.Embedded.Runtime
     ( -- * Settings
@@ -15,8 +16,13 @@ import Data.Function (on)
 import qualified Data.Text as T
 import Data.Ord
 import qualified Data.ByteString as S
+#ifdef MIN_VERSION_cryptonite
 import Crypto.Hash (hash, MD5, Digest)
 import Data.ByteArray.Encoding
+#else
+import Crypto.Hash.MD5 (hash)
+import Data.ByteString.Base64 (encode)
+#endif
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 import System.FilePath (isPathSeparator)
 
@@ -94,4 +100,8 @@ bsToFile name bs = File
     }
 
 runHash :: ByteString -> ByteString
+#ifdef MIN_VERSION_cryptonite
 runHash = convertToBase Base64 . (hash :: S.ByteString -> Digest MD5)
+#else
+runHash = encode . hash
+#endif

@@ -99,7 +99,9 @@ module Network.Wai.Handler.Warp (
   , pauseTimeout
   , FileInfo(..)
   , getFileInfo
+#ifdef MIN_VERSION_x509
   , clientCertificate
+#endif
   , withApplication
   , withApplicationSettings
   , testWithApplication
@@ -128,7 +130,9 @@ module Network.Wai.Handler.Warp (
 import UnliftIO.Exception (SomeException, throwIO)
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Vault.Lazy as Vault
+#ifdef MIN_VERSION_x509
 import Data.X509
+#endif
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai (Request, Response, vault)
@@ -516,8 +520,10 @@ setGracefulCloseTimeout2 x y = y { settingsGracefulCloseTimeout2 = x }
 getGracefulCloseTimeout2 :: Settings -> Int
 getGracefulCloseTimeout2 = settingsGracefulCloseTimeout2
 
+#ifdef MIN_VERSION_x509
 -- | Getting information of client certificate.
 --
 -- Since 3.3.5
 clientCertificate :: Request -> Maybe CertificateChain
 clientCertificate = join . Vault.lookup getClientCertificateKey . vault
+#endif

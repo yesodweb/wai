@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
@@ -25,8 +26,13 @@ import WaiAppStatic.Listing
 import Network.Mime
 import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime, isRegularFile)
 import Data.Maybe (catMaybes)
+#ifdef MIN_VERSION_cryptonite
 import Data.ByteArray.Encoding
 import Crypto.Hash (hashlazy, MD5, Digest)
+#else
+import Data.ByteString.Base64 (encode)
+import Crypto.Hash.MD5 (hashlazy)
+#endif
 import qualified Data.ByteString.Lazy as BL (hGetContents)
 import qualified Data.Text as T
 
@@ -122,8 +128,12 @@ webAppLookup hashFunc prefix pieces =
 hashFile :: FilePath -> IO ByteString
 hashFile fp = withBinaryFile fp ReadMode $ \h -> do
     f <- BL.hGetContents h
+#ifdef MIN_VERSION_cryptonite
     let !hash = hashlazy f :: Digest MD5
     return $ convertToBase Base64 hash
+#else
+    return . encode . hashlazy $ f
+#endif
 
 hashFileIfExists :: ETagLookup
 hashFileIfExists fp = do
