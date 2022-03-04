@@ -131,6 +131,11 @@ data TLSSettings = TLSSettings {
     --   specified, 'tlsSessionManagerConfig' is ignored.
     --
     --   Since 3.2.12
+  , tlsSupportedHashSignatures :: [TLS.HashAndSignatureAlgorithm]
+    -- ^ Specifying supported hash/signature algorithms, ordered by decreasing
+    -- priority. See the "Network.TLS" module for details
+    --
+    --   Since 3.3.3
   }
 
 
