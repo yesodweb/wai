@@ -102,6 +102,7 @@ defaultTlsSettings = TLSSettings {
   , tlsSessionManagerConfig = Nothing
   , tlsCredentials = Nothing
   , tlsSessionManager = Nothing
+  , tlsSupportedHashSignatures = TLS.supportedHashSignatures def
   }
 
 -- taken from stunnel example in tls-extra
@@ -256,6 +257,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock app =
       , TLS.supportedClientInitiatedRenegotiation = False
       , TLS.supportedSession             = True
       , TLS.supportedFallbackScsv        = True
+      , TLS.supportedHashSignatures      = tlsSupportedHashSignatures
 #if MIN_VERSION_tls(1,5,0)
       , TLS.supportedGroups              = [TLS.X25519,TLS.P256,TLS.P384]
 #endif

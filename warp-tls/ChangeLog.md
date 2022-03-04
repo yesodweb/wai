@@ -1,3 +1,8 @@
+## 3.3.3
+
+* Expose TLS.supportedHashSignatures via TLSSettings
+  [#872](https://github.com/yesodweb/wai/pull/872)
+
 ## 3.3.2
 
 * Providing the Internal module.
