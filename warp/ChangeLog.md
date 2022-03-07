@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.20
+
+* Adding "x509" flag.
+  [#871](https://github.com/yesodweb/wai/pull/871)
+
 ## 3.3.19
 
 * Allowing the eMFILE exception in acceptNewConnection.
