@@ -1,5 +1,13 @@
 # wai-app-static changelog
 
+## 3.1.7.4
+
+* Fix a bug when the cryptonite flag is disabled. [#874](https://github.com/yesodweb/wai/pull/874)
+
+## 3.1.7.3
+
+* Introduce a flag to avoid the cryptonite dependency. [#871](https://github.com/yesodweb/wai/pull/871)
+
 ## 3.1.7.2
 
 * optparse-applicative 0.16.0.0 support

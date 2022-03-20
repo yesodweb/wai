@@ -132,7 +132,8 @@ hashFile fp = withBinaryFile fp ReadMode $ \h -> do
     let !hash = hashlazy f :: Digest MD5
     return $ convertToBase Base64 hash
 #else
-    return . encode . hashlazy $ f
+    let !hash = hashlazy f
+    return . encode $ hash
 #endif
 
 hashFileIfExists :: ETagLookup
