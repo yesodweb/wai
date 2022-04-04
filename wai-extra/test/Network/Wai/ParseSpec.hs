@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.ParseSpec (main, spec) where
 
@@ -13,7 +14,11 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
 import           Control.Monad.Trans.Resource (withInternalState, runResourceT)
-import           Network.HTTP2( HTTP2Error (..), ErrorCodeId (..) )
+#if MIN_VERSION_http2(3,0,0)
+import Network.HTTP2.Frame (ErrorCodeId (..), HTTP2Error (..))
+#else
+import Network.HTTP2 (ErrorCodeId (..), HTTP2Error (..))
+#endif
 
 import           Network.Wai
 import           Network.Wai.Test

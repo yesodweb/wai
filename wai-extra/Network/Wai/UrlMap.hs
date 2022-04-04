@@ -26,7 +26,7 @@ module Network.Wai.UrlMap (
 ) where
 
 import Control.Applicative
-import Data.List
+import Data.List (stripPrefix)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T

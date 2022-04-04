@@ -90,9 +90,7 @@ runGeneric vars inputH outputH xsendfile app = do
             case lookup "REMOTE_ADDR" vars of
                 Just x -> x
                 Nothing ->
-                    case lookup "REMOTE_HOST" vars of
-                        Just x -> x
-                        Nothing -> ""
+                    fromMaybe "" $ lookup "REMOTE_HOST" vars
         isSecure' =
             case map toLower $ lookup' "SERVER_PROTOCOL" vars of
                 "https" -> True
@@ -160,7 +158,7 @@ runGeneric vars inputH outputH xsendfile app = do
         ]
     sfBuilder s hs sf fp = mconcat
         [ headers s hs
-        , header $ (byteString sf, string8 fp)
+        , header (byteString sf, string8 fp)
         , char7 '\n'
         , byteString sf
         , byteString " not supported"

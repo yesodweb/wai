@@ -38,6 +38,7 @@ import Network.Wai
   ( Request(..), requestBodyLength, RequestBodyLength(..)
   , Middleware
   , Response, responseStatus, responseHeaders
+  , getRequestBodyChunk
   )
 import System.Log.FastLogger
 import Network.HTTP.Types as H
@@ -57,7 +58,6 @@ import Network.Wai.Logger
 import Network.Wai.Middleware.RequestLogger.Internal
 import Network.Wai.Header (contentLength)
 import Data.Text.Encoding (decodeUtf8')
-import Network.Wai (Request)
 
 -- | The logging format.
 data OutputFormat
@@ -360,14 +360,14 @@ recordChunks :: IORef B.Builder -> Response -> IO Response
 recordChunks i (ResponseStream s h sb) =
   return . ResponseStream s h $ (\send flush -> sb (\b -> modifyIORef i (<> b) >> send b) flush)
 recordChunks i (ResponseBuilder s h b) =
-  modifyIORef i (<> b) >> (return $ ResponseBuilder s h b)
+  modifyIORef i (<> b) >> return (ResponseBuilder s h b)
 recordChunks _ r =
   return r
 
 getRequestBody :: Request -> IO (Request, [S8.ByteString])
 getRequestBody req = do
   let loop front = do
-         bs <- requestBody req
+         bs <- getRequestBodyChunk req
          if S8.null bs
              then return $ front []
              else loop $ front . (bs:)
