@@ -2,9 +2,9 @@ module Network.Wai.Middleware.AcceptOverride
     ( acceptOverride
     ) where
 
-import Network.Wai
 import Control.Monad (join)
 import Data.ByteString (ByteString)
+import Network.Wai
 
 acceptOverride :: Middleware
 acceptOverride app req =

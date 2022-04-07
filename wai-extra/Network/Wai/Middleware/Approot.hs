@@ -26,16 +26,17 @@ module Network.Wai.Middleware.Approot
     , getApprootMay
     ) where
 
-import           Control.Exception     (Exception, throw)
-import           Data.ByteString       (ByteString)
+import Control.Exception (Exception, throw)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
-import           Data.Maybe            (fromMaybe)
-import           Data.Typeable         (Typeable)
-import qualified Data.Vault.Lazy       as V
-import           Network.Wai (Request, vault, Middleware)
-import           Network.Wai.Request   (guessApproot)
-import           System.Environment    (getEnvironment)
-import           System.IO.Unsafe      (unsafePerformIO)
+import Data.Maybe (fromMaybe)
+import Data.Typeable (Typeable)
+import qualified Data.Vault.Lazy as V
+import Network.Wai (Middleware, Request, vault)
+import System.Environment (getEnvironment)
+import System.IO.Unsafe (unsafePerformIO)
+
+import Network.Wai.Request (guessApproot)
 
 approotKey :: V.Key ByteString
 approotKey = unsafePerformIO V.newKey
@@ -70,9 +71,9 @@ envFallback = envFallbackNamed "APPROOT"
 envFallbackNamed :: String -> IO Middleware
 envFallbackNamed name = do
     env <- getEnvironment
-    case lookup name env of
-        Just s -> return $ hardcoded $ S8.pack s
-        Nothing -> return fromRequest
+    pure $ case lookup name env of
+        Just s -> hardcoded $ S8.pack s
+        Nothing -> fromRequest
 
 -- | Hard-code the given value as the approot.
 --

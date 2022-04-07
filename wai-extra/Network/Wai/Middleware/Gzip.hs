@@ -30,7 +30,7 @@ import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Builder.Extra as Blaze (flush)
 import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
-import Data.Default.Class
+import Data.Default.Class (Default (..))
 import Data.Function (fix)
 import Data.Maybe (isJust)
 import qualified Data.Set as Set

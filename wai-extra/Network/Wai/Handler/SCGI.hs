@@ -1,20 +1,21 @@
-{-# LANGUAGE CPP, ForeignFunctionInterface #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
 module Network.Wai.Handler.SCGI
     ( run
     , runSendfile
     ) where
 
-import Network.Wai
-import Network.Wai.Handler.CGI (runGeneric, requestBodyFunc)
-import Foreign.Ptr
-import Foreign.Marshal.Alloc
-import Foreign.C
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Unsafe as S
 import qualified Data.ByteString.Char8 as S8
-import Data.IORef
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
+import qualified Data.ByteString.Unsafe as S
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Foreign.C (CChar, CInt (..))
+import Foreign.Marshal.Alloc (free, mallocBytes)
+import Foreign.Ptr (Ptr, castPtr, nullPtr)
+import Network.Wai (Application)
+import Network.Wai.Handler.CGI (requestBodyFunc, runGeneric)
 
 run :: Application -> IO ()
 run app = runOne Nothing app >> run app

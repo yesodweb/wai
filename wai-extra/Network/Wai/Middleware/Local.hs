@@ -5,8 +5,8 @@ module Network.Wai.Middleware.Local
     ( local
     ) where
 
-import Network.Socket (SockAddr(..))
-import Network.Wai (Middleware,remoteHost, Response)
+import Network.Socket (SockAddr (..))
+import Network.Wai (Middleware, Response, remoteHost)
 
 -- | This middleware rejects non-local connections with a specific response.
 --   It is useful when supporting web-based local applications, which would

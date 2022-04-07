@@ -48,34 +48,36 @@ module Network.Wai.Parse
 #endif
     ) where
 
+import Prelude hiding (lines)
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative ((<$>))
+#endif
+import Data.CaseInsensitive (mk)
+import Control.Exception (catchJust)
 import qualified Control.Exception as E
+import Control.Monad (guard, unless, when)
+import Control.Monad.Trans.Resource (InternalState, allocate, register, release, runInternalState)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
-import Data.Word (Word8)
+import qualified Data.ByteString.Lazy as L
+import Data.Function (fix, on)
+import Data.IORef
 import Data.Int (Int64)
-import Data.Maybe (catMaybes, fromMaybe)
 import Data.List (sortBy)
-import Data.Function (on, fix)
-import System.Directory (removeFile, getTemporaryDirectory)
+import Data.Maybe (catMaybes, fromMaybe)
+import Data.Word (Word8)
+import Network.HTTP.Types (hContentType)
+import qualified Network.HTTP.Types as H
+import Network.Wai
+import System.Directory (getTemporaryDirectory, removeFile)
 import System.IO (hClose, openBinaryTempFile)
 import System.IO.Error (isDoesNotExistError)
-import Network.Wai
-import qualified Network.HTTP.Types as H
-import Control.Applicative ((<$>))
-import Control.Exception (catchJust)
-import Control.Monad (when, unless, guard)
-import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
-import Data.IORef
-import Network.HTTP.Types (hContentType)
 #if MIN_VERSION_http2(3,0,0)
 import Network.HTTP2.Frame (ErrorCodeId (..), HTTP2Error (..))
 #else
 import Network.HTTP2 (ErrorCodeId (..), HTTP2Error (..))
 #endif
-import Data.CaseInsensitive (mk)
-
-import Prelude hiding (lines)
 
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =

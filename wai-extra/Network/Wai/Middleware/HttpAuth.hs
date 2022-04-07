@@ -1,4 +1,6 @@
-{-# LANGUAGE RecordWildCards, TupleSections, CPP #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 -- | Implements HTTP Basic Authentication.
 --
 -- This module may add digest authentication in the future.
@@ -15,17 +17,17 @@ module Network.Wai.Middleware.HttpAuth
     , extractBasicAuth
     , extractBearerAuth
     ) where
+
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
 #endif
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as S
 import Data.ByteString.Base64 (decodeLenient)
 import Data.String (IsString (..))
-import Data.Word8 (isSpace, _colon, toLower)
-import Network.HTTP.Types (status401, hContentType, hAuthorization)
-import Network.Wai
-
-import qualified Data.ByteString as S
+import Data.Word8 (isSpace, toLower, _colon)
+import Network.HTTP.Types (hAuthorization, hContentType, status401)
+import Network.Wai (Application, Middleware, Request (requestHeaders), responseLBS)
 
 
 -- | Check if a given username and password is valid.
@@ -57,7 +59,7 @@ basicAuth' checkCreds AuthSettings {..} app req sendResponse = do
         else authOnNoAuth authRealm req sendResponse
   where
     check =
-        case (lookup hAuthorization $ requestHeaders req)
+        case lookup hAuthorization (requestHeaders req)
              >>= extractBasicAuth of
             Nothing -> return False
             Just (username, password) -> checkCreds req username password

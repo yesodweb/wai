@@ -1,4 +1,5 @@
-{-# LANGUAGE RankNTypes, CPP #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE RankNTypes #-}
 ---------------------------------------------------------
 -- |
 -- Module        : Network.Wai.Middleware.Jsonp
@@ -14,19 +15,19 @@
 ---------------------------------------------------------
 module Network.Wai.Middleware.Jsonp (jsonp) where
 
-import Network.Wai
-import Network.Wai.Internal
+import Control.Monad (join)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as B8
-import Data.ByteString.Builder.Extra (byteStringCopy)
+import qualified Data.ByteString as S
 import Data.ByteString.Builder (char7)
+import Data.ByteString.Builder.Extra (byteStringCopy)
+import qualified Data.ByteString.Char8 as B8
+import Data.Maybe (fromMaybe)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (mappend)
 #endif
-import Control.Monad (join)
-import Data.Maybe (fromMaybe)
-import qualified Data.ByteString as S
 import Network.HTTP.Types (hAccept, hContentType)
+import Network.Wai
+import Network.Wai.Internal
 
 -- | Wrap json responses in a jsonp callback.
 --

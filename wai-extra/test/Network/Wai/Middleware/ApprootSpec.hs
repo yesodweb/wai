@@ -4,13 +4,13 @@ module Network.Wai.Middleware.ApprootSpec
     , spec
     ) where
 
+import Data.ByteString (ByteString)
+import Network.HTTP.Types (RequestHeaders, status200)
+import Network.Wai
 import Test.Hspec
 
-import Network.Wai.Middleware.Approot
-import Network.Wai.Test
-import Network.Wai
-import Network.HTTP.Types
-import Data.ByteString (ByteString)
+import Network.Wai.Middleware.Approot (fromRequest, getApproot)
+import Network.Wai.Test (SResponse (simpleHeaders), request, runSession)
 
 main :: IO ()
 main = hspec spec

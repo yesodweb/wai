@@ -1,22 +1,23 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.Middleware.StripHeadersSpec
     ( main
     , spec
     ) where
 
-import Test.Hspec
-
-import Network.Wai.Middleware.AddHeaders
-import Network.Wai.Middleware.StripHeaders
-
 import Control.Arrow (first)
 import Data.ByteString (ByteString)
+import qualified Data.CaseInsensitive as CI
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid ((<>))
+#endif
 import Network.HTTP.Types (status200)
 import Network.Wai
-import Network.Wai.Test
+import Network.Wai.Test (SResponse (simpleHeaders), request, runSession)
+import Test.Hspec
 
-import qualified Data.CaseInsensitive as CI
+import Network.Wai.Middleware.AddHeaders (addHeaders)
+import Network.Wai.Middleware.StripHeaders (stripHeaderIf, stripHeadersIf)
 
 
 main :: IO ()

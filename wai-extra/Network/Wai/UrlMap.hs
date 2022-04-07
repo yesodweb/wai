@@ -1,5 +1,6 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {- | This module gives you a way to mount applications under sub-URIs.
 For example:
 
@@ -22,17 +23,17 @@ module Network.Wai.UrlMap (
     mount',
     mount,
     mountRoot,
-    mapUrls
+    mapUrls,
 ) where
 
 import Control.Applicative
+import qualified Data.ByteString as B
 import Data.List (stripPrefix)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Data.ByteString as B
-import Network.HTTP.Types
-import Network.Wai
+import Network.HTTP.Types (hContentType, status404)
+import Network.Wai (Application, Request (pathInfo, rawPathInfo), responseLBS)
 
 type Path = [Text]
 newtype UrlMap' a = UrlMap' { unUrlMap :: [(Path, a)] }

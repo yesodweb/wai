@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- | The functions in this module allow you to limit the total size of incoming request bodies.
 --
 -- Limiting incoming request body size helps protect your server against denial-of-service (DOS) attacks,
@@ -14,15 +15,17 @@ module Network.Wai.Middleware.RequestSizeLimit
     , setOnLengthExceeded
     ) where
 
-import Control.Exception (try, catch)
+import Control.Exception (catch, try)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as LS8
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid ((<>))
+#endif
 import Data.Word (Word64)
 import Network.HTTP.Types.Status (requestEntityTooLarge413)
 import Network.Wai
 
-import Network.Wai.Middleware.RequestSizeLimit.Internal (RequestSizeLimitSettings(..), setMaxLengthForRequest, setOnLengthExceeded)
+import Network.Wai.Middleware.RequestSizeLimit.Internal (RequestSizeLimitSettings (..), setMaxLengthForRequest, setOnLengthExceeded)
 import Network.Wai.Request
 
 -- | Create a 'RequestSizeLimitSettings' with these settings:

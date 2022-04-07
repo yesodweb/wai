@@ -1,4 +1,5 @@
-{-# LANGUAGE RankNTypes, CPP #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE RankNTypes #-}
 -- | Backend for Common Gateway Interface. Almost all users should use the
 -- 'run' function.
 module Network.Wai.Handler.CGI
@@ -8,35 +9,33 @@ module Network.Wai.Handler.CGI
     , requestBodyFunc
     ) where
 
-import Network.Wai
-import Network.Wai.Internal
-import Network.Socket (getAddrInfo, addrAddress)
-import Data.IORef
-import Data.Maybe (fromMaybe)
-import qualified Data.ByteString.Char8 as B
-import qualified Data.ByteString.Lazy as L
-import Control.Arrow ((***))
-import Data.Char (toLower)
-import qualified System.IO
-import qualified Data.String as String
-import Data.ByteString.Builder (byteString, toLazyByteString, char7, string8)
-import Data.ByteString.Builder.Extra (flush)
-import Data.ByteString.Lazy.Internal (defaultChunkSize)
-import System.IO (Handle)
-import Network.HTTP.Types (Status (..), hRange, hContentType, hContentLength)
-import qualified Network.HTTP.Types as H
-import qualified Data.CaseInsensitive as CI
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (mconcat, mempty, mappend)
 #endif
-
-import qualified Data.Streaming.ByteString.Builder as Builder
-import Data.Function (fix)
+import Control.Arrow ((***))
 import Control.Monad (unless, void)
-
+import Data.ByteString.Builder (byteString, char7, string8, toLazyByteString)
+import Data.ByteString.Builder.Extra (flush)
+import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy.Internal (defaultChunkSize)
+import qualified Data.CaseInsensitive as CI
+import Data.Char (toLower)
+import Data.Function (fix)
+import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.Maybe (fromMaybe)
+import qualified Data.Streaming.ByteString.Builder as Builder
+import qualified Data.String as String
+import Network.HTTP.Types (Status (..), hContentLength, hContentType, hRange)
+import qualified Network.HTTP.Types as H
+import Network.Socket (addrAddress, getAddrInfo)
+import Network.Wai
+import Network.Wai.Internal
 #if WINDOWS
 import System.Environment (getEnvironment)
 #else
+import System.IO (Handle)
+import qualified System.IO
 import qualified System.Posix.Env.ByteString as Env
 
 getEnvironment :: IO [(String, String)]

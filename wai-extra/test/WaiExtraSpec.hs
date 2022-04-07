@@ -2,42 +2,40 @@
 {-# LANGUAGE OverloadedStrings #-}
 module WaiExtraSpec (spec, toRequest) where
 
-import Test.Hspec
-import Test.HUnit hiding (Test)
-#if MIN_VERSION_base(4,8,0)
-import Data.Monoid ((<>))
-#else
-import Data.Monoid (mempty, mappend, (<>))
-#endif
-
-import Network.Wai
-import Network.Wai.Test
-import Network.Wai.UrlMap
+import Codec.Compression.GZip (decompress)
+import Control.Applicative ((<|>))
+import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
-import qualified Data.Text.Lazy as T
+import qualified Data.IORef as I
+import Data.Maybe (fromMaybe)
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid ((<>))
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (mempty, mappend)
+#endif
+#endif
 import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
-import Control.Applicative
-
-import Network.Wai.Middleware.Jsonp
-import Network.Wai.Middleware.Gzip
-import Network.Wai.Middleware.Vhost
-import Network.Wai.Middleware.Autohead
-import Network.Wai.Middleware.MethodOverride
-import Network.Wai.Middleware.MethodOverridePost
-import Network.Wai.Middleware.AcceptOverride
-import Network.Wai.Middleware.RequestLogger
-import Codec.Compression.GZip (decompress)
-import Network.Wai.Middleware.StreamFile
-
-import Control.Monad.IO.Class (liftIO)
-import Data.Maybe (fromMaybe)
+import qualified Data.Text.Lazy as T
 import Network.HTTP.Types (status200)
-import System.Log.FastLogger
+import Network.Wai
+import System.Log.FastLogger (fromLogStr)
+import Test.HUnit (Assertion, (@?=))
+import Test.Hspec
 
-import qualified Data.IORef as I
+import Network.Wai.Middleware.AcceptOverride (acceptOverride)
+import Network.Wai.Middleware.Autohead (autohead)
+import Network.Wai.Middleware.Gzip (def, defaultCheckMime, gzip)
+import Network.Wai.Middleware.Jsonp (jsonp)
+import Network.Wai.Middleware.MethodOverride (methodOverride)
+import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
+import Network.Wai.Middleware.RequestLogger
+import Network.Wai.Middleware.StreamFile (streamFile)
+import Network.Wai.Middleware.Vhost (vhost)
+import Network.Wai.Test
+import Network.Wai.UrlMap (mapUrls, mount, mountRoot)
 
 spec :: Spec
 spec = do

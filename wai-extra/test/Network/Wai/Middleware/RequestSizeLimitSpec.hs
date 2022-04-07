@@ -1,19 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.Middleware.RequestSizeLimitSpec (main, spec) where
 
-import Test.Hspec
-
-import Network.Wai
-import Network.Wai.Test
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Char8 as S8
-import Network.Wai.Middleware.RequestSizeLimit
-import Network.HTTP.Types.Status (status200, status413)
 import Control.Monad (replicateM)
 import Data.Aeson (encode, object, (.=))
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Lazy as L
 import Data.Text (Text)
+import Network.HTTP.Types (hContentLength, status200, status413)
+import Network.Wai
+import Test.Hspec
+
+import Network.Wai.Middleware.RequestSizeLimit
+import Network.Wai.Test
 
 main :: IO ()
 main = hspec spec

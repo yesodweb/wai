@@ -3,10 +3,10 @@
 -- applications GET response.
 module Network.Wai.Middleware.Autohead (autohead) where
 
-import Network.Wai
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (mempty)
 #endif
+import Network.Wai (Middleware, requestMethod, responseBuilder, responseToStream)
 
 autohead :: Middleware
 autohead app req sendResponse
@@ -14,4 +14,3 @@ autohead app req sendResponse
         let (s, hs, _) = responseToStream res
         sendResponse $ responseBuilder s hs mempty
     | otherwise = app req sendResponse
-

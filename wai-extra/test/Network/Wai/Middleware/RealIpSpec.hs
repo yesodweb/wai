@@ -4,12 +4,12 @@ module Network.Wai.Middleware.RealIpSpec
     ( spec
     ) where
 
-import Test.Hspec
-
 import qualified Data.ByteString.Lazy.Char8 as B8
 import qualified Data.IP as IP
-import Network.HTTP.Types (status200, RequestHeaders)
+import Network.HTTP.Types (RequestHeaders, status200)
 import Network.Wai
+import Test.Hspec
+
 import Network.Wai.Middleware.RealIp
 import Network.Wai.Test
 

@@ -9,17 +9,17 @@
     There is a small example using these functions in the @example@ directory.
 -}
 module Network.Wai.EventSource (
-    ServerEvent(..),
+    ServerEvent (..),
     eventSourceAppChan,
     eventSourceAppIO,
-    eventStreamAppRaw
-    ) where
+    eventStreamAppRaw,
+) where
 
-import           Data.Function (fix)
-import           Control.Concurrent.Chan (Chan, dupChan, readChan)
-import           Control.Monad.IO.Class (liftIO)
-import           Network.HTTP.Types (status200, hContentType)
-import           Network.Wai (Application, responseStream)
+import Control.Concurrent.Chan (Chan, dupChan, readChan)
+import Control.Monad.IO.Class (liftIO)
+import Data.Function (fix)
+import Network.HTTP.Types (hContentType, status200)
+import Network.Wai (Application, responseStream)
 
 import Network.Wai.EventSource.EventStream
 

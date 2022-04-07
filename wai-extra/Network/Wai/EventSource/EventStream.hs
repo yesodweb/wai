@@ -5,9 +5,9 @@
     Internal module, usually you don't need to use it.
 -}
 module Network.Wai.EventSource.EventStream (
-    ServerEvent(..),
-    eventToBuilder
-    ) where
+    ServerEvent (..),
+    eventToBuilder,
+) where
 
 import Data.ByteString.Builder
 #if __GLASGOW_HASKELL__ < 710
@@ -68,7 +68,7 @@ eventToBuilder (CommentEvent txt) = Just $ field commentField txt
 eventToBuilder (RetryEvent   n)   = Just $ field retryField (string8 . show $ n)
 eventToBuilder (CloseEvent)       = Nothing
 eventToBuilder (ServerEvent n i d)= Just $
-    (name n $ evid i $ mconcat (map (field dataField) d)) `mappend` nl
+    name n (evid i $ mconcat (map (field dataField) d)) `mappend` nl
   where
     name Nothing  = id
     name (Just n') = mappend (field nameField n')

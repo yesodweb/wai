@@ -8,26 +8,29 @@ module Network.Wai.Middleware.RequestLogger.JSON
   , requestToJSON
   ) where
 
-import qualified Data.ByteString.Builder as BB (toLazyByteString)
-import Data.ByteString.Lazy (toStrict)
 import Data.Aeson
-import Data.CaseInsensitive (original)
-import Data.Maybe (maybeToList)
-import Data.Monoid ((<>))
+import qualified Data.ByteString.Builder as BB (toLazyByteString)
 import qualified Data.ByteString.Char8 as S8
-import Data.IP
-import qualified Data.Text as T
+import Data.ByteString.Lazy (toStrict)
+import Data.CaseInsensitive (original)
+import Data.IP (fromHostAddress, fromIPv4)
+import Data.Maybe (maybeToList)
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid ((<>))
+#endif
 import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Time (NominalDiffTime)
 import Data.Word (Word32)
 import Network.HTTP.Types as H
-import Network.Socket (SockAddr (..), PortNumber)
+import Network.Socket (PortNumber, SockAddr (..))
 import Network.Wai
-import Network.Wai.Middleware.RequestLogger
 import System.Log.FastLogger (toLogStr)
 import Text.Printf (printf)
+
+import Network.Wai.Middleware.RequestLogger
 
 formatAsJSON :: OutputFormatterWithDetails
 formatAsJSON date req status responseSize duration reqBody response =

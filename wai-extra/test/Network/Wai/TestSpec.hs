@@ -1,27 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.TestSpec (main, spec) where
 
-import           Control.Monad (void)
-
-import qualified Data.IORef as IORef
-
-import qualified Data.Text.Encoding as TE
-
-import           Data.Time.Calendar (fromGregorian)
-import           Data.Time.Clock (UTCTime(..))
-
-import           Test.Hspec
-
-import           Network.Wai
-import           Network.Wai.Test
-
-import           Network.HTTP.Types (status200)
-
+import Control.Monad (void)
+import Data.ByteString (ByteString)
+import Data.ByteString.Builder (Builder, toLazyByteString)
 import qualified Data.ByteString.Lazy.Char8 as L8
-import           Data.ByteString.Builder (Builder, toLazyByteString)
-import           Data.ByteString (ByteString)
-
+import qualified Data.IORef as IORef
+import qualified Data.Text.Encoding as TE
+import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (UTCTime (..))
+import Network.HTTP.Types (status200)
+import Network.Wai
+import Test.Hspec
 import qualified Web.Cookie as Cookie
+
+import Network.Wai.Test
 
 main :: IO ()
 main = hspec spec
@@ -222,6 +215,3 @@ spec = do
                  request $
                    setPath defaultRequest "/get"
       simpleBody sresp `shouldBe` "[]"
-
-
-
