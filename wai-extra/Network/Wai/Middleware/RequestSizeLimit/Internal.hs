@@ -5,8 +5,8 @@ module Network.Wai.Middleware.RequestSizeLimit.Internal
     , setOnLengthExceeded
     ) where
 
-import Network.Wai
 import Data.Word (Word64)
+import Network.Wai (Middleware, Request)
 
 -- | Settings to configure 'requestSizeLimitMiddleware'.
 --

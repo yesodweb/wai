@@ -7,11 +7,11 @@ module Network.Wai.Middleware.RealIp
     , ipInRange
     ) where
 
-import qualified Data.ByteString.Char8 as B8 (unpack, split)
+import qualified Data.ByteString.Char8 as B8 (split, unpack)
 import qualified Data.IP as IP
-import Data.Maybe (fromMaybe, mapMaybe, listToMaybe)
+import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import Network.HTTP.Types (HeaderName, RequestHeaders)
-import Network.Wai
+import Network.Wai (Middleware, remoteHost, requestHeaders)
 import Text.Read (readMaybe)
 
 -- | Infer the remote IP address from the @X-Forwarded-For@ header,

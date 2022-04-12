@@ -28,36 +28,43 @@ module Network.Wai.Middleware.RequestLogger
     , IPAddrSource (..)
     ) where
 
-import System.IO (Handle, hFlush, stdout)
-import qualified Data.ByteString.Builder as B (Builder, byteString)
-import qualified Data.ByteString as BS
-import Data.ByteString.Char8 (pack)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as B (Builder, byteString)
+import Data.ByteString.Char8 (pack)
+import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Lazy as LBS
+import Data.Default.Class (Default (def))
+import Data.IORef
+import Data.Maybe (fromMaybe, isJust, mapMaybe)
+import Data.Monoid (mconcat, (<>))
+import Data.Text.Encoding (decodeUtf8')
+import Data.Time (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
+import Network.HTTP.Types as H
 import Network.Wai
   ( Request(..), requestBodyLength, RequestBodyLength(..)
   , Middleware
   , Response, responseStatus, responseHeaders
+  , getRequestBodyChunk
   )
-import System.Log.FastLogger
-import Network.HTTP.Types as H
-import Data.Maybe (fromMaybe, isJust, mapMaybe)
-import Data.Monoid (mconcat, (<>))
-import Data.Time (getCurrentTime, diffUTCTime, NominalDiffTime, UTCTime)
-import Network.Wai.Parse (sinkRequestBody, lbsBackEnd, fileName, Param, File
-                         , getRequestBodyType)
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Char8 as S8
-import System.Console.ANSI
-import Data.IORef
-import System.IO.Unsafe
 import Network.Wai.Internal (Response (..))
-import Data.Default.Class (Default (def))
 import Network.Wai.Logger
-import Network.Wai.Middleware.RequestLogger.Internal
+import System.Console.ANSI
+import System.IO (Handle, hFlush, stdout)
+import System.IO.Unsafe (unsafePerformIO)
+import System.Log.FastLogger
+
 import Network.Wai.Header (contentLength)
-import Data.Text.Encoding (decodeUtf8')
-import Network.Wai (Request)
+import Network.Wai.Middleware.RequestLogger.Internal
+import Network.Wai.Parse
+  ( Param
+  , File
+  , fileName
+  , getRequestBodyType
+  , lbsBackEnd
+  , sinkRequestBody
+  )
 
 -- | The logging format.
 data OutputFormat
@@ -360,14 +367,14 @@ recordChunks :: IORef B.Builder -> Response -> IO Response
 recordChunks i (ResponseStream s h sb) =
   return . ResponseStream s h $ (\send flush -> sb (\b -> modifyIORef i (<> b) >> send b) flush)
 recordChunks i (ResponseBuilder s h b) =
-  modifyIORef i (<> b) >> (return $ ResponseBuilder s h b)
+  modifyIORef i (<> b) >> return (ResponseBuilder s h b)
 recordChunks _ r =
   return r
 
 getRequestBody :: Request -> IO (Request, [S8.ByteString])
 getRequestBody req = do
   let loop front = do
-         bs <- requestBody req
+         bs <- getRequestBodyChunk req
          if S8.null bs
              then return $ front []
              else loop $ front . (bs:)
@@ -468,7 +475,7 @@ detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode 
     collectPostParams :: ([Param], [File LBS.ByteString]) -> [Param]
     collectPostParams (postParams, files) = postParams ++
       map (\(k,v) -> (k, "FILE: " <> fileName v)) files
-    
+
     mkRequestLog :: (Foldable t, ToLogStr m) => t m -> t m -> m -> LogStr
     mkRequestLog params reqbody accept =
         foldMap toLogStr (ansiMethod (requestMethod req))

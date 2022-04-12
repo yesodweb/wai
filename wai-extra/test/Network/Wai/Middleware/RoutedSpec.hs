@@ -4,16 +4,15 @@ module Network.Wai.Middleware.RoutedSpec
     , spec
     ) where
 
+import Data.ByteString (ByteString)
+import Data.String (IsString)
+import Network.HTTP.Types (hContentType, status200)
+import Network.Wai
+import Network.Wai.Test
 import Test.Hspec
 
 import Network.Wai.Middleware.Routed
 import Network.Wai.Middleware.ForceSSL (forceSSL)
-
-import Network.HTTP.Types (hContentType, status200)
-import Network.Wai
-import Network.Wai.Test
-import Data.ByteString (ByteString)
-import Data.String (IsString)
 
 main :: IO ()
 main = hspec spec

@@ -39,18 +39,18 @@ module Network.Wai.Middleware.Rewrite
     , rewriteRequestPure
     ) where
 
-import Network.Wai
-import Control.Monad.IO.Class (liftIO)
-import Data.Text (Text)
-import Data.Functor.Identity (Identity(..))
-import qualified Data.Text.Encoding as TE
-import qualified Data.Text as T
-import Network.HTTP.Types as H
-
 -- GHC ≤ 7.10 does not export Applicative functions from the prelude.
 #if __GLASGOW_HASKELL__ <= 710
 import Control.Applicative
 #endif
+import Control.Monad.IO.Class (liftIO)
+import Data.Functor.Identity (Identity (..))
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import Network.HTTP.Types as H
+import Network.Wai
+
 
 -- $howto
 -- This module provides 'Middleware' to rewrite URL paths. It also provides

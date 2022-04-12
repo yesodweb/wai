@@ -1,15 +1,20 @@
+{-# LANGUAGE CPP #-}
 -- |
 --
 -- @since 3.0.14
 module Network.Wai.Middleware.ForceDomain where
 
 import Data.ByteString (ByteString)
-import Data.Monoid ((<>), mempty)
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid ((<>))
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (mempty)
+#endif
+#endif
 import Network.HTTP.Types (hLocation, methodGet, status301, status307)
-import Prelude
+import Network.Wai (Middleware, Request (..), responseBuilder)
 
-import Network.Wai
-import Network.Wai.Request
+import Network.Wai.Request (appearsSecure)
 
 -- | Force a domain by redirecting.
 -- The `checkDomain` function takes the current domain and checks whether it is correct.

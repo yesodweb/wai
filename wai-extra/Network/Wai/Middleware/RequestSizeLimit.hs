@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- | The functions in this module allow you to limit the total size of incoming request bodies.
 --
 -- Limiting incoming request body size helps protect your server against denial-of-service (DOS) attacks,
@@ -14,15 +15,18 @@ module Network.Wai.Middleware.RequestSizeLimit
     , setOnLengthExceeded
     ) where
 
-import Network.Wai
-import Network.Wai.Request
+import Control.Exception (catch, try)
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Lazy.Char8 as LS8
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid ((<>))
+#endif
 import Data.Word (Word64)
 import Network.HTTP.Types.Status (requestEntityTooLarge413)
-import qualified Data.ByteString.Lazy.Char8 as LS8
-import Control.Exception (try, catch)
-import Data.Monoid ((<>))
-import Network.Wai.Middleware.RequestSizeLimit.Internal (RequestSizeLimitSettings(..), setMaxLengthForRequest, setOnLengthExceeded)
+import Network.Wai
+
+import Network.Wai.Middleware.RequestSizeLimit.Internal (RequestSizeLimitSettings (..), setMaxLengthForRequest, setOnLengthExceeded)
+import Network.Wai.Request
 
 -- | Create a 'RequestSizeLimitSettings' with these settings:
 --
@@ -43,7 +47,7 @@ defaultRequestSizeLimitSettings = RequestSizeLimitSettings
 -- @since 3.1.1
 requestSizeLimitMiddleware :: RequestSizeLimitSettings -> Middleware
 requestSizeLimitMiddleware settings app req sendResponse = do
-    maybeMaxLen <- (maxLengthForRequest settings) req
+    maybeMaxLen <- maxLengthForRequest settings req
 
     case maybeMaxLen of
         Nothing -> app req sendResponse
@@ -56,7 +60,7 @@ requestSizeLimitMiddleware settings app req sendResponse = do
                 Right newReq -> app newReq sendResponse `catch` \(RequestSizeException _maxLen) -> handleLengthExceeded maxLen
 
     where
-        handleLengthExceeded maxLen = (onLengthExceeded settings) maxLen app req sendResponse
+        handleLengthExceeded maxLen = onLengthExceeded settings maxLen app req sendResponse
 
 tooLargeResponse :: Word64 -> RequestBodyLength -> Response
 tooLargeResponse maxLen bodyLen = responseLBS
@@ -64,10 +68,10 @@ tooLargeResponse maxLen bodyLen = responseLBS
     [("Content-Type", "text/plain")]
     (BSL.concat
         [ "Request body too large to be processed. The maximum size is "
-        , (LS8.pack (show maxLen))
+        , LS8.pack (show maxLen)
         , " bytes; your request body was "
         , case bodyLen of
-            KnownLength knownLen -> (LS8.pack (show knownLen)) <> " bytes."
+            KnownLength knownLen -> LS8.pack (show knownLen) <> " bytes."
             ChunkedBody -> "split into chunks, whose total size is unknown, but exceeded the limit."
         , " If you're the developer of this site, you can configure the maximum length with `requestSizeLimitMiddleware`."
         ])

@@ -48,30 +48,36 @@ module Network.Wai.Parse
 #endif
     ) where
 
+import Prelude hiding (lines)
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative ((<$>))
+#endif
+import Data.CaseInsensitive (mk)
+import Control.Exception (catchJust)
 import qualified Control.Exception as E
+import Control.Monad (guard, unless, when)
+import Control.Monad.Trans.Resource (InternalState, allocate, register, release, runInternalState)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
-import Data.Word (Word8)
+import qualified Data.ByteString.Lazy as L
+import Data.Function (fix, on)
+import Data.IORef
 import Data.Int (Int64)
-import Data.Maybe (catMaybes, fromMaybe)
 import Data.List (sortBy)
-import Data.Function (on, fix)
-import System.Directory (removeFile, getTemporaryDirectory)
+import Data.Maybe (catMaybes, fromMaybe)
+import Data.Word (Word8)
+import Network.HTTP.Types (hContentType)
+import qualified Network.HTTP.Types as H
+import Network.Wai
+import System.Directory (getTemporaryDirectory, removeFile)
 import System.IO (hClose, openBinaryTempFile)
 import System.IO.Error (isDoesNotExistError)
-import Network.Wai
-import qualified Network.HTTP.Types as H
-import Control.Applicative ((<$>))
-import Control.Exception (catchJust)
-import Control.Monad (when, unless, guard)
-import Control.Monad.Trans.Resource (allocate, release, register, InternalState, runInternalState)
-import Data.IORef
-import Network.HTTP.Types (hContentType)
-import Network.HTTP2( HTTP2Error (..), ErrorCodeId (..) )
-import Data.CaseInsensitive (mk)
-
-import Prelude hiding (lines)
+#if MIN_VERSION_http2(3,0,0)
+import Network.HTTP2.Frame (ErrorCodeId (..), HTTP2Error (..))
+#else
+import Network.HTTP2 (ErrorCodeId (..), HTTP2Error (..))
+#endif
 
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
@@ -458,7 +464,7 @@ takeLine maxlen src =
                           E.throwIO $ ConnectionError (UnknownErrorCode 431)
                                     "Request Header Fields Too Large"
                         Nothing -> return ()
-                    return $ Just $ killCR $ res
+                    return . Just $ killCR res
 
 takeLines' :: Maybe Int -> Maybe Int -> Source -> IO [S.ByteString]
 takeLines' lineLength maxLines source =
@@ -498,7 +504,7 @@ readSource (Source f ref) = do
         else return bs
 
 leftover :: Source -> S.ByteString -> IO ()
-leftover (Source _ ref) bs = writeIORef ref bs
+leftover (Source _ ref) = writeIORef ref
 
 parsePiecesEx :: ParseRequestBodyOptions
               -> BackEnd y
@@ -537,7 +543,7 @@ parsePiecesEx o sink bound rbody add =
                         fi0 = FileInfo filename ct ()
                         fs = catMaybes [ prboMaxFileSize o
                                        , subtract filesSize <$> prboMaxFilesSize o ]
-                        mfs = if fs == [] then Nothing else Just $ minimum fs
+                        mfs = if null fs then Nothing else Just $ minimum fs
                     ((wasFound, fileSize), y) <- sinkTillBound' bound name fi0 sink src mfs
                     let newFilesSize = filesSize + fileSize
                     add $ Right (name, fi0 { fileContent = y })
@@ -573,7 +579,7 @@ parsePiecesEx o sink bound rbody add =
         contType = mk $ S8.pack "Content-Type"
         parsePair s =
             let (x, y) = breakDiscard 58 s -- colon
-             in (mk $ x, S.dropWhile (== 32) y) -- space
+             in (mk x, S.dropWhile (== 32) y) -- space
 
 
 data Bound = FoundBound S.ByteString S.ByteString

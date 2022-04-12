@@ -1,24 +1,30 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Wai.ParseSpec (main, spec) where
 
-import           Test.Hspec
-import           Test.HUnit
-
-import           System.IO
-import           Data.Monoid
-import qualified Data.IORef as I
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid
+#endif
+import Control.Monad.Trans.Resource (runResourceT, withInternalState)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
+import qualified Data.IORef as I
 import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
-import           Control.Monad.Trans.Resource (withInternalState, runResourceT)
-import           Network.HTTP2( HTTP2Error (..), ErrorCodeId (..) )
+#if MIN_VERSION_http2(3,0,0)
+import Network.HTTP2.Frame (ErrorCodeId (..), HTTP2Error (..))
+#else
+import Network.HTTP2 (ErrorCodeId (..), HTTP2Error (..))
+#endif
+import Network.Wai (Request (requestBody, requestHeaders), defaultRequest)
+import System.IO (IOMode (ReadMode), withFile)
+import Test.HUnit (Assertion, (@=?), (@?=))
+import Test.Hspec
 
-import           Network.Wai
-import           Network.Wai.Test
-import           Network.Wai.Parse
-import           WaiExtraSpec (toRequest)
+import Network.Wai.Parse
+import Network.Wai.Test (SRequest (SRequest))
+import WaiExtraSpec (toRequest)
 
 main :: IO ()
 main = hspec spec

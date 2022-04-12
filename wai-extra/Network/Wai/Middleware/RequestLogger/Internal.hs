@@ -3,15 +3,16 @@
 --
 -- https://github.com/yesodweb/wai/issues/192
 module Network.Wai.Middleware.RequestLogger.Internal
-    ( module Network.Wai.Middleware.RequestLogger.Internal
+    ( getDateGetter
+    , logToByteString
     ) where
 
-import Data.ByteString (ByteString)
-import Network.Wai.Logger (clockDateCacher)
 #if !MIN_VERSION_wai_logger(2, 2, 0)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad (forever)
 #endif
+import Data.ByteString (ByteString)
+import Network.Wai.Logger (clockDateCacher)
 import System.Log.FastLogger (LogStr, fromLogStr)
 
 logToByteString :: LogStr -> ByteString

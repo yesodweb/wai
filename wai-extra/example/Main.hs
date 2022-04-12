@@ -4,7 +4,7 @@ module Main where
 import Data.ByteString.Builder (string8)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Chan
-import Control.Monad
+import Control.Monad (forever)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Network.HTTP.Types (status200)
 import Network.Wai (Application, Middleware, pathInfo, responseFile)
@@ -38,7 +38,7 @@ eventIO = do
                          [string8 . show $ time]
 
 eventRaw :: (ServerEvent -> IO ()) -> IO () -> IO ()
-eventRaw = handle 0
+eventRaw = handle (0 :: Int)
     where
         handle counter emit flush = do
             threadDelay 1000000

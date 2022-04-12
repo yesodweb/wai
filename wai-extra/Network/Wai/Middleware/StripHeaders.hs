@@ -14,11 +14,11 @@ module Network.Wai.Middleware.StripHeaders
     , stripHeadersIf
     ) where
 
-import Network.Wai                       (Middleware, Request, modifyResponse, mapResponseHeaders, ifRequest)
-import Network.Wai.Internal (Response)
-import Data.ByteString                   (ByteString)
-
+import Data.ByteString (ByteString)
 import qualified Data.CaseInsensitive as CI
+import Network.Wai (Middleware, Request, modifyResponse, mapResponseHeaders, ifRequest)
+import Network.Wai.Internal (Response)
+
 
 stripHeader :: ByteString -> (Response -> Response)
 stripHeader h = mapResponseHeaders (filter (\ hdr -> fst hdr /= CI.mk h))

@@ -8,17 +8,16 @@ module Network.Wai.Request
     , requestSizeCheck
     ) where
 
+import Control.Exception (Exception, throwIO)
 import Data.ByteString (ByteString)
-import Data.Maybe (fromMaybe)
-import Network.HTTP.Types (HeaderName)
-import Network.Wai
-
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C
-import Control.Exception (Exception, throwIO)
+import Data.IORef (atomicModifyIORef', newIORef)
+import Data.Maybe (fromMaybe)
 import Data.Typeable (Typeable)
 import Data.Word (Word64)
-import Data.IORef (atomicModifyIORef', newIORef)
+import Network.HTTP.Types (HeaderName)
+import Network.Wai
 
 
 -- | Does this request appear to have been made over an SSL connection?
@@ -38,7 +37,7 @@ appearsSecure request = isSecure request || any (uncurry matchHeader)
     [ ("HTTPS"                  , (== "on"))
     , ("HTTP_X_FORWARDED_SSL"   , (== "on"))
     , ("HTTP_X_FORWARDED_SCHEME", (== "https"))
-    , ("HTTP_X_FORWARDED_PROTO" , ((== ["https"]) . take 1 . C.split ','))
+    , ("HTTP_X_FORWARDED_PROTO" , (== ["https"]) . take 1 . C.split ',')
     , ("X-Forwarded-Proto"      , (== "https")) -- Used by Nginx and AWS ELB.
     ]
 
@@ -56,12 +55,12 @@ appearsSecure request = isSecure request || any (uncurry matchHeader)
 guessApproot :: Request -> ByteString
 guessApproot req =
     (if appearsSecure req then "https://" else "http://") `S.append`
-    (fromMaybe "localhost" $ requestHeaderHost req)
+    fromMaybe "localhost" (requestHeaderHost req)
 
 -- | see 'requestSizeCheck'
 --
 -- @since 3.0.15
-data RequestSizeException
+newtype RequestSizeException
     = RequestSizeException Word64
     deriving (Eq, Ord, Typeable)
 
@@ -69,7 +68,7 @@ instance Exception RequestSizeException
 
 instance Show RequestSizeException where
     showsPrec p (RequestSizeException limit) =
-        showString ("Request Body is larger than ") . showsPrec p limit . showString " bytes."
+        showString "Request Body is larger than " . showsPrec p limit . showString " bytes."
 
 -- | Check request body size to avoid server crash when request is too large.
 --

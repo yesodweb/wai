@@ -6,9 +6,9 @@ module Network.Wai.Middleware.Routed
     , hostedMiddleware
     ) where
 
-import Network.Wai
 import Data.ByteString (ByteString)
 import Data.Text (Text)
+import Network.Wai
 
 -- | Apply a middleware based on a test of pathInfo
 --

@@ -1,15 +1,20 @@
 {-# LANGUAGE CPP #-}
- module Network.Wai.Middleware.Vhost (vhost, redirectWWW, redirectTo, redirectToLogged) where
+module Network.Wai.Middleware.Vhost
+    ( vhost
+    , redirectWWW
+    , redirectTo
+    , redirectToLogged
+    ) where
 
-import Network.Wai
 
-import Network.HTTP.Types as H
-import qualified Data.Text.Encoding as TE
-import Data.Text (Text)
 import qualified Data.ByteString as BS
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (mappend)
 #endif
+import Data.Text (Text)
+import qualified Data.Text.Encoding as TE
+import Network.HTTP.Types as H
+import Network.Wai
 
 vhost :: [(Request -> Bool, Application)] -> Application -> Application
 vhost vhosts def req =

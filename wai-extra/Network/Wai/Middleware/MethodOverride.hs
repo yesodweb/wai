@@ -2,8 +2,8 @@ module Network.Wai.Middleware.MethodOverride
     ( methodOverride
     ) where
 
-import Network.Wai
 import Control.Monad (join)
+import Network.Wai (Middleware, queryString, requestMethod)
 
 -- | Overriding of HTTP request method via `_method` query string parameter.
 --
