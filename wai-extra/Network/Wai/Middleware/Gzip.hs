@@ -19,6 +19,7 @@ module Network.Wai.Middleware.Gzip
     , gzipFiles
     , GzipFiles (..)
     , gzipCheckMime
+    , gzipSizeThreshold
     , def
     , defaultCheckMime
     ) where
@@ -54,8 +55,13 @@ import qualified System.IO as IO
 import Network.Wai.Header (contentLength, parseQValueList, splitCommas)
 
 data GzipSettings = GzipSettings
-    { gzipFiles :: GzipFiles
+    { -- | Gzip behavior for files
+      gzipFiles :: GzipFiles
+      -- | Decide which MIME types to compress
     , gzipCheckMime :: S.ByteString -> Bool
+      -- | Skip compression when the response body is
+      -- below this amount of bytes (default: 860)
+    , gzipSizeThreshold :: Integer
     }
 
 -- | Gzip behavior for files.
@@ -74,7 +80,7 @@ data GzipFiles
 
 -- | Use default MIME settings; /do not/ compress files.
 instance Default GzipSettings where
-    def = GzipSettings GzipIgnore defaultCheckMime
+    def = GzipSettings GzipIgnore defaultCheckMime minimumLength
 
 -- | MIME types that will be compressed by default:
 -- @text/@ @*@, @application/json@, @application/javascript@,
@@ -155,7 +161,7 @@ gzip set app req sendResponse'
         notBigEnough =
             maybe
                 False -- This could be a streaming case
-                (< minimumLength)
+                (< gzipSizeThreshold set)
                 $ contentLength resHdrs
 
 -- For a small enough response, gzipping will actually increase the size
