@@ -36,7 +36,7 @@ import Data.Maybe (isJust)
 import qualified Data.Set as Set
 import qualified Data.Streaming.ByteString.Builder as B
 import qualified Data.Streaming.Zlib as Z
-import Data.Word8 (_comma, _semicolon, _space)
+import Data.Word8 (_semicolon)
 import Network.HTTP.Types (
     Header,
     Status,
@@ -246,6 +246,3 @@ fixHeaders =
     ((hContentEncoding, "gzip") :) . filter notLength
   where
     notLength (x, _) = x /= hContentLength
-
-splitCommas :: S.ByteString -> [S.ByteString]
-splitCommas = map (S.dropWhile (== _space)) . S.split _comma
