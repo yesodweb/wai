@@ -46,6 +46,7 @@ import Network.HTTP.Types (
     hContentLength,
     hContentType,
     hUserAgent,
+    partialContent206,
  )
 import Network.HTTP.Types.Header (hAcceptEncoding, hVary)
 import Network.Wai
@@ -163,12 +164,14 @@ gzip set app req sendResponse'
 
     -- Can we skip just by looking at the current 'Response'?
     checkCompress :: (Response -> IO ResponseReceived) -> Response -> IO ResponseReceived
-    checkCompress f res =
-        if isEncodedAlready || notBigEnough
+    checkCompress continue res =
+        if isEncodedAlready || isPartial || notBigEnough
             then sendResponse res
-            else f res
+            else continue res
       where
         resHdrs = responseHeaders res
+        -- Partial content should NEVER be compressed.
+        isPartial = responseStatus res == partialContent206
         isEncodedAlready = isJust $ hContentEncoding `lookup` resHdrs
         notBigEnough =
             maybe
