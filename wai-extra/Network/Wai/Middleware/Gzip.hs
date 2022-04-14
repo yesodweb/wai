@@ -24,7 +24,7 @@ module Network.Wai.Middleware.Gzip
     , defaultCheckMime
     ) where
 
-import Control.Exception (SomeException, throwIO, try)
+import Control.Exception (IOException, SomeException, fromException, throwIO, try)
 import Control.Monad (unless)
 import qualified Data.ByteString as S
 import Data.ByteString.Builder (byteString)
@@ -214,11 +214,23 @@ compressFile s hs file cache sendResponse = do
                             Z.feedDeflate deflate bs >>= goPopper
                             loop
                     goPopper $ Z.finishDeflate deflate
-            either onErr (const onSucc) (x :: Either SomeException ()) -- FIXME bad! don't catch all exceptions like that!
+            either onErr (const onSucc) (x :: Either SomeException ())
   where
     onSucc = sendResponse $ responseFile s (fixHeaders hs) tmpfile Nothing
+    reportError err =
+        IO.hPutStrLn IO.stderr $
+            "Network.Wai.Middleware.Gzip: compression failed: " <> err
+    onErr e
+        -- Catching IOExceptions for file system / hardware oopsies
+        | Just ioe <- fromException e = do
+            reportError $ show (ioe :: IOException)
+            sendResponse $ responseFile s hs file Nothing
+        -- Catching ZlibExceptions for compression oopsies
+        | Just zlibe <- fromException e = do
+            reportError $ show (zlibe :: Z.ZlibException)
+            sendResponse $ responseFile s hs file Nothing
+        | otherwise = throwIO e
 
-    onErr _ = sendResponse $ responseFile s hs file Nothing -- FIXME log the error message
 
     tmpfile = cache ++ '/' : map safe file
     safe c
