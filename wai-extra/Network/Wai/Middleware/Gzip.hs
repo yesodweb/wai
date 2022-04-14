@@ -33,6 +33,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Data.Default.Class (Default (..))
 import Data.Function (fix)
+import qualified Data.List as L
 import Data.Maybe (isJust)
 import qualified Data.Set as Set
 import qualified Data.Streaming.ByteString.Builder as B
@@ -132,8 +133,19 @@ gzip set app req sendResponse'
   where
     isCorrectMime =
         maybe False (gzipCheckMime set) . lookup hContentType
-    sendResponse = sendResponse' . mapResponseHeaders (vary:)
-    vary = (hVary, "Accept-Encoding")
+    sendResponse = sendResponse' . mapResponseHeaders mAddVary
+    acceptEncoding = "Accept-Encoding"
+    -- Instead of just adding a header willy-nilly, we check if
+    -- "Vary" is already present, and add to it if not already included.
+    mAddVary [] = [(hVary, acceptEncoding)]
+    mAddVary (h@(nm, val) : hs)
+        | nm == hVary =
+            let vals = splitCommas val
+                hasAccEnc = isJust $ L.find (== acceptEncoding) vals
+                newH | hasAccEnc = h
+                     | otherwise = (hVary, acceptEncoding <> ", " <> val)
+             in newH : hs
+        | otherwise = h : mAddVary hs
 
     -- Can we skip from just looking at the 'Request'?
     skipCompress =
