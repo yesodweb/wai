@@ -3,6 +3,7 @@
 module Network.Wai.Header
     ( contentLength
     , parseQValueList
+    , replaceHeader
     , splitCommas
     ) where
 
@@ -22,6 +23,10 @@ readInt bs =
     case S8.readInteger bs of
         Just (i, rest) | S8.null rest -> Just i
         _ -> Nothing
+
+replaceHeader :: H.HeaderName -> S.ByteString -> [H.Header] -> [H.Header]
+replaceHeader name val old =
+    (name, val) : filter ((/= name) . fst) old
 
 -- | Used to split a header value which is a comma separated list
 splitCommas :: S.ByteString -> [S.ByteString]

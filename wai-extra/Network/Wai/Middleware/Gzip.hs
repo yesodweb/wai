@@ -54,7 +54,7 @@ import Network.Wai.Internal (Response (..))
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import qualified System.IO as IO
 
-import Network.Wai.Header (contentLength, parseQValueList, splitCommas)
+import Network.Wai.Header (contentLength, parseQValueList, replaceHeader, splitCommas)
 
 data GzipSettings = GzipSettings
     { -- | Gzip behavior for files
@@ -280,6 +280,6 @@ compressE res sendResponse =
 -- different length after gzip compression.
 fixHeaders :: [Header] -> [Header]
 fixHeaders =
-    ((hContentEncoding, "gzip") :) . filter notLength
+    replaceHeader hContentEncoding "gzip" . filter notLength
   where
     notLength (x, _) = x /= hContentLength
