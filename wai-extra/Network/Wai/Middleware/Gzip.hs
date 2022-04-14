@@ -51,7 +51,7 @@ import Network.Wai.Internal (Response (..))
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import qualified System.IO as IO
 
-import Network.Wai.Header (contentLength)
+import Network.Wai.Header (contentLength, parseQValueList, splitCommas)
 
 data GzipSettings = GzipSettings
     { gzipFiles :: GzipFiles
@@ -135,7 +135,11 @@ gzip set app req sendResponse'
       where
         reqHdrs = requestHeaders req
         acceptsGZipEncoding =
-            maybe False (elem "gzip" . splitCommas) $ hAcceptEncoding `lookup` reqHdrs
+            maybe False (any isGzip . parseQValueList) $ hAcceptEncoding `lookup` reqHdrs
+        isGzip (bs, q) =
+            -- We skip if 'q' = Nothing, because it is malformed,
+            -- or if it is 0, because that is an explicit "DO NOT USE GZIP"
+            bs == "gzip" && maybe False (/= 0) q
         isMSIE6 =
             maybe False ("MSIE 6" `S.isInfixOf`) $ hUserAgent `lookup` reqHdrs
 
