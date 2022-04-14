@@ -22,9 +22,10 @@ import qualified Data.Text.Lazy as T
 import Network.HTTP.Types (status200)
 import Network.Wai
 import System.Log.FastLogger (fromLogStr)
-import Test.HUnit (Assertion, (@?=))
+import Test.HUnit (Assertion, (@?=), assertEqual)
 import Test.Hspec
 
+import Network.Wai.Header (parseQValueList)
 import Network.Wai.Middleware.AcceptOverride (acceptOverride)
 import Network.Wai.Middleware.Autohead (autohead)
 import Network.Wai.Middleware.Gzip (def, defaultCheckMime, gzip)
@@ -65,6 +66,7 @@ spec = do
     it "stream LBS" caseStreamLBS
     it "can modify POST params before logging" caseModifyPostParamsInLogs
     it "can filter requests in logs" caseFilterRequestsInLogs
+    it "can parse Q values" caseQValues
 
 toRequest :: S8.ByteString -> S8.ByteString -> SRequest
 toRequest ctype content = SRequest defaultRequest
@@ -527,3 +529,26 @@ caseFilterRequestsInLogs = do
             actual `shouldBe` ""
 
         return res
+
+-- | Unit test to make sure 'parseQValueList' works correctly
+caseQValues :: Assertion
+caseQValues = do
+    let encodings = mconcat
+            [ "deflate, compress;q=0.813, gzip;q=0.9, *;q=0, "
+            , "notq;charset=bar, "
+            , "noq;q=, "
+            , "toolong;q=0.0023, "
+            , "toohigh;q=1.1"
+            ]
+        qList = parseQValueList encodings
+        expected =
+            [ ("deflate", Just 1000)
+            , ("compress", Just 813)
+            , ("gzip", Just 900)
+            , ("*", Just 0)
+            , ("notq", Nothing)
+            , ("noq", Nothing)
+            , ("toolong", Nothing)
+            , ("toohigh", Nothing)
+            ]
+    assertEqual "invalid Q values" expected qList
