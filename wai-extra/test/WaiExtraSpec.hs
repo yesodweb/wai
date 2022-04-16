@@ -534,9 +534,9 @@ caseFilterRequestsInLogs = do
 caseQValues :: Assertion
 caseQValues = do
     let encodings = mconcat
-            [ "deflate, compress;q=0.813, gzip;q=0.9, *;q=0, "
+            [ "deflate,   compress; q=0.813  , gzip ;  q=0.9, * ;q=0, "
             , "notq;charset=bar, "
-            , "noq;q=, "
+            , "noq;q=,   "
             , "toolong;q=0.0023, "
             , "toohigh;q=1.1"
             ]

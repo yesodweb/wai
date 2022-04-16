@@ -30,7 +30,11 @@ replaceHeader name val old =
 
 -- | Used to split a header value which is a comma separated list
 splitCommas :: S.ByteString -> [S.ByteString]
-splitCommas = map (S.dropWhile (== _space)) . S.split _comma
+splitCommas = map trimWS . S.split _comma
+
+-- Trim whitespace
+trimWS :: S.ByteString -> S.ByteString
+trimWS = S.dropWhileEnd (== _space) . S.dropWhile (== _space)
 
 -- | Only to be used on header's values which support quality value syntax
 --
@@ -45,25 +49,27 @@ splitCommas = map (S.dropWhile (== _space)) . S.split _comma
 parseQValueList :: S8.ByteString -> [(S8.ByteString, Maybe Int)]
 parseQValueList = fmap go . splitCommas
   where
-    go =
-        fmap checkQ
-        . S.break (== _semicolon)
-        . S.dropWhile (== _space)
-    checkQ :: S.ByteString -> Maybe Int
-    checkQ "" = Just 1000
-    checkQ bs = do
-        q <- S8.stripPrefix ";q=" bs
-        (i, rest) <- S8.uncons q
-        guard $
-            i `elem` ['0', '1']
-                && S.length rest <= 4
-        case S.uncons rest of
-            -- q = "0" or "1"
-            Nothing -> (1000 *) <$> readMaybe (S8.unpack q)
-            Just (dot, trail)
-                | dot == _period && not (i == '1' && S8.any (/= '0') trail) -> do
-                    let len = S.length trail
-                        extraZeroes = S8.unpack $ S8.replicate (3 - len) '0'
-                    guard $ len > 0
-                    readMaybe $ (i : S8.unpack trail) ++ extraZeroes
-                | otherwise -> Nothing
+    go = checkQ . S.break (== _semicolon)
+    checkQ :: (S.ByteString, S.ByteString) -> (S.ByteString, Maybe Int)
+    checkQ (val, "") = (val, Just 1000)
+    checkQ (val, bs) =
+        -- RFC 7231 says optional whitespace can be around the semicolon.
+        -- So drop any before it       ,           . and any behind it       $ and drop the semicolon
+        (S.dropWhileEnd (== _space) val, parseQval . S.dropWhile (== _space) $ S.drop 1 bs)
+      where
+        parseQval qVal = do
+            q <- S8.stripPrefix "q=" qVal
+            (i, rest) <- S8.uncons q
+            guard $
+                i `elem` ['0', '1']
+                    && S.length rest <= 4
+            case S.uncons rest of
+                -- q = "0" or "1"
+                Nothing -> (1000 *) <$> readMaybe (S8.unpack q)
+                Just (dot, trail)
+                    | dot == _period && not (i == '1' && S8.any (/= '0') trail) -> do
+                        let len = S.length trail
+                            extraZeroes = S8.unpack $ S8.replicate (3 - len) '0'
+                        guard $ len > 0
+                        readMaybe $ (i : S8.unpack trail) ++ extraZeroes
+                    | otherwise -> Nothing
