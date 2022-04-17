@@ -534,11 +534,13 @@ caseFilterRequestsInLogs = do
 caseQValues :: Assertion
 caseQValues = do
     let encodings = mconcat
-            [ "deflate,   compress; q=0.813  , gzip ;  q=0.9, * ;q=0, "
+            -- This has weird white space on purpose, because this
+            -- should be acceptable according to RFC 7231
+            [ "deflate,   compress; q=0.813  ,gzip ;  q=0.9, * ;q=0, "
             , "notq;charset=bar, "
             , "noq;q=,   "
             , "toolong;q=0.0023, "
-            , "toohigh;q=1.1"
+            , "toohigh ;q=1.1"
             ]
         qList = parseQValueList encodings
         expected =

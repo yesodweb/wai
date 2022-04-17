@@ -41,12 +41,11 @@ import qualified Data.Streaming.Zlib as Z
 import Data.Word8 (_semicolon)
 import Network.HTTP.Types (
     Header,
-    Status,
+    Status (statusCode),
     hContentEncoding,
     hContentLength,
     hContentType,
     hUserAgent,
-    partialContent206,
  )
 import Network.HTTP.Types.Header (hAcceptEncoding, hVary)
 import Network.Wai
@@ -171,7 +170,7 @@ gzip set app req sendResponse'
       where
         resHdrs = responseHeaders res
         -- Partial content should NEVER be compressed.
-        isPartial = responseStatus res == partialContent206
+        isPartial = statusCode (responseStatus res) == 206
         isEncodedAlready = isJust $ hContentEncoding `lookup` resHdrs
         notBigEnough =
             maybe
