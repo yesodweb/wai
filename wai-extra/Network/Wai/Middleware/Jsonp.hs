@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE RankNTypes #-}
 ---------------------------------------------------------
 -- |
 -- Module        : Network.Wai.Middleware.Jsonp
