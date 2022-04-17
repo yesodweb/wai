@@ -208,6 +208,8 @@ test-suite spec
                    , http2
                    , aeson
                    , iproute
+                   , temporary
+                   , directory
     ghc-options:     -Wall
     default-language:          Haskell2010
 

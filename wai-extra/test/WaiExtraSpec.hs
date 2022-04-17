@@ -19,16 +19,28 @@ import Data.Monoid (mempty, mappend)
 import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as T
-import Network.HTTP.Types (status200)
+import Network.HTTP.Types (
+    Header,
+    RequestHeaders,
+    ResponseHeaders,
+    hContentEncoding,
+    hContentLength,
+    hContentType,
+    partialContent206,
+    status200,
+ )
+import Network.HTTP.Types.Header (hAcceptEncoding, hVary)
 import Network.Wai
+import System.Directory (listDirectory)
+import System.IO.Temp (withSystemTempDirectory)
 import System.Log.FastLogger (fromLogStr)
-import Test.HUnit (Assertion, (@?=), assertEqual)
+import Test.HUnit (Assertion, assertBool, assertEqual, (@?=))
 import Test.Hspec
 
 import Network.Wai.Header (parseQValueList)
 import Network.Wai.Middleware.AcceptOverride (acceptOverride)
 import Network.Wai.Middleware.Autohead (autohead)
-import Network.Wai.Middleware.Gzip (def, defaultCheckMime, gzip)
+import Network.Wai.Middleware.Gzip (GzipFiles (..), GzipSettings (..), def, defaultCheckMime, gzip)
 import Network.Wai.Middleware.Jsonp (jsonp)
 import Network.Wai.Middleware.MethodOverride (methodOverride)
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
@@ -52,10 +64,15 @@ spec = do
     , it "takeLine" caseTakeLine
     -}
     it "jsonp" caseJsonp
-    it "gzip" caseGzip
-    it "gzip not for MSIE" caseGzipMSIE
-    it "gzip bypass when precompressed" caseGzipBypassPre
-    it "defaultCheckMime" caseDefaultCheckMime
+    describe "gzip" $ do
+        it "gzip" caseGzip
+        it "more gzip" caseGzip2
+        it "gzip not on partial content" caseGzipPartial
+        it "gzip removes length header" caseGzipLength
+        it "gzip not for MSIE" caseGzipMSIE
+        it "gzip bypass when precompressed" caseGzipBypassPre
+        it "defaultCheckMime" caseDefaultCheckMime
+        it "gzip checking of files" caseGzipFiles
     it "vhost" caseVhost
     it "autohead" caseAutohead
     it "method override" caseMethodOverride
@@ -228,20 +245,118 @@ doesNotEncodeGzip' body hdrs = do
     pure sres
 
 caseGzip :: Assertion
-caseGzip = flip runSession gzipApp $ do
-    sres1 <- request defaultRequest
-                { requestHeaders = [("Accept-Encoding", "gzip")]
-                }
-    assertHeader "Content-Encoding" "gzip" sres1
-    assertHeader "Vary" "Accept-Encoding" sres1
-    liftIO $ decompress (simpleBody sres1) @?= "test"
+caseGzip = do
+    withSession gzipApp $ do
+        _ <- doesEncodeGzip [acceptGzip]
+        _ <- doesNotEncodeGzip []
+        _ <- doesEncodeGzip [(hAcceptEncoding, "compress , gzip ; q=0.8")]
+        pure ()
 
-    sres2 <- request defaultRequest
-                { requestHeaders = []
-                }
-    assertNoHeader "Content-Encoding" sres2
-    assertHeader "Vary" "Accept-Encoding" sres2
-    assertBody "test" sres2
+    withSession (gzipAppWithHeaders [(hContentLength, "200")]) $ do
+        sres4 <- doesNotEncodeGzip [acceptGzip]
+        assertHeader hContentLength "200" sres4
+
+caseGzipLength :: Assertion
+caseGzipLength = do
+    withSession (gzipAppWithHeaders [(hContentLength, "4000")]) $ do
+        sres <- doesEncodeGzip [acceptGzip]
+        assertNoHeader hContentLength sres
+
+caseGzipPartial :: Assertion
+caseGzipPartial =
+    withSession partialApp $ do
+        _ <- doesNotEncodeGzip [acceptGzip]
+        pure ()
+  where
+    partialApp = gzipApp' $ mapResponseStatus $ const partialContent206
+
+-- | Checking that it doesn't compress when already compressed AND
+-- doesn't replace already set "Vary" header.
+caseGzip2 :: Assertion
+caseGzip2 =
+    withSession gzipVariantApp $ do
+        sres1 <- request defaultRequest
+                    { requestHeaders = [(hAcceptEncoding, "compress, gzip")] }
+        assertHeader hContentEncoding "compress" sres1
+        assertHeader hVary "Accept-Encoding, foobar" sres1
+  where
+    gzipVariantApp = gzipAppWithHeaders
+        [ ("Content-Encoding", "compress")
+        , ("Vary", "foobar")
+        ]
+
+-- | Testing of the GzipSettings's 'GzipFiles' setting
+-- with 'ResponseFile' responses.
+caseGzipFiles :: Assertion
+caseGzipFiles = do
+    -- Default GzipSettings ignore compressing files
+    withSession (gzipFileApp def) $ do
+        _ <- doesNotEncodeGzipJSON [acceptGzip]
+        _ <- doesNotEncodeGzipJSON []
+        pure ()
+
+    -- Just compresses the file
+    withSession (gzipFileApp def{gzipFiles = GzipCompress}) $ do
+        _ <- doesEncodeGzipJSON [acceptGzip]
+        _ <- doesNotEncodeGzipJSON []
+        pure ()
+
+    -- Checks for a "filename.gz" file in the same folder
+    withSession (gzipFileApp def{gzipFiles = GzipPreCompressed GzipIgnore}) $ do
+        sres <- request defaultRequest
+            { requestHeaders = [acceptGzip] }
+        assertHeader hContentEncoding "gzip" sres
+        assertHeader hVary "Accept-Encoding" sres
+        -- json.gz has body "test\n"
+        assertBody "test\n" sres
+
+        doesNotEncodeGzipJSON [] >> pure ()
+
+    -- If no "filename.gz" file is in the same folder, just ignore
+    withSession (noPreCompressApp $ GzipPreCompressed GzipIgnore) $ do
+        _ <- doesNotEncodeGzipNoPreCompress [acceptGzip]
+        _ <- doesNotEncodeGzipNoPreCompress []
+        pure ()
+
+    -- If no "filename.gz" file is in the same folder, just compress
+    withSession (noPreCompressApp $ GzipPreCompressed GzipCompress) $ do
+        _ <- doesEncodeGzipNoPreCompress [acceptGzip]
+        _ <- doesNotEncodeGzipNoPreCompress []
+        pure ()
+
+    -- Using a caching directory
+    withSystemTempDirectory "gziptest" $ \path -> do
+        let checkTempDir n s = do
+                fs <- listDirectory path
+                assertBool s $ length fs == n
+        checkTempDir 0 "temp directory should be empty"
+        -- Respond with "test/json" file
+        withSession (gzipFileApp def{gzipFiles = GzipCacheFolder path}) $ do
+            _ <- doesEncodeGzipJSON [acceptGzip]
+            liftIO $ checkTempDir 1 "should have one file"
+            _ <- doesEncodeGzipJSON [acceptGzip]
+            liftIO $ checkTempDir 1 "should still have only one file"
+            _ <- doesNotEncodeGzipJSON []
+            liftIO $ checkTempDir 1 "should not have done anything"
+
+        -- Respond with "test/noprecompress" file
+        withSession (noPreCompressApp $ GzipCacheFolder path) $ do
+            _ <- doesEncodeGzipNoPreCompress [acceptGzip]
+            liftIO $ checkTempDir 2 "should now have 2 files"
+            _ <- doesEncodeGzipNoPreCompress [acceptGzip]
+            liftIO $ checkTempDir 2 "should still only have 2 files"
+            _ <- doesNotEncodeGzipNoPreCompress []
+            liftIO $ checkTempDir 2 "again should not have done anything"
+
+        -- try "test/json" again, just to make sure it isn't a weird Session bug
+        withSession (gzipFileApp def{gzipFiles = GzipCacheFolder path}) $ do
+            _ <- doesEncodeGzipJSON [acceptGzip]
+            liftIO $ checkTempDir 2 "just to make sure it isn't a fluke"
+
+  where
+    noPreCompressApp set = gzipFileApp'
+        def{gzipFiles = set}
+        $ const $ responseFile status200 [(hContentType, "text/plain")] gzipNoPreCompressFile Nothing
 
 caseDefaultCheckMime :: Assertion
 caseDefaultCheckMime = do
