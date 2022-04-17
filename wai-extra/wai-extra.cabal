@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.1.8
+Version:             3.1.9
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
@@ -30,6 +30,10 @@ description:
   * GZip Compression
   .
   Negotiate HTTP payload gzip compression.
+  .
+  * Health check endpoint
+  .
+  Add an empty health check endpoint.
   .
   * HTTP Basic Authentication
   .
@@ -129,6 +133,7 @@ Library
                      Network.Wai.Middleware.Approot
                      Network.Wai.Middleware.Autohead
                      Network.Wai.Middleware.CleanPath
+                     Network.Wai.Middleware.HealthCheckEndpoint
                      Network.Wai.Middleware.Local
                      Network.Wai.Middleware.RequestLogger
                      Network.Wai.Middleware.RequestLogger.JSON

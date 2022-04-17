@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.9
+
+* Added `HealthCheckEndpoint` `Middleware`s for health check [#877](https://github.com/yesodweb/wai/pull/877)
+
 ## 3.1.8
 
 * Added an `ApacheWithSettings` output format for `RequestLogger` that allows request filtering similar to `DetailedWithSettings` and logging of the current user via wai-logger's `initLoggerUser` [#866](https://github.com/yesodweb/wai/pull/866)
