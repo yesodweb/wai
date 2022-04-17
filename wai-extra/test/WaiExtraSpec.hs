@@ -158,17 +158,74 @@ caseJsonp = withSession jsonpApp $ do
     assertBody "{\"foo\":\"bar\"}" sres3
 
 gzipApp :: Application
-gzipApp = gzip def $ \_ f -> f $ responseLBS status200
-    [("Content-Type", "text/plain")]
-    "test"
+gzipApp = gzipApp' id
 
--- Lie a little and don't compress the body.  This way we test
--- that the compression is skipped based on the presence of
--- the Content-Encoding header.
-gzipPrecompressedApp :: Application
-gzipPrecompressedApp = gzip def $ \_ f -> f $ responseLBS status200
-    [("Content-Type", "text/plain"), ("Content-Encoding", "gzip")]
-    "test"
+gzipApp' :: (Response -> Response) -> Application
+gzipApp' changeRes =
+    gzip def $ \_ f -> f . changeRes $ responseLBS status200
+        [("Content-Type", "text/plain")]
+        "test"
+
+gzipAppWithHeaders :: ResponseHeaders -> Application
+gzipAppWithHeaders hdrs = gzipApp' $ mapResponseHeaders $ (hdrs ++)
+
+gzipFileApp :: GzipSettings -> Application
+gzipFileApp = flip gzipFileApp' id
+
+gzipJSONFile, gzipNoPreCompressFile :: FilePath
+gzipJSONFile = "test/json"
+gzipNoPreCompressFile = "test/noprecompress"
+
+gzipJSONBody, gzipNocompressBody :: L.ByteString
+gzipJSONBody = "{\"data\":\"this is some data\"}\n"
+gzipNocompressBody = "noprecompress\n"
+
+-- | Use 'changeRes' to make r
+gzipFileApp' :: GzipSettings -> (Response -> Response) -> Application
+gzipFileApp' set changeRes =
+    gzip set $ \_ f -> f . changeRes $
+        responseFile status200 [(hContentType, "application/json")] gzipJSONFile Nothing
+
+acceptGzip :: Header
+acceptGzip = (hAcceptEncoding, "gzip")
+
+doesEncodeGzip :: RequestHeaders -> Session SResponse
+doesEncodeGzip = doesEncodeGzip' "test"
+
+doesEncodeGzipJSON :: RequestHeaders -> Session SResponse
+doesEncodeGzipJSON = doesEncodeGzip' gzipJSONBody
+
+doesEncodeGzipNoPreCompress :: RequestHeaders -> Session SResponse
+doesEncodeGzipNoPreCompress = doesEncodeGzip' gzipNocompressBody
+
+doesEncodeGzip' :: L.ByteString -> RequestHeaders -> Session SResponse
+doesEncodeGzip' body hdrs = do
+    sres <- request defaultRequest
+        { requestHeaders = hdrs
+        }
+    assertHeader hContentEncoding "gzip" sres
+    assertHeader hVary "Accept-Encoding" sres
+    liftIO $ decompress (simpleBody sres) @?= body
+    pure sres
+
+doesNotEncodeGzip :: RequestHeaders -> Session SResponse
+doesNotEncodeGzip = doesNotEncodeGzip' "test"
+
+doesNotEncodeGzipJSON :: RequestHeaders -> Session SResponse
+doesNotEncodeGzipJSON = doesNotEncodeGzip' gzipJSONBody
+
+doesNotEncodeGzipNoPreCompress :: RequestHeaders -> Session SResponse
+doesNotEncodeGzipNoPreCompress = doesNotEncodeGzip' gzipNocompressBody
+
+doesNotEncodeGzip' :: L.ByteString -> RequestHeaders -> Session SResponse
+doesNotEncodeGzip' body hdrs = do
+    sres <- request defaultRequest
+        { requestHeaders = hdrs
+        }
+    assertNoHeader hContentEncoding sres
+    assertHeader hVary "Accept-Encoding" sres
+    assertBody body sres
+    pure sres
 
 caseGzip :: Assertion
 caseGzip = flip runSession gzipApp $ do
@@ -197,25 +254,23 @@ caseDefaultCheckMime = do
     go "application/json; charset=utf-8" True
 
 caseGzipMSIE :: Assertion
-caseGzipMSIE = flip runSession gzipApp $ do
-    sres1 <- request defaultRequest
-                { requestHeaders =
-                    [ ("Accept-Encoding", "gzip")
-                    , ("User-Agent", "Mozilla/4.0 (Windows; MSIE 6.0; Windows NT 6.0)")
-                    ]
-                }
-    assertNoHeader "Content-Encoding" sres1
+caseGzipMSIE = withSession gzipApp $ do
+    sres1 <- doesNotEncodeGzip
+        [ acceptGzip
+        , ("User-Agent", "Mozilla/4.0 (Windows; MSIE 6.0; Windows NT 6.0)")
+        ]
     assertHeader "Vary" "Accept-Encoding" sres1
-    liftIO $ simpleBody sres1 @?= "test"
 
 caseGzipBypassPre :: Assertion
-caseGzipBypassPre = flip runSession gzipPrecompressedApp $ do
-    sres1 <- request defaultRequest
-                { requestHeaders = [("Accept-Encoding", "gzip")]
-                }
-    assertHeader "Content-Encoding" "gzip" sres1
-    assertHeader "Vary" "Accept-Encoding" sres1
-    assertBody "test" sres1 -- the body is not actually compressed
+caseGzipBypassPre =
+    -- Lie a little and don't compress the body.  This way we test
+    -- that the compression is skipped based on the presence of
+    -- the Content-Encoding header.
+    withSession (gzipAppWithHeaders [(hContentEncoding, "gzip")]) $ do
+        sres1 <- request defaultRequest{ requestHeaders = [acceptGzip] }
+        assertHeader "Content-Encoding" "gzip" sres1
+        assertHeader "Vary" "Accept-Encoding" sres1
+        assertBody "test" sres1 -- the body is not actually compressed
 
 vhostApp1, vhostApp2, vhostApp :: Application
 vhostApp1 _ f = f $ responseLBS status200 [] "app1"
