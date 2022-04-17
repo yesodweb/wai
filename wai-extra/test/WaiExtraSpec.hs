@@ -135,7 +135,7 @@ jsonpApp = jsonp $ \_ f -> f $ responseLBS
     "{\"foo\":\"bar\"}"
 
 caseJsonp :: Assertion
-caseJsonp = flip runSession jsonpApp $ do
+caseJsonp = withSession jsonpApp $ do
     sres1 <- request defaultRequest
                 { queryString = [("callback", Just "test")]
                 , requestHeaders = [("Accept", "text/javascript")]
@@ -226,7 +226,7 @@ vhostApp = vhost
     vhostApp2
 
 caseVhost :: Assertion
-caseVhost = flip runSession vhostApp $ do
+caseVhost = withSession vhostApp $ do
     sres1 <- request defaultRequest
                 { requestHeaders = [("Host", "foo.com")]
                 }
@@ -242,7 +242,7 @@ autoheadApp = autohead $ \_ f -> f $ responseLBS status200
     [("Foo", "Bar")] "body"
 
 caseAutohead :: Assertion
-caseAutohead = flip runSession autoheadApp $ do
+caseAutohead = withSession autoheadApp $ do
     sres1 <- request defaultRequest
                 { requestMethod = "GET"
                 }
@@ -260,7 +260,7 @@ moApp = methodOverride $ \req f -> f $ responseLBS status200
     [("Method", requestMethod req)] ""
 
 caseMethodOverride :: Assertion
-caseMethodOverride = flip runSession moApp $ do
+caseMethodOverride = withSession moApp $ do
     sres1 <- request defaultRequest
                 { requestMethod = "GET"
                 , queryString = []
@@ -283,7 +283,7 @@ mopApp :: Application
 mopApp = methodOverridePost $ \req f -> f $ responseLBS status200 [("Method", requestMethod req)] ""
 
 caseMethodOverridePost :: Assertion
-caseMethodOverridePost = flip runSession mopApp $ do
+caseMethodOverridePost = withSession mopApp $ do
 
     -- Get Request are unmodified
     sres1 <- let r = toRequest "application/x-www-form-urlencoded" "_method=PUT&foo=bar&baz=bin"
@@ -310,7 +310,7 @@ aoApp = acceptOverride $ \req f -> f $ responseLBS status200
     [("Accept", fromMaybe "" $ lookup "Accept" $ requestHeaders req)] ""
 
 caseAcceptOverride :: Assertion
-caseAcceptOverride = flip runSession aoApp $ do
+caseAcceptOverride = withSession aoApp $ do
     sres1 <- request defaultRequest
                 { queryString = []
                 , requestHeaders = [("Accept", "foo")]
@@ -331,13 +331,13 @@ caseAcceptOverride = flip runSession aoApp $ do
 
 caseDebugRequestBody :: Assertion
 caseDebugRequestBody = do
-    flip runSession (debugApp postOutput) $ do
+    withSession (debugApp postOutput) $ do
         let req = toRequest "application/x-www-form-urlencoded" "foo=bar&baz=bin"
         res <- srequest req
         assertStatus 200 res
 
     let qs = "?foo=bar&baz=bin"
-    flip runSession (debugApp $ getOutput params) $ do
+    withSession (debugApp $ getOutput params) $ do
         assertStatus 200 =<< request defaultRequest
                 { requestMethod = "GET"
                 , queryString = map (\(k,v) -> (k, Just v)) params
@@ -439,7 +439,7 @@ streamFileApp :: Application
 streamFileApp = streamFile $ \_ f -> f $ responseFile status200 [] testFile Nothing
 
 caseStreamFile :: Assertion
-caseStreamFile = flip runSession streamFileApp $ do
+caseStreamFile = withSession streamFileApp $ do
     sres <- request defaultRequest
     assertStatus 200 sres
     assertBodyContains "caseStreamFile" sres
@@ -451,7 +451,7 @@ streamLBSApp = streamFile $ \_ f -> f $ responseLBS status200
     "test"
 
 caseStreamLBS :: Assertion
-caseStreamLBS = flip runSession streamLBSApp $ do
+caseStreamLBS = withSession streamLBSApp $ do
     sres <- request defaultRequest
     assertStatus 200 sres
     assertBody "test" sres
@@ -468,7 +468,7 @@ caseModifyPostParamsInLogs = do
     testLogs formatRedacted outputRedacted
   where
     testLogs :: OutputFormat -> [(String, String)] -> Assertion
-    testLogs format output = flip runSession (debugApp format output) $ do
+    testLogs format output = withSession (debugApp format output) $ do
         let req = toRequest "application/x-www-form-urlencoded" "username=some_user&password=dont_show_me"
         res <- srequest req
         assertStatus 200 res
@@ -506,7 +506,7 @@ caseFilterRequestsInLogs = do
     testLogs formatFiltered pathHidden False
   where
     testLogs :: OutputFormat -> S8.ByteString -> Bool -> Assertion
-    testLogs format rpath haslogs = flip runSession (debugApp format rpath haslogs) $ do
+    testLogs format rpath haslogs = withSession (debugApp format rpath haslogs) $ do
         let req = flip SRequest "" $ setPath defaultRequest rpath
         res <- srequest req
         assertStatus 200 res
