@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.10
+
+* Added `Select` to choose between `Middleware`s [#878](https://github.com/yesodweb/wai/pull/878)
+
 ## 3.1.9
 
 * Added `HealthCheckEndpoint` `Middleware`s for health check [#877](https://github.com/yesodweb/wai/pull/877)
