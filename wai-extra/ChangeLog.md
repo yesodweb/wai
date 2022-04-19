@@ -1,5 +1,17 @@
 # Changelog for wai-extra
 
+## 3.1.9
+
+* Cleanup and linting of most of `wai-extra` and refactoring the `gzip` middleware to keep it more DRY and to skip compression earlier if possible [#875](https://github.com/yesodweb/wai/pull/875)
+* `Network.Wai.Middleware.AcceptOverride`: Added some documentation
+* Overhaul to `Network.Wai.Middleware.Gzip`:
+    * Don't fail on quality value parameters in the `Accept-Encoding` header
+    * Add `Accept-Encoding` to the `Vary` response header, instead of overriding it
+    * Add setting parameter to decide the compression threshold (`gzipSizeThreshold`)
+    * Always skip compression on a `206 Partial Content` response
+    * Only catch `IOException`s and `ZlibException`s when using `GzipCacheFolder`
+    * Added documentation on how to use `gzip` and it's decision-making.
+
 ## 3.1.8
 
 * Added an `ApacheWithSettings` output format for `RequestLogger` that allows request filtering similar to `DetailedWithSettings` and logging of the current user via wai-logger's `initLoggerUser` [#866](https://github.com/yesodweb/wai/pull/866)
