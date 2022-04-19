@@ -20,7 +20,7 @@
 -- >
 -- > app' :: Application
 -- > app' =
--- >   selectMiddleware (MiddlewareSelection $ selectMiddlewareExceptRawPathInfo "/_healthz" logStdout)
+-- >   selectMiddleware (selectMiddlewareExceptRawPathInfo "/_healthz" logStdout)
 -- >     $ healthCheck app
 --
 -- @since 3.1.10
