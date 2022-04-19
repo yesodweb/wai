@@ -77,8 +77,8 @@ passthroughMiddleware = id
 
 -- | Use the 'Middleware' when the predicate holds.
 selectMiddlewareOn :: (Request -> Bool) -> Middleware -> MiddlewareSelection
-selectMiddlewareOn doesApplypath mw = MiddlewareSelection $ \request ->
-  if doesApplypath request
+selectMiddlewareOn doesApply mw = MiddlewareSelection $ \request ->
+  if doesApply request
     then Just mw
     else Nothing
 
