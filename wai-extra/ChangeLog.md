@@ -1,8 +1,7 @@
 # Changelog for wai-extra
 
-## 3.1.9
+## 3.1.10
 
-* Cleanup and linting of most of `wai-extra` and refactoring the `gzip` middleware to keep it more DRY and to skip compression earlier if possible [#875](https://github.com/yesodweb/wai/pull/875)
 * Added some documentation to `Network.Wai.Middleware.AcceptOverride` [#880](https://github.com/yesodweb/wai/pull/880)
 * Overhaul to `Network.Wai.Middleware.Gzip` [#880](https://github.com/yesodweb/wai/pull/880):
     * Don't fail on quality value parameters in the `Accept-Encoding` header
@@ -11,6 +10,11 @@
     * Always skip compression on a `206 Partial Content` response
     * Only catch `IOException`s and `ZlibException`s when using `GzipCacheFolder`
     * Added documentation on how to use `gzip` and it's decision-making.
+
+## 3.1.9
+
+* Cleanup and linting of most of `wai-extra` and refactoring the `gzip` middleware to keep it more DRY and to skip compression earlier if possible [#875](https://github.com/yesodweb/wai/pull/875)
+* Added `HealthCheckEndpoint` `Middleware`s for health check [#877](https://github.com/yesodweb/wai/pull/877)
 
 ## 3.1.8
 
