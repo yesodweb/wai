@@ -58,7 +58,7 @@ instance Semigroup MiddlewareSelection where
     MiddlewareSelection $ \req -> f req <|> g req
 
 instance Monoid MiddlewareSelection where
-  mempty = MiddlewareSelection $ const $ Just passthroughMiddleware
+  mempty = MiddlewareSelection $ const Nothing
 
 -- | Create the 'Middleware' dynamically applying 'MiddlewareSelection'.
 selectMiddleware :: MiddlewareSelection -> Middleware

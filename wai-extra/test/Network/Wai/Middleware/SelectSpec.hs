@@ -40,6 +40,9 @@ spec = describe "Select" $ do
   it "With other two paths select should passthrough" $
     runApp (selectMiddleware $ selectOverride "/_" status401 <> selectOverride "/-" status500) "/"
       `shouldReturn` status200
+  it "With mempty then the path select should hit the pass" $
+    runApp (selectMiddleware $ mempty <> selectOverride "/-" status500) "/-"
+      `shouldReturn` status500
 
 runApp :: Middleware -> ByteString -> IO Status
 runApp mw path =
