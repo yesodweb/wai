@@ -10,9 +10,9 @@ import Network.Wai.Header (replaceHeader)
 
 -- $howto
 -- This 'Middleware' provides a way for the request itself to
--- tell the server to override the "Accept" header by looking
--- for the "_accept" query parameter in the query string and
--- inserting or replacing the "Accept" header with that string.
+-- tell the server to override the \"Accept\" header by looking
+-- for the \"_accept\" query parameter in the query string and
+-- inserting or replacing the \"Accept\" header with that string.
 --
 -- For example:
 --
@@ -20,8 +20,8 @@ import Network.Wai.Header (replaceHeader)
 -- ?_accept=SomeValue
 -- @
 --
--- This will result in "Accept: SomeValue" being set in the
--- request as a header, and all other previous "Accept" headers
+-- This will result in \"Accept: SomeValue\" being set in the
+-- request as a header, and all other previous \"Accept\" headers
 -- will be removed from the request.
 
 acceptOverride :: Middleware

@@ -3,8 +3,8 @@
 ## 3.1.9
 
 * Cleanup and linting of most of `wai-extra` and refactoring the `gzip` middleware to keep it more DRY and to skip compression earlier if possible [#875](https://github.com/yesodweb/wai/pull/875)
-* `Network.Wai.Middleware.AcceptOverride`: Added some documentation
-* Overhaul to `Network.Wai.Middleware.Gzip`:
+* Added some documentation to `Network.Wai.Middleware.AcceptOverride` [#880](https://github.com/yesodweb/wai/pull/880)
+* Overhaul to `Network.Wai.Middleware.Gzip` [#880](https://github.com/yesodweb/wai/pull/880):
     * Don't fail on quality value parameters in the `Accept-Encoding` header
     * Add `Accept-Encoding` to the `Vary` response header, instead of overriding it
     * Add setting parameter to decide the compression threshold (`gzipSizeThreshold`)
