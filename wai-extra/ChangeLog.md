@@ -1,16 +1,20 @@
 # Changelog for wai-extra
 
-## 3.1.10
+## 3.1.11
 
-* Fixed import linting mistake introduced in `3.1.9` ([#875)](https://github.com/yesodweb/wai/pull/875)) where `Network.Wai.Handler.CGI` wouldn't compile on Windows. [#880](https://github.com/yesodweb/wai/pull/880)
 * Added some documentation to `Network.Wai.Middleware.AcceptOverride` [#880](https://github.com/yesodweb/wai/pull/880)
 * Overhaul to `Network.Wai.Middleware.Gzip` [#880](https://github.com/yesodweb/wai/pull/880):
-    * Don't fail on quality value parameters in the `Accept-Encoding` header
+    * Don't fail if quality value parameters are present in the `Accept-Encoding` header
     * Add `Accept-Encoding` to the `Vary` response header, instead of overriding it
     * Add setting parameter to decide the compression threshold (`gzipSizeThreshold`)
     * Always skip compression on a `206 Partial Content` response
     * Only catch `IOException`s and `ZlibException`s when using `GzipCacheFolder`
-    * Added documentation on how to use `gzip` and it's decision-making.
+    * Added documentation on the usage of `gzip` and its decision-making.
+
+## 3.1.10
+
+* Fixed import linting mistake introduced in `3.1.9` ([#875)](https://github.com/yesodweb/wai/pull/875)) where `Network.Wai.Handler.CGI` wouldn't compile on Windows. [#881](https://github.com/yesodweb/wai/pull/880)
+* Added `Select` to choose between `Middleware`s [#878](https://github.com/yesodweb/wai/pull/878)
 
 ## 3.1.9
 

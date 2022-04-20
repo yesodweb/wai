@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.1.10
+Version:             3.1.11
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
@@ -56,6 +56,10 @@ description:
   * Request Rewrite
   .
   Rewrite request path info based on a custom conversion rules.
+  .
+  * Select
+  .
+  Dynamically choose between Middlewares.
   .
   * Stream Files
   .
@@ -137,6 +141,7 @@ Library
                      Network.Wai.Middleware.Local
                      Network.Wai.Middleware.RequestLogger
                      Network.Wai.Middleware.RequestLogger.JSON
+                     Network.Wai.Middleware.Select
                      Network.Wai.Middleware.Gzip
                      Network.Wai.Middleware.Jsonp
                      Network.Wai.Middleware.MethodOverride
@@ -192,6 +197,7 @@ test-suite spec
                      Network.Wai.Middleware.RealIpSpec
                      Network.Wai.Middleware.RequestSizeLimitSpec
                      Network.Wai.Middleware.RoutedSpec
+                     Network.Wai.Middleware.SelectSpec
                      Network.Wai.Middleware.StripHeadersSpec
                      Network.Wai.Middleware.TimeoutSpec
                      WaiExtraSpec
