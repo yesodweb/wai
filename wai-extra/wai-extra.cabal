@@ -218,6 +218,9 @@ test-suite spec
     ghc-options:     -Wall
     default-language:          Haskell2010
 
+    if os(windows)
+        cpp-options:   -DWINDOWS
+
 source-repository head
   type:     git
   location: git://github.com/yesodweb/wai.git
