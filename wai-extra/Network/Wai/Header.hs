@@ -1,5 +1,5 @@
+{-# LANGUAGE CPP #-}
 -- | Some helpers for dealing with WAI 'Header's.
-
 module Network.Wai.Header
     ( contentLength
     , parseQValueList
@@ -10,7 +10,7 @@ module Network.Wai.Header
 import Control.Monad (guard)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString as S
-import Data.Word8 (_comma, _period, _semicolon, _space)
+import Data.Word8 (Word8, _comma, _period, _semicolon, _space)
 import Network.HTTP.Types as H
 import Text.Read (readMaybe)
 
@@ -35,7 +35,15 @@ splitCommas = map trimWS . S.split _comma
 
 -- Trim whitespace
 trimWS :: S.ByteString -> S.ByteString
-trimWS = S.dropWhileEnd (== _space) . S.dropWhile (== _space)
+trimWS = dropWhileEnd (== _space) . S.dropWhile (== _space)
+
+-- | Dropping all 'Word8's from the end that satisfy the predicate.
+dropWhileEnd :: (Word8 -> Bool) -> S.ByteString -> S.ByteString
+#if MIN_VERSION_bytestring(0,10,12)
+dropWhileEnd = S.dropWhileEnd
+#else
+dropWhileEnd p = fst . S.spanEnd p
+#endif
 
 -- | Only to be used on header's values which support quality value syntax
 --
@@ -56,7 +64,7 @@ parseQValueList = fmap go . splitCommas
     checkQ (val, bs) =
         -- RFC 7231 says optional whitespace can be around the semicolon.
         -- So drop any before it       ,           . and any behind it       $ and drop the semicolon
-        (S.dropWhileEnd (== _space) val, parseQval . S.dropWhile (== _space) $ S.drop 1 bs)
+        (dropWhileEnd (== _space) val, parseQval . S.dropWhile (== _space) $ S.drop 1 bs)
       where
         parseQval qVal = do
             q <- S8.stripPrefix "q=" qVal
