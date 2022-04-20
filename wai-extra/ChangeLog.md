@@ -2,6 +2,7 @@
 
 ## 3.1.10
 
+* Fixed import linting mistake introduced in `3.1.9` ([#875)](https://github.com/yesodweb/wai/pull/875)) where `Network.Wai.Handler.CGI` wouldn't compile on Windows. [#880](https://github.com/yesodweb/wai/pull/880)
 * Added some documentation to `Network.Wai.Middleware.AcceptOverride` [#880](https://github.com/yesodweb/wai/pull/880)
 * Overhaul to `Network.Wai.Middleware.Gzip` [#880](https://github.com/yesodweb/wai/pull/880):
     * Don't fail on quality value parameters in the `Accept-Encoding` header
