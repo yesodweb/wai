@@ -31,11 +31,12 @@ import qualified Network.HTTP.Types as H
 import Network.Socket (addrAddress, getAddrInfo)
 import Network.Wai
 import Network.Wai.Internal
+import System.IO (Handle)
+import qualified System.IO
+
 #if WINDOWS
 import System.Environment (getEnvironment)
 #else
-import System.IO (Handle)
-import qualified System.IO
 import qualified System.Posix.Env.ByteString as Env
 
 getEnvironment :: IO [(String, String)]
