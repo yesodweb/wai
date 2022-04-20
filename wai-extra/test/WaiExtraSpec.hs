@@ -313,7 +313,13 @@ caseGzipFiles = do
         assertHeader hContentEncoding "gzip" sres
         assertHeader hVary "Accept-Encoding" sres
         -- json.gz has body "test\n"
-        assertBody "test\n" sres
+        assertBody
+#if WINDOWS
+            "test\r\n"
+#else
+            "test\n"
+#endif
+            sres
 
         doesNotEncodeGzipJSON [] >> pure ()
 
