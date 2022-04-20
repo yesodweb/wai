@@ -194,8 +194,13 @@ gzipJSONFile = "test/json"
 gzipNoPreCompressFile = "test/noprecompress"
 
 gzipJSONBody, gzipNocompressBody :: L.ByteString
+#if WINDOWS
+gzipJSONBody = "{\"data\":\"this is some data\"}\r\n"
+gzipNocompressBody = "noprecompress\r\n"
+#else
 gzipJSONBody = "{\"data\":\"this is some data\"}\n"
 gzipNocompressBody = "noprecompress\n"
+#endif
 
 -- | Use 'changeRes' to make r
 gzipFileApp' :: GzipSettings -> (Response -> Response) -> Application
