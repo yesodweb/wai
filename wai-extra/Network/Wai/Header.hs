@@ -8,9 +8,10 @@ module Network.Wai.Header
     ) where
 
 import Control.Monad (guard)
-import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString as S
-import Data.Word8 (Word8, _comma, _period, _semicolon, _space)
+import qualified Data.ByteString.Char8 as S8
+import Data.ByteString.Internal (w2c)
+import Data.Word8 (Word8, _0, _1, _comma, _period, _semicolon, _space)
 import Network.HTTP.Types as H
 import Text.Read (readMaybe)
 
@@ -67,18 +68,21 @@ parseQValueList = fmap go . splitCommas
         (dropWhileEnd (== _space) val, parseQval . S.dropWhile (== _space) $ S.drop 1 bs)
       where
         parseQval qVal = do
-            q <- S8.stripPrefix "q=" qVal
-            (i, rest) <- S8.uncons q
+            q <- S.stripPrefix "q=" qVal
+            (i, rest) <- S.uncons q
             guard $
-                i `elem` ['0', '1']
+                i `elem` [_0, _1]
                     && S.length rest <= 4
             case S.uncons rest of
-                -- q = "0" or "1"
-                Nothing -> (1000 *) <$> readMaybe (S8.unpack q)
+                Nothing
+                    -- q = "0" or "1"
+                    | i == _0 -> Just 0
+                    | i == _1 -> Just 1000
+                    | otherwise -> Nothing
                 Just (dot, trail)
-                    | dot == _period && not (i == '1' && S8.any (/= '0') trail) -> do
+                    | dot == _period && not (i == _1 && S.any (/= _0) trail) -> do
                         let len = S.length trail
-                            extraZeroes = S8.unpack $ S8.replicate (3 - len) '0'
+                            extraZeroes = replicate (3 - len) '0'
                         guard $ len > 0
-                        readMaybe $ (i : S8.unpack trail) ++ extraZeroes
+                        readMaybe $ w2c i : S8.unpack trail ++ extraZeroes
                     | otherwise -> Nothing
