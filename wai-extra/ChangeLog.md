@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.10.1
+
+* Added documentation to `Accept Override` `Middleware` [#884](https://github.com/yesodweb/wai/pull/884)
+
 ## 3.1.10
 
 * Added `Select` to choose between `Middleware`s [#878](https://github.com/yesodweb/wai/pull/878)
