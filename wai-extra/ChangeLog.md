@@ -2,7 +2,6 @@
 
 ## 3.1.11
 
-* Added some documentation to `Network.Wai.Middleware.AcceptOverride` [#880](https://github.com/yesodweb/wai/pull/880)
 * Overhaul to `Network.Wai.Middleware.Gzip` [#880](https://github.com/yesodweb/wai/pull/880):
     * Don't fail if quality value parameters are present in the `Accept-Encoding` header
     * Add `Accept-Encoding` to the `Vary` response header, instead of overriding it
