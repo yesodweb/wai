@@ -10,6 +10,10 @@
     * Only catch `IOException`s and `ZlibException`s when using `GzipCacheFolder`
     * Added documentation on the usage of `gzip` and its decision-making.
 
+## 3.1.10.1
+
+* Added documentation to `Accept Override` `Middleware` [#884](https://github.com/yesodweb/wai/pull/884)
+
 ## 3.1.10
 
 * Fixed import linting mistake introduced in `3.1.9` ([#875)](https://github.com/yesodweb/wai/pull/875)) where `Network.Wai.Handler.CGI` wouldn't compile on Windows. [#881](https://github.com/yesodweb/wai/pull/880)
