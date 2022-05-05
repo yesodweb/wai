@@ -33,6 +33,7 @@ import Network.Wai
 import Network.Wai.Internal
 import System.IO (Handle)
 import qualified System.IO
+
 #if WINDOWS
 import System.Environment (getEnvironment)
 #else

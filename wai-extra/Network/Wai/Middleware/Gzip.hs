@@ -1,5 +1,3 @@
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 ---------------------------------------------------------
 -- |
 -- Module        : Network.Wai.Middleware.Gzip
@@ -14,16 +12,30 @@
 --
 ---------------------------------------------------------
 module Network.Wai.Middleware.Gzip
-    ( gzip
+    ( -- * How to use this module
+      -- $howto
+
+      -- ** The Middleware
+      -- $gzip
+      gzip
+
+      -- ** The Settings
+      -- $settings
     , GzipSettings
     , gzipFiles
-    , GzipFiles (..)
     , gzipCheckMime
-    , def
+    , gzipSizeThreshold
+
+      -- ** How to handle file responses
+    , GzipFiles (..)
+
+      -- ** Miscellaneous
+      -- $miscellaneous
     , defaultCheckMime
+    , def
     ) where
 
-import Control.Exception (SomeException, throwIO, try)
+import Control.Exception (IOException, SomeException, fromException, throwIO, try)
 import Control.Monad (unless)
 import qualified Data.ByteString as S
 import Data.ByteString.Builder (byteString)
@@ -36,10 +48,10 @@ import Data.Maybe (isJust)
 import qualified Data.Set as Set
 import qualified Data.Streaming.ByteString.Builder as B
 import qualified Data.Streaming.Zlib as Z
-import Data.Word8 (_comma, _semicolon, _space)
+import Data.Word8 as W8 (toLower, _semicolon)
 import Network.HTTP.Types (
     Header,
-    Status,
+    Status (statusCode),
     hContentEncoding,
     hContentLength,
     hContentType,
@@ -51,30 +63,130 @@ import Network.Wai.Internal (Response (..))
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import qualified System.IO as IO
 
-import Network.Wai.Header (contentLength)
+import Network.Wai.Header (contentLength, parseQValueList, replaceHeader, splitCommas)
+
+-- $howto
+--
+-- This 'Middleware' adds @gzip encoding@ to an application.
+-- Its use is pretty straightforward, but it's good to know
+-- how and when it decides to encode the response body.
+--
+-- A few things to keep in mind when using this middleware:
+--
+-- * It is advised to put any 'Middleware's that change the
+--   response behind this one, because it bases a lot of its
+--   decisions on the returned response.
+-- * Enabling compression may counteract zero-copy response
+--   optimizations on some platforms.
+-- * This middleware is applied to every response by default.
+--   If it should only encode certain paths,
+--   "Network.Wai.Middleware.Routed" might be helpful.
+
+-- $gzip
+--
+-- There are a good amount of requirements that should be
+-- fulfilled before a response will actually be @gzip encoded@
+-- by this 'Middleware', so here's a short summary.
+--
+-- Request requirements:
+--
+-- * The request needs to accept \"gzip\" in the \"Accept-Encoding\" header.
+-- * Requests from Internet Explorer 6 will not be encoded.
+--   (i.e. if the request's \"User-Agent\" header contains \"MSIE 6\")
+--
+-- Response requirements:
+--
+-- * The response isn't already encoded. (i.e. shouldn't already
+--   have a \"Content-Encoding\" header)
+-- * The response isn't a @206 Partial Content@ (partial content
+--   should never be compressed)
+-- * If the response contains a \"Content-Length\" header, it
+--   should be larger than the 'gzipSizeThreshold'.
+-- * The \"Content-Type\" response header's value should
+--   evaluate to 'True' when applied to 'gzipCheckMime'
+--   (though 'GzipPreCompressed' will use the \".gz\" file regardless
+--   of MIME type on any 'ResponseFile' response)
+--
+
+
+-- $settings
+--
+-- If you would like to use the default settings, using just 'def' is enough.
+-- The default settings don't compress file responses, only builder and stream
+-- responses, and only if the response passes the MIME and length checks. (cf.
+-- 'defaultCheckMime' and 'gzipSizeThreshold')
+--
+-- To customize your own settings, use the 'def' method and set the
+-- fields you would like to change as follows:
+--
+-- @
+-- myGzipSettings :: 'GzipSettings'
+-- myGzipSettings =
+--   'def'
+--     { 'gzipFiles' = 'GzipCompress'
+--     , 'gzipCheckMime' = myMimeCheckFunction
+--     , 'gzipSizeThreshold' = 860
+--     }
+-- @
 
 data GzipSettings = GzipSettings
-    { gzipFiles :: GzipFiles
+    { -- | Gzip behavior for files
+      --
+      -- Only applies to 'ResponseFile' ('responseFile') responses.
+      -- So any streamed data will be compressed based solely on the
+      -- response headers having the right \"Content-Type\" and
+      -- \"Content-Length\". (which are checked with 'gzipCheckMime'
+      -- and 'gzipSizeThreshold', respectively)
+      gzipFiles :: GzipFiles
+      -- | Decide which files to compress based on MIME type
+      --
+      -- The 'S.ByteString' is the value of the \"Content-Type\" response
+      -- header and will default to 'False' if the header is missing.
+      --
+      -- E.g. if you'd only want to compress @json@ data, you might
+      -- define your own function as follows:
+      --
+      -- > myCheckMime mime = mime == "application/json"
     , gzipCheckMime :: S.ByteString -> Bool
+      -- | Skip compression when the size of the response body is
+      -- below this amount of bytes (default: 860.)
+      --
+      -- /Setting this option to less than 150 will actually increase/
+      -- /the size of outgoing data if its original size is less than 150 bytes/.
+      --
+      -- This will only skip compression if the response includes a
+      -- \"Content-Length\" header /AND/ the length is less than this
+      -- threshold.
+    , gzipSizeThreshold :: Integer
     }
 
 -- | Gzip behavior for files.
 data GzipFiles
-    = GzipIgnore -- ^ Do not compress file responses.
-    | GzipCompress -- ^ Compress files. Note that this may counteract
-                   -- zero-copy response optimizations on some
-                   -- platforms.
-    | GzipCacheFolder FilePath -- ^ Compress files, caching them in
-                               -- some directory.
-    | GzipPreCompressed GzipFiles -- ^ If we use compression then try to use the filename with ".gz"
-                                  -- appended to it, if the file is missing then try next action
-                                  --
-                                  -- @since 3.0.17
+    = -- | Do not compress file ('ResponseFile') responses.
+      -- Any 'ResponseBuilder' or 'ResponseStream' might still be compressed.
+      GzipIgnore
+    | -- | Compress files. Note that this may counteract
+      -- zero-copy response optimizations on some platforms.
+      GzipCompress
+    | -- | Compress files, caching the compressed version in the given directory.
+      GzipCacheFolder FilePath
+    | -- | If we use compression then try to use the filename with \".gz\"
+      -- appended to it. If the file is missing then try next action.
+      --
+      -- @since 3.0.17
+      GzipPreCompressed GzipFiles
     deriving (Show, Eq, Read)
 
--- | Use default MIME settings; /do not/ compress files.
+-- $miscellaneous
+--
+-- 'def' is re-exported for convenience sake, and 'defaultCheckMime'
+-- is exported in case anyone wants to use it in defining their own
+-- 'gzipCheckMime' function.
+
+-- | Use default MIME settings; /do not/ compress files; skip
+-- compression on data smaller than 860 bytes.
 instance Default GzipSettings where
-    def = GzipSettings GzipIgnore defaultCheckMime
+    def = GzipSettings GzipIgnore defaultCheckMime minimumLength
 
 -- | MIME types that will be compressed by default:
 -- @text/@ @*@, @application/json@, @application/javascript@,
@@ -92,14 +204,6 @@ defaultCheckMime bs =
         ]
 
 -- | Use gzip to compress the body of the response.
---
--- Analyzes the \"Accept-Encoding\" header from the client to determine
--- if gzip is supported.
---
--- File responses will be compressed according to the 'GzipFiles' setting.
---
--- Will only be applied based on the 'gzipCheckMime' setting. For default
--- behavior, see 'defaultCheckMime'.
 gzip :: GzipSettings -> Middleware
 gzip set app req sendResponse'
     | skipCompress = app req sendResponse
@@ -126,8 +230,22 @@ gzip set app req sendResponse'
   where
     isCorrectMime =
         maybe False (gzipCheckMime set) . lookup hContentType
-    sendResponse = sendResponse' . mapResponseHeaders (vary:)
-    vary = (hVary, "Accept-Encoding")
+    sendResponse = sendResponse' . mapResponseHeaders mAddVary
+    acceptEncoding = "Accept-Encoding"
+    acceptEncodingLC = "accept-encoding"
+    -- Instead of just adding a header willy-nilly, we check if
+    -- "Vary" is already present, and add to it if not already included.
+    mAddVary [] = [(hVary, acceptEncoding)]
+    mAddVary (h@(nm, val) : hs)
+        | nm == hVary =
+            let vals = splitCommas val
+                lowercase = S.map W8.toLower
+                -- Field names are case-insensitive, so we lowercase to match
+                hasAccEnc = acceptEncodingLC `elem` fmap lowercase vals
+                newH | hasAccEnc = h
+                     | otherwise = (hVary, acceptEncoding <> ", " <> val)
+             in newH : hs
+        | otherwise = h : mAddVary hs
 
     -- Can we skip from just looking at the 'Request'?
     skipCompress =
@@ -135,23 +253,29 @@ gzip set app req sendResponse'
       where
         reqHdrs = requestHeaders req
         acceptsGZipEncoding =
-            maybe False (elem "gzip" . splitCommas) $ hAcceptEncoding `lookup` reqHdrs
+            maybe False (any isGzip . parseQValueList) $ hAcceptEncoding `lookup` reqHdrs
+        isGzip (bs, q) =
+            -- We skip if 'q' = Nothing, because it is malformed,
+            -- or if it is 0, because that is an explicit "DO NOT USE GZIP"
+            bs == "gzip" && maybe False (/= 0) q
         isMSIE6 =
             maybe False ("MSIE 6" `S.isInfixOf`) $ hUserAgent `lookup` reqHdrs
 
     -- Can we skip just by looking at the current 'Response'?
     checkCompress :: (Response -> IO ResponseReceived) -> Response -> IO ResponseReceived
-    checkCompress f res =
-        if isEncodedAlready || notBigEnough
+    checkCompress continue res =
+        if isEncodedAlready || isPartial || tooSmall
             then sendResponse res
-            else f res
+            else continue res
       where
         resHdrs = responseHeaders res
+        -- Partial content should NEVER be compressed.
+        isPartial = statusCode (responseStatus res) == 206
         isEncodedAlready = isJust $ hContentEncoding `lookup` resHdrs
-        notBigEnough =
+        tooSmall =
             maybe
                 False -- This could be a streaming case
-                (< minimumLength)
+                (< gzipSizeThreshold set)
                 $ contentLength resHdrs
 
 -- For a small enough response, gzipping will actually increase the size
@@ -189,11 +313,23 @@ compressFile s hs file cache sendResponse = do
                             Z.feedDeflate deflate bs >>= goPopper
                             loop
                     goPopper $ Z.finishDeflate deflate
-            either onErr (const onSucc) (x :: Either SomeException ()) -- FIXME bad! don't catch all exceptions like that!
+            either onErr (const onSucc) (x :: Either SomeException ())
   where
     onSucc = sendResponse $ responseFile s (fixHeaders hs) tmpfile Nothing
+    reportError err =
+        IO.hPutStrLn IO.stderr $
+            "Network.Wai.Middleware.Gzip: compression failed: " <> err
+    onErr e
+        -- Catching IOExceptions for file system / hardware oopsies
+        | Just ioe <- fromException e = do
+            reportError $ show (ioe :: IOException)
+            sendResponse $ responseFile s hs file Nothing
+        -- Catching ZlibExceptions for compression oopsies
+        | Just zlibe <- fromException e = do
+            reportError $ show (zlibe :: Z.ZlibException)
+            sendResponse $ responseFile s hs file Nothing
+        | otherwise = throwIO e
 
-    onErr _ = sendResponse $ responseFile s hs file Nothing -- FIXME log the error message
 
     tmpfile = cache ++ '/' : map safe file
     safe c
@@ -243,9 +379,6 @@ compressE res sendResponse =
 -- different length after gzip compression.
 fixHeaders :: [Header] -> [Header]
 fixHeaders =
-    ((hContentEncoding, "gzip") :) . filter notLength
+    replaceHeader hContentEncoding "gzip" . filter notLength
   where
     notLength (x, _) = x /= hContentLength
-
-splitCommas :: S.ByteString -> [S.ByteString]
-splitCommas = map (S.dropWhile (== _space)) . S.split _comma

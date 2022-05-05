@@ -5,6 +5,7 @@ module Network.Wai.Test
     ( -- * Session
       Session
     , runSession
+    , withSession
       -- * Client Cookies
     , ClientCookies
     , getClientCookies
@@ -92,6 +93,10 @@ deleteClientCookie =
 -- | See also: 'runSessionWith'.
 runSession :: Session a -> Application -> IO a
 runSession session app = ST.evalStateT (runReaderT session app) initState
+
+-- | Synonym for 'flip runSession'
+withSession :: Application -> Session a -> IO a
+withSession = flip runSession
 
 data SRequest = SRequest
     { simpleRequest :: Request

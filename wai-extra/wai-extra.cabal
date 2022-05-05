@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.1.10.1
+Version:             3.1.11
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
@@ -219,8 +219,13 @@ test-suite spec
                    , http2
                    , aeson
                    , iproute
+                   , temporary
+                   , directory
     ghc-options:     -Wall
     default-language:          Haskell2010
+
+    if os(windows)
+        cpp-options:   -DWINDOWS
 
 source-repository head
   type:     git

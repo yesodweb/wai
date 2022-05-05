@@ -3,9 +3,10 @@ module Network.Wai.Middleware.AcceptOverride
       acceptOverride
     ) where
 
-import Control.Monad (join)
-import Data.ByteString (ByteString)
 import Network.Wai
+import Control.Monad (join)
+
+import Network.Wai.Header (replaceHeader)
 
 -- $howto
 -- This 'Middleware' provides a way for the request itself to
@@ -30,12 +31,6 @@ acceptOverride app req =
     req' =
         case join $ lookup "_accept" $ queryString req of
             Nothing -> req
-            Just a -> req { requestHeaders = changeVal "Accept" a $ requestHeaders req}
-
-changeVal :: Eq a
-          => a
-          -> ByteString
-          -> [(a, ByteString)]
-          -> [(a, ByteString)]
-changeVal key val old = (key, val)
-                      : filter (\(k, _) -> k /= key) old
+            Just a -> req {
+                requestHeaders = replaceHeader "Accept" a $ requestHeaders req
+              }
