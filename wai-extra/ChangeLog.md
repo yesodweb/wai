@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.12
+
+* Added gzip caching based on `ETag` [#PR NUMBER HERE](https://github.com/yesodweb/wai/pull/PR_NUMBER_HERE):
+
 ## 3.1.11
 
 * Overhaul to `Network.Wai.Middleware.Gzip` [#880](https://github.com/yesodweb/wai/pull/880):
