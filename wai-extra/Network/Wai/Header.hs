@@ -5,6 +5,7 @@ module Network.Wai.Header
     , parseQValueList
     , replaceHeader
     , splitCommas
+    , trimWS
     ) where
 
 import Control.Monad (guard)

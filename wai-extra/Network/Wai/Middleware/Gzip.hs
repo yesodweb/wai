@@ -57,13 +57,13 @@ import Network.HTTP.Types (
     hContentType,
     hUserAgent,
  )
-import Network.HTTP.Types.Header (hAcceptEncoding, hVary)
+import Network.HTTP.Types.Header (hAcceptEncoding, hETag, hVary)
 import Network.Wai
 import Network.Wai.Internal (Response (..))
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import qualified System.IO as IO
 
-import Network.Wai.Header (contentLength, parseQValueList, replaceHeader, splitCommas)
+import Network.Wai.Header (contentLength, parseQValueList, replaceHeader, splitCommas, trimWS)
 
 -- $howto
 --
@@ -170,6 +170,15 @@ data GzipFiles
       GzipCompress
     | -- | Compress files, caching the compressed version in the given directory.
       GzipCacheFolder FilePath
+    | -- | Takes the ETag response header into consideration when caching
+      -- files in the given folder. If there's no ETag header,
+      -- this setting is equivalent to 'GzipCacheFolder'.
+      --
+      -- N.B. Make sure the 'gzip' middleware is applied before
+      -- any 'Middleware' that will set the ETag header.
+      --
+      -- @since 3.1.12
+      GzipCacheETag FilePath
     | -- | If we use compression then try to use the filename with \".gz\"
       -- appended to it. If the file is missing then try next action.
       --
@@ -223,7 +232,11 @@ gzip set app req sendResponse'
                 _ | not $ isCorrectMime (responseHeaders res) -> sendResponse res
                 -- Use static caching logic
                 (ResponseFile s hs file Nothing, GzipCacheFolder cache) ->
-                    compressFile s hs file cache sendResponse
+                    compressFile s hs file Nothing cache sendResponse
+                -- Use static caching logic with "ETag" signatures
+                (ResponseFile s hs file Nothing, GzipCacheETag cache) ->
+                    let mETag = lookup hETag hs
+                     in compressFile s hs file mETag cache sendResponse
                 -- Use streaming logic
                 _ -> compressE res sendResponse
         in runAction (res, gzipFiles set)
@@ -231,7 +244,7 @@ gzip set app req sendResponse'
     isCorrectMime =
         maybe False (gzipCheckMime set) . lookup hContentType
     sendResponse = sendResponse' . mapResponseHeaders mAddVary
-    acceptEncoding = "Accept-Encoding"
+    acceptEncoding   = "Accept-Encoding"
     acceptEncodingLC = "accept-encoding"
     -- Instead of just adding a header willy-nilly, we check if
     -- "Vary" is already present, and add to it if not already included.
@@ -285,9 +298,8 @@ gzip set app req sendResponse'
 minimumLength :: Integer
 minimumLength = 860
 
--- TODO: Add ETag functionality
-compressFile :: Status -> [Header] -> FilePath -> FilePath -> (Response -> IO a) -> IO a
-compressFile s hs file cache sendResponse = do
+compressFile :: Status -> [Header] -> FilePath -> Maybe S.ByteString -> FilePath -> (Response -> IO a) -> IO a
+compressFile s hs file mETag cache sendResponse = do
     e <- doesFileExist tmpfile
     if e
         then onSucc
@@ -330,8 +342,10 @@ compressFile s hs file cache sendResponse = do
             sendResponse $ responseFile s hs file Nothing
         | otherwise = throwIO e
 
+    -- If there's an ETag, use it as the suffix of the cached file.
+    eTag = maybe "" (map safe . S8.unpack . trimWS) mETag
+    tmpfile = cache ++ '/' : map safe file ++ eTag
 
-    tmpfile = cache ++ '/' : map safe file
     safe c
         | 'A' <= c && c <= 'Z' = c
         | 'a' <= c && c <= 'z' = c
