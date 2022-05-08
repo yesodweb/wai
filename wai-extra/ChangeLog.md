@@ -2,7 +2,7 @@
 
 ## 3.1.12
 
-* Added gzip caching based on `ETag` [#PR NUMBER HERE](https://github.com/yesodweb/wai/pull/PR_NUMBER_HERE):
+* Added gzip caching based on `ETag` [#885](https://github.com/yesodweb/wai/pull/885):
 
 ## 3.1.11
 
