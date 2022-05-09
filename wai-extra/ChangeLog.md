@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.12
+
+* Added gzip caching based on `ETag` [#885](https://github.com/yesodweb/wai/pull/885):
+
 ## 3.1.11
 
 * Overhaul to `Network.Wai.Middleware.Gzip` [#880](https://github.com/yesodweb/wai/pull/880):
