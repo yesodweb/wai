@@ -84,6 +84,8 @@ Stability:           Stable
 extra-source-files:
   test/requests/dalvik-request
   test/json
+  test/json.gz
+  test/noprecompress
   test/test.html
   test/sample.hs
   ChangeLog.md
