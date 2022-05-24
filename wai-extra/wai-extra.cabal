@@ -203,6 +203,7 @@ test-suite spec
                      Network.Wai.Middleware.StripHeadersSpec
                      Network.Wai.Middleware.TimeoutSpec
                      WaiExtraSpec
+    build-tool-depends: hspec-discover:hspec-discover
     build-depends:   base                      >= 4        && < 5
                    , wai-extra
                    , wai

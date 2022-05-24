@@ -187,6 +187,7 @@ Test-Suite spec
     Type:            exitcode-stdio-1.0
 
     Ghc-Options:     -Wall -threaded
+    Build-Tool-Depends: hspec-discover:hspec-discover
     Build-Depends:   base >= 4.8 && < 5
                    , HUnit
                    , QuickCheck
@@ -219,7 +220,6 @@ Test-Suite spec
                    , wai                       >= 3.2      && < 3.3
                    , word8
                    , unliftio
-    -- Build-Tool-Depends: hspec-discover:hspec-discover
   if flag(x509)
       Build-Depends: x509
   if impl(ghc < 8)
