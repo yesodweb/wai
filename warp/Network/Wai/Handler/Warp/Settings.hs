@@ -249,7 +249,16 @@ exceptionResponseForDebug e =
 -- @since 3.3.17
 defaultFork :: ((forall a. IO a -> IO a) -> IO ()) -> IO ()
 defaultFork io =
+#if __GLASGOW_HASKELL__ >= 904
+  IO $ \s0 ->
+    case io unsafeUnmask of
+      IO io' ->
+        case (fork# io' s0) of
+          (# s1, _tid #) ->
+            (# s1, () #)
+#else
   IO $ \s0 ->
     case (fork# (io unsafeUnmask) s0) of
       (# s1, _tid #) ->
         (# s1, () #)
+#endif

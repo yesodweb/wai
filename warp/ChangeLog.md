@@ -1,5 +1,9 @@
 # ChangeLog for warp
 
+## 3.3.21
+
+* Support GHC 9.4 [#889](https://github.com/yesodweb/wai/pull/889)
+
 ## 3.3.20
 
 * Adding "x509" flag.
