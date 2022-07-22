@@ -10,14 +10,12 @@ import GHC.Prim (fork#)
 import UnliftIO (SomeException, fromException)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Builder as Builder
-import Data.ByteString.Lazy (fromStrict)
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Version (showVersion)
 import GHC.IO.Exception (IOErrorType(..), AsyncException (ThreadKilled))
 import qualified Network.HTTP.Types as H
-import Network.HTTP2.Frame (HTTP2Error (..), ErrorCodeId (..))
 import Network.Socket (SockAddr)
 import Network.Wai
 import qualified Paths_warp
@@ -213,18 +211,18 @@ defaultOnException _ e =
 -- Since 3.2.27
 defaultOnExceptionResponse :: SomeException -> Response
 defaultOnExceptionResponse e
+  | Just PayloadTooLarge <-
+    fromException e = responseLBS H.status413
+                                 [(H.hContentType, "text/plain; charset=utf-8")]
+                                  "Payload too large"
+  | Just RequestHeaderFieldsTooLarge <-
+    fromException e = responseLBS H.status431
+                                [(H.hContentType, "text/plain; charset=utf-8")]
+                                 "Request header fields too large"
   | Just (_ :: InvalidRequest) <-
     fromException e = responseLBS H.badRequest400
                                 [(H.hContentType, "text/plain; charset=utf-8")]
                                  "Bad Request"
-  | Just (ConnectionError (UnknownErrorCode 413) t) <-
-    fromException e = responseLBS H.status413
-                                [(H.hContentType, "text/plain; charset=utf-8")]
-                                 (fromStrict t)
-  | Just (ConnectionError (UnknownErrorCode 431) t) <-
-    fromException e = responseLBS H.status431
-                                [(H.hContentType, "text/plain; charset=utf-8")]
-                                 (fromStrict t)
   | otherwise       = responseLBS H.internalServerError500
                                 [(H.hContentType, "text/plain; charset=utf-8")]
                                  "Something went wrong"
