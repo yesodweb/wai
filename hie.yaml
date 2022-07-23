@@ -1,0 +1,68 @@
+cradle:
+  stack:
+    - path: "./auto-update/Control"
+      component: "auto-update:lib"
+    - path: "./auto-update/test"
+      component: "auto-update:test:spec"
+
+    - path: "./mime-types/Network"
+      component: "mime-types:lib"
+
+    - path: "./time-manager/System"
+      component: "time-manager:lib"
+
+    - path: "./wai/Network"
+      component: "wai:lib"
+    - path: "./wai/test"
+      component: "wai:test:test"
+
+    - path: "./wai-app-static/Network"
+      component: "wai-app-static:lib"
+    - path: "./wai-app-static/WaiAppStatic"
+      component: "wai-app-static:lib"
+    - path: "./wai-app-static/test"
+      component: "wai-app-static:test:runtests"
+    - path: "./wai-app-static/test.hs"
+      component: "wai-app-static:test:runtests"
+    - path: "./wai-app-static/app"
+      component: "wai-app-static:exe:warp"
+
+    - path: "./wai-conduit/Network"
+      component: "wai-conduit:lib"
+
+    - path: "./wai-extra/Network"
+      component: "wai-extra:lib"
+    - path: "./wai-extra/test"
+      component: "wai-extra:test:spec"
+    - path: "./wai-extra/example"
+      component: "wai-extra:exe:example"
+
+    - path: "./wai-frontend-monadcgi/Network"
+      component: "wai-frontend-monadcgi:lib"
+
+    - path: "./wai-http2-extra/Network"
+      component: "wai-http2-extra:lib"
+    - path: "./wai-http2-extra/test"
+      component: "wai-http2-extra:test:doctest"
+
+    - path: "./wai-websockets/Network"
+      component: "wai-websockets:lib"
+    # HLS can't do Literate Haskell
+    # - path: "./wai-websockets/server.lhs"
+    #   component: "wai-websockets:exe:wai-websockets-example"
+
+    - path: "./warp/Network"
+      component: "warp:lib"
+    - path: "./warp/test/doctests.hs"
+      component: "warp:test:doctest"
+    - path: "./warp/test"
+      component: "warp:test:spec"
+    - path: "./warp/bench"
+      component: "warp:bench:parser"
+
+    # Not yet buildable (needs http3 which isn't on hackage)
+    # - path: "./warp-quic/Network"
+    #   component: "warp-quic:lib"
+
+    - path: "./warp-tls/Network"
+      component: "warp-tls:lib"
