@@ -83,9 +83,9 @@ withMySocket body port = bracket (connectTo port) msClose body
 
 incr :: MonadIO m => Counter -> m ()
 incr icount = liftIO $ I.atomicModifyIORef icount $ \ecount ->
-    ((case ecount of
+    (case ecount of
         Left s -> Left s
-        Right i -> Right $ i + 1), ())
+        Right i -> Right $ i + 1, ())
 
 err :: (MonadIO m, Show a) => Counter -> a -> m ()
 err icount msg = liftIO $ I.writeIORef icount $ Left $ show msg
@@ -106,7 +106,7 @@ readBody icount req f = do
 
 ignoreBody :: CounterApplication
 ignoreBody icount req f = do
-    if (requestMethod req `elem` ["GET", "POST"])
+    if requestMethod req `elem` ["GET", "POST"]
         then incr icount
         else err icount ("Invalid request method" :: String, requestMethod req)
     f $ responseLBS status200 [] "Ignored the body"
@@ -309,7 +309,7 @@ spec = do
             withApp defaultSettings app $ withMySocket $ \ms -> do
                 let input = concat $ replicate 2 $
                         ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
-                        (replicate 50 "5\r\n12345\r\n") ++
+                        replicate 50 "5\r\n12345\r\n" ++
                         ["0\r\n\r\n"]
                 mapM_ (msWrite ms) input
                 atomically $ do
