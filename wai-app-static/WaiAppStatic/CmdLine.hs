@@ -101,7 +101,7 @@ runCommandLine middleware = do
     unless quiet $ printf "Serving directory %s on port %d with %s index files.\n" docroot' port (if noindex then "no" else show index)
     let middle = gzip def { gzipFiles = GzipCompress }
                . (if verbose then logStdout else id)
-               . (middleware args)
+               . middleware args
     runSettings
         ( setPort port
         $ setHost (fromString host)

@@ -394,7 +394,7 @@ fill bs0 buf0 siz0 recv
       bs <- recv
       let len = S.length bs
       if len == 0 then return (False, "")
-        else if (len <= siz) then do
+        else if len <= siz then do
           buf' <- copy buf bs
           loop buf' (siz - len)
         else do

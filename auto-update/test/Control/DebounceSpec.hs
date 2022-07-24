@@ -114,7 +114,7 @@ waitForBatonToBeTaken baton = waitUntil 5 $ tryReadMVar baton >>= (`shouldBe` No
 waitUntil :: Int -> IO a -> IO ()
 waitUntil n action = recovering policy [handler] (\_status -> void action)
   where policy = constantDelay 1000 `mappend` limitRetries (n * 1000) -- 1ms * n * 1000 tries = n seconds
-        handler _status = Handler (\(HUnitFailure {}) -> return True)
+        handler _status = Handler (\HUnitFailure{} -> return True)
 
 main :: IO ()
 main = hspec spec
