@@ -63,10 +63,16 @@ import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, safeRecv)
 import Data.Typeable (Typeable)
 import GHC.IO.Exception (IOErrorType(..))
-import Network.Socket (Socket, close, withSocketsDo, SockAddr, accept)
+import Network.Socket (
+    SockAddr,
+    Socket,
+    accept,
+    close,
 #if MIN_VERSION_network(3,1,1)
-import Network.Socket (gracefulClose)
+    gracefulClose,
 #endif
+    withSocketsDo,
+ )
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
 import qualified Crypto.PubKey.DH as DH
