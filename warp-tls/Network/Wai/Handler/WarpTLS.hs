@@ -169,7 +169,7 @@ tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings {
 -- @since 3.3.0
 tlsSettingsRef
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
-    -> I.IORef (S.ByteString) -- ^ Reference to key bytes
+    -> I.IORef S.ByteString -- ^ Reference to key bytes
     -> TLSSettings
 tlsSettingsRef cert key = defaultTlsSettings {
     certSettings = CertFromRef cert [] key
@@ -182,7 +182,7 @@ tlsSettingsRef cert key = defaultTlsSettings {
 tlsSettingsChainRef
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
     -> [I.IORef S.ByteString] -- ^ Reference to chain certificate bytes
-    -> I.IORef (S.ByteString) -- ^ Reference to key bytes
+    -> I.IORef S.ByteString -- ^ Reference to key bytes
     -> TLSSettings
 tlsSettingsChainRef cert chainCerts key = defaultTlsSettings {
     certSettings = CertFromRef cert chainCerts key
