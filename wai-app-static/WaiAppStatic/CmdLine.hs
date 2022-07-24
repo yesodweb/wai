@@ -93,14 +93,14 @@ args = Args
 -- Since 2.0.1
 runCommandLine :: (Args -> Middleware) -> IO ()
 runCommandLine middleware = do
-    args@Args {..} <- execParser $ info (helperOption <*> args) fullDesc
+    clArgs@Args {..} <- execParser $ info (helperOption <*> args) fullDesc
     let mime' = map (pack *** S8.pack) mime
     let mimeMap = Map.fromList mime' `Map.union` defaultMimeMap
     docroot' <- canonicalizePath docroot
     unless quiet $ printf "Serving directory %s on port %d with %s index files.\n" docroot' port (if noindex then "no" else show index)
     let middle = gzip def { gzipFiles = GzipCompress }
                . (if verbose then logStdout else id)
-               . middleware args
+               . middleware clArgs
     runSettings
         ( setPort port
         $ setHost (fromString host)
