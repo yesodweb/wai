@@ -177,7 +177,7 @@ runTerminateTest expected input = do
     withApp (setOnException onExc defaultSettings) dummyApp $ withMySocket $ \ms -> do
         msWrite ms input
         msClose ms -- explicitly
-        threadDelay 1000
+        threadDelay 5000
         res <- I.readIORef ref
         show res `shouldBe` show (Just expected)
 
@@ -235,7 +235,8 @@ spec = do
 
     describe "connection termination" $ do
 --        it "ConnectionClosedByPeer" $ runTerminateTest ConnectionClosedByPeer "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello"
-        it "IncompleteHeaders" $ runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r\n"
+        it "IncompleteHeaders" $
+            runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r\n"
 
     describe "special input" $ do
         it "multiline headers" $ do
