@@ -1,4 +1,4 @@
-resolver: lts-17.12
+resolver: lts-18.28
 packages:
 - ./auto-update
 - ./mime-types
@@ -7,6 +7,8 @@ packages:
 - ./warp
 - ./warp-tls
 - ./wai-app-static
+- ./wai-frontend-monadcgi
+- ./wai-http2-extra
 - ./wai-websockets
 - ./wai-conduit
 - ./time-manager
@@ -18,6 +20,4 @@ nix:
   packages:
   - fcgi
   - zlib
-extra-deps:
-- http2-3.0.1@sha256:584900e2aacd033d714d4603abd0f9249203a40b5a476889d792ba91661843c0,15814
-- wai-logger-2.3.7@sha256:19a0dc5122e22d274776d80786fb9501956f5e75b8f82464bbdad5604d154d82,1671
+extra-deps: []

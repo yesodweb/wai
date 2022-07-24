@@ -7,6 +7,9 @@ packages:
 - ./warp
 - ./warp-tls
 - ./wai-app-static
+# 'cgi' package isn't up to date
+# - ./wai-frontend-monadcgi
+- ./wai-http2-extra
 - ./wai-websockets
 - ./wai-conduit
 - ./time-manager
