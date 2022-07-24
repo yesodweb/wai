@@ -117,8 +117,7 @@ renderDirectoryContentsTable pathInfo' haskellSrc folderSrc fps =
                            case either id fileName md of
                                (fromPiece -> "") -> unsafeToPiece ".."
                                x -> x
-                   let isFile = either (const False) (const True) md
-                       href = addCurrentDir $ fromPiece name
+                   let href = addCurrentDir $ fromPiece name
                        addCurrentDir x =
                            case reverse pathInfo' of
                                "":_ -> x -- has a trailing slash

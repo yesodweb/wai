@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 module Control.DebounceSpec (spec) where
 
 import Control.Concurrent
@@ -88,7 +87,7 @@ getWaitAction = do
 -- | Get a debounce system with access to the internals for testing
 getDebounce :: DI.DebounceEdge -> IO (IORef Int, IO (), MVar (), IO ())
 getDebounce edge = do
-  ref :: IORef Int <- newIORef 0
+  ref <- newIORef 0
   let action = modifyIORef ref (+ 1)
 
   (waitAction, returnFromWait) <- getWaitAction
