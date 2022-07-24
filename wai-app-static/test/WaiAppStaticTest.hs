@@ -20,6 +20,7 @@ import Network.HTTP.Types (status500)
 import Network.Wai
 import Network.Wai.Test
 
+import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import Network.Mime
 
@@ -48,12 +49,12 @@ spec = do
 
   describe "webApp" $ do
     it "403 for unsafe paths" $ webApp $
-      flip mapM_ ["..", "."] $ \path ->
+      forM_ ["..", "."] $ \path ->
         assertStatus 403 =<<
           request (setRawPathInfo defRequest path)
 
     it "200 for hidden paths" $ webApp $
-      flip mapM_ [".hidden/folder.png", ".hidden/haskell.png"] $ \path ->
+      forM_ [".hidden/folder.png", ".hidden/haskell.png"] $ \path ->
         assertStatus 200 =<<
           request (setRawPathInfo defRequest path)
 
@@ -70,7 +71,7 @@ spec = do
           ssMkRedirect = \_ u -> S8.append "http://www.example.com" u
         }
     it "302 redirect when multiple slashes" $ absoluteApp $
-      flip mapM_ ["/a//b/c", "a//b/c"] $ \path -> do
+      forM_ ["/a//b/c", "a//b/c"] $ \path -> do
         req <- request (setRawPathInfo defRequest path)
         assertStatus 302 req
         assertHeader "Location" "http://www.example.com/a/b/c" req
@@ -89,7 +90,7 @@ spec = do
       assertNoHeader "Last-Modified" req
 
     it "200 when invalid in-none-match sent" $ webApp $
-      flip mapM_ ["cached", ""] $ \badETag -> do
+      forM_ ["cached", ""] $ \badETag -> do
         req <- request statFile { requestHeaders  = [("If-None-Match", badETag)] }
         assertStatus 200 req
         assertHeader "ETag" etag req
@@ -115,7 +116,7 @@ spec = do
       assertBodyContains "<a href=\"b\">b</a>" resp
 
     it "200 when invalid if-modified-since header" $ fileServerApp $ do
-      flip mapM_ ["123", ""] $ \badDate -> do
+      forM_ ["123", ""] $ \badDate -> do
         req <- request statFile {
           requestHeaders = [("If-Modified-Since", badDate)]
         }
