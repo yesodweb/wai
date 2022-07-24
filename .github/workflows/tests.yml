@@ -18,8 +18,8 @@ jobs:
         - "--resolver nightly"
         - "--resolver lts-19"
         - "--resolver lts-18"
-        - "--resolver lts-17"
-        - "--resolver lts-16"
+        - "--resolver lts-17 --stack-yaml stack-lts-17.yaml"
+        - "--resolver lts-16 --stack-yaml stack-lts-17.yaml"
         - "--resolver lts-14 --stack-yaml stack-lts-14.yaml"
 
     steps:
