@@ -51,6 +51,7 @@ import           Control.Exception       (SomeException, catch, mask_, throw,
                                           try)
 import           Control.Monad           (void)
 import           Data.IORef              (newIORef, readIORef, writeIORef)
+import           Data.Maybe              (fromMaybe)
 
 -- | Default value for creating an 'UpdateSettings'.
 --
@@ -162,7 +163,7 @@ mkAutoUpdateHelper us updateActionModify = do
                 takeMVar needsRunning
 
                 -- new value requested, so run the updateAction
-                a <- catchSome $ maybe (updateAction us) id (updateActionModify <*> maybea)
+                a <- catchSome $ fromMaybe (updateAction us) (updateActionModify <*> maybea)
 
                 -- we got a new value, update currRef and lastValue
                 writeIORef currRef $ Right a

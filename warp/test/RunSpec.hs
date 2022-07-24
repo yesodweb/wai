@@ -41,7 +41,7 @@ data MySocket = MySocket
   }
 
 msWrite :: MySocket -> ByteString -> IO ()
-msWrite ms bs = sendAll (msSocket ms) bs
+msWrite = sendAll . msSocket
 
 msRead :: MySocket -> Int -> IO ByteString
 msRead (MySocket s ref) expected = do
@@ -99,7 +99,7 @@ readBody icount req f = do
                 -> err icount ("Invalid hello" :: String, body)
             | requestMethod req == "GET" && L.fromChunks body /= ""
                 -> err icount ("Invalid GET" :: String, body)
-            | not $ requestMethod req `elem` ["GET", "POST"]
+            | requestMethod req `notElem` ["GET", "POST"]
                 -> err icount ("Invalid request method (readBody)" :: String, requestMethod req)
             | otherwise -> incr icount
     f $ responseLBS status200 [] "Read the body"
@@ -206,14 +206,10 @@ spec = do
             [ singlePostHello
             , singleGet
             ]
-        it "chunked body, read" $ runTest 2 readBody $ concat
-            [ singleChunkedPostHello
-            , [singleGet]
-            ]
-        it "chunked body, ignore" $ runTest 2 ignoreBody $ concat
-            [ singleChunkedPostHello
-            , [singleGet]
-            ]
+        it "chunked body, read" $ runTest 2 readBody $
+            singleChunkedPostHello ++ [singleGet]
+        it "chunked body, ignore" $ runTest 2 ignoreBody $
+            singleChunkedPostHello ++ [singleGet]
     describe "pipelining" $ do
         it "no body, read" $ runTest 5 readBody [S.concat $ replicate 5 singleGet]
         it "no body, ignore" $ runTest 5 ignoreBody [S.concat $ replicate 5 singleGet]
@@ -334,7 +330,7 @@ spec = do
                         , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "b\r\nHello World\r\n0\r\n\r\n"
                         ]
-                mapM_ (msWrite ms) $ map S.singleton $ S.unpack input
+                mapM_ (msWrite ms . S.singleton) $ S.unpack input
                 atomically $ do
                   count <- readTVar countVar
                   check $ count == 2
@@ -346,7 +342,7 @@ spec = do
         it "timeout in request body" $ do
             ifront <- I.newIORef id
             let app req f = do
-                    bss <- (consumeBody $ getRequestBodyChunk req) `onException`
+                    bss <- consumeBody (getRequestBodyChunk req) `onException`
                         liftIO (I.atomicModifyIORef ifront (\front -> (front . ("consume interrupted":), ())))
                     liftIO $ threadDelay 4000000 `E.catch` \e -> do
                         I.atomicModifyIORef ifront (\front ->

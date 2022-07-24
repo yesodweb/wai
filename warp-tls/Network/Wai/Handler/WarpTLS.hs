@@ -225,8 +225,8 @@ runTLSSocket tlsset set sock app = do
     runTLSSocket' tlsset set credentials mgr sock app
 
 runTLSSocket' :: TLSSettings -> Settings -> TLS.Credentials -> TLS.SessionManager -> Socket -> Application -> IO ()
-runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock app =
-    runSettingsConnectionMakerSecure set get app
+runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock =
+    runSettingsConnectionMakerSecure set get
   where
     get = getter tlsset set sock params
     params = def { -- TLS.ServerParams

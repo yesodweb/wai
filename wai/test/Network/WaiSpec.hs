@@ -22,7 +22,7 @@ spec = do
                         flush :: IO ()
                         flush = return ()
                     streamingBody add flush
-                    fmap (L.toStrict . toLazyByteString) $ readIORef builderRef
+                    L.toStrict . toLazyByteString <$> readIORef builderRef
         prop "responseLBS" $ \bytes -> do
             body <- getBody $ responseLBS undefined undefined $ L.pack bytes
             body `shouldBe` S.pack bytes
