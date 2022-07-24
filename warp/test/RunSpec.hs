@@ -248,7 +248,7 @@ spec = do
                         [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
                         ]
                 msWrite ms input
-                threadDelay 1000
+                threadDelay 5000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
                     [ ("foo", "bar baz\tbin")
@@ -263,7 +263,7 @@ spec = do
                         [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
                         ]
                 msWrite ms input
-                threadDelay 1000
+                threadDelay 5000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
                     [ ("foo", "bar")
