@@ -74,7 +74,7 @@ filterButLast f (x:xs)
 
 -- | Serve an appropriate response for a folder request.
 serveFolder :: StaticSettings -> Pieces -> W.Request -> Folder -> IO StaticResponse
-serveFolder StaticSettings {..} pieces req folder@Folder {..} =
+serveFolder StaticSettings {..} pieces req folder =
     case ssListing of
         Just _ | Just path <- addTrailingSlash req, ssAddTrailingSlash ->
             return $ RawRedirect path

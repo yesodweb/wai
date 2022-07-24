@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, RecordWildCards, CPP #-}
+{-# LANGUAGE RecordWildCards, CPP #-}
 -- | Command line version of wai-app-static, used for the warp-static server.
 module WaiAppStatic.CmdLine
     ( runCommandLine

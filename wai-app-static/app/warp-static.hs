@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
 module Main (main) where
 
 import WaiAppStatic.CmdLine (runCommandLine)
