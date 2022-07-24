@@ -140,7 +140,7 @@ tlsSettingsMemory
     :: S.ByteString -- ^ Certificate bytes
     -> S.ByteString -- ^ Key bytes
     -> TLSSettings
-tlsSettingsMemory cert key = defaultTlsSettings { 
+tlsSettingsMemory cert key = defaultTlsSettings {
     certSettings = CertFromMemory cert [] key
   }
 
@@ -153,7 +153,7 @@ tlsSettingsChainMemory
     -> [S.ByteString] -- ^ Chain certificate bytes
     -> S.ByteString -- ^ Key bytes
     -> TLSSettings
-tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings { 
+tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings {
     certSettings = CertFromMemory cert chainCerts key
   }
 
@@ -161,11 +161,11 @@ tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings {
 -- representations of the certificate and key based on 'defaultTlsSettings'.
 --
 -- @since 3.3.0
-tlsSettingsRef 
+tlsSettingsRef
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
-    -> I.IORef (S.ByteString) -- ^ Reference to key bytes 
-    -> TLSSettings 
-tlsSettingsRef cert key = defaultTlsSettings { 
+    -> I.IORef (S.ByteString) -- ^ Reference to key bytes
+    -> TLSSettings
+tlsSettingsRef cert key = defaultTlsSettings {
     certSettings = CertFromRef cert [] key
   }
 
@@ -173,12 +173,12 @@ tlsSettingsRef cert key = defaultTlsSettings {
 -- representations of the certificate and key based on 'defaultTlsSettings'.
 --
 -- @since 3.3.0
-tlsSettingsChainRef 
+tlsSettingsChainRef
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
     -> [I.IORef S.ByteString] -- ^ Reference to chain certificate bytes
-    -> I.IORef (S.ByteString) -- ^ Reference to key bytes 
-    -> TLSSettings 
-tlsSettingsChainRef cert chainCerts key = defaultTlsSettings { 
+    -> I.IORef (S.ByteString) -- ^ Reference to key bytes
+    -> TLSSettings
+tlsSettingsChainRef cert chainCerts key = defaultTlsSettings {
     certSettings = CertFromRef cert chainCerts key
   }
 
@@ -196,11 +196,11 @@ runTLS tset set app = withSocketsDo $
 
 loadCredentials :: TLSSettings -> IO TLS.Credentials
 loadCredentials TLSSettings{ tlsCredentials = Just creds } = return creds
-loadCredentials TLSSettings{..} = case certSettings of 
+loadCredentials TLSSettings{..} = case certSettings of
   CertFromFile cert chainFiles key -> do
     cred <- either error id <$> TLS.credentialLoadX509Chain cert chainFiles key
     return $ TLS.Credentials [cred]
-  CertFromRef certRef chainCertsRef keyRef -> do 
+  CertFromRef certRef chainCertsRef keyRef -> do
     cert <- I.readIORef certRef
     chainCerts <- mapM I.readIORef chainCertsRef
     key <- I.readIORef keyRef
