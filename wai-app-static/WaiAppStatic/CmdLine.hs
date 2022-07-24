@@ -18,13 +18,12 @@ import Network.Wai.Middleware.RequestLogger (logStdout)
 import Network.Wai.Middleware.Gzip
 import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as S8
-import Control.Arrow ((***))
 import Data.Text (pack)
 import Data.String (fromString)
 import Network.Mime (defaultMimeMap, mimeByExt, defaultMimeType)
 import WaiAppStatic.Types (ssIndices, toPiece, ssGetMimeType, fileName, fromPiece)
 import Data.Maybe (mapMaybe)
-import Control.Arrow (second)
+import Control.Arrow (second, (***))
 import Data.Monoid ((<>))
 
 data Args = Args
