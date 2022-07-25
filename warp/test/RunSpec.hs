@@ -41,7 +41,7 @@ data MySocket = MySocket
   }
 
 msWrite :: MySocket -> ByteString -> IO ()
-msWrite ms bs = sendAll (msSocket ms) bs
+msWrite = sendAll . msSocket
 
 msRead :: MySocket -> Int -> IO ByteString
 msRead (MySocket s ref) expected = do
@@ -83,9 +83,9 @@ withMySocket body port = bracket (connectTo port) msClose body
 
 incr :: MonadIO m => Counter -> m ()
 incr icount = liftIO $ I.atomicModifyIORef icount $ \ecount ->
-    ((case ecount of
+    (case ecount of
         Left s -> Left s
-        Right i -> Right $ i + 1), ())
+        Right i -> Right $ i + 1, ())
 
 err :: (MonadIO m, Show a) => Counter -> a -> m ()
 err icount msg = liftIO $ I.writeIORef icount $ Left $ show msg
@@ -99,14 +99,14 @@ readBody icount req f = do
                 -> err icount ("Invalid hello" :: String, body)
             | requestMethod req == "GET" && L.fromChunks body /= ""
                 -> err icount ("Invalid GET" :: String, body)
-            | not $ requestMethod req `elem` ["GET", "POST"]
+            | requestMethod req `notElem` ["GET", "POST"]
                 -> err icount ("Invalid request method (readBody)" :: String, requestMethod req)
             | otherwise -> incr icount
     f $ responseLBS status200 [] "Read the body"
 
 ignoreBody :: CounterApplication
 ignoreBody icount req f = do
-    if (requestMethod req `elem` ["GET", "POST"])
+    if requestMethod req `elem` ["GET", "POST"]
         then incr icount
         else err icount ("Invalid request method" :: String, requestMethod req)
     f $ responseLBS status200 [] "Ignored the body"
@@ -177,7 +177,7 @@ runTerminateTest expected input = do
     withApp (setOnException onExc defaultSettings) dummyApp $ withMySocket $ \ms -> do
         msWrite ms input
         msClose ms -- explicitly
-        threadDelay 1000
+        threadDelay 5000
         res <- I.readIORef ref
         show res `shouldBe` show (Just expected)
 
@@ -206,14 +206,10 @@ spec = do
             [ singlePostHello
             , singleGet
             ]
-        it "chunked body, read" $ runTest 2 readBody $ concat
-            [ singleChunkedPostHello
-            , [singleGet]
-            ]
-        it "chunked body, ignore" $ runTest 2 ignoreBody $ concat
-            [ singleChunkedPostHello
-            , [singleGet]
-            ]
+        it "chunked body, read" $ runTest 2 readBody $
+            singleChunkedPostHello ++ [singleGet]
+        it "chunked body, ignore" $ runTest 2 ignoreBody $
+            singleChunkedPostHello ++ [singleGet]
     describe "pipelining" $ do
         it "no body, read" $ runTest 5 readBody [S.concat $ replicate 5 singleGet]
         it "no body, ignore" $ runTest 5 ignoreBody [S.concat $ replicate 5 singleGet]
@@ -239,7 +235,8 @@ spec = do
 
     describe "connection termination" $ do
 --        it "ConnectionClosedByPeer" $ runTerminateTest ConnectionClosedByPeer "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello"
-        it "IncompleteHeaders" $ runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r\n"
+        it "IncompleteHeaders" $
+            runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r\n"
 
     describe "special input" $ do
         it "multiline headers" $ do
@@ -252,7 +249,7 @@ spec = do
                         [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
                         ]
                 msWrite ms input
-                threadDelay 1000
+                threadDelay 5000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
                     [ ("foo", "bar baz\tbin")
@@ -267,7 +264,7 @@ spec = do
                         [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
                         ]
                 msWrite ms input
-                threadDelay 1000
+                threadDelay 5000
                 headers <- I.readIORef iheaders
                 headers `shouldBe`
                     [ ("foo", "bar")
@@ -309,7 +306,7 @@ spec = do
             withApp defaultSettings app $ withMySocket $ \ms -> do
                 let input = concat $ replicate 2 $
                         ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
-                        (replicate 50 "5\r\n12345\r\n") ++
+                        replicate 50 "5\r\n12345\r\n" ++
                         ["0\r\n\r\n"]
                 mapM_ (msWrite ms) input
                 atomically $ do
@@ -334,7 +331,7 @@ spec = do
                         , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                         , "b\r\nHello World\r\n0\r\n\r\n"
                         ]
-                mapM_ (msWrite ms) $ map S.singleton $ S.unpack input
+                mapM_ (msWrite ms . S.singleton) $ S.unpack input
                 atomically $ do
                   count <- readTVar countVar
                   check $ count == 2
@@ -346,7 +343,7 @@ spec = do
         it "timeout in request body" $ do
             ifront <- I.newIORef id
             let app req f = do
-                    bss <- (consumeBody $ getRequestBodyChunk req) `onException`
+                    bss <- consumeBody (getRequestBodyChunk req) `onException`
                         liftIO (I.atomicModifyIORef ifront (\front -> (front . ("consume interrupted":), ())))
                     liftIO $ threadDelay 4000000 `E.catch` \e -> do
                         I.atomicModifyIORef ifront (\front ->

@@ -106,9 +106,8 @@ runWebSockets opts req app src sink = bracket mkStream ensureClose (app . pc)
             (do
                 bs <- src
                 return $ if BC.null bs then Nothing else Just bs)
-            (\mbBl -> case mbBl of
-                Nothing -> return ()
-                Just bl -> mapM_ sink (BL.toChunks bl))
+            -- 'mapM_' works here because it's 'return ()' on Nothing
+            (mapM_ $ \bl -> mapM_ sink (BL.toChunks bl))
 
     pc stream = WS.PendingConnection
         { WS.pendingOptions     = opts

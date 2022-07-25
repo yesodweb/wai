@@ -88,8 +88,7 @@ module Network.Wai
     , modifyResponse
     ) where
 
-import           Data.ByteString.Builder      (Builder, lazyByteString)
-import           Data.ByteString.Builder      (byteString)
+import           Data.ByteString.Builder      (Builder, byteString, lazyByteString)
 import           Control.Monad                (unless)
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as L
