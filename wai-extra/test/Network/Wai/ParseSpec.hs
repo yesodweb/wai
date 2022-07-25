@@ -12,12 +12,8 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
 import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
-#if MIN_VERSION_http2(3,0,0)
-import Network.HTTP2.Frame (ErrorCodeId (..), HTTP2Error (..))
-#else
-import Network.HTTP2 (ErrorCodeId (..), HTTP2Error (..))
-#endif
 import Network.Wai (Request (requestBody, requestHeaders), defaultRequest)
+import Network.Wai.Handler.Warp (InvalidRequest(..))
 import System.IO (IOMode (ReadMode), withFile)
 import Test.HUnit (Assertion, (@=?), (@?=))
 import Test.Hspec
@@ -101,10 +97,6 @@ caseParseRequestBody = do
   let expectedfile3 = [("yaml", FileInfo "README" "application/octet-stream" "Photo blog using Hack.\n")]
   let expected3 = (expectedsmap3, expectedfile3)
 
-  let unknownErrorException c (ConnectionError (UnknownErrorCode code) _) = c == code
-      unknownErrorException _ _                                           = False
-
-
   let def = defaultParseRequestBodyOptions
   it "parsing actual post multipart/form-data" $ do
     result3 <- parseRequestBody' lbsBackEnd $ toRequest ctype3 content3
@@ -130,20 +122,20 @@ caseParseRequestBody = do
   it "exceeding file size" $ do
     SRequest req4 _bod4 <- toRequest'' ctype3 content3
     (parseRequestBodyEx ( setMaxRequestFileSize 2 def ) lbsBackEnd req4)
-      `shouldThrow` unknownErrorException 413
+      `shouldThrow` (== PayloadTooLarge)
 
   it "exceeding total file size" $ do
     SRequest req4 _bod4 <- toRequest'' ctype3 content3
     (parseRequestBodyEx ( setMaxRequestFilesSize 20 def ) lbsBackEnd req4)
-      `shouldThrow` unknownErrorException 413
+      `shouldThrow` (== PayloadTooLarge)
     SRequest req5 _bod5 <- toRequest'' ctype3 content5
     (parseRequestBodyEx ( setMaxRequestFilesSize 20 def ) lbsBackEnd req5)
-      `shouldThrow` unknownErrorException 413
+      `shouldThrow` (== PayloadTooLarge)
 
   it "exceeding max parm value size" $ do
     SRequest req4 _bod4 <- toRequest'' ctype2 content2
     (parseRequestBodyEx ( setMaxRequestParmsSize 10 def ) lbsBackEnd req4)
-      `shouldThrow` unknownErrorException 413
+      `shouldThrow` (== PayloadTooLarge)
 
   it "exceeding max header lines" $ do
     SRequest req4 _bod4 <- toRequest'' ctype2 content2
@@ -152,7 +144,7 @@ caseParseRequestBody = do
   it "exceeding header line size" $ do
     SRequest req4 _bod4 <- toRequest'' ctype3 content4
     (parseRequestBodyEx ( setMaxHeaderLineLength 8190 def ) lbsBackEnd req4)
-      `shouldThrow` unknownErrorException 431
+      `shouldThrow` (== RequestHeaderFieldsTooLarge)
 
   it "Testing parseRequestBodyEx with application/x-www-form-urlencoded" $ do
     let content = "thisisalongparameterkey=andthisbeanevenlongerparametervaluehelloworldhowareyou"

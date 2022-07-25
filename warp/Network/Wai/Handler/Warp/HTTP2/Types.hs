@@ -5,11 +5,7 @@ module Network.Wai.Handler.Warp.HTTP2.Types where
 
 import qualified Data.ByteString as BS
 import qualified Network.HTTP.Types as H
-#if MIN_VERSION_http2(3,0,0)
 import Network.HTTP2.Frame
-#else
-import Network.HTTP2
-#endif
 import qualified Network.HTTP2.Server as H2
 
 import Network.Wai.Handler.Warp.Imports

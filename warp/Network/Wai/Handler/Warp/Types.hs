@@ -40,6 +40,8 @@ data InvalidRequest = NotEnoughLines [String]
                     | ConnectionClosedByPeer
                     | OverLargeHeader
                     | BadProxyHeader String
+                    | PayloadTooLarge -- ^ Since 3.3.22
+                    | RequestHeaderFieldsTooLarge -- ^ Since 3.3.22
                     deriving (Eq, Typeable)
 
 instance Show InvalidRequest where
@@ -50,6 +52,8 @@ instance Show InvalidRequest where
     show ConnectionClosedByPeer = "Warp: Client closed connection prematurely"
     show OverLargeHeader = "Warp: Request headers too large, possible memory attack detected. Closing connection."
     show (BadProxyHeader s) = "Warp: Invalid PROXY protocol header: " ++ show s
+    show RequestHeaderFieldsTooLarge = "Request header fields too large"
+    show PayloadTooLarge = "Payload too large"
 
 instance UnliftIO.Exception InvalidRequest
 

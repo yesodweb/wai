@@ -120,7 +120,7 @@ Library
                    , vault
                    , aeson
                    , iproute                   >= 1.7.8
-                   , http2
+                   , warp                      >= 3.3.22
                    , HUnit
                    , call-stack
 
@@ -219,7 +219,7 @@ test-suite spec
                    , cookie
                    , time
                    , case-insensitive
-                   , http2
+                   , warp
                    , aeson
                    , iproute
                    , temporary
