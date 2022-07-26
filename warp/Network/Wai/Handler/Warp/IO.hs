@@ -3,6 +3,7 @@
 
 module Network.Wai.Handler.Warp.IO where
 
+import Control.Exception (mask_)
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder.Extra (Next (Chunk, Done, More), runBuilder)
 import Data.IORef (IORef, readIORef, writeIORef)
@@ -27,8 +28,10 @@ toBufIOWith writeBufferRef io builder = do
           | size < minSize -> do
               runIO len
               bufFree writeBuffer
-              writeBuffer' <- createWriteBuffer minSize
-              writeIORef writeBufferRef writeBuffer'
+              writeBuffer' <- mask_ $ do
+                writeBuffer' <- createWriteBuffer minSize
+                writeIORef writeBufferRef writeBuffer'
+                return writeBuffer'
               loop writeBuffer' next
           | otherwise -> do
               runIO len
