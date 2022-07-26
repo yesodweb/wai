@@ -18,8 +18,8 @@ toBufIOWith writeBufferRef io builder = do
   where
     firstWriter = runBuilder builder
     loop writeBuffer writer = do
-      let size = bufSize writeBuffer
-          buf = bufBytes writeBuffer
+      let buf = bufBytes writeBuffer
+          size = bufSize writeBuffer
       (len, signal) <- writer buf size
       bufferIO buf len io
       case signal of
