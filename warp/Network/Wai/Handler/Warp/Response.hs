@@ -218,9 +218,8 @@ sendRsp conn _ th ver s hs _ (RspBuilder body needsChunked) = do
          | needsChunked = header <> chunkedTransferEncoding body
                                  <> chunkedTransferTerminator
          | otherwise    = header <> body
-        buffer = connWriteBuffer conn
-        size = connBufferSize conn
-    toBufIOWith buffer size (\bs -> connSendAll conn bs >> T.tickle th) hdrBdy
+        writeBufferRef = connWriteBuffer conn
+    toBufIOWith writeBufferRef (\bs -> connSendAll conn bs >> T.tickle th) hdrBdy
     return (Just s, Nothing) -- fixme: can we tell the actual sent bytes?
 
 ----------------------------------------------------------------
@@ -228,7 +227,7 @@ sendRsp conn _ th ver s hs _ (RspBuilder body needsChunked) = do
 sendRsp conn _ th ver s hs _ (RspStream streamingBody needsChunked) = do
     header <- composeHeaderBuilder ver s hs needsChunked
     (recv, finish) <- newByteStringBuilderRecv $ reuseBufferStrategy
-                    $ toBuilderBuffer (connWriteBuffer conn) (connBufferSize conn)
+                    $ toBuilderBuffer $ connWriteBuffer conn
     let send builder = do
             popper <- recv builder
             let loop = do

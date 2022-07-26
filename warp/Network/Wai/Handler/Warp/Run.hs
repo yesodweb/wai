@@ -57,13 +57,14 @@ socketConnection set s = do
 socketConnection _ s = do
 #endif
     bufferPool <- newBufferPool
-    writeBuf <- allocateBuffer bufferSize
+    writeBuffer <- createWriteBuffer bufferSize
+    writeBufferRef <- newIORef writeBuffer
     let sendall = sendAll' s
     isH2 <- newIORef False -- HTTP/1.x
     return Connection {
         connSendMany = Sock.sendMany s
       , connSendAll = sendall
-      , connSendFile = sendFile s writeBuf bufferSize sendall
+      , connSendFile = sendFile s (bufBytes writeBuffer) (bufSize writeBuffer) sendall
 #if MIN_VERSION_network(3,1,1)
       , connClose = do
             h2 <- readIORef isH2
@@ -76,11 +77,9 @@ socketConnection _ s = do
 #else
       , connClose = close s
 #endif
-      , connFree = freeBuffer writeBuf
       , connRecv = receive s bufferPool
       , connRecvBuf = receiveBuf s
-      , connWriteBuffer = writeBuf
-      , connBufferSize = bufferSize
+      , connWriteBuffer = writeBufferRef
       , connHTTP2 = isH2
       }
   where
@@ -309,7 +308,9 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
         -- fact that async exceptions are still masked.
         UnliftIO.bracket mkConn cleanUp (serve unmask)
   where
-    cleanUp (conn, _) = connClose conn `UnliftIO.finally` connFree conn
+    cleanUp (conn, _) = connClose conn `UnliftIO.finally` do
+                          writeBuffer <- readIORef $ connWriteBuffer conn
+                          bufFree writeBuffer
 
     -- We need to register a timeout handler for this thread, and
     -- cancel that handler as soon as we exit.

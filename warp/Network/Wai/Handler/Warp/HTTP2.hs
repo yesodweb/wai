@@ -11,7 +11,7 @@ module Network.Wai.Handler.Warp.HTTP2 (
 
 import qualified UnliftIO
 import qualified Data.ByteString as BS
-import Data.IORef (IORef, newIORef, writeIORef)
+import Data.IORef (IORef, newIORef, writeIORef, readIORef)
 import qualified Data.IORef as I
 import qualified Network.HTTP2.Frame as H2
 import qualified Network.HTTP2.Server as H2
@@ -35,6 +35,7 @@ http2 :: S.Settings -> InternalInfo -> Connection -> Transport -> Application ->
 http2 settings ii conn transport app origAddr th bs = do
     istatus <- newIORef False
     rawRecvN <- makeReceiveN bs (connRecv conn) (connRecvBuf conn)
+    writeBuffer <- readIORef $ connWriteBuffer conn
     -- This thread becomes the sender in http2 library.
     -- In the case of event source, one request comes and one
     -- worker gets busy. But it is likely that the receiver does
@@ -45,8 +46,8 @@ http2 settings ii conn transport app origAddr th bs = do
     let recvN = wrappedRecvN th istatus (S.settingsSlowlorisSize settings) rawRecvN
         sendBS x = connSendAll conn x >> T.tickle th
         conf = H2.Config {
-            confWriteBuffer       = connWriteBuffer conn
-          , confBufferSize        = connBufferSize conn
+            confWriteBuffer       = bufBytes writeBuffer
+          , confBufferSize        = bufSize writeBuffer
           , confSendAll           = sendBS
           , confReadN             = recvN
           , confPositionReadMaker = pReadMaker ii
