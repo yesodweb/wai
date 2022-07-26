@@ -59,12 +59,11 @@ socketConnection _ s = do
     bufferPool <- newBufferPool
     writeBuffer <- createWriteBuffer bufferSize
     writeBufferRef <- newIORef writeBuffer
-    let sendall = sendAll' s
     isH2 <- newIORef False -- HTTP/1.x
     return Connection {
         connSendMany = Sock.sendMany s
       , connSendAll = sendall
-      , connSendFile = sendFile s (bufBytes writeBuffer) (bufSize writeBuffer) sendall
+      , connSendFile = sendfile writeBufferRef
 #if MIN_VERSION_network(3,1,1)
       , connClose = do
             h2 <- readIORef isH2
@@ -83,6 +82,13 @@ socketConnection _ s = do
       , connHTTP2 = isH2
       }
   where
+    sendfile writeBufferRef fid offset len hook headers = do
+      writeBuffer <- readIORef writeBufferRef
+      sendFile s (bufBytes writeBuffer) (bufSize writeBuffer) sendall
+        fid offset len hook headers
+
+    sendall = sendAll' s
+
     sendAll' sock bs = UnliftIO.handleJust
       (\ e -> if ioeGetErrorType e == ResourceVanished
         then Just ConnectionClosedByPeer
