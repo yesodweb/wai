@@ -20,23 +20,19 @@ toBufIOWith writeBufferRef io builder = do
     loop writeBuffer writer = do
       let size = bufSize writeBuffer
           buf = bufBytes writeBuffer
-          runIO len = bufferIO buf len io
       (len, signal) <- writer buf size
+      bufferIO buf len io
       case signal of
-        Done -> runIO len
+        Done -> return ()
         More minSize next
           | size < minSize -> do
-              runIO len
               writeBuffer' <- mask_ $ do
                 bufFree writeBuffer
                 writeBuffer' <- createWriteBuffer minSize
                 writeIORef writeBufferRef writeBuffer'
                 return writeBuffer'
               loop writeBuffer' next
-          | otherwise -> do
-              runIO len
-              loop writeBuffer next
+          | otherwise -> loop writeBuffer next
         Chunk bs next -> do
-          runIO len
           io bs
           loop writeBuffer next
