@@ -27,8 +27,8 @@ toBufIOWith writeBufferRef io builder = do
         More minSize next
           | size < minSize -> do
               runIO len
-              bufFree writeBuffer
               writeBuffer' <- mask_ $ do
+                bufFree writeBuffer
                 writeBuffer' <- createWriteBuffer minSize
                 writeIORef writeBufferRef writeBuffer'
                 return writeBuffer'
