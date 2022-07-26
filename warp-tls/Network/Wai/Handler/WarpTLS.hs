@@ -304,11 +304,12 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
     TLS.handshake ctx
     h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
     isH2 <- I.newIORef h2
-    writeBuf <- allocateBuffer bufferSize
+    writeBuffer <- createWriteBuffer bufferSize
+    writeBufferRef <- I.newIORef writeBuffer
     -- Creating a cache for leftover input data.
     ref <- I.newIORef ""
     tls <- getTLSinfo ctx
-    return (conn ctx writeBuf ref isH2, tls)
+    return (conn ctx writeBufferRef ref isH2, tls)
   where
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
@@ -326,22 +327,21 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
         else Nothing)
       throwIO
       $ sendAll sock bs
-    conn ctx writeBuf ref isH2 = Connection {
+    conn ctx writeBufferRef ref isH2 = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
       , connSendFile         = sendfile
       , connClose            = close'
-      , connFree             = freeBuffer writeBuf
       , connRecv             = recv ref
       , connRecvBuf          = recvBuf ref
-      , connWriteBuffer      = writeBuf
-      , connBufferSize       = bufferSize
+      , connWriteBuffer      = writeBufferRef
       , connHTTP2            = isH2
       }
       where
         sendall = TLS.sendData ctx . L.fromChunks . return
-        sendfile fid offset len hook headers =
-            readSendFile writeBuf bufferSize sendall fid offset len hook headers
+        sendfile fid offset len hook headers = do
+            writeBuffer <- I.readIORef writeBufferRef
+            readSendFile (bufBytes writeBuffer) (bufSize writeBuffer) sendall fid offset len hook headers
 
         close' = void (tryIO sendBye) `finally`
                  TLS.contextClose ctx
