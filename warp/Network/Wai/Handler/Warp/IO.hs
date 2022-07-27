@@ -32,12 +32,12 @@ toBufIOWith writeBufferRef io builder = do
               -- creating a new one and writing it to the IORef need
               -- to be performed atomically to prevent both double
               -- frees and missed frees. So we mask async exceptions:
-              writeBuffer' <- mask_ $ do
+              biggerWriteBuffer <- mask_ $ do
                 bufFree writeBuffer
-                writeBuffer' <- createWriteBuffer minSize
-                writeIORef writeBufferRef writeBuffer'
-                return writeBuffer'
-              loop writeBuffer' next
+                biggerWriteBuffer <- createWriteBuffer minSize
+                writeIORef writeBufferRef biggerWriteBuffer
+                return biggerWriteBuffer
+              loop biggerWriteBuffer next
           | otherwise -> loop writeBuffer next
         Chunk bs next -> do
           io bs
