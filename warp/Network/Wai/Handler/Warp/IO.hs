@@ -26,6 +26,12 @@ toBufIOWith writeBufferRef io builder = do
         Done -> return ()
         More minSize next
           | size < minSize -> do
+              -- The current WriteBuffer is too small to fit the next
+              -- batch of bytes from the Builder so we free it and
+              -- create a new bigger one. Freeing the current buffer,
+              -- creating a new one and writing it to the IORef need
+              -- to be performed atomically to prevent both double
+              -- frees and missed frees. So we mask async exceptions:
               writeBuffer' <- mask_ $ do
                 bufFree writeBuffer
                 writeBuffer' <- createWriteBuffer minSize

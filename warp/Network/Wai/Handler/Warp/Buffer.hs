@@ -27,6 +27,8 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
+-- | Allocate a buffer of the given size and wrap it in a 'WriteBuffer'
+-- containing that size and a finalizer.
 createWriteBuffer :: BufSize -> IO WriteBuffer
 createWriteBuffer size = do
   bytes <- allocateBuffer size

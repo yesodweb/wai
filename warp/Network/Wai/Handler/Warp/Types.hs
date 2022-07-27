@@ -133,7 +133,10 @@ data Connection = Connection {
     -- | The connection receiving function. This tries to fill the buffer.
     --   This returns when the buffer is filled or reaches EOF.
     , connRecvBuf     :: RecvBuf
-    -- | The write buffer.
+    -- | Reference to a write buffer. When during sending of a 'Builder'
+    -- response it's detected the current 'WriteBuffer' is too small it will be
+    -- freed and a new bigger buffer will be created and written to this
+    -- reference.
     , connWriteBuffer :: IORef WriteBuffer
     -- | Is this connection HTTP/2?
     , connHTTP2       :: IORef Bool
