@@ -11,8 +11,8 @@ import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
 
-toBufIOWith :: IORef WriteBuffer -> (ByteString -> IO ()) -> Builder -> IO ()
-toBufIOWith writeBufferRef io builder = do
+toBufIOWith :: Int -> IORef WriteBuffer -> (ByteString -> IO ()) -> Builder -> IO ()
+toBufIOWith maxRspBufSize writeBufferRef io builder = do
   writeBuffer <- readIORef writeBufferRef
   loop writeBuffer firstWriter
   where
@@ -26,6 +26,10 @@ toBufIOWith writeBufferRef io builder = do
         Done -> return ()
         More minSize next
           | size < minSize -> do
+              when (minSize > maxRspBufSize) $
+                error $ "Sending a Builder response required a buffer of size "
+                          ++ show minSize ++ " which is bigger than the specified maximum of "
+                          ++ show maxRspBufSize ++ "!"
               -- The current WriteBuffer is too small to fit the next
               -- batch of bytes from the Builder so we free it and
               -- create a new bigger one. Freeing the current buffer,

@@ -117,20 +117,21 @@ sendResponse settings conn ii th req reqidxhdr src response = do
         -- and status, the response to HEAD is processed here.
         --
         -- See definition of rsp below for proper body stripping.
-        (ms, mlen) <- sendRsp conn ii th ver s hs rspidxhdr rsp
+        (ms, mlen) <- sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize rsp
         case ms of
             Nothing         -> return ()
             Just realStatus -> logger req realStatus mlen
         T.tickle th
         return ret
       else do
-        _ <- sendRsp conn ii th ver s hs rspidxhdr RspNoBody
+        _ <- sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize RspNoBody
         logger req s Nothing
         T.tickle th
         return isPersist
   where
     defServer = settingsServerName settings
     logger = settingsLogger settings
+    maxRspBufSize = settingsMaxBuilderResponseBufferSize settings
     ver = httpVersion req
     s = responseStatus response
     hs0 = sanitizeHeaders $ responseHeaders response
@@ -199,12 +200,13 @@ sendRsp :: Connection
         -> H.Status
         -> H.ResponseHeaders
         -> IndexedHeader -- Response
+        -> Int -- maxBuilderResponseBufferSize
         -> Rsp
         -> IO (Maybe H.Status, Maybe Integer)
 
 ----------------------------------------------------------------
 
-sendRsp conn _ _ ver s hs _ RspNoBody = do
+sendRsp conn _ _ ver s hs _ _ RspNoBody = do
     -- Not adding Content-Length.
     -- User agents treats it as Content-Length: 0.
     composeHeader ver s hs >>= connSendAll conn
@@ -212,19 +214,19 @@ sendRsp conn _ _ ver s hs _ RspNoBody = do
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th ver s hs _ (RspBuilder body needsChunked) = do
+sendRsp conn _ th ver s hs _ maxRspBufSize (RspBuilder body needsChunked) = do
     header <- composeHeaderBuilder ver s hs needsChunked
     let hdrBdy
          | needsChunked = header <> chunkedTransferEncoding body
                                  <> chunkedTransferTerminator
          | otherwise    = header <> body
         writeBufferRef = connWriteBuffer conn
-    toBufIOWith writeBufferRef (\bs -> connSendAll conn bs >> T.tickle th) hdrBdy
+    toBufIOWith maxRspBufSize writeBufferRef (\bs -> connSendAll conn bs >> T.tickle th) hdrBdy
     return (Just s, Nothing) -- fixme: can we tell the actual sent bytes?
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th ver s hs _ (RspStream streamingBody needsChunked) = do
+sendRsp conn _ th ver s hs _ _ (RspStream streamingBody needsChunked) = do
     header <- composeHeaderBuilder ver s hs needsChunked
     (recv, finish) <- newByteStringBuilderRecv $ reuseBufferStrategy
                     $ toBuilderBuffer $ connWriteBuffer conn
@@ -248,7 +250,7 @@ sendRsp conn _ th ver s hs _ (RspStream streamingBody needsChunked) = do
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th _ _ _ _ (RspRaw withApp src) = do
+sendRsp conn _ th _ _ _ _ _ (RspRaw withApp src) = do
     withApp recv send
     return (Nothing, Nothing)
   where
@@ -262,8 +264,8 @@ sendRsp conn _ th _ _ _ _ (RspRaw withApp src) = do
 
 -- Sophisticated WAI applications.
 -- We respect s0. s0 MUST be a proper value.
-sendRsp conn ii th ver s0 hs0 rspidxhdr (RspFile path (Just part) _ isHead hook) =
-    sendRspFile2XX conn ii th ver s0 hs rspidxhdr path beg len isHead hook
+sendRsp conn ii th ver s0 hs0 rspidxhdr maxRspBufSize (RspFile path (Just part) _ isHead hook) =
+    sendRspFile2XX conn ii th ver s0 hs rspidxhdr maxRspBufSize path beg len isHead hook
   where
     beg = filePartOffset part
     len = filePartByteCount part
@@ -273,17 +275,17 @@ sendRsp conn ii th ver s0 hs0 rspidxhdr (RspFile path (Just part) _ isHead hook)
 
 -- Simple WAI applications.
 -- Status is ignored
-sendRsp conn ii th ver _ hs0 rspidxhdr (RspFile path Nothing reqidxhdr isHead hook) = do
+sendRsp conn ii th ver _ hs0 rspidxhdr maxRspBufSize (RspFile path Nothing reqidxhdr isHead hook) = do
     efinfo <- UnliftIO.tryIO $ getFileInfo ii path
     case efinfo of
         Left (_ex :: UnliftIO.IOException) ->
 #ifdef WARP_DEBUG
           print _ex >>
 #endif
-          sendRspFile404 conn ii th ver hs0 rspidxhdr
+          sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize
         Right finfo -> case conditionalRequest finfo hs0 rspidxhdr reqidxhdr of
-          WithoutBody s         -> sendRsp conn ii th ver s hs0 rspidxhdr RspNoBody
-          WithBody s hs beg len -> sendRspFile2XX conn ii th ver s hs rspidxhdr path beg len isHead hook
+          WithoutBody s         -> sendRsp conn ii th ver s hs0 rspidxhdr maxRspBufSize RspNoBody
+          WithBody s hs beg len -> sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize path beg len isHead hook
 
 ----------------------------------------------------------------
 
@@ -294,14 +296,15 @@ sendRspFile2XX :: Connection
                -> H.Status
                -> H.ResponseHeaders
                -> IndexedHeader
+               -> Int
                -> FilePath
                -> Integer
                -> Integer
                -> Bool
                -> IO ()
                -> IO (Maybe H.Status, Maybe Integer)
-sendRspFile2XX conn ii th ver s hs rspidxhdr path beg len isHead hook
-  | isHead = sendRsp conn ii th ver s hs rspidxhdr RspNoBody
+sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize path beg len isHead hook
+  | isHead = sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize RspNoBody
   | otherwise = do
       lheader <- composeHeader ver s hs
       (mfd, fresher) <- getFd ii path
@@ -316,8 +319,9 @@ sendRspFile404 :: Connection
                -> H.HttpVersion
                -> H.ResponseHeaders
                -> IndexedHeader
+               -> Int
                -> IO (Maybe H.Status, Maybe Integer)
-sendRspFile404 conn ii th ver hs0 rspidxhdr = sendRsp conn ii th ver s hs rspidxhdr (RspBuilder body True)
+sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize = sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize (RspBuilder body True)
   where
     s = H.notFound404
     hs =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0

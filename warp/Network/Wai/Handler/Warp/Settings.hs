@@ -138,6 +138,20 @@ data Settings = Settings
       -- Default: Nothing
       --
       -- Since 3.3.11
+    , settingsMaxBuilderResponseBufferSize :: Int
+      -- ^ Determines the maxium buffer size when sending `Builder` responses
+      -- (See `responseBuilder`).
+      --
+      -- When sending a builder response warp uses a 16 KiB buffer to write the
+      -- builder to. When that buffer is too small to fit the builder warp will
+      -- free it and create a new one that will fit the builder.
+      --
+      -- To protect against allocating too large a buffer warp will error if the
+      -- builder requires more than this maximum.
+      --
+      -- Default: 1049_000_000 = 1 MiB.
+      --
+      -- Since 3.3.23
     }
 
 -- | Specify usage of the PROXY protocol.
@@ -178,6 +192,7 @@ defaultSettings = Settings
     , settingsGracefulCloseTimeout2 = 2000
     , settingsMaxTotalHeaderLength = 50 * 1024
     , settingsAltSvc = Nothing
+    , settingsMaxBuilderResponseBufferSize = 1049000000
     }
 
 -- | Apply the logic provided by 'defaultOnException' to determine if an
