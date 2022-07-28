@@ -151,7 +151,7 @@ data Settings = Settings
       --
       -- Default: 1049_000_000 = 1 MiB.
       --
-      -- Since 3.3.23
+      -- Since 3.3.22
     }
 
 -- | Specify usage of the PROXY protocol.

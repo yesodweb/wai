@@ -465,7 +465,7 @@ setAltSvc altsvc settings = settings { settingsAltSvc = Just altsvc }
 
 -- | Set the maximum buffer size for sending `Builder` responses.
 --
--- Since 3.3.23
+-- Since 3.3.22
 setMaxBuilderResponseBufferSize :: Int -> Settings -> Settings
 setMaxBuilderResponseBufferSize maxRspBufSize settings = settings { settingsMaxBuilderResponseBufferSize = maxRspBufSize }
 
