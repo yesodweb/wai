@@ -341,7 +341,7 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
         sendall = TLS.sendData ctx . L.fromChunks . return
         sendfile fid offset len hook headers = do
             writeBuffer <- I.readIORef writeBufferRef
-            readSendFile (bufBytes writeBuffer) (bufSize writeBuffer) sendall fid offset len hook headers
+            readSendFile (bufBuffer writeBuffer) (bufSize writeBuffer) sendall fid offset len hook headers
 
         close' = void (tryIO sendBye) `finally`
                  TLS.contextClose ctx

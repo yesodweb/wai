@@ -97,7 +97,7 @@ type Buffer = Ptr Word8
 -- | A write buffer of a specified size
 -- containing bytes and a way to free the buffer.
 data WriteBuffer = WriteBuffer {
-      bufBytes :: Buffer
+      bufBuffer :: Buffer
       -- | The size of the write buffer.
     , bufSize :: !BufSize
       -- | Free the allocated buffer. Warp guarantees it will only be

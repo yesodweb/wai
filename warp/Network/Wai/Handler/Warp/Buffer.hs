@@ -34,7 +34,7 @@ createWriteBuffer size = do
   bytes <- allocateBuffer size
   return
     WriteBuffer
-      { bufBytes = bytes,
+      { bufBuffer = bytes,
         bufSize = size,
         bufFree = freeBuffer bytes
       }
@@ -108,7 +108,7 @@ withBufferPool pool f = do
 toBuilderBuffer :: IORef WriteBuffer -> IO B.Buffer
 toBuilderBuffer writeBufferRef = do
     writeBuffer <- readIORef writeBufferRef
-    let ptr = bufBytes writeBuffer
+    let ptr = bufBuffer writeBuffer
         size = bufSize writeBuffer
     fptr <- newForeignPtr_ ptr
     return $ B.Buffer fptr ptr ptr (ptr `plusPtr` size)
