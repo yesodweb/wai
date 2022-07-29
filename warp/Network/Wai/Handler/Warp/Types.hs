@@ -94,6 +94,17 @@ type BufferPool = IORef ByteString
 -- | Type for buffer
 type Buffer = Ptr Word8
 
+-- | A write buffer of a specified size
+-- containing bytes and a way to free the buffer.
+data WriteBuffer = WriteBuffer {
+      bufBuffer :: Buffer
+      -- | The size of the write buffer.
+    , bufSize :: !BufSize
+      -- | Free the allocated buffer. Warp guarantees it will only be
+      -- called once, and no other functions will be called after it.
+    , bufFree :: IO ()
+    }
+
 -- | Type for buffer size
 type BufSize = Int
 
@@ -117,18 +128,16 @@ data Connection = Connection {
     -- called once. Other functions (like 'connRecv') may be called after
     -- 'connClose' is called.
     , connClose       :: IO ()
-    -- | Free any buffers allocated. Warp guarantees it will only be
-    -- called once, and no other functions will be called after it.
-    , connFree        :: IO ()
     -- | The connection receiving function. This returns "" for EOF.
     , connRecv        :: Recv
     -- | The connection receiving function. This tries to fill the buffer.
     --   This returns when the buffer is filled or reaches EOF.
     , connRecvBuf     :: RecvBuf
-    -- | The write buffer.
-    , connWriteBuffer :: Buffer
-    -- | The size of the write buffer.
-    , connBufferSize  :: BufSize
+    -- | Reference to a write buffer. When during sending of a 'Builder'
+    -- response it's detected the current 'WriteBuffer' is too small it will be
+    -- freed and a new bigger buffer will be created and written to this
+    -- reference.
+    , connWriteBuffer :: IORef WriteBuffer
     -- | Is this connection HTTP/2?
     , connHTTP2       :: IORef Bool
     }

@@ -1,7 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
 
 module Network.Wai.Handler.Warp.Buffer (
-    bufferSize
+    createWriteBuffer
+  , bufferSize
   , allocateBuffer
   , freeBuffer
   , mallocBS
@@ -15,7 +16,7 @@ module Network.Wai.Handler.Warp.Buffer (
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (memcpy)
 import Data.ByteString.Unsafe (unsafeTake, unsafeDrop)
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import qualified Data.Streaming.ByteString.Builder.Buffer as B (Buffer (..))
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc (mallocBytes, free, finalizerFree)
@@ -23,6 +24,20 @@ import Foreign.Ptr (castPtr, plusPtr)
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
+
+----------------------------------------------------------------
+
+-- | Allocate a buffer of the given size and wrap it in a 'WriteBuffer'
+-- containing that size and a finalizer.
+createWriteBuffer :: BufSize -> IO WriteBuffer
+createWriteBuffer size = do
+  bytes <- allocateBuffer size
+  return
+    WriteBuffer
+      { bufBuffer = bytes,
+        bufSize = size,
+        bufFree = freeBuffer bytes
+      }
 
 ----------------------------------------------------------------
 
@@ -90,8 +105,11 @@ withBufferPool pool f = do
 -- Utilities
 --
 
-toBuilderBuffer :: Buffer -> BufSize -> IO B.Buffer
-toBuilderBuffer ptr size = do
+toBuilderBuffer :: IORef WriteBuffer -> IO B.Buffer
+toBuilderBuffer writeBufferRef = do
+    writeBuffer <- readIORef writeBufferRef
+    let ptr = bufBuffer writeBuffer
+        size = bufSize writeBuffer
     fptr <- newForeignPtr_ ptr
     return $ B.Buffer fptr ptr ptr (ptr `plusPtr` size)
 
