@@ -17,9 +17,9 @@ import qualified Network.TLS.SessionManager as SM
 
 ----------------------------------------------------------------
 
--- | Determines where to load the certificate, chain 
+-- | Determines where to load the certificate, chain
 -- certificates, and key from.
-data CertSettings 
+data CertSettings
   = CertFromFile !FilePath ![FilePath] !FilePath
   | CertFromMemory !S.ByteString ![S.ByteString] !S.ByteString
   | CertFromRef !(I.IORef S.ByteString) ![I.IORef S.ByteString] !(I.IORef S.ByteString)
@@ -41,7 +41,7 @@ data TLSSettings = TLSSettings {
     --
     -- >>> certSettings defaultTlsSettings
     -- tlsSettings "certificate.pem" "key.pem"
-    -- 
+    --
     -- @since 3.3.0
   , onInsecure :: OnInsecure
     -- ^ Do we allow insecure connections with this server as well?
@@ -143,4 +143,3 @@ data TLSSettings = TLSSettings {
 -- | Some programs need access to cert settings
 getCertSettings :: TLSSettings -> CertSettings
 getCertSettings tlsSetgs = certSettings tlsSetgs
-
