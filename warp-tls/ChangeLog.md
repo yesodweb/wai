@@ -1,5 +1,9 @@
+# ChangeLog
+
 ## 3.3.3
 
+* Creating a bigger buffer when the current one is too small to fit the Builder
+  [#895](https://github.com/yesodweb/wai/pull/895)
 * Expose TLS.supportedHashSignatures via TLSSettings
   [#872](https://github.com/yesodweb/wai/pull/872)
 
