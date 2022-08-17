@@ -8,10 +8,8 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
-import Control.Exception (allowInterrupt)
 import qualified Control.Exception
-import qualified UnliftIO
-import UnliftIO (toException)
+import Control.Exception (allowInterrupt)
 import qualified Data.ByteString as S
 import Data.IORef (newIORef, readIORef)
 import Data.Streaming.Network (bindPortTCP)
@@ -21,12 +19,15 @@ import Network.Socket (Socket, close, accept, withSocketsDo, SockAddr, setSocket
 #if MIN_VERSION_network(3,1,1)
 import Network.Socket (gracefulClose)
 #endif
+import Network.Socket.BufferPool
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import System.Environment (lookupEnv)
 import System.IO.Error (ioeGetErrorType)
 import qualified System.TimeManager as T
 import System.Timeout (timeout)
+import qualified UnliftIO
+import UnliftIO (toException)
 
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Counter
@@ -37,7 +38,6 @@ import Network.Wai.Handler.Warp.HTTP1 (http1)
 import Network.Wai.Handler.Warp.HTTP2 (http2)
 import Network.Wai.Handler.Warp.HTTP2.Types (isHTTP2)
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
-import Network.Wai.Handler.Warp.Recv
 import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
@@ -56,8 +56,8 @@ socketConnection set s = do
 #else
 socketConnection _ s = do
 #endif
-    bufferPool <- newBufferPool
-    writeBuffer <- createWriteBuffer bufferSize
+    bufferPool <- newBufferPool 2048 16384
+    writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
     return Connection {
@@ -76,12 +76,19 @@ socketConnection _ s = do
 #else
       , connClose = close s
 #endif
-      , connRecv = receive s bufferPool
+      , connRecv = receive' s bufferPool
       , connRecvBuf = receiveBuf s
       , connWriteBuffer = writeBufferRef
       , connHTTP2 = isH2
       }
   where
+    receive' sock pool = UnliftIO.handleIO handler $ receive sock pool
+      where
+        handler :: UnliftIO.IOException -> IO ByteString
+        handler e
+          | ioeGetErrorType e == InvalidArgument = return ""
+          | otherwise                            = UnliftIO.throwIO e
+
     sendfile writeBufferRef fid offset len hook headers = do
       writeBuffer <- readIORef writeBufferRef
       sendFile s (bufBuffer writeBuffer) (bufSize writeBuffer) sendall

@@ -1,5 +1,5 @@
 Name:                warp
-Version:             3.3.22
+Version:             3.3.23
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -50,6 +50,7 @@ Library
                    , http-types                >= 0.12
                    , http2                     >= 3.0      && < 5
                    , iproute                   >= 1.3.1
+                   , recv
                    , simple-sendfile           >= 0.2.7    && < 0.3
                    , stm                       >= 2.3
                    , streaming-commons         >= 0.1.10
@@ -91,7 +92,6 @@ Library
                      Network.Wai.Handler.Warp.Imports
                      Network.Wai.Handler.Warp.PackInt
                      Network.Wai.Handler.Warp.ReadInt
-                     Network.Wai.Handler.Warp.Recv
                      Network.Wai.Handler.Warp.Request
                      Network.Wai.Handler.Warp.RequestHeader
                      Network.Wai.Handler.Warp.Response
@@ -135,8 +135,7 @@ Test-Suite doctest
 
 Test-Suite spec
     Main-Is:         Spec.hs
-    Other-modules:   BufferPoolSpec
-                     ConduitSpec
+    Other-modules:   ConduitSpec
                      ExceptionSpec
                      FdCacheSpec
                      FileSpec
@@ -170,7 +169,6 @@ Test-Suite spec
                      Network.Wai.Handler.Warp.MultiMap
                      Network.Wai.Handler.Warp.PackInt
                      Network.Wai.Handler.Warp.ReadInt
-                     Network.Wai.Handler.Warp.Recv
                      Network.Wai.Handler.Warp.Request
                      Network.Wai.Handler.Warp.RequestHeader
                      Network.Wai.Handler.Warp.Response
@@ -209,6 +207,7 @@ Test-Suite spec
                    , iproute                   >= 1.3.1
                    , network
                    , process
+                   , recv
                    , simple-sendfile           >= 0.2.4    && < 0.3
                    , stm                       >= 2.3
                    , streaming-commons         >= 0.1.10

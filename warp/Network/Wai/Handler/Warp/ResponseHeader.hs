@@ -9,8 +9,8 @@ import qualified Data.CaseInsensitive as CI
 import Foreign.Ptr
 import GHC.Storable
 import qualified Network.HTTP.Types as H
+import Network.Socket.BufferPool (copy)
 
-import Network.Wai.Handler.Warp.Buffer (copy)
 import Network.Wai.Handler.Warp.Imports
 
 ----------------------------------------------------------------

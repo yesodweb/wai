@@ -11,7 +11,7 @@ import Data.Typeable (Typeable)
 #ifdef MIN_VERSION_x509
 import Data.X509
 #endif
-import Foreign.Ptr (Ptr)
+import Network.Socket.BufferPool
 import System.Posix.Types (Fd)
 import qualified System.TimeManager as T
 
@@ -88,12 +88,6 @@ data FileId = FileId {
 -- Since: 3.1.0
 type SendFile = FileId -> Integer -> Integer -> IO () -> [ByteString] -> IO ()
 
--- | Type for read buffer pool
-type BufferPool = IORef ByteString
-
--- | Type for buffer
-type Buffer = Ptr Word8
-
 -- | A write buffer of a specified size
 -- containing bytes and a way to free the buffer.
 data WriteBuffer = WriteBuffer {
@@ -104,16 +98,6 @@ data WriteBuffer = WriteBuffer {
       -- called once, and no other functions will be called after it.
     , bufFree :: IO ()
     }
-
--- | Type for buffer size
-type BufSize = Int
-
--- | Type for the action to receive input data
-type Recv = IO ByteString
-
--- | Type for the action to receive input data with a buffer.
---   The result boolean indicates whether or not the buffer is fully filled.
-type RecvBuf = Buffer -> BufSize -> IO Bool
 
 -- | Data type to manipulate IO actions for connections.
 --   This is used to abstract IO actions for plain HTTP and HTTP over TLS.
@@ -128,7 +112,7 @@ data Connection = Connection {
     -- called once. Other functions (like 'connRecv') may be called after
     -- 'connClose' is called.
     , connClose       :: IO ()
-    -- | The connection receiving function. This returns "" for EOF.
+    -- | The connection receiving function. This returns "" for EOF or exceptions.
     , connRecv        :: Recv
     -- | The connection receiving function. This tries to fill the buffer.
     --   This returns when the buffer is filled or reaches EOF.

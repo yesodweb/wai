@@ -53,7 +53,7 @@ module Network.Wai.Handler.WarpTLS (
     ) where
 
 import Control.Applicative ((<|>))
-import UnliftIO.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException, SomeException(..), handleJust)
+import UnliftIO.Exception (Exception, throwIO, bracket, finally, handle, handleAny, fromException, try, IOException, onException, SomeException(..), handleJust)
 import qualified UnliftIO.Exception as E
 import Control.Monad (void, guard)
 import qualified Data.ByteString as S
@@ -298,13 +298,14 @@ mkConn tlsset set s params = (safeRecv s 4096 >>= switch) `onException` close s
 
 httpOverTls :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> S.ByteString -> params -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} _set s bs0 params = do
-    recvN <- makePlainReceiveN s bs0
+    rawRecvN <- makePlainReceiveN s 2048 16384 bs0
+    let recvN = wrappedRecvN rawRecvN
     ctx <- TLS.contextNew (backend recvN) params
     TLS.contextHookSetLogging ctx tlsLogging
     TLS.handshake ctx
     h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
     isH2 <- I.newIORef h2
-    writeBuffer <- createWriteBuffer bufferSize
+    writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- I.newIORef writeBuffer
     -- Creating a cache for leftover input data.
     ref <- I.newIORef ""
@@ -383,6 +384,10 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
             (ret, leftover) <- fill cached buf siz recv'
             I.writeIORef cref leftover
             return ret
+
+    wrappedRecvN recvN n = handleAny handler $ recvN n
+    handler :: SomeException -> IO S.ByteString
+    handler _ = return ""
 
 fill :: S.ByteString -> Buffer -> BufSize -> Recv -> IO (Bool,S.ByteString)
 fill bs0 buf0 siz0 recv
