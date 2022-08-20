@@ -2,6 +2,7 @@
 -- | Some helpers for dealing with WAI 'Header's.
 module Network.Wai.Header
     ( contentLength
+    , dropWhileEnd
     , parseQValueList
     , replaceHeader
     , splitCommas
