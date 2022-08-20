@@ -114,7 +114,6 @@ Library
                    , directory                 >= 1.2.7.0
                    , fast-logger               >= 2.4.5
                    , http-types                >= 0.7
-                   , http2
                    , HUnit
                    , iproute                   >= 1.7.8
                    , network                   >= 2.6.1.0
@@ -220,14 +219,12 @@ test-suite spec
                    , fast-logger
                    , hspec >= 1.3
                    , http-types
-                   , http2
                    , HUnit
                    , iproute
                    , resourcet
                    , temporary
                    , text
                    , time
-                   , transformers
                    , wai-extra
                    , wai
                    , warp
