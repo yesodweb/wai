@@ -98,31 +98,31 @@ flag build-example
 
 Library
   Build-Depends:     base                      >= 4.12 && < 5
-                   , bytestring                >= 0.10.4
-                   , wai                       >= 3.0.3.0  && < 3.3
-                   , time                      >= 1.1.4
-                   , network                   >= 2.6.1.0
-                   , directory                 >= 1.2.7.0
-                   , transformers              >= 0.2.2
-                   , http-types                >= 0.7
-                   , text                      >= 0.7
-                   , case-insensitive          >= 0.2
-                   , data-default-class
-                   , fast-logger               >= 2.4.5
-                   , wai-logger                >= 2.3.7
-                   , ansi-terminal
-                   , resourcet                 >= 0.4.6    && < 1.3
-                   , containers
-                   , base64-bytestring
-                   , word8
-                   , streaming-commons         >= 0.2
-                   , cookie
-                   , vault
                    , aeson
-                   , iproute                   >= 1.7.8
+                   , ansi-terminal
+                   , base64-bytestring
+                   , bytestring                >= 0.10.4
+                   , call-stack
+                   , case-insensitive          >= 0.2
+                   , containers
+                   , cookie
+                   , data-default-class
+                   , directory                 >= 1.2.7.0
+                   , fast-logger               >= 2.4.5
+                   , http-types                >= 0.7
                    , http2
                    , HUnit
-                   , call-stack
+                   , iproute                   >= 1.7.8
+                   , network                   >= 2.6.1.0
+                   , resourcet                 >= 0.4.6    && < 1.3
+                   , streaming-commons         >= 0.2
+                   , text                      >= 0.7
+                   , time                      >= 1.1.4
+                   , transformers              >= 0.2.2
+                   , vault
+                   , wai                       >= 3.0.3.0  && < 3.3
+                   , wai-logger                >= 2.3.7
+                   , word8
 
   if os(windows)
       cpp-options:   -DWINDOWS
