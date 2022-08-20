@@ -38,7 +38,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Default.Class (Default (def))
 import Data.IORef
 import Data.Maybe (fromMaybe, isJust, mapMaybe)
-import Data.Monoid (mconcat, (<>))
+import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
 import Data.Time (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
 import Network.HTTP.Types as H
