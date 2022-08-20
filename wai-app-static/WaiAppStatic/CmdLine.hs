@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, RecordWildCards, CPP #-}
+{-# LANGUAGE RecordWildCards, CPP #-}
 -- | Command line version of wai-app-static, used for the warp-static server.
 module WaiAppStatic.CmdLine
     ( runCommandLine
@@ -18,13 +18,12 @@ import Network.Wai.Middleware.RequestLogger (logStdout)
 import Network.Wai.Middleware.Gzip
 import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as S8
-import Control.Arrow ((***))
 import Data.Text (pack)
 import Data.String (fromString)
 import Network.Mime (defaultMimeMap, mimeByExt, defaultMimeType)
 import WaiAppStatic.Types (ssIndices, toPiece, ssGetMimeType, fileName, fromPiece)
 import Data.Maybe (mapMaybe)
-import Control.Arrow (second)
+import Control.Arrow (second, (***))
 import Data.Monoid ((<>))
 
 data Args = Args
@@ -94,14 +93,14 @@ args = Args
 -- Since 2.0.1
 runCommandLine :: (Args -> Middleware) -> IO ()
 runCommandLine middleware = do
-    args@Args {..} <- execParser $ info (helperOption <*> args) fullDesc
+    clArgs@Args {..} <- execParser $ info (helperOption <*> args) fullDesc
     let mime' = map (pack *** S8.pack) mime
     let mimeMap = Map.fromList mime' `Map.union` defaultMimeMap
     docroot' <- canonicalizePath docroot
     unless quiet $ printf "Serving directory %s on port %d with %s index files.\n" docroot' port (if noindex then "no" else show index)
     let middle = gzip def { gzipFiles = GzipCompress }
                . (if verbose then logStdout else id)
-               . (middleware args)
+               . middleware clArgs
     runSettings
         ( setPort port
         $ setHost (fromString host)

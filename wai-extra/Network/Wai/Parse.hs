@@ -70,14 +70,10 @@ import Data.Word (Word8)
 import Network.HTTP.Types (hContentType)
 import qualified Network.HTTP.Types as H
 import Network.Wai
+import Network.Wai.Handler.Warp (InvalidRequest(..))
 import System.Directory (getTemporaryDirectory, removeFile)
 import System.IO (hClose, openBinaryTempFile)
 import System.IO.Error (isDoesNotExistError)
-#if MIN_VERSION_http2(3,0,0)
-import Network.HTTP2.Frame (ErrorCodeId (..), HTTP2Error (..))
-#else
-import Network.HTTP2 (ErrorCodeId (..), HTTP2Error (..))
-#endif
 
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
@@ -444,8 +440,7 @@ takeLine maxlen src =
         bs <- readSource src
         case maxlen of
             Just maxlen' -> when (S.length front > maxlen') $
-              E.throwIO $ ConnectionError (UnknownErrorCode 431)
-                          "Request Header Fields Too Large"
+              E.throwIO RequestHeaderFieldsTooLarge
             Nothing -> return ()
         if S.null bs
             then close front
@@ -461,8 +456,7 @@ takeLine maxlen src =
                     let res = front `S.append` x
                     case maxlen of
                         Just maxlen' -> when (S.length res > maxlen') $
-                          E.throwIO $ ConnectionError (UnknownErrorCode 431)
-                                    "Request Header Fields Too Large"
+                          E.throwIO RequestHeaderFieldsTooLarge
                         Nothing -> return ()
                     return . Just $ killCR res
 
@@ -651,8 +645,7 @@ wrapTillBound bound src max' = do
                 cur <- atomicModifyIORef' sref $ \ cur ->
                     let new = cur + fromIntegral (S.length bs) in (new, new)
                 case max' of
-                   Just max'' | cur > max'' ->
-                     E.throwIO $ ConnectionError (UnknownErrorCode 413) "Payload Too Large"
+                   Just max'' | cur > max'' -> E.throwIO PayloadTooLarge
                    _ -> return ()
                 if S.null bs
                     then do

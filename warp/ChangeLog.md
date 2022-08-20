@@ -1,5 +1,12 @@
 # ChangeLog for warp
 
+## 3.3.22
+
+* Creating a bigger buffer when the current one is too small to fit the Builder
+  [#895](https://github.com/yesodweb/wai/pull/895)
+* Using InvalidRequest instead of HTTP2Error
+  [#890](https://github.com/yesodweb/wai/pull/890)
+
 ## 3.3.21
 
 * Support GHC 9.4 [#889](https://github.com/yesodweb/wai/pull/889)

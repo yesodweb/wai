@@ -36,7 +36,7 @@ cgiToAppGeneric toIO cgi env sendResponse = do
                ++ getCgiVars env
         (inputs, body') = decodeInput vars input
         req = CGIRequest
-                { cgiVars = Map.fromList $ vars
+                { cgiVars = Map.fromList vars
                 , cgiInputs = inputs
                 , cgiRequestBody = body'
                 }

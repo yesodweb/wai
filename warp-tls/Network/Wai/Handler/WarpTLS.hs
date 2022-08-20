@@ -63,10 +63,16 @@ import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, safeRecv)
 import Data.Typeable (Typeable)
 import GHC.IO.Exception (IOErrorType(..))
-import Network.Socket (Socket, close, withSocketsDo, SockAddr, accept)
+import Network.Socket (
+    SockAddr,
+    Socket,
+    accept,
+    close,
 #if MIN_VERSION_network(3,1,1)
-import Network.Socket (gracefulClose)
+    gracefulClose,
 #endif
+    withSocketsDo,
+ )
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
 import qualified Crypto.PubKey.DH as DH
@@ -140,7 +146,7 @@ tlsSettingsMemory
     :: S.ByteString -- ^ Certificate bytes
     -> S.ByteString -- ^ Key bytes
     -> TLSSettings
-tlsSettingsMemory cert key = defaultTlsSettings { 
+tlsSettingsMemory cert key = defaultTlsSettings {
     certSettings = CertFromMemory cert [] key
   }
 
@@ -153,7 +159,7 @@ tlsSettingsChainMemory
     -> [S.ByteString] -- ^ Chain certificate bytes
     -> S.ByteString -- ^ Key bytes
     -> TLSSettings
-tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings { 
+tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings {
     certSettings = CertFromMemory cert chainCerts key
   }
 
@@ -161,11 +167,11 @@ tlsSettingsChainMemory cert chainCerts key = defaultTlsSettings {
 -- representations of the certificate and key based on 'defaultTlsSettings'.
 --
 -- @since 3.3.0
-tlsSettingsRef 
+tlsSettingsRef
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
-    -> I.IORef (S.ByteString) -- ^ Reference to key bytes 
-    -> TLSSettings 
-tlsSettingsRef cert key = defaultTlsSettings { 
+    -> I.IORef S.ByteString -- ^ Reference to key bytes
+    -> TLSSettings
+tlsSettingsRef cert key = defaultTlsSettings {
     certSettings = CertFromRef cert [] key
   }
 
@@ -173,12 +179,12 @@ tlsSettingsRef cert key = defaultTlsSettings {
 -- representations of the certificate and key based on 'defaultTlsSettings'.
 --
 -- @since 3.3.0
-tlsSettingsChainRef 
+tlsSettingsChainRef
     :: I.IORef S.ByteString -- ^ Reference to certificate bytes
     -> [I.IORef S.ByteString] -- ^ Reference to chain certificate bytes
-    -> I.IORef (S.ByteString) -- ^ Reference to key bytes 
-    -> TLSSettings 
-tlsSettingsChainRef cert chainCerts key = defaultTlsSettings { 
+    -> I.IORef S.ByteString -- ^ Reference to key bytes
+    -> TLSSettings
+tlsSettingsChainRef cert chainCerts key = defaultTlsSettings {
     certSettings = CertFromRef cert chainCerts key
   }
 
@@ -196,11 +202,11 @@ runTLS tset set app = withSocketsDo $
 
 loadCredentials :: TLSSettings -> IO TLS.Credentials
 loadCredentials TLSSettings{ tlsCredentials = Just creds } = return creds
-loadCredentials TLSSettings{..} = case certSettings of 
+loadCredentials TLSSettings{..} = case certSettings of
   CertFromFile cert chainFiles key -> do
     cred <- either error id <$> TLS.credentialLoadX509Chain cert chainFiles key
     return $ TLS.Credentials [cred]
-  CertFromRef certRef chainCertsRef keyRef -> do 
+  CertFromRef certRef chainCertsRef keyRef -> do
     cert <- I.readIORef certRef
     chainCerts <- mapM I.readIORef chainCertsRef
     key <- I.readIORef keyRef
@@ -225,8 +231,8 @@ runTLSSocket tlsset set sock app = do
     runTLSSocket' tlsset set credentials mgr sock app
 
 runTLSSocket' :: TLSSettings -> Settings -> TLS.Credentials -> TLS.SessionManager -> Socket -> Application -> IO ()
-runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock app =
-    runSettingsConnectionMakerSecure set get app
+runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock =
+    runSettingsConnectionMakerSecure set get
   where
     get = getter tlsset set sock params
     params = def { -- TLS.ServerParams
@@ -298,11 +304,12 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
     TLS.handshake ctx
     h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
     isH2 <- I.newIORef h2
-    writeBuf <- allocateBuffer bufferSize
+    writeBuffer <- createWriteBuffer bufferSize
+    writeBufferRef <- I.newIORef writeBuffer
     -- Creating a cache for leftover input data.
     ref <- I.newIORef ""
     tls <- getTLSinfo ctx
-    return (conn ctx writeBuf ref isH2, tls)
+    return (conn ctx writeBufferRef ref isH2, tls)
   where
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
@@ -320,22 +327,21 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
         else Nothing)
       throwIO
       $ sendAll sock bs
-    conn ctx writeBuf ref isH2 = Connection {
+    conn ctx writeBufferRef ref isH2 = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
       , connSendFile         = sendfile
       , connClose            = close'
-      , connFree             = freeBuffer writeBuf
       , connRecv             = recv ref
       , connRecvBuf          = recvBuf ref
-      , connWriteBuffer      = writeBuf
-      , connBufferSize       = bufferSize
+      , connWriteBuffer      = writeBufferRef
       , connHTTP2            = isH2
       }
       where
         sendall = TLS.sendData ctx . L.fromChunks . return
-        sendfile fid offset len hook headers =
-            readSendFile writeBuf bufferSize sendall fid offset len hook headers
+        sendfile fid offset len hook headers = do
+            writeBuffer <- I.readIORef writeBufferRef
+            readSendFile (bufBuffer writeBuffer) (bufSize writeBuffer) sendall fid offset len hook headers
 
         close' = void (tryIO sendBye) `finally`
                  TLS.contextClose ctx
@@ -394,7 +400,7 @@ fill bs0 buf0 siz0 recv
       bs <- recv
       let len = S.length bs
       if len == 0 then return (False, "")
-        else if (len <= siz) then do
+        else if len <= siz then do
           buf' <- copy buf bs
           loop buf' (siz - len)
         else do

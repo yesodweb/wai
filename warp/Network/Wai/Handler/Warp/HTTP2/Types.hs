@@ -1,12 +1,11 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Types where
 
 import qualified Data.ByteString as BS
 import qualified Network.HTTP.Types as H
-import Network.HTTP2
+import Network.HTTP2.Frame
 import qualified Network.HTTP2.Server as H2
 
 import Network.Wai.Handler.Warp.Imports

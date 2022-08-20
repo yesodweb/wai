@@ -6,12 +6,12 @@
 -- second, and write the current time to a shared 'IORef', than it is for each
 -- request to make its own call to 'getCurrentTime'.
 --
--- But for a low-volume server, whose request frequency is less than once per 
--- second, that approach will result in /more/ calls to 'getCurrentTime' than 
+-- But for a low-volume server, whose request frequency is less than once per
+-- second, that approach will result in /more/ calls to 'getCurrentTime' than
 -- necessary, and worse, kills idle GC.
 --
 -- This library solves that problem by allowing you to define actions which will
--- either be performed by a dedicated thread, or, in times of low volume, will 
+-- either be performed by a dedicated thread, or, in times of low volume, will
 -- be executed by the calling thread.
 --
 -- Example usage:
@@ -51,6 +51,7 @@ import           Control.Exception       (SomeException, catch, mask_, throw,
                                           try)
 import           Control.Monad           (void)
 import           Data.IORef              (newIORef, readIORef, writeIORef)
+import           Data.Maybe              (fromMaybe)
 
 -- | Default value for creating an 'UpdateSettings'.
 --
@@ -162,7 +163,7 @@ mkAutoUpdateHelper us updateActionModify = do
                 takeMVar needsRunning
 
                 -- new value requested, so run the updateAction
-                a <- catchSome $ maybe (updateAction us) id (updateActionModify <*> maybea)
+                a <- catchSome $ fromMaybe (updateAction us) (updateActionModify <*> maybea)
 
                 -- we got a new value, update currRef and lastValue
                 writeIORef currRef $ Right a

@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 -- | Middleware for server push learning dependency based on Referer:.
 module Network.Wai.Middleware.Push.Referer (

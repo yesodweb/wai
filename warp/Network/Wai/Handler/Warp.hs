@@ -76,6 +76,7 @@ module Network.Wai.Handler.Warp (
   , setGracefulCloseTimeout2
   , setMaxTotalHeaderLength
   , setAltSvc
+  , setMaxBuilderResponseBufferSize
     -- ** Getters
   , getPort
   , getHost
@@ -461,6 +462,12 @@ setMaxTotalHeaderLength maxTotalHeaderLength settings = settings
 -- Since 3.3.11
 setAltSvc :: ByteString -> Settings -> Settings
 setAltSvc altsvc settings = settings { settingsAltSvc = Just altsvc }
+
+-- | Set the maximum buffer size for sending `Builder` responses.
+--
+-- Since 3.3.22
+setMaxBuilderResponseBufferSize :: Int -> Settings -> Settings
+setMaxBuilderResponseBufferSize maxRspBufSize settings = settings { settingsMaxBuilderResponseBufferSize = maxRspBufSize }
 
 -- | Explicitly pause the slowloris timeout.
 --

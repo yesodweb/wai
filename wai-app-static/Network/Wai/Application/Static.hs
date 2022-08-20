@@ -74,7 +74,7 @@ filterButLast f (x:xs)
 
 -- | Serve an appropriate response for a folder request.
 serveFolder :: StaticSettings -> Pieces -> W.Request -> Folder -> IO StaticResponse
-serveFolder StaticSettings {..} pieces req folder@Folder {..} =
+serveFolder StaticSettings {..} pieces req folder =
     case ssListing of
         Just _ | Just path <- addTrailingSlash req, ssAddTrailingSlash ->
             return $ RawRedirect path
@@ -280,7 +280,7 @@ staticAppPieces ss rawPieces req sendResponse = liftIO $ do
                 , ("Location", path)
                 ] "Redirect"
 
-    response NotFound = case (ss404Handler ss) of
+    response NotFound = case ss404Handler ss of
         Just app -> app req sendResponse
         Nothing  -> sendResponse $ W.responseLBS H.status404
                         [ ("Content-Type", "text/plain")

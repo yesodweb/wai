@@ -126,6 +126,7 @@ Library
                    , vault
                    , wai                       >= 3.0.3.0  && < 3.3
                    , wai-logger                >= 2.3.7
+                   , warp                      >= 3.3.22
                    , word8
 
   if os(windows)
@@ -229,6 +230,7 @@ test-suite spec
                    , transformers
                    , wai-extra
                    , wai
+                   , warp
                    , zlib
     ghc-options:     -Wall
     default-language:          Haskell2010

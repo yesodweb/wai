@@ -50,13 +50,13 @@ defaultListing pieces (Folder contents) = do
                                               ]
              H.body $ do
                  let hasTrailingSlash =
-                        case map fromPiece $ reverse $ pieces of
+                        case map fromPiece $ reverse pieces of
                             "":_ -> True
                             _ -> False
                  H.h1 $ showFolder' hasTrailingSlash $ filter (not . T.null . fromPiece) pieces
                  renderDirectoryContentsTable (map fromPiece pieces) haskellSrc folderSrc fps''
   where
-    image x = T.unpack $ T.concat [(relativeDirFromPieces pieces), ".hidden/", x, ".png"]
+    image x = T.unpack $ T.concat [relativeDirFromPieces pieces, ".hidden/", x, ".png"]
     folderSrc = image "folder"
     haskellSrc = image "haskell"
     showName "" = "root"
@@ -92,7 +92,7 @@ renderDirectoryContentsTable :: [T.Text] -- ^ requested path info
                              -> [Either FolderName File]
                              -> H.Html
 renderDirectoryContentsTable pathInfo' haskellSrc folderSrc fps =
-           H.table $ do H.thead $ do H.th ! (A.class_ "first") $ H.img ! (A.src $ H.toValue haskellSrc)
+           H.table $ do H.thead $ do H.th ! A.class_ "first" $ H.img ! A.src (H.toValue haskellSrc)
                                      H.th "Name"
                                      H.th "Modified"
                                      H.th "Size"
@@ -117,8 +117,7 @@ renderDirectoryContentsTable pathInfo' haskellSrc folderSrc fps =
                            case either id fileName md of
                                (fromPiece -> "") -> unsafeToPiece ".."
                                x -> x
-                   let isFile = either (const False) (const True) md
-                       href = addCurrentDir $ fromPiece name
+                   let href = addCurrentDir $ fromPiece name
                        addCurrentDir x =
                            case reverse pathInfo' of
                                "":_ -> x -- has a trailing slash

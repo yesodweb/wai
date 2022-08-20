@@ -19,6 +19,8 @@ module Network.Wai.Handler.Warp.Internal (
     -- ** Buffer
   , Buffer
   , BufSize
+  , WriteBuffer(..)
+  , createWriteBuffer
   , bufferSize
   , allocateBuffer
   , freeBuffer
