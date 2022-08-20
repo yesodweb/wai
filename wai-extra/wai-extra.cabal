@@ -197,6 +197,7 @@ test-suite spec
     hs-source-dirs:  test
     main-is:         Spec.hs
     other-modules:   Network.Wai.Middleware.ApprootSpec
+                     Network.Wai.Middleware.CombineHeadersSpec
                      Network.Wai.Middleware.ForceSSLSpec
                      Network.Wai.Middleware.RealIpSpec
                      Network.Wai.Middleware.RequestSizeLimitSpec
