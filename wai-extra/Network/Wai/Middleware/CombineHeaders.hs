@@ -1,29 +1,31 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 module Network.Wai.Middleware.CombineHeaders
     ( combineHeaders
-    , CombineSettings (..)
     , defaultCombineSettings
+    , CombineSettings (..)
+    , HandleType (..)
     ) where
 
 import qualified Data.ByteString as B
 import qualified Data.List as L (foldl', reverse)
 import qualified Data.Map.Strict as M
 import Data.Word8 (_comma, _space)
-import Network.HTTP.Types (HeaderName, RequestHeaders)
+import Network.HTTP.Types (Header, HeaderName, RequestHeaders)
 import qualified Network.HTTP.Types.Header as H
-import Network.Wai (Application, requestHeaders, mapResponseHeaders)
+import Network.Wai (Middleware, requestHeaders, mapResponseHeaders)
 import Network.Wai.Header (dropWhileEnd)
 
 -- |
 --
 -- @since 3.1.13.0
 data CombineSettings = CombineSettings {
+    combineHeaderMap :: M.Map HeaderName HandleType,
+    -- ^ Which headers should be combined? And how? (cf. 'HandleType')
     combineRequestHeaders :: Bool,
     -- ^ Should request headers be combined?
-    combineResponseHeaders :: Bool,
+    combineResponseHeaders :: Bool
     -- ^ Should response headers be combined?
-    combineHeaderMap :: M.Map HeaderName HandleType
-    -- ^ Which headers should be combined? And how?
 } deriving (Eq, Show)
 
 -- | Settings that combine request headers, but don't touch response headers.
@@ -33,9 +35,9 @@ data CombineSettings = CombineSettings {
 -- @since 3.1.13.0
 defaultCombineSettings :: CombineSettings
 defaultCombineSettings = CombineSettings {
+    combineHeaderMap = defaultHeaderMap,
     combineRequestHeaders = True,
-    combineResponseHeaders = False,
-    combineHeaderMap = defaultHeaderMap
+    combineResponseHeaders = False
 }
 
 -- |
@@ -57,23 +59,24 @@ defaultCombineSettings = CombineSettings {
 -- (probably) be malformed.
 --
 -- @since 3.1.13.0
-combineHeaders :: CombineSettings -> Application -> Application
-combineHeaders (CombineSettings doReq doRes headerMap) app req resFunc =
+combineHeaders :: CombineSettings -> Middleware
+combineHeaders CombineSettings{..} app req resFunc =
     app newReq $ resFunc . adjustRes
   where
     newReq
-        | doReq = req { requestHeaders = mkNewHeaders oldHeaders }
+        | combineRequestHeaders = req { requestHeaders = mkNewHeaders oldHeaders }
         | otherwise = req
     oldHeaders = requestHeaders req
     adjustRes
-        | doRes = mapResponseHeaders mkNewHeaders
+        | combineResponseHeaders = mapResponseHeaders mkNewHeaders
         | otherwise = id
     mkNewHeaders =
         M.foldrWithKey' finishHeaders [] . L.foldl' go mempty
     go acc hdr@(name, _) =
         M.alter (checkHeader hdr) name acc
+    checkHeader :: Header -> Maybe HeaderHandling -> Maybe HeaderHandling
     checkHeader (name, newVal) = Just . \case
-        Nothing -> (name `M.lookup` headerMap, [newVal])
+        Nothing -> (name `M.lookup` combineHeaderMap, [newVal])
         -- Yes, this reverses the order of headers, but these
         -- will be reversed again in 'finishHeaders'
         Just (mHandleType, hdrs) -> (mHandleType, newVal : hdrs)
@@ -117,9 +120,9 @@ defaultHeaderMap = M.fromList
     , ("Access-Control-Expose-Headers" , Regular) -- wildcard? yes, but can just add to list
     , ("Access-Control-Request-Headers", Regular)
     , (H.hAllow, Regular)
-    , ("Alt-Svc" , KeepOnly "clear") -- special "clear" value (if any is "clear", only keep that one)
+    , ("Alt-Svc", KeepOnly "clear") -- special "clear" value (if any is "clear", only keep that one)
     , (H.hCacheControl, Regular)
-    , ("Clear-Site-Data" , KeepOnly "*") -- wildcard (if any is "*", only keep that one)
+    , ("Clear-Site-Data", KeepOnly "*") -- wildcard (if any is "*", only keep that one)
 
     -- If "close" and anything else is used together, it's already F-ed,
     -- so just combine them.
