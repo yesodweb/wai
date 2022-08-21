@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.22.1
+
+* Removed some package dependencies from test suite
+  [#902](https://github.com/yesodweb/wai/pull/902)
+
 ## 3.3.22
 
 * Creating a bigger buffer when the current one is too small to fit the Builder

@@ -1,6 +1,10 @@
+## 3.0.1.3
+
+* Drop unused dependency on `network`
+
 ## 3.0.1.2
 
-* Drop unused dependency on blaze-builder
+* Drop unused dependency on `blaze-builder`
 
 ## 3.0.1.1
 
@@ -16,7 +20,7 @@
 
 ## 3.0.0.8
 
-* Support wai 3.2
+* Support `wai-3.2`
 
 ## 3.0.0.7
 
@@ -24,4 +28,4 @@
 
 ## 3.0.0.5
 
-Allow blaze-builder 0.4
+Allow `blaze-builder-0.4`
