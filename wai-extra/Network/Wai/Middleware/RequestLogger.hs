@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- NOTE: Due to https://github.com/yesodweb/wai/issues/192, this module should
@@ -38,7 +39,9 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Default.Class (Default (def))
 import Data.IORef
 import Data.Maybe (fromMaybe, isJust, mapMaybe)
-import Data.Monoid (mconcat, (<>))
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid ((<>))
+#endif
 import Data.Text.Encoding (decodeUtf8')
 import Data.Time (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
 import Network.HTTP.Types as H

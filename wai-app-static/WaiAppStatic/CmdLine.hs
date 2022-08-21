@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards, CPP #-}
+{-# LANGUAGE CPP, RecordWildCards #-}
 -- | Command line version of wai-app-static, used for the warp-static server.
 module WaiAppStatic.CmdLine
     ( runCommandLine
@@ -24,7 +24,9 @@ import Network.Mime (defaultMimeMap, mimeByExt, defaultMimeType)
 import WaiAppStatic.Types (ssIndices, toPiece, ssGetMimeType, fileName, fromPiece)
 import Data.Maybe (mapMaybe)
 import Control.Arrow (second, (***))
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid ((<>))
+#endif
 
 data Args = Args
     { docroot :: FilePath
