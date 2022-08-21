@@ -39,7 +39,7 @@ import qualified System.TimeManager as Timeout
 import Network.Wai.Handler.Warp.Conduit
 import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.Header
-import Network.Wai.Handler.Warp.Imports hiding (readInt, lines)
+import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.RequestHeader
 import Network.Wai.Handler.Warp.Settings (Settings, settingsNoParsePath, settingsMaxTotalHeaderLength)

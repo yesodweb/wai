@@ -6,6 +6,7 @@ module Network.Wai.Handler.Warp.ResponseHeader (composeHeader) where
 import qualified Data.ByteString as S
 import Data.ByteString.Internal (create)
 import qualified Data.CaseInsensitive as CI
+import Data.List (foldl')
 import Foreign.Ptr
 import GHC.Storable
 import qualified Network.HTTP.Types as H

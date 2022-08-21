@@ -23,6 +23,7 @@ import Data.ByteString.Builder.Extra (flush)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
+import Data.List (deleteBy)
 import Data.Streaming.ByteString.Builder (newByteStringBuilderRecv, reuseBufferStrategy)
 import Data.Version (showVersion)
 import Data.Word8 (_cr, _lf)
