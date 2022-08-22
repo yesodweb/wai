@@ -4,7 +4,7 @@
 --
 --   * Allocates a buffer whose size is decided from the
 --     first argument.
---   * Receives data from the buffer.
+--   * Receives data with the buffer.
 --   * Allocates another buffer whose size fits the received data.
 --   * Copies the data from the first buffer to the second buffer.
 --
