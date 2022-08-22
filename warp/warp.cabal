@@ -226,11 +226,13 @@ Test-Suite spec
                    , transformers
 
   if (os(linux) || os(freebsd) || os(darwin)) && flag(allow-sendfilefd)
-    Cpp-Options:   -DSENDFILEFD
-    Build-Depends: unix
+      Cpp-Options:   -DSENDFILEFD
   if os(windows)
-    Cpp-Options:   -DWINDOWS
-    Build-Depends: time
+      Cpp-Options:   -DWINDOWS
+      Build-Depends: time
+  else
+      Build-Depends: unix
+      Other-modules: Network.Wai.Handler.Warp.MultiMap
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
   Default-Language:     Haskell2010
