@@ -1,5 +1,6 @@
 resolver: lts-18.28
 packages:
+- ./recv
 - ./auto-update
 - ./mime-types
 - ./wai
@@ -20,4 +21,5 @@ nix:
   packages:
   - fcgi
   - zlib
-extra-deps: []
+extra-deps:
+  - recv-0.0.0
