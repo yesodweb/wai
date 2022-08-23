@@ -1,5 +1,6 @@
 resolver: nightly-2020-01-08
 packages:
+- ./recv
 - ./auto-update
 - ./mime-types
 - ./wai
