@@ -23,4 +23,4 @@ nix:
   - fcgi
   - zlib
 extra-deps:
-  - recv-0.0.0
+  - ./recv
