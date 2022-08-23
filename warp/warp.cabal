@@ -258,6 +258,7 @@ Benchmark parser
                   , http-types
                   , network
                   , network
+                  , recv
                   , time-manager
                   , unix-compat
                   , unliftio
