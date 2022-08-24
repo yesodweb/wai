@@ -21,5 +21,3 @@ nix:
   packages:
   - fcgi
   - zlib
-extra-deps:
-  - ./recv
