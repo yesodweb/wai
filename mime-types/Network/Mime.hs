@@ -1034,6 +1034,7 @@ defaultMimeMap = Map.fromAscList [
     , ("xbap", "application/x-ms-xbap")
     , ("xbd", "application/vnd.fujixerox.docuworks.binder")
     , ("xbm", "image/x-xbitmap")
+    , ("xcf", "image/x-xcf")
     , ("xdf", "application/xcap-diff+xml")
     , ("xdm", "application/vnd.syncml.dm+xml")
     , ("xdp", "application/vnd.adobe.xdp+xml")
