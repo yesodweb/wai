@@ -495,7 +495,7 @@ defaultMimeMap = Map.fromAscList [
     , ("m2a", "audio/mpeg")
     , ("m2v", "video/mpeg")
     , ("m3a", "audio/mpeg")
-    , ("m3u", "audio/x-mpegurl")
+    , ("m3u", "application/vnd.apple.mpegurl")
     , ("m3u8", "application/vnd.apple.mpegurl")
     , ("m4a", "audio/x-m4a")
     , ("m4u", "video/vnd.mpegurl")

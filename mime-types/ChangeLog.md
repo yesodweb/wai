@@ -1,3 +1,10 @@
+## 0.1.0.10
+
+* Replace `audio/x-mpegurl` with IANA registered type
+  `application/vnd.apple.mpegurl`.
+
+See PR [#906](https://github.com/yesodweb/wai/pull/906).
+
 ## 0.1.0.9
 
 * Add mjs mime type
