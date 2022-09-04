@@ -738,7 +738,7 @@ defaultMimeMap = Map.fromAscList [
     , ("qxt", "application/vnd.quark.quarkxpress")
     , ("ra", "audio/x-pn-realaudio")
     , ("ram", "audio/x-pn-realaudio")
-    , ("rar", "application/x-rar-compressed")
+    , ("rar", "application/vnd.rar")
     , ("ras", "image/x-cmu-raster")
     , ("rcprofile", "application/vnd.ipunplugged.rcprofile")
     , ("rdf", "application/rdf+xml")
