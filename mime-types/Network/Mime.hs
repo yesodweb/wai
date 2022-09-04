@@ -297,7 +297,7 @@ defaultMimeMap = Map.fromAscList [
     , ("etx", "text/x-setext")
     , ("eva", "application/x-eva")
     , ("evy", "application/x-envoy")
-    , ("exe", "application/x-msdownload")
+    , ("exe", "application/vnd.microsoft.portable-executable")
     , ("exi", "application/exi")
     , ("ext", "application/vnd.novadigm.ext")
     , ("ez", "application/andrew-inset")
