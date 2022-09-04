@@ -132,6 +132,7 @@ defaultMimeMap = Map.fromAscList [
     , ("bdm", "application/vnd.syncml.dm+wbxml")
     , ("bed", "application/vnd.realvnc.bed")
     , ("bh2", "application/vnd.fujitsu.oasysprs")
+    , ("bib", "text/x-bibtex")
     , ("bin", "application/octet-stream")
     , ("blb", "application/x-blorb")
     , ("blorb", "application/x-blorb")

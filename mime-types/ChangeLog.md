@@ -1,3 +1,7 @@
+## 0.1.0.10
+
+* Add bib mime type [#905](https://github.com/yesodweb/wai/pull/905)
+
 ## 0.1.0.9
 
 * Add mjs mime type
