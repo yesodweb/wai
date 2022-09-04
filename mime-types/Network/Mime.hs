@@ -264,6 +264,7 @@ defaultMimeMap = Map.fromAscList [
     , ("dts", "audio/vnd.dts")
     , ("dtshd", "audio/vnd.dts.hd")
     , ("dump", "application/octet-stream")
+    , ("dv", "video/dv")
     , ("dvb", "video/vnd.dvb.file")
     , ("dvi", "application/x-dvi")
     , ("dwf", "model/vnd.dwf")
