@@ -639,6 +639,7 @@ defaultMimeMap = Map.fromAscList [
     , ("opf", "application/oebps-package+xml")
     , ("opml", "text/x-opml")
     , ("oprc", "application/vnd.palm")
+    , ("opus", "audio/opus")
     , ("org", "application/vnd.lotus-organizer")
     , ("osf", "application/vnd.yamaha.openscoreformat")
     , ("osfpvg", "application/vnd.yamaha.openscoreformat.osfpvg+xml")
