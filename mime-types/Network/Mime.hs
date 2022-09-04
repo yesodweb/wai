@@ -1058,7 +1058,7 @@ defaultMimeMap = Map.fromAscList [
     , ("xltx", "application/vnd.openxmlformats-officedocument.spreadsheetml.template")
     , ("xlw", "application/vnd.ms-excel")
     , ("xm", "audio/xm")
-    , ("xml", "text/xml")
+    , ("xml", "application/xml")
     , ("xo", "application/vnd.olpc-sugar")
     , ("xop", "application/xop+xml")
     , ("xpi", "application/x-xpinstall")
