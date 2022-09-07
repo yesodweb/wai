@@ -677,7 +677,7 @@ defaultMimeMap = Map.fromAscList [
     , ("pclxl", "application/vnd.hp-pclxl")
     , ("pct", "image/x-pict")
     , ("pcurl", "application/vnd.curl.pcurl")
-    , ("pcx", "image/x-pcx")
+    , ("pcx", "image/vnd.zbrush.pcx")
     , ("pdb", "application/vnd.palm")
     , ("pdf", "application/pdf")
     , ("pem", "application/x-x509-ca-cert")

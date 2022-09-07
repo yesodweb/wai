@@ -12,7 +12,8 @@
 * Change mime type for `.exe` files; use IANA registered type
   `application/vnd.microsoft.portable-executable`.
 * Add `video/dv` for files with extension `dv`.
-* Use 'application/xml' instead of 'text/xml';
+* Use 'application/xml' instead of 'text/xml'.
+* Change type for `.pcx` files to `image/vnd.zbrush.pcx`.
 
 See PR [#906](https://github.com/yesodweb/wai/pull/906).
 
