@@ -16,6 +16,7 @@ module Network.Wai.Handler.WarpTLS (
     -- * Runner
       runTLS
     , runTLSSocket
+    , runTLSBackend
     -- * Settings
     , TLSSettings
     , defaultTlsSettings
@@ -44,6 +45,8 @@ module Network.Wai.Handler.WarpTLS (
     , OnInsecure (..)
     -- * Exception
     , WarpTLSException (..)
+    -- * Conversion
+    , sockToBackend
     -- * DH parameters (re-exports)
     --
     -- | This custom DH parameters are not necessary anymore because
@@ -53,14 +56,14 @@ module Network.Wai.Handler.WarpTLS (
     ) where
 
 import Control.Applicative ((<|>))
-import UnliftIO.Exception (Exception, throwIO, bracket, finally, handle, handleAny, fromException, try, IOException, onException, SomeException(..), handleJust)
+import UnliftIO.Exception (Exception, throwIO, bracket, finally, handle, fromException, try, IOException, onException, SomeException(..), handleJust, handleAny)
 import qualified UnliftIO.Exception as E
 import Control.Monad (void, guard)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Data.Default.Class (def)
 import qualified Data.IORef as I
-import Data.Streaming.Network (bindPortTCP, safeRecv)
+import Data.Streaming.Network (bindPortTCP)
 import Data.Typeable (Typeable)
 import GHC.IO.Exception (IOErrorType(..))
 import Network.Socket (
@@ -73,7 +76,7 @@ import Network.Socket (
 #endif
     withSocketsDo,
  )
-import Network.Socket.ByteString (sendAll)
+import qualified Network.Socket.ByteString as Network
 import qualified Network.TLS as TLS
 import qualified Crypto.PubKey.DH as DH
 import qualified Network.TLS.Extra as TLSExtra
@@ -231,10 +234,28 @@ runTLSSocket tlsset set sock app = do
     runTLSSocket' tlsset set credentials mgr sock app
 
 runTLSSocket' :: TLSSettings -> Settings -> TLS.Credentials -> TLS.SessionManager -> Socket -> Application -> IO ()
-runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock =
+runTLSSocket' tlsset set credentials mgr sock = runTLSBackend' tlsset set credentials mgr acceptBackend
+  where
+    acceptBackend = do
+#if WINDOWS
+        (s, sa) <- windowsThreadBlockHack $ accept sock
+#else
+        (s, sa) <- accept sock
+#endif
+        setSocketCloseOnExec s
+        return (sockToBackend s, sa)
+
+runTLSBackend :: TLSSettings -> Settings -> IO (TLS.Backend, SockAddr) -> Application -> IO ()
+runTLSBackend tlsset set acceptBackend app = do
+    credentials <- loadCredentials tlsset
+    mgr <- getSessionManager tlsset
+    runTLSBackend' tlsset set credentials mgr acceptBackend app
+
+runTLSBackend' :: TLSSettings -> Settings -> TLS.Credentials -> TLS.SessionManager -> IO (TLS.Backend, SockAddr) -> Application -> IO ()
+runTLSBackend' tlsset@TLSSettings{..} set credentials mgr acceptBackend =
     runSettingsConnectionMakerSecure set get
   where
-    get = getter tlsset set sock params
+    get = getter tlsset set acceptBackend params
     params = def { -- TLS.ServerParams
         TLS.serverWantClientCert = tlsWantClientCert
       , TLS.serverCACertificates = []
@@ -276,31 +297,49 @@ alpn xs
 
 ----------------------------------------------------------------
 
-getter :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> params -> IO (IO (Connection, Transport), SockAddr)
-getter tlsset set sock params = do
-#if WINDOWS
-    (s, sa) <- windowsThreadBlockHack $ accept sock
-#else
-    (s, sa) <- accept sock
-#endif
-    setSocketCloseOnExec s
-    return (mkConn tlsset set s params, sa)
+getter :: TLS.TLSParams params => TLSSettings -> Settings -> IO (TLS.Backend, SockAddr) -> params -> IO (IO (Connection, Transport), SockAddr)
+getter tlsset set acceptBackend params = do
+    (backend, sa) <- acceptBackend
+    return (mkConn tlsset set backend params, sa)
 
-mkConn :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> params -> IO (Connection, Transport)
-mkConn tlsset set s params = (safeRecv s 4096 >>= switch) `onException` close s
+mkConn :: TLS.TLSParams params => TLSSettings -> Settings -> TLS.Backend -> params -> IO (Connection, Transport)
+mkConn tlsset set backend params = (TLS.backendRecv backend 4096 >>= switch) `onException` TLS.backendClose backend
   where
     switch firstBS
-        | S.null firstBS = close s >> throwIO ClientClosedConnectionPrematurely
-        | S.head firstBS == 0x16 = httpOverTls tlsset set s firstBS params
-        | otherwise = plainHTTP tlsset set s firstBS
+        | S.null firstBS = TLS.backendClose backend >> throwIO ClientClosedConnectionPrematurely
+        | S.head firstBS == 0x16 = httpOverTls tlsset set backend firstBS params
+        | otherwise = plainHTTP tlsset set backend firstBS
+
+sockToBackend :: Socket -> TLS.Backend
+sockToBackend s =
+  TLS.Backend {
+    TLS.backendFlush = return ()
+  , TLS.backendRecv = wrappedRecvN $ Network.recv s
+  , TLS.backendSend = sendAll' s
+#if MIN_VERSION_network(3,1,1)
+  , TLS.backendClose = gracefulClose s 5000 `E.catch` \(SomeException _) -> return ()
+#else
+  , TLS.backendClose = close s
+#endif
+  }
+  where
+    sendAll' s' bs = E.handleJust
+      (\ e -> if ioeGetErrorType e == ResourceVanished
+        then Just ConnectionClosedByPeer
+        else Nothing)
+      throwIO
+      $ Network.sendAll s' bs
+
+    wrappedRecvN recvN n = handleAny handler $ recvN n
+    handler :: SomeException -> IO S.ByteString
+    handler _ = return ""
 
 ----------------------------------------------------------------
 
-httpOverTls :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> S.ByteString -> params -> IO (Connection, Transport)
-httpOverTls TLSSettings{..} _set s bs0 params = do
-    rawRecvN <- makePlainReceiveN s 2048 16384 bs0
-    let recvN = wrappedRecvN rawRecvN
-    ctx <- TLS.contextNew (backend recvN) params
+httpOverTls :: TLS.TLSParams params => TLSSettings -> Settings -> TLS.Backend -> S.ByteString -> params -> IO (Connection, Transport)
+httpOverTls TLSSettings{..} _set backend bs0 params = do
+    backend' <- backendWithLeftOver backend bs0
+    ctx <- TLS.contextNew backend' params
     TLS.contextHookSetLogging ctx tlsLogging
     TLS.handshake ctx
     h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
@@ -312,22 +351,17 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
     tls <- getTLSinfo ctx
     return (conn ctx writeBufferRef ref isH2, tls)
   where
-    backend recvN = TLS.Backend {
-        TLS.backendFlush = return ()
-#if MIN_VERSION_network(3,1,1)
-      , TLS.backendClose = gracefulClose s 5000 `E.catch` \(SomeException _) -> return ()
-#else
-      , TLS.backendClose = close s
-#endif
-      , TLS.backendSend  = sendAll' s
-      , TLS.backendRecv  = recvN
-      }
-    sendAll' sock bs = E.handleJust
-      (\ e -> if ioeGetErrorType e == ResourceVanished
-        then Just ConnectionClosedByPeer
-        else Nothing)
-      throwIO
-      $ sendAll sock bs
+    backendWithLeftOver b bs = do
+        bsRef <- I.newIORef bs
+        return b { TLS.backendRecv = recvWithLeftOver (TLS.backendRecv b) bsRef }
+    recvWithLeftOver recv bsRef n = do
+        bs <- I.readIORef bsRef
+        if S.null bs
+        then recv n
+        else do
+            let (bs1, bs2) = S.splitAt n bs
+            I.writeIORef bsRef bs2
+            return bs1
     conn ctx writeBufferRef ref isH2 = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
@@ -385,10 +419,6 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
             I.writeIORef cref leftover
             return ret
 
-    wrappedRecvN recvN n = handleAny handler $ recvN n
-    handler :: SomeException -> IO S.ByteString
-    handler _ = return ""
-
 fill :: S.ByteString -> Buffer -> BufSize -> Recv -> IO (Bool,S.ByteString)
 fill bs0 buf0 siz0 recv
   | siz0 <= len0 = do
@@ -443,10 +473,10 @@ tryIO = try
 
 ----------------------------------------------------------------
 
-plainHTTP :: TLSSettings -> Settings -> Socket -> S.ByteString -> IO (Connection, Transport)
-plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
+plainHTTP :: TLSSettings -> Settings -> TLS.Backend -> S.ByteString -> IO (Connection, Transport)
+plainHTTP TLSSettings{..} _set backend bs0 = case onInsecure of
     AllowInsecure -> do
-        conn' <- socketConnection set s
+        conn' <- backendToConnection backend
         cachedRef <- I.newIORef bs0
         let conn'' = conn'
                 { connRecv = recvPlain cachedRef (connRecv conn')
@@ -463,13 +493,41 @@ plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
         --        GOAWAY + INADEQUATE_SECURITY?
         -- FIXME: Content-Length:
         -- FIXME: TLS/<version>
-        sendAll s "HTTP/1.1 426 Upgrade Required\
+        TLS.backendSend backend "HTTP/1.1 426 Upgrade Required\
         \r\nUpgrade: TLS/1.0, HTTP/1.1\
         \r\nConnection: Upgrade\
         \r\nContent-Type: text/plain\r\n\r\n"
-        mapM_ (sendAll s) $ L.toChunks lbs
-        close s
+        mapM_ (TLS.backendSend backend) $ L.toChunks lbs
+        TLS.backendClose backend
         throwIO InsecureConnectionDenied
+
+backendToConnection  :: TLS.Backend -> IO Connection
+backendToConnection backend = do
+    isH2 <- I.newIORef False -- HTTP/1.x
+    writeBuffer <- createWriteBuffer 16384
+    writeBufferRef <- I.newIORef writeBuffer
+
+    return Connection
+        { connSendMany        = mapM_ sendAll'
+        , connSendAll         = TLS.backendSend backend
+        , connSendFile        = sendFile' writeBufferRef
+        , connClose           = TLS.backendClose backend
+        , connRecv            = recv'
+        , connRecvBuf         = recvBuf
+        , connWriteBuffer     = writeBufferRef
+        , connHTTP2           = isH2
+        }
+    where
+        recv' = TLS.backendRecv backend 16384
+        recvBuf buf0 size0 = do
+            bs <- TLS.backendRecv backend size0
+            void $ copy buf0 bs
+            return $ S.length bs == size0
+        -- To factor out
+        sendFile' writeBufferRef fid offset len hook headers = do
+            writeBuffer <- I.readIORef writeBufferRef
+            readSendFile (bufBuffer writeBuffer) (bufSize writeBuffer) sendAll' fid offset len hook headers
+        sendAll' = TLS.backendSend backend
 
 ----------------------------------------------------------------
 
