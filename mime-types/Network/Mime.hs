@@ -377,7 +377,7 @@ defaultMimeMap = Map.fromAscList [
     , ("gv", "text/vnd.graphviz")
     , ("gxf", "application/gxf")
     , ("gxt", "application/vnd.geonext")
-    , ("gz", "application/x-gzip")
+    , ("gz", "application/gzip")
     , ("h", "text/x-c")
     , ("h261", "video/h261")
     , ("h263", "video/h263")

@@ -15,6 +15,7 @@
 * Use 'application/xml' instead of 'text/xml'.
 * Change type for `.pcx` files to `image/vnd.zbrush.pcx`.
 * Use `text/markdown` type for `.md` and `.markdown` files.
+* Replace `application/x-gzip` with type `application/gzip`.
 
 See PR [#906](https://github.com/yesodweb/wai/pull/906).
 
