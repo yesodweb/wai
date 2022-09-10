@@ -1,4 +1,4 @@
-## 0.1.0.10
+## 0.1.1.0
 
 * Replace `audio/x-mpegurl` with IANA registered type
   `application/vnd.apple.mpegurl`.
