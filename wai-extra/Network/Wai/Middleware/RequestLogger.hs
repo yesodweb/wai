@@ -3,6 +3,7 @@
 
 -- NOTE: Due to https://github.com/yesodweb/wai/issues/192, this module should
 -- not use CPP.
+-- EDIT: Fixed this by adding two "zero-width spaces" in between the "*/*"
 module Network.Wai.Middleware.RequestLogger
     ( -- * Basic stdout logging
       logStdout
@@ -324,15 +325,17 @@ logStdoutDev = unsafePerformIO $ mkRequestLogger def
 -- Example ouput:
 --
 -- > GET search
--- >   Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+-- >   Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*​/​*;q=0.8
 -- >   Status: 200 OK 0.010555s
 -- >
 -- > GET static/css/normalize.css
 -- >   Params: [("LXwioiBG","")]
--- >   Accept: text/css,*/*;q=0.1
+-- >   Accept: text/css,*​/​*;q=0.1
 -- >   Status: 304 Not Modified 0.010555s
-
 detailedMiddleware :: Callback -> DetailedSettings -> IO Middleware
+
+-- NB: The *​/​* in the comments above have "zero-width spaces" in them, so the
+-- CPP doesn't screw up everything. So don't copy those; they're technically wrong.
 detailedMiddleware cb settings =
     let (ansiColor, ansiMethod, ansiStatusCode) =
           if useColors settings
