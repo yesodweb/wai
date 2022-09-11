@@ -1,6 +1,7 @@
 packages:
     auto-update
     mime-types
+    recv
     wai
     wai-extra
     warp

@@ -10,8 +10,8 @@ import Data.List (foldl')
 import Foreign.Ptr
 import GHC.Storable
 import qualified Network.HTTP.Types as H
+import Network.Socket.BufferPool (copy)
 
-import Network.Wai.Handler.Warp.Buffer (copy)
 import Network.Wai.Handler.Warp.Imports
 
 ----------------------------------------------------------------

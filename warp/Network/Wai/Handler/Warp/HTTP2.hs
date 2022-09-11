@@ -9,16 +9,17 @@ module Network.Wai.Handler.Warp.HTTP2 (
   , http2server
   ) where
 
-import qualified UnliftIO
 import qualified Data.ByteString as BS
 import Data.IORef (IORef, newIORef, writeIORef, readIORef)
 import qualified Data.IORef as I
 import qualified Network.HTTP2.Frame as H2
 import qualified Network.HTTP2.Server as H2
 import Network.Socket (SockAddr)
+import Network.Socket.BufferPool
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived(..))
 import qualified System.TimeManager as T
+import qualified UnliftIO
 
 import Network.Wai.Handler.Warp.HTTP2.File
 import Network.Wai.Handler.Warp.HTTP2.PushPromise
@@ -27,7 +28,6 @@ import Network.Wai.Handler.Warp.HTTP2.Response
 import Network.Wai.Handler.Warp.Imports
 import qualified Network.Wai.Handler.Warp.Settings as S
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Handler.Warp.Recv
 
 ----------------------------------------------------------------
 
@@ -115,7 +115,7 @@ http2server settings ii transport addr app h2req0 aux0 response = do
 
 wrappedRecvN :: T.Handle -> IORef Bool -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
 wrappedRecvN th istatus slowlorisSize readN bufsize = do
-    bs <- readN bufsize
+    bs <-  UnliftIO.handleAny handler $ readN bufsize
     unless (BS.null bs) $ do
         writeIORef istatus True
     -- TODO: think about the slowloris protection in HTTP2: current code
@@ -125,6 +125,9 @@ wrappedRecvN th istatus slowlorisSize readN bufsize = do
     -- deployments with large NATs may be trickier).
         when (BS.length bs >= slowlorisSize || bufsize <= slowlorisSize) $ T.tickle th
     return bs
+ where
+   handler :: UnliftIO.SomeException -> IO ByteString
+   handler _ = return ""
 
 -- connClose must not be called here since Run:fork calls it
 goaway :: Connection -> H2.ErrorCodeId -> ByteString -> IO ()

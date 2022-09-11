@@ -1,5 +1,6 @@
 resolver: lts-17.15
 packages:
+- ./recv
 - ./auto-update
 - ./mime-types
 - ./wai

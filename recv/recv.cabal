@@ -1,0 +1,45 @@
+Name:                recv
+Version:             0.0.0
+Synopsis:            Efficient netowrk recv
+License:             BSD3
+License-file:        LICENSE
+Author:              Kazu Yamamoto
+Maintainer:          kazu@iij.ad.jp
+Homepage:            http://github.com/yesodweb/wai
+Category:            Network
+Build-Type:          Simple
+Cabal-Version:       >= 1.10
+Stability:           Stable
+description:         Network recv based on buffer pools
+
+Library
+  Build-Depends:     base                      >= 4.12       && < 5
+                   , bytestring                >= 0.9.1.4
+                   , network                   >= 3.1.0
+  Exposed-modules:   Network.Socket.BufferPool
+  Other-modules:     Network.Socket.BufferPool.Buffer
+                     Network.Socket.BufferPool.Recv
+                     Network.Socket.BufferPool.Types
+                     Network.Socket.BufferPool.Windows
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
+  Ghc-Options:       -Wall
+  Default-Language:  Haskell2010
+
+Test-Suite spec
+  Main-Is:           Spec.hs
+  Other-modules:     BufferPoolSpec
+                     Network.Socket.BufferPool
+                     Network.Socket.BufferPool.Buffer
+                     Network.Socket.BufferPool.Recv
+                     Network.Socket.BufferPool.Types
+                     Network.Socket.BufferPool.Windows
+  Hs-Source-Dirs:    test, .
+  Type:              exitcode-stdio-1.0
+  Build-Depends:     base                      >= 4.12       && < 5
+                   , bytestring                >= 0.9.1.4
+                   , network                   >= 3.1.0
+                   , hspec
+  Ghc-Options:       -Wall
+  Default-Language:  Haskell2010
+  Build-Tool-Depends: hspec-discover:hspec-discover

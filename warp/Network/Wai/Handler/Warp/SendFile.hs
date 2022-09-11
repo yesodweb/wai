@@ -11,6 +11,7 @@ module Network.Wai.Handler.Warp.SendFile (
 
 import qualified Data.ByteString as BS
 import Network.Socket (Socket)
+import Network.Socket.BufferPool
 
 #ifdef WINDOWS
 import Foreign.ForeignPtr (newForeignPtr_)
