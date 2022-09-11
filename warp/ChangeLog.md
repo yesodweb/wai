@@ -1,9 +1,14 @@
 # ChangeLog for warp
 
-## 3.3.22.1
+## 3.3.23.1
 
 * Removed some package dependencies from test suite
   [#902](https://github.com/yesodweb/wai/pull/902)
+
+## 3.3.23
+
+* Factored out `Network.Wai.Handler.Warp.Recv` to its own package `recv`.
+  [#899](https://github.com/yesodweb/wai/pull/895)
 
 ## 3.3.22
 
