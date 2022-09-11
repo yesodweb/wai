@@ -9,11 +9,12 @@ author:              Michael Snoyman
 maintainer:          michael@snoyman.com
 category:            Web
 build-type:          Simple
-cabal-version:       >=1.8
+cabal-version:       >=1.10
 extra-source-files:  README.md ChangeLog.md
 
 library
   exposed-modules:     Network.Mime
+  default-language:    Haskell2010
   build-depends:       base           >= 4.12   && < 5
                      , containers
                      , text
