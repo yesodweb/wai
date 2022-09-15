@@ -1,10 +1,10 @@
 module Control.ReaperSpec (spec) where
 
-import Control.Concurrent
-import Control.Reaper
-import Data.IORef
+-- import Control.Concurrent
+-- import Control.Reaper
+-- import Data.IORef
 import Test.Hspec
-import Test.Hspec.QuickCheck
+-- import Test.Hspec.QuickCheck
 
 
 spec :: Spec

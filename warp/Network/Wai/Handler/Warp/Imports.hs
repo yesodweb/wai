@@ -4,7 +4,6 @@ module Network.Wai.Handler.Warp.Imports (
   , module Control.Applicative
   , module Control.Monad
   , module Data.Bits
-  , module Data.List
   , module Data.Int
   , module Data.Monoid
   , module Data.Ord
@@ -18,7 +17,6 @@ import Control.Monad
 import Data.Bits
 import Data.ByteString.Internal (ByteString(..))
 import Data.Int
-import Data.List
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe
 import Data.Monoid

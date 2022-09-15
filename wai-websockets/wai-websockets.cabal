@@ -1,5 +1,5 @@
 Name:                wai-websockets
-Version:             3.0.1.2
+Version:             3.0.1.3
 Synopsis:            Provide a bridge between WAI and the websockets package.
 License:             MIT
 License-file:        LICENSE
@@ -22,7 +22,6 @@ Library
                    , bytestring         >= 0.9.1.4
                    , wai                >= 3.0      && < 3.3
                    , case-insensitive   >= 0.2
-                   , network            >= 2.2.1.5
                    , transformers       >= 0.2
                    , websockets         >= 0.9
                    , http-types
@@ -33,7 +32,6 @@ Executable           wai-websockets-example
   if flag(example)
     buildable: True
     Build-Depends:   base               >= 3 && < 5
-                   , wai-websockets
                    , websockets
                    , warp
                    , wai
@@ -41,7 +39,6 @@ Executable           wai-websockets-example
                    , bytestring
                    , case-insensitive
                    , transformers
-                   , network
                    , text
                    , file-embed
                    , http-types

@@ -1,5 +1,5 @@
 Name:                warp
-Version:             3.3.23
+Version:             3.3.23.1
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -187,10 +187,8 @@ Test-Suite spec
     Ghc-Options:     -Wall -threaded
     Build-Tool-Depends: hspec-discover:hspec-discover
     Build-Depends:   base >= 4.8 && < 5
-                   , HUnit
                    , QuickCheck
                    , array
-                   , async
                    , auto-update
                    , bsb-http-chunked                         < 0.1
                    , bytestring                >= 0.9.1.4
@@ -212,7 +210,6 @@ Test-Suite spec
                    , stm                       >= 2.3
                    , streaming-commons         >= 0.1.10
                    , text
-                   , time
                    , time-manager
                    , unix-compat               >= 0.2
                    , vault

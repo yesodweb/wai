@@ -1,5 +1,9 @@
 # wai-app-static changelog
 
+## 3.1.7.5
+
+* Removed dependency of `time`, `old-locale` and `network` [#902](https://github.com/yesodweb/wai/pull/902)
+
 ## 3.1.7.4
 
 * Fix a bug when the cryptonite flag is disabled. [#874](https://github.com/yesodweb/wai/pull/874)
@@ -10,7 +14,7 @@
 
 ## 3.1.7.2
 
-* optparse-applicative 0.16.0.0 support
+* `optparse-applicative-0.16.0.0` support
 
 ## 3.1.7.1
 
@@ -28,7 +32,7 @@ reached via `--help` as before.
 
 ## 3.1.6.2
 
-* Drop dependency on blaze-builder
+* Drop dependency on `blaze-builder`
 
 ## 3.1.6.1
 

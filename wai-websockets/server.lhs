@@ -11,7 +11,9 @@ nearby to check out the functions we use.
 > {-# LANGUAGE CPP #-}
 > {-# OPTIONS_GHC -Wno-unused-top-binds #-} -- for numClients
 > import Data.Char (isPunctuation, isSpace)
+#if __GLASGOW_HASKELL__ < 710
 > import Data.Monoid (mappend)
+#endif
 > import Data.Text (Text)
 > import Control.Exception (finally)
 > import Control.Monad (forM_, forever)

@@ -1,4 +1,4 @@
-module Control.DebounceSpec (spec) where
+module Control.DebounceSpec (main, spec) where
 
 import Control.Concurrent
 import Control.Debounce
@@ -14,7 +14,7 @@ spec :: Spec
 spec = describe "mkDebounce" $ do
     describe "Leading edge" $ do
         it "works for a single event" $ do
-            (ref, debounced, baton, returnFromWait) <- getDebounce leadingEdge
+            (ref, debounced, _baton, returnFromWait) <- getDebounce leadingEdge
 
             debounced
             waitUntil 5 $ readIORef ref >>= (`shouldBe` 1)
@@ -46,7 +46,7 @@ spec = describe "mkDebounce" $ do
 
     describe "Trailing edge" $ do
         it "works for a single event" $ do
-            (ref, debounced, baton, returnFromWait) <- getDebounce trailingEdge
+            (ref, debounced, _baton, returnFromWait) <- getDebounce trailingEdge
 
             debounced
             pause
