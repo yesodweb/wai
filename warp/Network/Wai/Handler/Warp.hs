@@ -64,6 +64,7 @@ module Network.Wai.Handler.Warp (
   , setServerName
   , setMaximumBodyFlush
   , setFork
+  , setAccept
   , setProxyProtocolNone
   , setProxyProtocolRequired
   , setProxyProtocolOptional
@@ -135,7 +136,7 @@ import qualified Data.Vault.Lazy as Vault
 import Data.X509
 #endif
 import qualified Network.HTTP.Types as H
-import Network.Socket (SockAddr)
+import Network.Socket (Socket, SockAddr)
 import Network.Wai (Request, Response, vault)
 import System.TimeManager
 
@@ -369,6 +370,17 @@ setMaximumBodyFlush x y
 -- Since 3.0.4
 setFork :: (((forall a. IO a -> IO a) -> IO ()) -> IO ()) -> Settings -> Settings
 setFork fork' s = s { settingsFork = fork' }
+
+-- | Code to accept a new connection.
+--
+-- Useful if you need to provide connected sockets from something other
+-- than a standard accept call.
+--
+-- Default: 'defaultAccept'
+--
+-- Since x.x.x
+setAccept :: (Socket -> IO (Socket, SockAddr)) -> Settings -> Settings
+setAccept accept' s = s { settingsAccept = accept' }
 
 -- | Do not use the PROXY protocol.
 --
