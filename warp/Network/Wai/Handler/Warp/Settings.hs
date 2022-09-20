@@ -24,6 +24,7 @@ import System.IO.Error (ioeGetErrorType)
 import System.TimeManager
 
 import Network.Wai.Handler.Warp.Imports
+import Network.Wai.Handler.Warp.Internal (windowsThreadBlockHack)
 import Network.Wai.Handler.Warp.Types
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
