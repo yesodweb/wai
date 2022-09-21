@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.3.4
+
+* Add `setAccept` for hooking the socket `accept` call.
+  [#912](https://github.com/yesodweb/wai/pull/912)
+
 ## 3.3.3
 
 * Creating a bigger buffer when the current one is too small to fit the Builder

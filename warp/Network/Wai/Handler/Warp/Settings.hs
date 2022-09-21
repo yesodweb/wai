@@ -76,7 +76,7 @@ data Settings = Settings
       --
       -- Default: 'defaultAccept'
       --
-      -- Since x.x.x
+      -- Since 3.3.24
 
     , settingsNoParsePath :: Bool
       -- ^ Perform no parsing on the rawPathInfo.
@@ -290,7 +290,7 @@ defaultFork io =
 
 -- | Standard "accept" call for a listening socket.
 --
--- @since x.x.x
+-- @since 3.3.24
 defaultAccept :: Socket -> IO (Socket, SockAddr)
 defaultAccept =
 #if WINDOWS

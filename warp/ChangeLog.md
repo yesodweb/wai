@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.24
+
+* Add `setAccept` for hooking the socket `accept` call.
+  [#912](https://github.com/yesodweb/wai/pull/912)
+
 ## 3.3.23.1
 
 * Removed some package dependencies from test suite

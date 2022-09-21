@@ -378,7 +378,7 @@ setFork fork' s = s { settingsFork = fork' }
 --
 -- Default: 'defaultAccept'
 --
--- Since x.x.x
+-- Since 3.3.24
 setAccept :: (Socket -> IO (Socket, SockAddr)) -> Settings -> Settings
 setAccept accept' s = s { settingsAccept = accept' }
 
