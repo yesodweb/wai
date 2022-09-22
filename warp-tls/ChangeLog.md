@@ -2,7 +2,7 @@
 
 ## 3.3.4
 
-* Add `setAccept` for hooking the socket `accept` call.
+* Integrated customizable `accept` hook from `Network.Wai.Handler.Warp.Settings` (cf. `setAccept`)
   [#912](https://github.com/yesodweb/wai/pull/912)
 
 ## 3.3.3
