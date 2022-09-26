@@ -13,7 +13,7 @@
 ## 3.3.23
 
 * Factored out `Network.Wai.Handler.Warp.Recv` to its own package `recv`.
-  [#899](https://github.com/yesodweb/wai/pull/895)
+  [#899](https://github.com/yesodweb/wai/pull/899)
 
 ## 3.3.22
 
