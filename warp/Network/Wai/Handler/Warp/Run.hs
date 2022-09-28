@@ -15,7 +15,7 @@ import Data.IORef (newIORef, readIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno(..), eCONNABORTED, eMFILE)
 import GHC.IO.Exception (IOException(..), IOErrorType(..))
-import Network.Socket (Socket, close, accept, withSocketsDo, SockAddr, setSocketOption, SocketOption(..))
+import Network.Socket (Socket, close, withSocketsDo, SockAddr, setSocketOption, SocketOption(..))
 #if MIN_VERSION_network(3,1,1)
 import Network.Socket (gracefulClose)
 #endif
@@ -149,16 +149,12 @@ runSettings set app = withSocketsDo $
 -- Note that the 'settingsPort' will still be passed to 'Application's via the
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
-runSettingsSocket set socket app = do
+runSettingsSocket set@Settings{settingsAccept = accept'} socket app = do
     settingsInstallShutdownHandler set closeListenSocket
     runSettingsConnection set getConn app
   where
     getConn = do
-#if WINDOWS
-        (s, sa) <- windowsThreadBlockHack $ accept socket
-#else
-        (s, sa) <- accept socket
-#endif
+        (s, sa) <- accept' socket
         setSocketCloseOnExec s
         -- NoDelay causes an error for AF_UNIX.
         setSocketOption s NoDelay 1 `UnliftIO.catchAny` \(UnliftIO.SomeException _) -> return ()
