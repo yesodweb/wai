@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.3.4.1
+
+* Install shutdown handlers passed via `Settings` to `run...` functions
+  [#915](https://github.com/yesodweb/wai/pull/915)
+
 ## 3.3.3
 
 * Creating a bigger buffer when the current one is too small to fit the Builder
