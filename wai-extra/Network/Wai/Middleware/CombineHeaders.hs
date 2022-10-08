@@ -72,25 +72,30 @@ data CombineSettings = CombineSettings {
 -- * \"Access-Control-Expose-Headers\"
 -- * \"Access-Control-Request-Headers\"
 -- * \"Allow\"
--- * \"Alt-Svc\"
+-- * \"Alt-Svc\" @(KeepOnly \"clear\")@
 -- * \"Cache-Control\"
--- * \"Clear-Site-Data\"
+-- * \"Clear-Site-Data\" @(KeepOnly \"*\")@
 -- * \"Connection\"
 -- * \"Content-Encoding\"
 -- * \"Content-Language\"
 -- * \"Digest\"
 -- * \"If-Match\"
--- * \"If-None-Match\"
+-- * \"If-None-Match\" @(KeepOnly \"*\")@
 -- * \"Link\"
 -- * \"Permissions-Policy\"
 -- * \"TE\"
--- * \"Timing-Allow-Origin\"
+-- * \"Timing-Allow-Origin\" @(KeepOnly \"*\")@
 -- * \"Trailer\"
 -- * \"Transfer-Encoding\"
 -- * \"Upgrade\"
 -- * \"Via\"
--- * \"Vary\"
+-- * \"Vary\" @(KeepOnly \"*\")@
 -- * \"Want-Digest\"
+--
+-- N.B. Any header name that has \"KeepOnly\" after it
+-- will be combined like normal, unless one of the values
+-- is the only mentioned (\"*\" most of the time), then
+-- that value is used and all others are dropped.
 --
 -- @since 3.1.13.0
 defaultCombineSettings :: CombineSettings
