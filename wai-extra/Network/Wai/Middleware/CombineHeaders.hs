@@ -23,7 +23,7 @@ module Network.Wai.Middleware.CombineHeaders
 import qualified Data.ByteString as B
 import qualified Data.List as L (foldl', reverse)
 import qualified Data.Map.Strict as M
-import Data.Word8 (_comma, _space)
+import Data.Word8 (_comma, _space, _tab)
 import Network.HTTP.Types (Header, HeaderName, RequestHeaders)
 import qualified Network.HTTP.Types.Header as H
 import Network.Wai (Middleware, requestHeaders, mapResponseHeaders)
@@ -156,7 +156,7 @@ finishHeaders name (shouldCombine, xs) hdrs =
         | otherwise = combineHdrs xs
     -- headers were reversed, so do 'reverse' before combining
     combineHdrs = B.intercalate ", " . fmap clean . L.reverse
-    clean = dropWhileEnd $ \w -> w == _comma || w == _space
+    clean = dropWhileEnd $ \w -> w == _comma || w == _space || w == _tab
 
 type HeaderHandling = (Maybe HandleType, [B.ByteString])
 

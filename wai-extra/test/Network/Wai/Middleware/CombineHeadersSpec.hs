@@ -53,12 +53,12 @@ spec = do
 
     -- Request Headers
     testReqHdrs
-        "KeepOnly works as expected (present)"
+        "KeepOnly works as expected (present | request)"
         -- "Alt-Svc" has (KeepOnly "clear")
         [ date, altSvc "wrong", altSvc "clear", altSvc "wrong again", host ]
         [ altSvc "clear", date, host ]
     testReqHdrs
-        "KeepOnly works as expected (absent)"
+        "KeepOnly works as expected ( absent | request)"
         -- "Alt-Svc" has (KeepOnly "clear"), but will combine when there's no "clear" (AND keeps order)
         [ date, altSvc "wrong", altSvc "not clear", altSvc "wrong again", host ]
         [ altSvc "wrong, not clear, wrong again", date, host ]
@@ -75,6 +75,16 @@ spec = do
         [ date, ifNoneMatch "wrong", ifNoneMatch "not *", ifNoneMatch "wrong again", host ]
         [ date, host, ifNoneMatch "wrong, not *, wrong again" ]
 
+    -- Request Headers
+    testReqHdrs
+        "Technically acceptable headers get combined correctly (request)"
+        [ ifNoneMatch "correct, ", ifNoneMatch "something else \t", ifNoneMatch "and more , "]
+        [ ifNoneMatch "correct, something else, and more" ]
+    -- Response Headers
+    testResHdrs
+        "Technically acceptable headers get combined correctly (response)"
+        [ altSvc "correct\t, ", altSvc "something else", altSvc "and more, , "]
+        [ altSvc "correct, something else, and more" ]
 
 combineHdrs :: Header -> Header -> Header
 combineHdrs (hname, h1) (_, h2) = (hname, h1 <> ", " <> h2)
