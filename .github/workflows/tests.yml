@@ -20,7 +20,6 @@ jobs:
         - "--resolver lts-18"
         - "--resolver lts-17 --stack-yaml stack-lts-17.yaml"
         - "--resolver lts-16 --stack-yaml stack-lts-17.yaml"
-        - "--resolver lts-14 --stack-yaml stack-lts-14.yaml"
 
     steps:
       - name: Clone project

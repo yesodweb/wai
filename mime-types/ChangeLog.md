@@ -1,3 +1,24 @@
+## 0.1.1.0
+
+* Replace `audio/x-mpegurl` with IANA registered type
+  `application/vnd.apple.mpegurl`.
+* Add TeX-related types; this includes `bib`, `tex`, `sty`, and `cls`.
+* Use type image/x-xcf for `.xcf` files.
+* Use type "audio/opus" for `.opus` files.
+* Add type text/vtt for `.vtt` text track files.
+* Use IANA registered type "application/vnd.rar" for `.rar` files.
+* Use font types defined in RFC 8081.
+* Replace `audio/x-m4a` with `audio/mp4`.
+* Change mime type for `.exe` files; use IANA registered type
+  `application/vnd.microsoft.portable-executable`.
+* Add `video/dv` for files with extension `dv`.
+* Use 'application/xml' instead of 'text/xml'.
+* Change type for `.pcx` files to `image/vnd.zbrush.pcx`.
+* Use `text/markdown` type for `.md` and `.markdown` files.
+* Replace `application/x-gzip` with type `application/gzip`.
+
+See PR [#906](https://github.com/yesodweb/wai/pull/906).
+
 ## 0.1.0.9
 
 * Add mjs mime type

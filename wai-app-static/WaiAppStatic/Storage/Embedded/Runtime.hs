@@ -8,7 +8,7 @@ module WaiAppStatic.Storage.Embedded.Runtime
 import WaiAppStatic.Types
 import Data.ByteString (ByteString)
 import Control.Arrow ((&&&), second)
-import Data.List
+import Data.List (groupBy, sortBy)
 import Data.ByteString.Builder (byteString)
 import qualified Network.Wai as W
 import qualified Data.Map as Map
@@ -41,7 +41,7 @@ embeddedLookup root pieces =
     return $ elookup pieces root
   where
     elookup  :: Pieces -> Embedded -> LookupResult
-    elookup [] x = LRFolder $ Folder $ map toEntry $ Map.toList x
+    elookup [] x = LRFolder $ Folder $ fmap toEntry $ Map.toList x
     elookup [p] x | T.null (fromPiece p) = elookup [] x
     elookup (p:ps) x =
         case Map.lookup p x of
@@ -66,7 +66,7 @@ toEmbedded :: [(Prelude.FilePath, ByteString)] -> Embedded
 toEmbedded fps =
     go texts
   where
-    texts = map (\(x, y) -> (filter (not . T.null . fromPiece) $ toPieces' x, y)) fps
+    texts = fmap (\(x, y) -> (filter (not . T.null . fromPiece) $ toPieces' x, y)) fps
     toPieces' "" = []
     toPieces' x =
         -- See https://github.com/yesodweb/yesod/issues/626
