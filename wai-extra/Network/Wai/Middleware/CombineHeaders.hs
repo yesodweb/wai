@@ -12,10 +12,12 @@ to make sure that headers that /can/ be combined
 /are/ combined. (e.g. applications might only
 check the first \"Accept\" header and fail, while
 there might be another one that would match)
--}
+    -}
 module Network.Wai.Middleware.CombineHeaders
     ( combineHeaders
     , defaultCombineSettings
+    , setHeader
+    , removeHeader
     , CombineSettings (..)
     , HandleType (..)
     ) where
@@ -94,7 +96,7 @@ data CombineSettings = CombineSettings {
 --
 -- N.B. Any header name that has \"KeepOnly\" after it
 -- will be combined like normal, unless one of the values
--- is the only mentioned (\"*\" most of the time), then
+-- is the one mentioned (\"*\" most of the time), then
 -- that value is used and all others are dropped.
 --
 -- @since 3.1.13.0
@@ -104,6 +106,25 @@ defaultCombineSettings = CombineSettings {
     combineRequestHeaders = True,
     combineResponseHeaders = False
 }
+
+-- | Convenience function to add a header to the header map or,
+-- if it is already in the map, to change the 'HandleType'.
+--
+-- @since 3.1.13.0
+setHeader :: HeaderName -> HandleType -> CombineSettings -> CombineSettings
+setHeader name typ settings =
+    settings {
+        combineHeaderMap = M.insert name typ $ combineHeaderMap settings
+    }
+
+-- | Convenience function to remove a header from the header map.
+--
+-- @since 3.1.13.0
+removeHeader :: HeaderName -> CombineSettings -> CombineSettings
+removeHeader name settings =
+    settings {
+        combineHeaderMap = M.delete name $ combineHeaderMap settings
+    }
 
 -- | This middleware will reorganize the incoming and/or outgoing
 -- headers in such a way that it combines any duplicates of
@@ -165,8 +186,8 @@ finishHeaders name (shouldCombine, xs) hdrs =
 
 type HeaderHandling = (Maybe HandleType, [B.ByteString])
 
--- | Both will concatenate with @,@ (commas), but 'KeepOnly' will
--- drop all values except the given one (in case of wildcards/special values)
+-- | Both will concatenate with @,@ (commas), but 'KeepOnly' will drop all
+-- values except the given one if present (e.g. in case of wildcards/special values)
 --
 -- For example: If there are multiple @"Clear-Site-Data"@ headers, but one of
 -- them is the wildcard @\"*\"@ value, using @'KeepOnly' "*"@ will cause all
