@@ -27,6 +27,7 @@ spec = do
             test name defaultCombineSettings a b [] []
         testResHdrs name a b =
             test name defaultCombineSettings { combineRequestHeaders = False, combineResponseHeaders = True} [] [] a b
+
     -- Request Headers
     testReqHdrs
         "should reorder alphabetically (request)"
@@ -37,6 +38,7 @@ spec = do
         "should reorder alphabetically (response)"
         [expires        , location, contentTypeHtml]
         [contentTypeHtml, expires , location       ]
+
     -- Request Headers
     testReqHdrs
         "combines Accept (in order)"
@@ -48,6 +50,31 @@ spec = do
         "combines Cache-Control (in order) and keeps Set-Cookie (in order)"
         [ cacheControlPublic, setCookie "2", date, cacheControlMax, setCookie "1"]
         [ cacheControlPublic `combineHdrs` cacheControlMax, date, setCookie "2", setCookie "1"]
+
+    -- Request Headers
+    testReqHdrs
+        "KeepOnly works as expected (present)"
+        -- "Alt-Svc" has (KeepOnly "clear")
+        [ date, altSvc "wrong", altSvc "clear", altSvc "wrong again", host ]
+        [ altSvc "clear", date, host ]
+    testReqHdrs
+        "KeepOnly works as expected (absent)"
+        -- "Alt-Svc" has (KeepOnly "clear"), but will combine when there's no "clear" (AND keeps order)
+        [ date, altSvc "wrong", altSvc "not clear", altSvc "wrong again", host ]
+        [ altSvc "wrong, not clear, wrong again", date, host ]
+
+    -- Response Headers
+    testResHdrs
+        "KeepOnly works as expected (present | response)"
+        -- "If-None-Match" has (KeepOnly "*")
+        [ date, ifNoneMatch "wrong", ifNoneMatch "*", ifNoneMatch "wrong again", host ]
+        [ date, host, ifNoneMatch "*" ]
+    testResHdrs
+        "KeepOnly works as expected ( absent | response)"
+        -- "If-None-Match" has (KeepOnly "*"), but will combine when there's no "*" (AND keeps order)
+        [ date, ifNoneMatch "wrong", ifNoneMatch "not *", ifNoneMatch "wrong again", host ]
+        [ date, host, ifNoneMatch "wrong, not *, wrong again" ]
+
 
 combineHdrs :: Header -> Header -> Header
 combineHdrs (hname, h1) (_, h2) = (hname, h1 <> ", " <> h2)
@@ -65,13 +92,17 @@ acceptHtml,
 
 acceptHtml = (hAccept, "text/html")
 acceptJSON = (hAccept, "application/json")
+altSvc :: ByteString -> Header
+altSvc x = ("Alt-Svc", x)
 cacheControlPublic = (hCacheControl, "public")
 cacheControlMax = (hCacheControl, "public")
 contentTypeHtml = (hContentType, "text/html")
 date = (hDate, "Mon, 19 Aug 2022 18:18:31 GMT")
 expires = (hExpires, "Mon, 19 Sep 2022 18:18:31 GMT")
-location = (hLocation, "http://www.google.com/")
 host = (hHost, "google.com")
+ifNoneMatch :: ByteString -> Header
+ifNoneMatch x = (hIfNoneMatch, x)
+location = (hLocation, "http://www.google.com/")
 setCookie :: ByteString -> Header
 setCookie val = (hSetCookie, val)
 userAgent = (hUserAgent, "curl/7.68.0")
