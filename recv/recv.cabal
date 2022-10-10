@@ -1,6 +1,6 @@
 Name:                recv
 Version:             0.0.0
-Synopsis:            Efficient netowrk recv
+Synopsis:            Efficient network recv
 License:             BSD3
 License-file:        LICENSE
 Author:              Kazu Yamamoto

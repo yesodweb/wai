@@ -16,7 +16,7 @@ import qualified Data.Text.IO as TIO
 import Data.Version (showVersion)
 import GHC.IO.Exception (IOErrorType(..), AsyncException (ThreadKilled))
 import qualified Network.HTTP.Types as H
-import Network.Socket (SockAddr)
+import Network.Socket (Socket, SockAddr, accept)
 import Network.Wai
 import qualified Paths_warp
 import System.IO (stderr)
@@ -25,6 +25,7 @@ import System.TimeManager
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Windows (windowsThreadBlockHack)
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
 -- type so that new settings can be added without breaking backwards
@@ -66,6 +67,16 @@ data Settings = Settings
       -- Default: 'defaultFork'
       --
       -- Since 3.0.4
+
+    , settingsAccept :: Socket -> IO (Socket, SockAddr)
+      -- ^ Code to accept a new connection.
+      --
+      -- Useful if you need to provide connected sockets from something other
+      -- than a standard accept call.
+      --
+      -- Default: 'defaultAccept'
+      --
+      -- Since 3.3.24
 
     , settingsNoParsePath :: Bool
       -- ^ Perform no parsing on the rawPathInfo.
@@ -178,6 +189,7 @@ defaultSettings = Settings
     , settingsFileInfoCacheDuration = 0
     , settingsBeforeMainLoop = return ()
     , settingsFork = defaultFork
+    , settingsAccept = defaultAccept
     , settingsNoParsePath = False
     , settingsInstallShutdownHandler = const $ return ()
     , settingsServerName = C8.pack $ "Warp/" ++ showVersion Paths_warp.version
@@ -274,4 +286,15 @@ defaultFork io =
     case (fork# (io unsafeUnmask) s0) of
       (# s1, _tid #) ->
         (# s1, () #)
+#endif
+
+-- | Standard "accept" call for a listening socket.
+--
+-- @since 3.3.24
+defaultAccept :: Socket -> IO (Socket, SockAddr)
+defaultAccept =
+#if WINDOWS
+    windowsThreadBlockHack . accept
+#else
+    accept
 #endif

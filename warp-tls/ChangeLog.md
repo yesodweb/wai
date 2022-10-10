@@ -5,6 +5,13 @@
 * Install shutdown handlers passed via `Settings` to `run...` functions
   [#915](https://github.com/yesodweb/wai/pull/915)
 
+## 3.3.4
+
+* Integrated customizable `accept` hook from `Network.Wai.Handler.Warp.Settings` (cf. `setAccept`)
+  [#912](https://github.com/yesodweb/wai/pull/912)
+* Adjusted `httpOverTls` because of the factoring out of `Network.Wai.Handler.Warp.Recv` to its own package `recv` in the `warp` package.
+  [#899](https://github.com/yesodweb/wai/pull/899)
+
 ## 3.3.3
 
 * Creating a bigger buffer when the current one is too small to fit the Builder

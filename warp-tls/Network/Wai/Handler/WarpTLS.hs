@@ -66,7 +66,6 @@ import GHC.IO.Exception (IOErrorType(..))
 import Network.Socket (
     SockAddr,
     Socket,
-    accept,
     close,
 #if MIN_VERSION_network(3,1,1)
     gracefulClose,
@@ -278,12 +277,8 @@ alpn xs
 ----------------------------------------------------------------
 
 getter :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> params -> IO (IO (Connection, Transport), SockAddr)
-getter tlsset set sock params = do
-#if WINDOWS
-    (s, sa) <- windowsThreadBlockHack $ accept sock
-#else
-    (s, sa) <- accept sock
-#endif
+getter tlsset set@Settings{settingsAccept = accept'} sock params = do
+    (s, sa) <- accept' sock
     setSocketCloseOnExec s
     return (mkConn tlsset set s params, sa)
 
