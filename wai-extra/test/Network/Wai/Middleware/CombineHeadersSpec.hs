@@ -11,7 +11,7 @@ import Network.HTTP.Types.Header
 import Network.Wai
 import Test.Hspec
 
-import Network.Wai.Middleware.CombineHeaders (CombineSettings (..), combineHeaders, defaultCombineSettings)
+import Network.Wai.Middleware.CombineHeaders (CombineSettings, combineHeaders, defaultCombineSettings, setRequestHeaders, setResponseHeaders)
 import Network.Wai.Test (SResponse (simpleHeaders), request, runSession)
 
 main :: IO ()
@@ -26,7 +26,7 @@ spec = do
         testReqHdrs name a b =
             test name defaultCombineSettings a b [] []
         testResHdrs name a b =
-            test name defaultCombineSettings { combineRequestHeaders = False, combineResponseHeaders = True} [] [] a b
+            test name (setRequestHeaders False $ setResponseHeaders True defaultCombineSettings) [] [] a b
 
     -- Request Headers
     testReqHdrs

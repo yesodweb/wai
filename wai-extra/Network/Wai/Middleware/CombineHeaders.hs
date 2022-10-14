@@ -15,11 +15,17 @@ there might be another one that would match)
     -}
 module Network.Wai.Middleware.CombineHeaders
     ( combineHeaders
+    , CombineSettings
     , defaultCombineSettings
+    , HeaderMap
+    , HandleType (..)
+    , defaultHeaderMap
+    -- * Adjusting the settings
     , setHeader
     , removeHeader
-    , CombineSettings (..)
-    , HandleType (..)
+    , setHeaderMap
+    , setRequestHeaders
+    , setResponseHeaders
     ) where
 
 import qualified Data.ByteString as B
@@ -31,15 +37,17 @@ import qualified Network.HTTP.Types.Header as H
 import Network.Wai (Middleware, requestHeaders, mapResponseHeaders)
 import Network.Wai.Header (dropWhileEnd)
 
--- | These settings define which headers should be combined
--- ('combineHeaderMap'), if the combining should happen on
--- incoming headers ('combineRequestHeaders') and if it
--- should happen on outgoing headers ('combineResponseHeaders').
+-- | The mapping of 'HeaderName' to 'HandleType'
+type HeaderMap = M.Map HeaderName HandleType
+
+-- | These settings define which headers should be combined,
+-- if the combining should happen on incoming (request) headers
+-- and if it should happen on outgoing (response) headers.
 --
--- Any header you put in the 'combineHeaderMap' *will* be
--- used to combine those headers with commas. There's no
--- check to see if it is a header that allows comma-separated
--- lists, so if you want to combine custom headers, go ahead.
+-- Any header you put in the header map *will* be used to
+-- combine those headers with commas. There's no check to see
+-- if it is a header that allows comma-separated lists, so if
+-- you want to combine custom headers, go ahead.
 --
 -- (You can check the documentation of 'defaultCombineSettings'
 -- to see which standard headers are specified to be able to be
@@ -47,7 +55,7 @@ import Network.Wai.Header (dropWhileEnd)
 --
 -- @since 3.1.13.0
 data CombineSettings = CombineSettings {
-    combineHeaderMap :: M.Map HeaderName HandleType,
+    combineHeaderMap :: HeaderMap,
     -- ^ Which headers should be combined? And how? (cf. 'HandleType')
     combineRequestHeaders :: Bool,
     -- ^ Should request headers be combined?
@@ -63,36 +71,36 @@ data CombineSettings = CombineSettings {
 --
 -- To be exact, this is the list:
 --
--- * \"Accept\"
--- * \"Accept-CH\"
--- * \"Accept-Charset\"
--- * \"Accept-Encoding\"
--- * \"Accept-Language\"
--- * \"Accept-Post\"
--- * \"Access-Control-Allow-Headers\"
--- * \"Access-Control-Allow-Methods\"
--- * \"Access-Control-Expose-Headers\"
--- * \"Access-Control-Request-Headers\"
--- * \"Allow\"
--- * \"Alt-Svc\" @(KeepOnly \"clear\")@
--- * \"Cache-Control\"
--- * \"Clear-Site-Data\" @(KeepOnly \"*\")@
--- * \"Connection\"
--- * \"Content-Encoding\"
--- * \"Content-Language\"
--- * \"Digest\"
--- * \"If-Match\"
--- * \"If-None-Match\" @(KeepOnly \"*\")@
--- * \"Link\"
--- * \"Permissions-Policy\"
--- * \"TE\"
--- * \"Timing-Allow-Origin\" @(KeepOnly \"*\")@
--- * \"Trailer\"
--- * \"Transfer-Encoding\"
--- * \"Upgrade\"
--- * \"Via\"
--- * \"Vary\" @(KeepOnly \"*\")@
--- * \"Want-Digest\"
+-- * Accept
+-- * Accept-CH
+-- * Accept-Charset
+-- * Accept-Encoding
+-- * Accept-Language
+-- * Accept-Post
+-- * Access-Control-Allow-Headers
+-- * Access-Control-Allow-Methods
+-- * Access-Control-Expose-Headers
+-- * Access-Control-Request-Headers
+-- * Allow
+-- * Alt-Svc @(KeepOnly \"clear\"")@
+-- * Cache-Control
+-- * Clear-Site-Data @(KeepOnly \"*\")@
+-- * Connection
+-- * Content-Encoding
+-- * Content-Language
+-- * Digest
+-- * If-Match
+-- * If-None-Match @(KeepOnly \"*\")@
+-- * Link
+-- * Permissions-Policy
+-- * TE
+-- * Timing-Allow-Origin @(KeepOnly \"*\")@
+-- * Trailer
+-- * Transfer-Encoding
+-- * Upgrade
+-- * Via
+-- * Vary @(KeepOnly \"*\")@
+-- * Want-Digest
 --
 -- N.B. Any header name that has \"KeepOnly\" after it
 -- will be combined like normal, unless one of the values
@@ -106,6 +114,27 @@ defaultCombineSettings = CombineSettings {
     combineRequestHeaders = True,
     combineResponseHeaders = False
 }
+
+-- | Override the 'HeaderMap' of the 'CombineSettings'
+--  (default: 'defaultHeaderMap')
+--
+-- @since 3.1.13.0
+setHeaderMap :: HeaderMap -> CombineSettings -> CombineSettings
+setHeaderMap mp set = set{combineHeaderMap = mp}
+
+-- | Set whether the combining of headers should be applied to
+-- the incoming request headers. (default: True)
+--
+-- @since 3.1.13.0
+setRequestHeaders :: Bool -> CombineSettings -> CombineSettings
+setRequestHeaders b set = set{combineRequestHeaders = b}
+
+-- | Set whether the combining of headers should be applied to
+-- the outgoing response headers. (default: False)
+--
+-- @since 3.1.13.0
+setResponseHeaders :: Bool -> CombineSettings -> CombineSettings
+setResponseHeaders b set = set{combineResponseHeaders = b}
 
 -- | Convenience function to add a header to the header map or,
 -- if it is already in the map, to change the 'HandleType'.
@@ -201,7 +230,13 @@ data HandleType
     | KeepOnly B.ByteString
    deriving (Eq, Show)
 
-defaultHeaderMap :: M.Map HeaderName HandleType
+-- | The default collection of HTTP headers that can be combined
+-- in case there are multiples in one request or response.
+--
+-- See the documentation of 'defaultCombineSettings' for the exact list.
+--
+-- @since 3.1.13.0
+defaultHeaderMap :: HeaderMap
 defaultHeaderMap = M.fromList
     [ (H.hAccept, Regular)
     , ("Accept-CH", Regular)
