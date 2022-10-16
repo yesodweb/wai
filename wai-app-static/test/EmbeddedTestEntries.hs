@@ -9,7 +9,7 @@ import qualified Data.Text.Lazy.Encoding as TL
 import qualified Data.ByteString.Lazy as BL
 
 body :: Int -> Char -> BL.ByteString
-body i c = TL.encodeUtf8 $ TL.pack $ take i $ repeat c
+body i c = TL.encodeUtf8 $ TL.pack $ replicate i c
 
 mkEntries :: IO [EmbeddableEntry]
 mkEntries = return

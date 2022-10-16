@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables, ViewPatterns #-}
-{-# LANGUAGE PatternGuards, RankNTypes #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ImpredicativeTypes, CPP #-}
 {-# LANGUAGE MagicHash, UnboxedTuples #-}
 
@@ -25,7 +25,9 @@ import System.TimeManager
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
+#if WINDOWS
 import Network.Wai.Handler.Warp.Windows (windowsThreadBlockHack)
+#endif
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
 -- type so that new settings can be added without breaking backwards
