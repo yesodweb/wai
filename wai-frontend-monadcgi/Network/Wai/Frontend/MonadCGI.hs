@@ -54,7 +54,7 @@ cgiToAppGeneric toIO cgi env sendResponse = do
     go (x, y) = (S8.unpack $ original x, S8.unpack y)
 
 fixVarName :: String -> String
-fixVarName = ((++) $ "HTTP_") . map fixVarNameChar
+fixVarName = ("HTTP_"++) . map fixVarNameChar
 
 fixVarNameChar :: Char -> Char
 fixVarNameChar '-' = '_'

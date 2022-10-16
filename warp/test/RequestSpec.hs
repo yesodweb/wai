@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 module RequestSpec (main, spec) where
 
@@ -25,9 +24,9 @@ spec :: Spec
 spec = do
   describe "headerLines" $ do
     it "takes until blank" $
-        blankSafe >>= (`shouldBe` ("", ["foo", "bar", "baz"]))
+        blankSafe `shouldReturn` ("", ["foo", "bar", "baz"])
     it "ignored leading whitespace in bodies" $
-        whiteSafe >>= (`shouldBe` (" hi there", ["foo", "bar", "baz"]))
+        whiteSafe `shouldReturn` (" hi there", ["foo", "bar", "baz"])
     it "throws OverLargeHeader when too many" $
         tooMany `shouldThrow` overLargeHeader
     it "throws OverLargeHeader when too large" $
