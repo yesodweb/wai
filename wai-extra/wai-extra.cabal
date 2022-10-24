@@ -111,7 +111,7 @@ Library
                    , fast-logger               >= 2.4.5
                    , wai-logger                >= 2.3.7
                    , ansi-terminal
-                   , resourcet                 >= 0.4.6    && < 1.3
+                   , resourcet                 >= 0.4.6    && < 1.4
                    , containers
                    , base64-bytestring
                    , word8
