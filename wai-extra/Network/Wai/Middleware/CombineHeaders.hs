@@ -18,12 +18,14 @@ module Network.Wai.Middleware.CombineHeaders
     , CombineSettings
     , defaultCombineSettings
     , HeaderMap
-    , HandleType (..)
+    , HandleType
     , defaultHeaderMap
     -- * Adjusting the settings
     , setHeader
     , removeHeader
     , setHeaderMap
+    , regular
+    , keepOnly
     , setRequestHeaders
     , setResponseHeaders
     ) where
@@ -229,6 +231,23 @@ data HandleType
     = Regular
     | KeepOnly B.ByteString
    deriving (Eq, Show)
+
+-- | Use the regular strategy when combining headers.
+-- (i.e. merge into one header and separate values with commas)
+--
+-- @since 3.1.13.0
+regular :: HandleType
+regular = Regular
+
+-- | Use the regular strategy when combining headers,
+-- but if the exact supplied 'ByteString' is encountered
+-- then discard all other values and only keep that value.
+--
+-- e.g. @keepOnly "*"@ will drop all other encountered values
+--
+-- @since 3.1.13.0
+keepOnly :: B.ByteString -> HandleType
+keepOnly = KeepOnly
 
 -- | The default collection of HTTP headers that can be combined
 -- in case there are multiples in one request or response.
