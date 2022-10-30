@@ -37,7 +37,7 @@ import Data.Word8 (_comma, _space, _tab)
 import Network.HTTP.Types (Header, HeaderName, RequestHeaders)
 import qualified Network.HTTP.Types.Header as H
 import Network.Wai (Middleware, requestHeaders, mapResponseHeaders)
-import Network.Wai.Header (dropWhileEnd)
+import Network.Wai.Util (dropWhileEnd)
 
 -- | The mapping of 'HeaderName' to 'HandleType'
 type HeaderMap = M.Map HeaderName HandleType

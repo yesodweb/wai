@@ -173,6 +173,7 @@ Library
                      Network.Wai.Test.Internal
                      Network.Wai.UrlMap
   other-modules:     Network.Wai.Middleware.RequestLogger.Internal
+                     Network.Wai.Util
   default-language:          Haskell2010
   ghc-options:       -Wall
 

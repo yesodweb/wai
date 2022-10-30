@@ -63,7 +63,8 @@ import Network.Wai.Internal (Response (..))
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import qualified System.IO as IO
 
-import Network.Wai.Header (contentLength, parseQValueList, replaceHeader, splitCommas, trimWS)
+import Network.Wai.Header (contentLength, parseQValueList, replaceHeader)
+import Network.Wai.Util (splitCommas, trimWS)
 
 -- $howto
 --
