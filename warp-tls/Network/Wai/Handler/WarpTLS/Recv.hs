@@ -30,17 +30,11 @@ recv cref ctx = do
 
 -- TLS version of recv (decrypting) without a cache.
 recv' :: TLS.Context -> Recv
-recv' ctx = handle onEOF go
+recv' ctx = handle onEOF $ TLS.recvData ctx
   where
     onEOF e
       | Just TLS.Error_EOF <- fromException e       = return S.empty
       | Just ioe <- fromException e, isEOFError ioe = return S.empty                  | otherwise                                   = throwIO e
-    go = do
-        x <- TLS.recvData ctx
-        if S.null x then
-            go
-          else
-            return x
 
 -- TLS version of recvBuf with a cache for leftover input data.
 recvBuf :: IORef ByteString -> TLS.Context -> RecvBuf
