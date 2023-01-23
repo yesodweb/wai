@@ -3,7 +3,7 @@
 
 module Network.Socket.BufferPool.Recv (
     receive
-  , makeReceiveN
+  , makeRecvN
   ) where
 
 import qualified Data.ByteString as BS
@@ -71,8 +71,8 @@ tryRecv sock ptr size = go
 --   When N is less than equal to 4096, the buffer pool is used.
 --   Otherwise, a new buffer is allocated.
 --   In this case, the global lock is taken.
-makeReceiveN :: ByteString -> Recv -> IO RecvN
-makeReceiveN bs0 recv = do
+makeRecvN :: ByteString -> Recv -> IO RecvN
+makeRecvN bs0 recv = do
     ref <- newIORef bs0
     return $ receiveN ref recv
 

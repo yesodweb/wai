@@ -297,7 +297,7 @@ mkConn tlsset set s params = (safeRecv s 4096 >>= switch) `onException` close s
 httpOverTls :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> S.ByteString -> params -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} _set s bs0 params = do
     pool <- newBufferPool 2048 16384
-    rawRecvN <- makeReceiveN bs0 $ receive s pool
+    rawRecvN <- makeRecvN bs0 $ receive s pool
     let recvN = wrappedRecvN rawRecvN
     ctx <- TLS.contextNew (backend recvN) params
     TLS.contextHookSetLogging ctx tlsLogging

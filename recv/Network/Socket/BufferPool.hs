@@ -29,7 +29,7 @@ module Network.Socket.BufferPool (
   , withBufferPool
   -- * RecvN
   , RecvN
-  , makeReceiveN
+  , makeRecvN
   -- * Types
   , Buffer
   , BufSize
