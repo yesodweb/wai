@@ -4,7 +4,6 @@
 module Network.Socket.BufferPool.Recv (
     receive
   , makeReceiveN
-  , makePlainReceiveN
   ) where
 
 import qualified Data.ByteString as BS
@@ -76,18 +75,6 @@ makeReceiveN :: ByteString -> Recv -> IO RecvN
 makeReceiveN bs0 recv = do
     ref <- newIORef bs0
     return $ receiveN ref recv
-
--- | This function returns a receiving function with two receiving
---   functions is created internally.
---   The second argument is the lower limit of the buffer pool.
---   The third argument is the size of the allocated buffer in the pool.
---   The fourth argument is an initial received data.
---   The returned function behaves as described in 'makeReceiveN'.
-makePlainReceiveN :: Socket -> Int -> Int -> ByteString -> IO RecvN
-makePlainReceiveN s l h bs0 = do
-    ref <- newIORef bs0
-    pool <- newBufferPool l h
-    return $ receiveN ref $ receive s pool
 
 -- | The receiving function which receives exactly N bytes
 --   (the fourth argument).

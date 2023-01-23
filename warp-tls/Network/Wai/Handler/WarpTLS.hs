@@ -72,6 +72,7 @@ import Network.Socket (
 #endif
     withSocketsDo,
  )
+import Network.Socket.BufferPool
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
 import qualified Crypto.PubKey.DH as DH
@@ -295,7 +296,8 @@ mkConn tlsset set s params = (safeRecv s 4096 >>= switch) `onException` close s
 
 httpOverTls :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> S.ByteString -> params -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} _set s bs0 params = do
-    rawRecvN <- makePlainReceiveN s 2048 16384 bs0
+    pool <- newBufferPool 2048 16384
+    rawRecvN <- makeReceiveN bs0 $ receive s pool
     let recvN = wrappedRecvN rawRecvN
     ctx <- TLS.contextNew (backend recvN) params
     TLS.contextHookSetLogging ctx tlsLogging
