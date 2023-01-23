@@ -32,7 +32,6 @@ Library
                    , recv                          >= 0.1.0
   Exposed-modules:   Network.Wai.Handler.WarpTLS
                      Network.Wai.Handler.WarpTLS.Internal
-  Other-modules:     Network.Wai.Handler.WarpTLS.Recv
   ghc-options:       -Wall
   if os(windows)
       Cpp-Options:   -DWINDOWS
