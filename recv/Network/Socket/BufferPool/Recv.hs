@@ -3,18 +3,16 @@
 
 module Network.Socket.BufferPool.Recv (
     receive
-  , receiveBuf
   , makeReceiveN
   , makePlainReceiveN
   ) where
 
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal (ByteString(..))
+import Data.ByteString.Internal (ByteString(..), unsafeCreate)
 import Data.IORef
 import Foreign.C.Error (eAGAIN, getErrno, throwErrno)
 import Foreign.C.Types
-import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.Ptr (Ptr, castPtr, plusPtr)
+import Foreign.Ptr (Ptr, castPtr)
 import GHC.Conc (threadWaitRead)
 import Network.Socket (Socket, withFdSocket)
 import System.Posix.Types (Fd(..))
@@ -42,31 +40,6 @@ receive sock pool = withBufferPool pool $ \ptr size -> do
 #endif
     let size' = fromIntegral size
     fromIntegral <$> tryRecv fd ptr size'
-
-----------------------------------------------------------------
-
--- | The receiving function with a buffer.
---   This tries to fill the buffer.
---   This returns when the buffer is filled or reaches EOF.
-receiveBuf :: Socket -> RecvBuf
-receiveBuf sock buf0 siz0 = do
-#if MIN_VERSION_network(3,1,0)
-  withFdSocket sock $ \fd -> do
-#elif MIN_VERSION_network(3,0,0)
-    fd <- fdSocket sock
-#else
-    let fd = fdSocket sock
-#endif
-    loop fd buf0 siz0
-  where
-    loop _  _   0   = return True
-    loop fd buf siz = do
-        n <- fromIntegral <$> tryRecv fd buf (fromIntegral siz)
-        -- fixme: what should we do in the case of n == 0
-        if n == 0 then
-            return False
-          else
-            loop fd (buf `plusPtr` n) (siz - n)
 
 ----------------------------------------------------------------
 
@@ -99,10 +72,10 @@ tryRecv sock ptr size = go
 --   When N is less than equal to 4096, the buffer pool is used.
 --   Otherwise, a new buffer is allocated.
 --   In this case, the global lock is taken.
-makeReceiveN :: ByteString -> Recv -> RecvBuf -> IO RecvN
-makeReceiveN bs0 recv recvBuf = do
+makeReceiveN :: ByteString -> Recv -> IO RecvN
+makeReceiveN bs0 recv = do
     ref <- newIORef bs0
-    return $ receiveN ref recv recvBuf
+    return $ receiveN ref recv
 
 -- | This function returns a receiving function with two receiving
 --   functions is created internally.
@@ -114,49 +87,46 @@ makePlainReceiveN :: Socket -> Int -> Int -> ByteString -> IO RecvN
 makePlainReceiveN s l h bs0 = do
     ref <- newIORef bs0
     pool <- newBufferPool l h
-    return $ receiveN ref (receive s pool) (receiveBuf s)
+    return $ receiveN ref $ receive s pool
 
 -- | The receiving function which receives exactly N bytes
 --   (the fourth argument).
-receiveN :: IORef ByteString -> Recv -> RecvBuf -> RecvN
-receiveN ref recv recvBuf size = do
+receiveN :: IORef ByteString -> Recv -> RecvN
+receiveN ref recv size = do
     cached <- readIORef ref
-    (bs, leftover) <- tryRecvN cached size recv recvBuf
+    (bs, leftover) <- tryRecvN cached size recv
     writeIORef ref leftover
     return bs
 
 ----------------------------------------------------------------
 
-tryRecvN :: ByteString -> Int -> IO ByteString -> RecvBuf -> IO (ByteString, ByteString)
-tryRecvN init0 siz0 recv recvBuf
+tryRecvN :: ByteString -> Int -> IO ByteString -> IO (ByteString, ByteString)
+tryRecvN init0 siz0 recv
   | siz0 <= len0 = return $ BS.splitAt siz0 init0
-  -- fixme: hard coding 4096
-  | siz0 <= 4096 = recvWithPool [init0] (siz0 - len0)
-  | otherwise    = recvWithNewBuf
+  | otherwise    = go (init0:) (siz0 - len0)
   where
     len0 = BS.length init0
-    recvWithPool bss siz = do
+    go build left = do
         bs <- recv
         let len = BS.length bs
         if len == 0 then
             return ("", "")
-          else if len >= siz then do
-            let (consume, leftover) = BS.splitAt siz bs
-                ret = BS.concat $ reverse (consume : bss)
+          else if len >= left then do
+            let (consume, leftover) = BS.splitAt left bs
+                ret = concatN siz0 $ build [consume]
             return (ret, leftover)
           else do
-            let bss' = bs : bss
-                siz' = siz - len
-            recvWithPool bss' siz'
-    recvWithNewBuf = do
-      bs@(PS fptr _ _) <- mallocBS siz0
-      withForeignPtr fptr $ \ptr -> do
-          ptr' <- copy ptr init0
-          full <- recvBuf ptr' (siz0 - len0)
-          if full then
-              return (bs, "")
-            else
-              return ("", "") -- fixme
+            let build' = build . (bs :)
+                left' = left - len
+            go build' left'
+
+concatN :: Int -> [ByteString] -> ByteString
+concatN total bss0 = unsafeCreate total $ \ptr -> goCopy bss0 ptr
+  where
+    goCopy []       _   = return ()
+    goCopy (bs:bss) ptr = do
+        ptr' <- copy ptr bs
+        goCopy bss ptr'
 
 #ifndef mingw32_HOST_OS
 -- fixme: the type of the return value

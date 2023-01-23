@@ -305,9 +305,9 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- I.newIORef writeBuffer
     -- Creating a cache for leftover input data.
-    (recv,recvBuf) <- makeRecv ctx
+    recv <- makeRecv ctx
     tls <- getTLSinfo ctx
-    return (conn ctx writeBufferRef recv recvBuf isH2, tls)
+    return (conn ctx writeBufferRef recv isH2, tls)
   where
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
@@ -325,13 +325,13 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
         else Nothing)
       throwIO
       $ sendAll sock bs
-    conn ctx writeBufferRef recv recvBuf  isH2 = Connection {
+    conn ctx writeBufferRef recv isH2 = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
       , connSendFile         = sendfile
       , connClose            = close'
       , connRecv             = recv
-      , connRecvBuf          = recvBuf
+      , connRecvBuf          = \_ _ -> return True -- obsoleted
       , connWriteBuffer      = writeBufferRef
       , connHTTP2            = isH2
       }

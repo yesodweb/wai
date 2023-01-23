@@ -27,9 +27,6 @@ module Network.Socket.BufferPool (
   , BufferPool
   , newBufferPool
   , withBufferPool
-  -- * RecvBuf
-  , RecvBuf
-  , receiveBuf
   -- * RecvN
   , RecvN
   , makeReceiveN
