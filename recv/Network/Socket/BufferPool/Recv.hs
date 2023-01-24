@@ -38,16 +38,16 @@ receive sock pool = withBufferPool pool $ \ptr size -> do
     let fd = fdSocket sock
 #endif
     let size' = fromIntegral size
-    fromIntegral <$> tryRecv fd ptr size'
+    fromIntegral <$> tryReceive fd ptr size'
 
 ----------------------------------------------------------------
 
-tryRecv :: CInt -> Buffer -> CSize -> IO CInt
-tryRecv sock ptr size = go
+tryReceive :: CInt -> Buffer -> CSize -> IO CInt
+tryReceive sock ptr size = go
   where
     go = do
 #ifdef mingw32_HOST_OS
-      bytes <- windowsThreadBlockHack $ fromIntegral <$> readRawBufferPtr "tryRecv" (FD sock 1) (castPtr ptr) 0 size
+      bytes <- windowsThreadBlockHack $ fromIntegral <$> readRawBufferPtr "tryReceive" (FD sock 1) (castPtr ptr) 0 size
 #else
       bytes <- c_recv sock (castPtr ptr) size 0
 #endif
@@ -57,7 +57,7 @@ tryRecv sock ptr size = go
               threadWaitRead (Fd sock)
               go
             else
-              throwErrno "tryRecv"
+              throwErrno "tryReceive"
          else
           return bytes
 
@@ -74,12 +74,12 @@ tryRecv sock ptr size = go
 makeRecvN :: ByteString -> Recv -> IO RecvN
 makeRecvN bs0 recv = do
     ref <- newIORef bs0
-    return $ receiveN ref recv
+    return $ recvN ref recv
 
 -- | The receiving function which receives exactly N bytes
 --   (the fourth argument).
-receiveN :: IORef ByteString -> Recv -> RecvN
-receiveN ref recv size = do
+recvN :: IORef ByteString -> Recv -> RecvN
+recvN ref recv size = do
     cached <- readIORef ref
     (bs, leftover) <- tryRecvN cached size recv
     writeIORef ref leftover
