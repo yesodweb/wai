@@ -29,7 +29,7 @@ Library
                    , streaming-commons
                    , tls-session-manager           >= 0.0.4
                    , unliftio
-                   , recv                          >= 0.1.0
+                   , recv                          >= 0.1.0   && < 0.2.0
   Exposed-modules:   Network.Wai.Handler.WarpTLS
                      Network.Wai.Handler.WarpTLS.Internal
   ghc-options:       -Wall
