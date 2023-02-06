@@ -197,7 +197,9 @@ runTLS tset set app = withSocketsDo $
     bracket
         (bindPortTCP (getPort set) (getHost set))
         close
-        (\sock -> runTLSSocket tset set sock app)
+        (\sock -> do
+            setSocketCloseOnExec sock
+            runTLSSocket tset set sock app)
 
 ----------------------------------------------------------------
 
