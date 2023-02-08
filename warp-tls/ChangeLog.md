@@ -1,5 +1,9 @@
 # ChangeLog
 
+## 3.3.5
+
+* Switching the version of the "recv" package from 0.0.x to 0.1.x.
+
 ## 3.3.4
 
 * Integrated customizable `accept` hook from `Network.Wai.Handler.Warp.Settings` (cf. `setAccept`)
