@@ -77,7 +77,7 @@ socketConnection _ s = do
       , connClose = close s
 #endif
       , connRecv = receive' s bufferPool
-      , connRecvBuf = receiveBuf s
+      , connRecvBuf = \_ _ -> return True -- obsoleted
       , connWriteBuffer = writeBufferRef
       , connHTTP2 = isH2
       }

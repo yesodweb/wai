@@ -99,6 +99,8 @@ data WriteBuffer = WriteBuffer {
     , bufFree :: IO ()
     }
 
+type RecvBuf = Buffer -> BufSize -> IO Bool
+
 -- | Data type to manipulate IO actions for connections.
 --   This is used to abstract IO actions for plain HTTP and HTTP over TLS.
 data Connection = Connection {
@@ -114,8 +116,7 @@ data Connection = Connection {
     , connClose       :: IO ()
     -- | The connection receiving function. This returns "" for EOF or exceptions.
     , connRecv        :: Recv
-    -- | The connection receiving function. This tries to fill the buffer.
-    --   This returns when the buffer is filled or reaches EOF.
+    -- | Obsoleted.
     , connRecvBuf     :: RecvBuf
     -- | Reference to a write buffer. When during sending of a 'Builder'
     -- response it's detected the current 'WriteBuffer' is too small it will be

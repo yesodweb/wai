@@ -72,6 +72,7 @@ import Network.Socket (
 #endif
     withSocketsDo,
  )
+import Network.Socket.BufferPool
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
 import qualified Crypto.PubKey.DH as DH
@@ -81,9 +82,8 @@ import Network.Wai (Application)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal
 import Network.Wai.Handler.WarpTLS.Internal(CertSettings(..), TLSSettings(..), OnInsecure(..))
-import System.IO.Error (ioeGetErrorType)
-
-import Network.Wai.Handler.WarpTLS.Recv (makeRecv)
+import System.IO.Error (ioeGetErrorType, isEOFError)
+import UnliftIO.Exception (handle, fromException)
 
 -- | The default 'CertSettings'.
 defaultCertSettings :: CertSettings
@@ -295,7 +295,8 @@ mkConn tlsset set s params = (safeRecv s 4096 >>= switch) `onException` close s
 
 httpOverTls :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> S.ByteString -> params -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} _set s bs0 params = do
-    rawRecvN <- makePlainReceiveN s 2048 16384 bs0
+    pool <- newBufferPool 2048 16384
+    rawRecvN <- makeRecvN bs0 $ receive s pool
     let recvN = wrappedRecvN rawRecvN
     ctx <- TLS.contextNew (backend recvN) params
     TLS.contextHookSetLogging ctx tlsLogging
@@ -305,9 +306,8 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- I.newIORef writeBuffer
     -- Creating a cache for leftover input data.
-    (recv,recvBuf) <- makeRecv ctx
     tls <- getTLSinfo ctx
-    return (conn ctx writeBufferRef recv recvBuf isH2, tls)
+    return (conn ctx writeBufferRef isH2, tls)
   where
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
@@ -325,18 +325,23 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
         else Nothing)
       throwIO
       $ sendAll sock bs
-    conn ctx writeBufferRef recv recvBuf  isH2 = Connection {
+    conn ctx writeBufferRef isH2 = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
       , connSendFile         = sendfile
       , connClose            = close'
       , connRecv             = recv
-      , connRecvBuf          = recvBuf
+      , connRecvBuf          = \_ _ -> return True -- obsoleted
       , connWriteBuffer      = writeBufferRef
       , connHTTP2            = isH2
       }
       where
         sendall = TLS.sendData ctx . L.fromChunks . return
+        recv = handle onEOF $ TLS.recvData ctx
+          where
+            onEOF e
+              | Just TLS.Error_EOF <- fromException e       = return S.empty
+              | Just ioe <- fromException e, isEOFError ioe = return S.empty                  | otherwise                                   = throwIO e
         sendfile fid offset len hook headers = do
             writeBuffer <- I.readIORef writeBufferRef
             readSendFile (bufBuffer writeBuffer) (bufSize writeBuffer) sendall fid offset len hook headers
