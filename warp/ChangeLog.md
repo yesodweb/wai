@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.25
+
+* Catching up the signature change of openFd in the unix package v2.8.
+  [#926](https://github.com/yesodweb/wai/pull/926)
+
 ## 3.3.24
 
 * Switching the version of the "recv" package from 0.0.x to 0.1.x.
