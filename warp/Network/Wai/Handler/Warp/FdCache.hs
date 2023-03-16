@@ -67,7 +67,11 @@ data FdEntry = FdEntry !Fd !MutableStatus
 
 openFile :: FilePath -> IO Fd
 openFile path = do
+#if MIN_VERSION_unix(2,8,0)
+    fd <- openFd path ReadOnly defaultFileFlags{nonBlock=False}
+#else
     fd <- openFd path ReadOnly Nothing defaultFileFlags{nonBlock=False}
+#endif
     setFileCloseOnExec fd
     return fd
 
