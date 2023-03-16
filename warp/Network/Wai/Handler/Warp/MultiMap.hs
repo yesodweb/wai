@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 module Network.Wai.Handler.Warp.MultiMap (
     MultiMap
   , isEmpty

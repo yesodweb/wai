@@ -19,7 +19,7 @@ app W.Request { W.pathInfo = path } =
         Just hreq -> return $ W.ResponseEnumerator $ run_ . H.http hreq . go
   where
     go f s h = joinI $ E.map fromByteString $$ f s $ filter safe h
-    safe (x, _) = not $ x `elem` ["Content-Encoding", "Transfer-Encoding"]
+    safe (x, _) = x `notElem` ["Content-Encoding", "Transfer-Encoding"]
 
 notFound :: W.Response
 notFound = W.ResponseLBS W.status404 [("Content-Type", "text/plain")] "Not found"

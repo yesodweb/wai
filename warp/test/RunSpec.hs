@@ -381,9 +381,9 @@ spec = do
                 doubleBS = S.concatMap $ \w -> S.pack [w, w]
             withApp defaultSettings app $ withMySocket $ \ms -> do
                 msWrite ms "POST / HTTP/1.1\r\n\r\n12345"
-                timeout 100000 (msRead ms 10) >>= (`shouldBe` Just "1122334455")
+                timeout 100000 (msRead ms 10) `shouldReturn` Just "1122334455"
                 msWrite ms "67890"
-                timeout 100000 (msRead ms 10) >>= (`shouldBe` Just "6677889900")
+                timeout 100000 (msRead ms 10) `shouldReturn` Just "6677889900"
     it "only one date and server header" $ do
         let app _ f = f $ responseLBS status200
                 [ ("server", "server")
