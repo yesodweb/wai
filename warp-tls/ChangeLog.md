@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.3.6
+
+* Setting FD_CLOEXEC on the listening socket.
+  [#923](https://github.com/yesodweb/wai/pull/923)
+
 ## 3.3.5
 
 * Switching the version of the "recv" package from 0.0.x to 0.1.x.
