@@ -6,10 +6,14 @@ module Network.Wai.Handler.Warp.FileInfoCache (
   , getInfo -- test purpose only
   ) where
 
-import qualified UnliftIO (onException, bracket, throwIO)
 import Control.Reaper
 import Network.HTTP.Date
+#if WINDOWS
 import System.PosixCompat.Files
+#else
+import System.Posix.Files
+#endif
+import qualified UnliftIO (onException, bracket, throwIO)
 
 import Network.Wai.Handler.Warp.HashMap (HashMap)
 import qualified Network.Wai.Handler.Warp.HashMap as M
