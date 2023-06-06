@@ -20,7 +20,7 @@ library
                      , bytestring
                      , http3
                      , quic
-                     , tls
+                     , tls >= 1.7
                      , wai
                      , warp >= 3.3.15
   if impl(ghc >= 8)

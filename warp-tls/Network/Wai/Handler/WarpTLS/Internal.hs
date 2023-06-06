@@ -8,7 +8,6 @@ module Network.Wai.Handler.WarpTLS.Internal (
     , getCertSettings
     ) where
 
-import qualified Crypto.PubKey.DH as DH
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
@@ -105,9 +104,9 @@ data TLSSettings = TLSSettings {
     -- Default: def
     --
     -- Since 3.0.2
-  , tlsServerDHEParams :: Maybe DH.Params
+  , tlsServerDHEParams :: Maybe TLS.DHParams
     -- ^ Configuration for ServerDHEParams
-    -- more function lives in `cryptonite` package
+    -- more function lives in `crypton` package
     --
     -- Default: Nothing
     --
