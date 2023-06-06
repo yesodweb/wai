@@ -44,12 +44,6 @@ module Network.Wai.Handler.WarpTLS (
     , OnInsecure (..)
     -- * Exception
     , WarpTLSException (..)
-    -- * DH parameters (re-exports)
-    --
-    -- | This custom DH parameters are not necessary anymore because
-    --   pre-defined DH parameters are supported in the TLS package.
-    , DH.Params
-    , DH.generateParams
     ) where
 
 import Control.Applicative ((<|>))
@@ -75,7 +69,6 @@ import Network.Socket (
 import Network.Socket.BufferPool
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
-import qualified Crypto.PubKey.DH as DH
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Network.TLS.SessionManager as SM
 import Network.Wai (Application)

@@ -61,7 +61,7 @@ Library
                    , word8
                    , unliftio
   if flag(x509)
-      Build-Depends: x509
+      Build-Depends: crypton-x509
   if impl(ghc < 8)
       Build-Depends: semigroups
   if flag(network-bytestring)
@@ -216,7 +216,7 @@ Test-Suite spec
                    , word8
                    , unliftio
   if flag(x509)
-      Build-Depends: x509
+      Build-Depends: crypton-x509
   if impl(ghc < 8)
       Build-Depends: semigroups
                    , transformers
@@ -259,7 +259,7 @@ Benchmark parser
                   , time-manager
                   , unliftio
   if flag(x509)
-      Build-Depends: x509
+      Build-Depends: crypton-x509
   if impl(ghc < 8)
       Build-Depends: semigroups
 
