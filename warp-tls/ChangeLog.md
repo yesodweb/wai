@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.3.7
+
+* Using crypton instead of cryptonite.
+  [#931](https://github.com/yesodweb/wai/pull/931)
+
 ## 3.3.6
 
 * Setting FD_CLOEXEC on the listening socket.
