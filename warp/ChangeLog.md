@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.26
+
+* Using crypton instead of cryptonite.
+  [#931](https://github.com/yesodweb/wai/pull/931)
+
 ## 3.3.25
 
 * Catching up the signature change of openFd in the unix package v2.8.
