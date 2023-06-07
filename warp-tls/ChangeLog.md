@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.4.0
+
+* Major version up to deprecate v3.3.7 due to the incompatibility
+  against cryptonite.
+
 ## 3.3.7
 
 * Using crypton instead of cryptonite.
