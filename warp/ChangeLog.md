@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.27
+
+* Fixing busy loop due to eMFILE
+  [#933](https://github.com/yesodweb/wai/pull/933)
+
 ## 3.3.26
 
 * Using crypton instead of cryptonite.
