@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.HTTP2.Request (
     toRequest
@@ -23,7 +24,9 @@ import qualified System.TimeManager as T
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Request (getFileInfoKey, pauseTimeoutKey)
+#ifdef MIN_VERSION_crypton_x509
 import Network.Wai.Handler.Warp.Request (getClientCertificateKey)
+#endif
 import qualified Network.Wai.Handler.Warp.Settings as S (Settings, settingsNoParsePath)
 import Network.Wai.Handler.Warp.Types
 
@@ -87,7 +90,9 @@ toRequest' ii settings addr ref (reqths,reqvt) bodylen body th transport = retur
                 $ Vault.insert setHTTP2DataKey (writeIORef ref)
                 $ Vault.insert modifyHTTP2DataKey (modifyIORef' ref)
                 $ Vault.insert pauseTimeoutKey (T.pause th)
+#ifdef MIN_VERSION_crypton_x509
                 $ Vault.insert getClientCertificateKey (getTransportClientCertificate transport)
+#endif
                   Vault.empty
 
 getHTTP2DataKey :: Vault.Key (IO (Maybe HTTP2Data))
