@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.28
+
+* Fix for the "-x509" flag
+   [#935](https://github.com/yesodweb/wai/pull/935)
+
 ## 3.3.27
 
 * Fixing busy loop due to eMFILE
