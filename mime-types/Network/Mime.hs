@@ -6,6 +6,7 @@ module Network.Mime
       -- * Defaults
     , defaultMimeType
     , defaultMimeMap
+    , defaultExtensionMap
       -- * Utilities
     , fileNameExtensions
       -- * Types
@@ -17,12 +18,17 @@ module Network.Mime
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.ByteString (ByteString)
+import Data.ByteString (ByteString, sort)
 import Data.ByteString.Char8 ()
 import qualified Data.Map as Map
+import Data.Function (on)
+import Data.List (groupBy)
 
 -- | Maps extensions to mime types.
 type MimeMap = Map.Map Extension MimeType
+-- | Maps mime types to extensions.
+-- @since 0.1.2.0
+type ExtensionMap = Map.Map MimeType [Extension]
 
 -- | The filename component of a filepath, leaving off the directory but
 -- keeping all extensions.
@@ -75,7 +81,17 @@ defaultMimeType = "application/octet-stream"
 --
 -- Generated from the Apache and nginx mime.types files.
 defaultMimeMap :: MimeMap
-defaultMimeMap = Map.fromAscList [
+defaultMimeMap = Map.fromAscList mimeAscList
+
+-- | A default mapping from mime type to filename extensions.
+-- Note there can be multiple extensions for a given mime type.
+-- Generated from the Apache and nginx mime.types files.
+-- @since 0.1.2.0
+defaultExtensionMap :: ExtensionMap
+defaultExtensionMap = Map.fromAscList $ map (\xs -> (fst $ head xs, map snd xs)) $ groupBy ((==) `on` fst) . sort . map swap $ mimeAscList
+
+mimeAscList :: [(Extension, MimeType)]
+mimeAscList = [
       ("123", "application/vnd.lotus-1-2-3")
     , ("3dml", "text/vnd.in3d.3dml")
     , ("3ds", "image/x-3ds")
