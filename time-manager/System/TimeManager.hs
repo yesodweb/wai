@@ -23,7 +23,7 @@ module System.TimeManager (
   ) where
 
 import Control.Concurrent (myThreadId)
-import qualified Control.Exception as E
+import qualified UnliftIO.Exception as E
 import Control.Reaper
 import Data.Typeable (Typeable)
 import Data.IORef (IORef)

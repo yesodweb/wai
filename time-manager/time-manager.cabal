@@ -15,5 +15,6 @@ Description:         Scalable timer functions provided by a timer manager.
 Library
   Build-Depends:     base                      >= 4.12       && < 5
                    , auto-update
+                   , unliftio
   Exposed-modules:   System.TimeManager
   Ghc-Options:       -Wall
