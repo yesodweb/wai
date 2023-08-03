@@ -73,6 +73,15 @@ instance UnliftIO.Exception ExceptionInsideResponseBody
 
 ----------------------------------------------------------------
 
+-- | Exception thrown when the iniating client of a connection being handled by
+-- a worker closes its end of the connection.
+data PeerClosedException = PeerClosedException
+    deriving (Show)
+
+instance UnliftIO.Exception PeerClosedException
+
+----------------------------------------------------------------
+
 -- | Data type to abstract file identifiers.
 --   On Unix, a file descriptor would be specified to make use of
 --   the file descriptor cache.
@@ -125,6 +134,7 @@ data Connection = Connection {
     , connWriteBuffer :: IORef WriteBuffer
     -- | Is this connection HTTP/2?
     , connHTTP2       :: IORef Bool
+    , connRegisterPeerClosedCb :: Maybe (IO () -> IO ())
     }
 
 getConnHTTP2 :: Connection -> IO Bool
@@ -141,6 +151,28 @@ data InternalInfo = InternalInfo {
   , getFd          :: FilePath -> IO (Maybe F.Fd, F.Refresh)
   , getFileInfo    :: FilePath -> IO I.FileInfo
   }
+
+----------------------------------------------------------------
+
+-- | In some HTTP/1 applications (e.g. those where requests are pure queries
+-- which imply no "effects") it can make sense to abort running handlers when
+-- the write-side of the client's connection closed (via @shutdown(2)@) before
+-- a response has been sent. To facilitate this use-case, each handler thread
+-- carries a 'ConnActiveFlag' which dictates whether the handler's current
+-- computation can be safely aborted if the connection is shutdown.
+newtype ConnActiveFlag = ConnActiveFlag (UnliftIO.TVar Bool)
+
+mkConnActiveFlag :: IO ConnActiveFlag
+mkConnActiveFlag = ConnActiveFlag <$> UnliftIO.newTVarIO True
+
+setConnActiveFlag :: ConnActiveFlag -> Bool -> IO ()
+setConnActiveFlag (ConnActiveFlag v) active = UnliftIO.atomically $
+    UnliftIO.writeTVar v active
+
+waitUntilConnInactive :: ConnActiveFlag -> IO ()
+waitUntilConnInactive (ConnActiveFlag v) = UnliftIO.atomically $ do
+    active <- UnliftIO.readTVar v
+    when active UnliftIO.retrySTM
 
 ----------------------------------------------------------------
 

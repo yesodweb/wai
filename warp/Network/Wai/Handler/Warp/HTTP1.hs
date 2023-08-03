@@ -5,16 +5,18 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Network.Wai.Handler.Warp.HTTP1 (
-    http1
+    http1,
+    connectionIsInactive
   ) where
 
 import "iproute" Data.IP (toHostAddress, toHostAddress6)
-import qualified Control.Concurrent as Conc (yield)
+import qualified Control.Concurrent as Conc
 import qualified UnliftIO
 import UnliftIO (SomeException, fromException, throwIO)
 import qualified Data.ByteString as BS
 import Data.Char (chr)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import qualified Data.Vault.Lazy as Vault
 import Network.Socket (SockAddr(SockAddrInet, SockAddrInet6))
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
@@ -30,11 +32,21 @@ import Network.Wai.Handler.Warp.Types
 
 http1 :: Settings -> InternalInfo -> Connection -> Transport -> Application -> SockAddr -> T.Handle -> ByteString -> IO ()
 http1 settings ii conn transport app origAddr th bs0 = do
+    connActive <- mkConnActiveFlag
+    case connRegisterPeerClosedCb conn of
+      -- TODO Ignore only operation-not-supported exceptions
+      Just registerCb -> void $ UnliftIO.tryIO $ do
+          tid <- Conc.myThreadId
+          registerCb $ do
+              waitUntilConnInactive connActive
+              UnliftIO.throwTo tid PeerClosedException
+      Nothing         -> return ()
+
     istatus <- newIORef True
     src <- mkSource (wrappedRecv conn istatus (settingsSlowlorisSize settings))
     leftoverSource src bs0
     addr <- getProxyProtocolAddr src
-    http1server settings ii conn transport app addr th istatus src
+    http1server settings ii conn transport connActive app addr th istatus src
   where
     wrappedRecv Connection { connRecv = recv } istatus slowlorisSize = do
         bs <- recv
@@ -83,8 +95,8 @@ http1 settings ii conn transport app origAddr th bs0 = do
 
     decodeAscii = map (chr . fromEnum) . BS.unpack
 
-http1server :: Settings -> InternalInfo -> Connection -> Transport -> Application  -> SockAddr -> T.Handle -> IORef Bool -> Source -> IO ()
-http1server settings ii conn transport app addr th istatus src =
+http1server :: Settings -> InternalInfo -> Connection -> Transport -> ConnActiveFlag -> Application  -> SockAddr -> T.Handle -> IORef Bool -> Source -> IO ()
+http1server settings ii conn transport connActive app addr th istatus src =
     loop True `UnliftIO.catchAny` handler
   where
     handler e
@@ -98,7 +110,8 @@ http1server settings ii conn transport app addr th istatus src =
           throwIO e
 
     loop firstRequest = do
-        (req, mremainingRef, idxhdr, nextBodyFlush) <- recvRequest firstRequest settings conn ii th addr src transport
+        setConnActiveFlag connActive True
+        (req, mremainingRef, idxhdr, nextBodyFlush) <- recvRequest firstRequest settings conn ii th addr src transport connActive
         keepAlive <- processRequest settings ii conn app th istatus src req mremainingRef idxhdr nextBodyFlush
             `UnliftIO.catchAny` \e -> do
                 settingsOnException settings (Just req) e
@@ -219,3 +232,12 @@ flushBody src = loop
                 | BS.null bs -> return True
                 | toRead' >= 0 -> loop toRead'
                 | otherwise -> return False
+
+-- | Used by a handler to indicate that its current computation can be safely
+-- killed if the requesting connection is shutdown.
+connectionIsInactive :: Request -> IO ()
+connectionIsInactive req = do
+    case Vault.lookup connActiveFlagKey (vault req) of
+      Just flag -> setConnActiveFlag flag False
+      Nothing   -> return ()
+

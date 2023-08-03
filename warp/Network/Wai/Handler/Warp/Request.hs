@@ -12,6 +12,7 @@ module Network.Wai.Handler.Warp.Request (
 #ifdef MIN_VERSION_crypton_x509
   , getClientCertificateKey
 #endif
+  , connActiveFlagKey
   , NoKeepAliveRequest (..)
   ) where
 
@@ -56,6 +57,7 @@ recvRequest :: Bool -- ^ first request on this connection?
             -> SockAddr -- ^ Peer's address.
             -> Source -- ^ Where HTTP request comes from.
             -> Transport
+            -> ConnActiveFlag
             -> IO (Request
                   ,Maybe (I.IORef Int)
                   ,IndexedHeader
@@ -65,7 +67,7 @@ recvRequest :: Bool -- ^ first request on this connection?
             -- 'IndexedHeader' of HTTP request for internal use,
             -- Body producing action used for flushing the request body
 
-recvRequest firstRequest settings conn ii th addr src transport = do
+recvRequest firstRequest settings conn ii th addr src transport connActive = do
     hdrlines <- headerLines (settingsMaxTotalHeaderLength settings) firstRequest src
     (method, unparsedPath, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
@@ -76,6 +78,7 @@ recvRequest firstRequest settings conn ii th addr src transport = do
         rawPath = if settingsNoParsePath settings then unparsedPath else path
         vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
                    $ Vault.insert getFileInfoKey (getFileInfo ii)
+                   $ Vault.insert connActiveFlagKey connActive
 #ifdef MIN_VERSION_crypton_x509
                    $ Vault.insert getClientCertificateKey (getTransportClientCertificate transport)
 #endif
@@ -328,3 +331,7 @@ getClientCertificateKey :: Vault.Key (Maybe CertificateChain)
 getClientCertificateKey = unsafePerformIO Vault.newKey
 {-# NOINLINE getClientCertificateKey #-}
 #endif
+
+connActiveFlagKey :: Vault.Key ConnActiveFlag
+connActiveFlagKey = unsafePerformIO Vault.newKey
+{-# NOINLINE connActiveFlagKey #-}
