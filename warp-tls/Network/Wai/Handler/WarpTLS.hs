@@ -335,7 +335,11 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
         recv = handle onEOF $ TLS.recvData ctx
           where
             onEOF e
+#if MIN_VERSION_tls(1,8,0)
+              | Just (TLS.PostHandshake TLS.Error_EOF) <- E.fromException e = return S.empty
+#else
               | Just TLS.Error_EOF <- fromException e       = return S.empty
+#endif
               | Just ioe <- fromException e, isEOFError ioe = return S.empty                  | otherwise                                   = throwIO e
         sendfile fid offset len hook headers = do
             writeBuffer <- I.readIORef writeBufferRef

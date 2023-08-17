@@ -10,6 +10,7 @@ module System.TimeManager (
   , stopManager
   , killManager
   , withManager
+  , withManager'
   -- ** Registration
   , register
   , registerKillThread
@@ -150,3 +151,12 @@ withManager :: Int -- ^ timeout in microseconds
 withManager timeout f = E.bracket (initialize timeout)
                                   stopManager
                                   f
+
+-- | Call the inner function with a timeout manager.
+--   'killManager' is used after that.
+withManager' :: Int -- ^ timeout in microseconds
+             -> (Manager -> IO a)
+             -> IO a
+withManager' timeout f = E.bracket (initialize timeout)
+                                   killManager
+                                   f
