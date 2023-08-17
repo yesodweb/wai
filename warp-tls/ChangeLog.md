@@ -1,5 +1,9 @@
 # ChangeLog
 
+## 3.4.1
+
+* Supporting `tls` v1.8.0.
+
 ## 3.4.0
 
 * Major version up to deprecate v3.3.7 due to the incompatibility
