@@ -8,6 +8,7 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
+import Control.Concurrent
 import qualified Control.Exception
 import Control.Exception (allowInterrupt)
 import qualified Data.ByteString as S
@@ -21,6 +22,12 @@ import Network.Socket (gracefulClose)
 #endif
 import Network.Socket.BufferPool
 import qualified Network.Socket.ByteString as Sock
+#if MIN_VERSION_base(4,18,0)
+-- For evtPeerClosed
+import Network.Socket (withFdSocket)
+import GHC.Event
+import System.Posix.Types (Fd(Fd))
+#endif
 import Network.Wai
 import System.Environment (lookupEnv)
 import System.IO.Error (ioeGetErrorType)
@@ -59,6 +66,14 @@ socketConnection _ s = do
     bufferPool <- newBufferPool 2048 16384
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- newIORef writeBuffer
+#if MIN_VERSION_base(4,18,0)
+    let registerPeerClosedCb = Just $ \cb -> withFdSocket s $ \fd -> do
+            Just mgr <- getSystemEventManager
+            _ <- registerFd mgr (\ _ _ -> cb) (Fd fd) evtPeerClosed OneShot
+            return ()
+#else
+    let registerPeerClosedCb = Nothing
+#endif
     isH2 <- newIORef False -- HTTP/1.x
     return Connection {
         connSendMany = Sock.sendMany s
@@ -80,6 +95,7 @@ socketConnection _ s = do
       , connRecvBuf = \_ _ -> return True -- obsoleted
       , connWriteBuffer = writeBufferRef
       , connHTTP2 = isH2
+      , connRegisterPeerClosedCb = registerPeerClosedCb
       }
   where
     receive' sock pool = UnliftIO.handleIO handler $ receive sock pool

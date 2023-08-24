@@ -111,6 +111,8 @@ module Network.Wai.Handler.Warp (
   , openFreePort
     -- * Version
   , warpVersion
+    -- * Handling premature connection closure
+  , connectionIsInactive
     -- * HTTP/2
     -- ** HTTP2 data
   , HTTP2Data
@@ -141,6 +143,7 @@ import Network.Wai (Request, Response, vault)
 import System.TimeManager
 
 import Network.Wai.Handler.Warp.FileInfoCache
+import Network.Wai.Handler.Warp.HTTP1 (connectionIsInactive)
 import Network.Wai.Handler.Warp.HTTP2.Request (getHTTP2Data, setHTTP2Data, modifyHTTP2Data)
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Imports
