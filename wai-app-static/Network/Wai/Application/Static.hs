@@ -205,23 +205,22 @@ cacheControl :: MaxAge -> (H.ResponseHeaders -> H.ResponseHeaders)
 cacheControl maxage =
     headerCacheControl . headerExpires
   where
-    ccInt =
-        case maxage of
-            NoMaxAge -> Nothing
-            MaxAgeSeconds i -> Just i
-            MaxAgeForever -> Just oneYear
     oneYear :: Int
     oneYear = 60 * 60 * 24 * 365
 
-    headerCacheControl =
-      case ccInt of
-        Nothing -> id
-        Just i  -> (:) ("Cache-Control", S8.append "public, max-age=" $ S8.pack $ show i)
+    maxAgeValue i = S8.append "public, max-age=" $ S8.pack $ show i
+
+    headerCacheControl = case maxage of
+        NoMaxAge -> id
+        MaxAgeSeconds i -> (:) ("Cache-Control", maxAgeValue i)
+        MaxAgeForever -> (:) ("Cache-Control", maxAgeValue oneYear)
+        NoStore -> (:) ("Cache-Control", "no-store")
     headerExpires =
       case maxage of
         NoMaxAge        -> id
         MaxAgeSeconds _ -> id -- FIXME
         MaxAgeForever   -> (:) ("Expires", "Thu, 31 Dec 2037 23:55:55 GMT")
+        NoStore -> id
 
 -- | Turn a @StaticSettings@ into a WAI application.
 staticApp :: StaticSettings -> W.Application
