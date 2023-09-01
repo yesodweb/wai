@@ -11,6 +11,7 @@ import Data.Typeable (Typeable)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
+import Network.Socket (SockAddr)
 import Network.Socket.BufferPool
 import System.Posix.Types (Fd)
 import qualified System.TimeManager as T
@@ -125,6 +126,7 @@ data Connection = Connection {
     , connWriteBuffer :: IORef WriteBuffer
     -- | Is this connection HTTP/2?
     , connHTTP2       :: IORef Bool
+    , connMySockAddr  :: SockAddr
     }
 
 getConnHTTP2 :: Connection -> IO Bool

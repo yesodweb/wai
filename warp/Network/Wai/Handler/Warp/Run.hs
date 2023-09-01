@@ -15,7 +15,7 @@ import Data.IORef (newIORef, readIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno(..), eCONNABORTED)
 import GHC.IO.Exception (IOException(..), IOErrorType(..))
-import Network.Socket (Socket, close, withSocketsDo, SockAddr, setSocketOption, SocketOption(..))
+import Network.Socket (Socket, close, withSocketsDo, SockAddr, setSocketOption, SocketOption(..), getSocketName)
 #if MIN_VERSION_network(3,1,1)
 import Network.Socket (gracefulClose)
 #endif
@@ -60,6 +60,7 @@ socketConnection _ s = do
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
+    mysa <- getSocketName s
     return Connection {
         connSendMany = Sock.sendMany s
       , connSendAll = sendall
@@ -80,6 +81,7 @@ socketConnection _ s = do
       , connRecvBuf = \_ _ -> return True -- obsoleted
       , connWriteBuffer = writeBufferRef
       , connHTTP2 = isH2
+      , connMySockAddr = mysa
       }
   where
     receive' sock pool = UnliftIO.handleIO handler $ receive sock pool

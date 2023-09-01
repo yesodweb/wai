@@ -65,6 +65,7 @@ import Network.Socket (
     gracefulClose,
 #endif
     withSocketsDo,
+    getSocketName,
  )
 import Network.Socket.BufferPool
 import Network.Socket.ByteString (sendAll)
@@ -302,7 +303,8 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
     writeBufferRef <- I.newIORef writeBuffer
     -- Creating a cache for leftover input data.
     tls <- getTLSinfo ctx
-    return (conn ctx writeBufferRef isH2, tls)
+    mysa <- getSocketName s
+    return (conn ctx writeBufferRef isH2 mysa, tls)
   where
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
@@ -320,7 +322,7 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
         else Nothing)
       throwIO
       $ sendAll sock bs
-    conn ctx writeBufferRef isH2 = Connection {
+    conn ctx writeBufferRef isH2 mysa = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
       , connSendFile         = sendfile
@@ -329,6 +331,7 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
       , connRecvBuf          = \_ _ -> return True -- obsoleted
       , connWriteBuffer      = writeBufferRef
       , connHTTP2            = isH2
+      , connMySockAddr       = mysa
       }
       where
         sendall = TLS.sendData ctx . L.fromChunks . return

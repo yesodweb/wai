@@ -31,7 +31,7 @@ import Network.Wai.Handler.Warp.Types
 ----------------------------------------------------------------
 
 http2 :: S.Settings -> InternalInfo -> Connection -> Transport -> Application -> SockAddr -> T.Handle -> ByteString -> IO ()
-http2 settings ii conn transport app origAddr th bs = do
+http2 settings ii conn transport app peersa th bs = do
     istatus <- newIORef False
     rawRecvN <- makeRecvN bs $ connRecv conn
     writeBuffer <- readIORef $ connWriteBuffer conn
@@ -51,10 +51,12 @@ http2 settings ii conn transport app origAddr th bs = do
           , confReadN             = recvN
           , confPositionReadMaker = pReadMaker ii
           , confTimeoutManager    = timeoutManager ii
+          , confMySockAddr        = connMySockAddr conn
+          , confPeerSockAddr      = peersa
           }
     checkTLS
     setConnHTTP2 conn True
-    H2.run conf $ http2server settings ii transport origAddr app
+    H2.run conf $ http2server settings ii transport peersa app
   where
     checkTLS = case transport of
         TCP -> return () -- direct
