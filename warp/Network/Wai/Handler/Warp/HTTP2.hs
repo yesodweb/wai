@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -51,8 +52,10 @@ http2 settings ii conn transport app peersa th bs = do
           , confReadN             = recvN
           , confPositionReadMaker = pReadMaker ii
           , confTimeoutManager    = timeoutManager ii
+#if MIN_VERSION_http2(4,2,0)
           , confMySockAddr        = connMySockAddr conn
           , confPeerSockAddr      = peersa
+#endif
           }
     checkTLS
     setConnHTTP2 conn True

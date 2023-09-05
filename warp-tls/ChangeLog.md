@@ -2,6 +2,10 @@
 
 ## 3.4.1
 
+* Requiring warp v3.3.29.
+
+## 3.4.1
+
 * Supporting `tls` v1.8.0.
 
 ## 3.4.0
