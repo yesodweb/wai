@@ -1,5 +1,9 @@
 # ChangeLog for warp
 
+## 3.3.29
+
+* Preparing coming "http2" v4.2.0.
+
 ## 3.3.28
 
 * Fix for the "-x509" flag
