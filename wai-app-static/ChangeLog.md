@@ -1,6 +1,6 @@
 # wai-app-static changelog
 
-## 3.1.7.6
+## 3.1.8
 
 * Added `NoStore` constructor to `MaxAge` [#938](https://github.com/yesodweb/wai/pull/938)
 
