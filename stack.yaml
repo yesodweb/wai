@@ -21,4 +21,6 @@ nix:
   packages:
   - fcgi
   - zlib
-extra-deps: []
+extra-deps:
+  - crypton-0.33
+  - crypton-x509-1.7.6
