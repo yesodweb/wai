@@ -21,7 +21,7 @@ newCounter = Counter <$> newTVarIO 0
 waitForZero :: Counter -> IO ()
 waitForZero (Counter ref) = atomically $ do
     x <- readTVar ref
-    unless (x == 0) retry
+    when (x > 0) retry
 
 increase :: Counter -> IO ()
 increase (Counter ref) = atomically $ modifyTVar' ref $ \x -> x + 1

@@ -1,4 +1,4 @@
-resolver: lts-18.28
+resolver: lts-21.11
 packages:
 - ./recv
 - ./auto-update
@@ -24,3 +24,6 @@ nix:
 extra-deps:
   - crypton-0.33
   - crypton-x509-1.7.6
+  - crypton-x509-store-1.6.9
+  - crypton-x509-validation-1.6.12
+  - tls-1.8.0

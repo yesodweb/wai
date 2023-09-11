@@ -1,4 +1,4 @@
-resolver: nightly-2023-09-09
+resolver: lts-20.26
 packages:
 - ./recv
 - ./auto-update
@@ -21,3 +21,11 @@ nix:
   packages:
   - fcgi
   - zlib
+extra-deps:
+  - crypton-0.33
+  - crypton-x509-1.7.6
+  - crypton-x509-store-1.6.9
+  - crypton-x509-validation-1.6.12
+  - tls-1.8.0
+  - cgi-3001.5.0.1
+  - multipart-0.2.1
