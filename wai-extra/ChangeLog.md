@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.13.0
+
+* Added `Combine Headers` `Middleware` [#901](https://github.com/yesodweb/wai/pull/901)
+
 ## 3.1.12.1
 
 * Include test/{json.gz,noprecompress} as extra-source-files [#887](https://github.com/yesodweb/wai/pull/887)

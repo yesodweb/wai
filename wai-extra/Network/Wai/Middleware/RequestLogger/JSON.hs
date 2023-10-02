@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE CPP #-}
 
 module Network.Wai.Middleware.RequestLogger.JSON

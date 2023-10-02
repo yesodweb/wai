@@ -1,5 +1,5 @@
 name:            wai-app-static
-version:         3.1.7.5
+version:         3.1.8
 license:         MIT
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -24,8 +24,8 @@ Flag print
     Description:   print debug info
     Default:       False
 
-Flag cryptonite
-    Description:   Use the cryptonite library for MD5 computation
+Flag crypton
+    Description:   Use the crypton library for MD5 computation
     Default:       True
 
 library
@@ -53,8 +53,8 @@ library
                    , wai-extra                 >= 3.0      && < 3.2
                    , optparse-applicative      >= 0.7
                    , warp                      >= 3.0.11   && < 3.4
-    if flag(cryptonite)
-      build-depends: cryptonite                >= 0.6
+    if flag(crypton)
+      build-depends: crypton                   >= 0.6
                    , memory                    >= 0.7
     else
       build-depends: base64-bytestring         >= 0.1

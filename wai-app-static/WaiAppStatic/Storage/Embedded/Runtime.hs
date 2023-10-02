@@ -16,7 +16,7 @@ import Data.Function (on)
 import qualified Data.Text as T
 import Data.Ord
 import qualified Data.ByteString as S
-#ifdef MIN_VERSION_cryptonite
+#ifdef MIN_VERSION_crypton
 import Crypto.Hash (hash, MD5, Digest)
 import Data.ByteArray.Encoding
 #else
@@ -100,7 +100,7 @@ bsToFile name bs = File
     }
 
 runHash :: ByteString -> ByteString
-#ifdef MIN_VERSION_cryptonite
+#ifdef MIN_VERSION_crypton
 runHash = convertToBase Base64 . (hash :: S.ByteString -> Digest MD5)
 #else
 runHash = encode . hash

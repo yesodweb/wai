@@ -1,6 +1,6 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
@@ -9,7 +9,7 @@ module Network.Wai.Handler.Warp.Request (
   , headerLines
   , pauseTimeoutKey
   , getFileInfoKey
-#ifdef MIN_VERSION_x509
+#ifdef MIN_VERSION_crypton_x509
   , getClientCertificateKey
 #endif
   , NoKeepAliveRequest (..)
@@ -24,7 +24,7 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.IORef as I
 import Data.Typeable (Typeable)
 import qualified Data.Vault.Lazy as Vault
-#ifdef MIN_VERSION_x509
+#ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
 import qualified Network.HTTP.Types as H
@@ -76,7 +76,7 @@ recvRequest firstRequest settings conn ii th addr src transport = do
         rawPath = if settingsNoParsePath settings then unparsedPath else path
         vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
                    $ Vault.insert getFileInfoKey (getFileInfo ii)
-#ifdef MIN_VERSION_x509
+#ifdef MIN_VERSION_crypton_x509
                    $ Vault.insert getClientCertificateKey (getTransportClientCertificate transport)
 #endif
                      Vault.empty
@@ -323,7 +323,7 @@ getFileInfoKey :: Vault.Key (FilePath -> IO FileInfo)
 getFileInfoKey = unsafePerformIO Vault.newKey
 {-# NOINLINE getFileInfoKey #-}
 
-#ifdef MIN_VERSION_x509
+#ifdef MIN_VERSION_crypton_x509
 getClientCertificateKey :: Vault.Key (Maybe CertificateChain)
 getClientCertificateKey = unsafePerformIO Vault.newKey
 {-# NOINLINE getClientCertificateKey #-}

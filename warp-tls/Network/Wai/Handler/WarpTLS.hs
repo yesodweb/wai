@@ -44,16 +44,10 @@ module Network.Wai.Handler.WarpTLS (
     , OnInsecure (..)
     -- * Exception
     , WarpTLSException (..)
-    -- * DH parameters (re-exports)
-    --
-    -- | This custom DH parameters are not necessary anymore because
-    --   pre-defined DH parameters are supported in the TLS package.
-    , DH.Params
-    , DH.generateParams
     ) where
 
 import Control.Applicative ((<|>))
-import UnliftIO.Exception (Exception, throwIO, bracket, finally, handle, handleAny, fromException, try, IOException, onException, SomeException(..), handleJust)
+import UnliftIO.Exception (Exception, throwIO, bracket, finally, handleAny, try, IOException, onException, SomeException(..), handleJust)
 import qualified UnliftIO.Exception as E
 import Control.Monad (void, guard)
 import qualified Data.ByteString as S
@@ -71,17 +65,19 @@ import Network.Socket (
     gracefulClose,
 #endif
     withSocketsDo,
+    getSocketName,
  )
+import Network.Socket.BufferPool
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
-import qualified Crypto.PubKey.DH as DH
 import qualified Network.TLS.Extra as TLSExtra
 import qualified Network.TLS.SessionManager as SM
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal
 import Network.Wai.Handler.WarpTLS.Internal(CertSettings(..), TLSSettings(..), OnInsecure(..))
-import System.IO.Error (isEOFError, ioeGetErrorType)
+import System.IO.Error (ioeGetErrorType, isEOFError)
+import UnliftIO.Exception (handle, fromException)
 
 -- | The default 'CertSettings'.
 defaultCertSettings :: CertSettings
@@ -195,7 +191,9 @@ runTLS tset set app = withSocketsDo $
     bracket
         (bindPortTCP (getPort set) (getHost set))
         close
-        (\sock -> runTLSSocket tset set sock app)
+        (\sock -> do
+            setSocketCloseOnExec sock
+            runTLSSocket tset set sock app)
 
 ----------------------------------------------------------------
 
@@ -294,7 +292,8 @@ mkConn tlsset set s params = (safeRecv s 4096 >>= switch) `onException` close s
 
 httpOverTls :: TLS.TLSParams params => TLSSettings -> Settings -> Socket -> S.ByteString -> params -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} _set s bs0 params = do
-    rawRecvN <- makePlainReceiveN s 2048 16384 bs0
+    pool <- newBufferPool 2048 16384
+    rawRecvN <- makeRecvN bs0 $ receive s pool
     let recvN = wrappedRecvN rawRecvN
     ctx <- TLS.contextNew (backend recvN) params
     TLS.contextHookSetLogging ctx tlsLogging
@@ -304,9 +303,9 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- I.newIORef writeBuffer
     -- Creating a cache for leftover input data.
-    ref <- I.newIORef ""
     tls <- getTLSinfo ctx
-    return (conn ctx writeBufferRef ref isH2, tls)
+    mysa <- getSocketName s
+    return (conn ctx writeBufferRef isH2 mysa, tls)
   where
     backend recvN = TLS.Backend {
         TLS.backendFlush = return ()
@@ -324,18 +323,28 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
         else Nothing)
       throwIO
       $ sendAll sock bs
-    conn ctx writeBufferRef ref isH2 = Connection {
+    conn ctx writeBufferRef isH2 mysa = Connection {
         connSendMany         = TLS.sendData ctx . L.fromChunks
       , connSendAll          = sendall
       , connSendFile         = sendfile
       , connClose            = close'
-      , connRecv             = recv ref
-      , connRecvBuf          = recvBuf ref
+      , connRecv             = recv
+      , connRecvBuf          = \_ _ -> return True -- obsoleted
       , connWriteBuffer      = writeBufferRef
       , connHTTP2            = isH2
+      , connMySockAddr       = mysa
       }
       where
         sendall = TLS.sendData ctx . L.fromChunks . return
+        recv = handle onEOF $ TLS.recvData ctx
+          where
+            onEOF e
+#if MIN_VERSION_tls(1,8,0)
+              | Just (TLS.PostHandshake TLS.Error_EOF) <- E.fromException e = return S.empty
+#else
+              | Just TLS.Error_EOF <- fromException e       = return S.empty
+#endif
+              | Just ioe <- fromException e, isEOFError ioe = return S.empty                  | otherwise                                   = throwIO e
         sendfile fid offset len hook headers = do
             writeBuffer <- I.readIORef writeBufferRef
             readSendFile (bufBuffer writeBuffer) (bufSize writeBuffer) sendall fid offset len hook headers
@@ -351,63 +360,10 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
             (const (return ()))
             (TLS.bye ctx)
 
-        -- TLS version of recv with a cache for leftover input data.
-        -- The cache is shared with recvBuf.
-        recv cref = do
-            cached <- I.readIORef cref
-            if cached /= "" then do
-                I.writeIORef cref ""
-                return cached
-              else
-                recv'
-
-        -- TLS version of recv (decrypting) without a cache.
-        recv' = handle onEOF go
-          where
-            onEOF e
-              | Just TLS.Error_EOF <- fromException e       = return S.empty
-              | Just ioe <- fromException e, isEOFError ioe = return S.empty                  | otherwise                                   = throwIO e
-            go = do
-                x <- TLS.recvData ctx
-                if S.null x then
-                    go
-                  else
-                    return x
-
-        -- TLS version of recvBuf with a cache for leftover input data.
-        recvBuf cref buf siz = do
-            cached <- I.readIORef cref
-            (ret, leftover) <- fill cached buf siz recv'
-            I.writeIORef cref leftover
-            return ret
 
     wrappedRecvN recvN n = handleAny handler $ recvN n
     handler :: SomeException -> IO S.ByteString
     handler _ = return ""
-
-fill :: S.ByteString -> Buffer -> BufSize -> Recv -> IO (Bool,S.ByteString)
-fill bs0 buf0 siz0 recv
-  | siz0 <= len0 = do
-      let (bs, leftover) = S.splitAt siz0 bs0
-      void $ copy buf0 bs
-      return (True, leftover)
-  | otherwise = do
-      buf <- copy buf0 bs0
-      loop buf (siz0 - len0)
-  where
-    len0 = S.length bs0
-    loop _   0   = return (True, "")
-    loop buf siz = do
-      bs <- recv
-      let len = S.length bs
-      if len == 0 then return (False, "")
-        else if len <= siz then do
-          buf' <- copy buf bs
-          loop buf' (siz - len)
-        else do
-          let (bs1,bs2) = S.splitAt siz bs
-          void $ copy buf bs1
-          return (True, bs2)
 
 getTLSinfo :: TLS.Context -> IO Transport
 getTLSinfo ctx = do

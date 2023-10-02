@@ -15,7 +15,6 @@ module Network.Wai.Handler.Warp.Internal (
     -- ** Receive
   , Recv
   , RecvBuf
-  , makePlainReceiveN
     -- ** Buffer
   , Buffer
   , BufSize

@@ -1,9 +1,35 @@
 # ChangeLog
 
-## 3.3.4.1
+## 3.4.3
 
 * Install shutdown handlers passed via `Settings` to `run...` functions
-  [#915](https://github.com/yesodweb/wai/pull/915)
+
+## 3.4.1
+
+* Requiring warp v3.3.29.
+
+## 3.4.1
+
+* Supporting `tls` v1.8.0.
+
+## 3.4.0
+
+* Major version up to deprecate v3.3.7 due to the incompatibility
+  against cryptonite.
+
+## 3.3.7
+
+* Using crypton instead of cryptonite.
+  [#931](https://github.com/yesodweb/wai/pull/931)
+
+## 3.3.6
+
+* Setting FD_CLOEXEC on the listening socket.
+  [#923](https://github.com/yesodweb/wai/pull/923)
+
+## 3.3.5
+
+* Switching the version of the "recv" package from 0.0.x to 0.1.x.
 
 ## 3.3.4
 

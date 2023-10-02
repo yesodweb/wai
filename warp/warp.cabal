@@ -1,5 +1,5 @@
 Name:                warp
-Version:             3.3.23
+Version:             3.3.29
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -50,19 +50,18 @@ Library
                    , http-types                >= 0.12
                    , http2                     >= 3.0      && < 5
                    , iproute                   >= 1.3.1
-                   , recv
+                   , recv                      >= 0.1.0    && < 0.2.0
                    , simple-sendfile           >= 0.2.7    && < 0.3
                    , stm                       >= 2.3
                    , streaming-commons         >= 0.1.10
                    , text
                    , time-manager
-                   , unix-compat               >= 0.2
                    , vault                     >= 0.3
                    , wai                       >= 3.2      && < 3.3
                    , word8
                    , unliftio
   if flag(x509)
-      Build-Depends: x509
+      Build-Depends: crypton-x509
   if impl(ghc < 8)
       Build-Depends: semigroups
   if flag(network-bytestring)
@@ -112,6 +111,7 @@ Library
   if os(windows)
       Cpp-Options:   -DWINDOWS
       Build-Depends: time
+                   , unix-compat >= 0.2
   else
       Build-Depends: unix
       Other-modules: Network.Wai.Handler.Warp.MultiMap
@@ -205,19 +205,18 @@ Test-Suite spec
                    , iproute                   >= 1.3.1
                    , network
                    , process
-                   , recv
+                   , recv                      >= 0.1.0    && < 0.2.0
                    , simple-sendfile           >= 0.2.4    && < 0.3
                    , stm                       >= 2.3
                    , streaming-commons         >= 0.1.10
                    , text
                    , time-manager
-                   , unix-compat               >= 0.2
                    , vault
                    , wai                       >= 3.2      && < 3.3
                    , word8
                    , unliftio
   if flag(x509)
-      Build-Depends: x509
+      Build-Depends: crypton-x509
   if impl(ghc < 8)
       Build-Depends: semigroups
                    , transformers
@@ -227,6 +226,7 @@ Test-Suite spec
   if os(windows)
       Cpp-Options:   -DWINDOWS
       Build-Depends: time
+                 , unix-compat >= 0.2
   else
       Build-Depends: unix
       Other-modules: Network.Wai.Handler.Warp.MultiMap
@@ -257,10 +257,9 @@ Benchmark parser
                   , network
                   , recv
                   , time-manager
-                  , unix-compat
                   , unliftio
   if flag(x509)
-      Build-Depends: x509
+      Build-Depends: crypton-x509
   if impl(ghc < 8)
       Build-Depends: semigroups
 
@@ -270,6 +269,7 @@ Benchmark parser
   if os(windows)
     Cpp-Options:   -DWINDOWS
     Build-Depends: time
+                 , unix-compat >= 0.2
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
   Default-Language:     Haskell2010

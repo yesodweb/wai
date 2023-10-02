@@ -10,6 +10,7 @@ module System.TimeManager (
   , stopManager
   , killManager
   , withManager
+  , withManager'
   -- ** Registration
   , register
   , registerKillThread
@@ -23,7 +24,7 @@ module System.TimeManager (
   ) where
 
 import Control.Concurrent (myThreadId)
-import qualified Control.Exception as E
+import qualified UnliftIO.Exception as E
 import Control.Reaper
 import Data.Typeable (Typeable)
 import Data.IORef (IORef)
@@ -143,10 +144,19 @@ resume = tickle
 ----------------------------------------------------------------
 
 -- | Call the inner function with a timeout manager.
+--   'stopManager' is used after that.
 withManager :: Int -- ^ timeout in microseconds
             -> (Manager -> IO a)
             -> IO a
-withManager timeout f = do
-    -- FIXME when stopManager is available, use it
-    man <- initialize timeout
-    f man
+withManager timeout f = E.bracket (initialize timeout)
+                                  stopManager
+                                  f
+
+-- | Call the inner function with a timeout manager.
+--   'killManager' is used after that.
+withManager' :: Int -- ^ timeout in microseconds
+             -> (Manager -> IO a)
+             -> IO a
+withManager' timeout f = E.bracket (initialize timeout)
+                                   killManager
+                                   f

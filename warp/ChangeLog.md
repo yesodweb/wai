@@ -1,5 +1,33 @@
 # ChangeLog for warp
 
+## 3.3.29
+
+* Preparing coming "http2" v4.2.0.
+
+## 3.3.28
+
+* Fix for the "-x509" flag
+   [#935](https://github.com/yesodweb/wai/pull/935)
+
+## 3.3.27
+
+* Fixing busy loop due to eMFILE
+  [#933](https://github.com/yesodweb/wai/pull/933)
+
+## 3.3.26
+
+* Using crypton instead of cryptonite.
+  [#931](https://github.com/yesodweb/wai/pull/931)
+
+## 3.3.25
+
+* Catching up the signature change of openFd in the unix package v2.8.
+  [#926](https://github.com/yesodweb/wai/pull/926)
+
+## 3.3.24
+
+* Switching the version of the "recv" package from 0.0.x to 0.1.x.
+
 ## 3.3.23
 
 * Add `setAccept` for hooking the socket `accept` call.

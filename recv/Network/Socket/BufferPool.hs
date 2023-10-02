@@ -17,7 +17,7 @@
 --  The efficient receiving functions provided here use a buffer pool.
 --  A large buffer is allocated at the beginning and it is divided into
 --  a used one and a leftover when receiving.
---  The latter is kept in the buffer pooll and will be used next time.
+--  The latter is kept in the buffer pool and will be used next time.
 --  When the buffer gets small
 --  and usefless, a new large buffer is allocated.
 module Network.Socket.BufferPool (
@@ -27,13 +27,9 @@ module Network.Socket.BufferPool (
   , BufferPool
   , newBufferPool
   , withBufferPool
-  -- * RecvBuf
-  , RecvBuf
-  , receiveBuf
   -- * RecvN
   , RecvN
-  , makeReceiveN
-  , makePlainReceiveN
+  , makeRecvN
   -- * Types
   , Buffer
   , BufSize

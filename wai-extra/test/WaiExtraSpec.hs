@@ -184,7 +184,7 @@ gzipApp' changeRes =
         "test"
 
 gzipAppWithHeaders :: ResponseHeaders -> Application
-gzipAppWithHeaders hdrs = gzipApp' $ mapResponseHeaders $ (hdrs ++)
+gzipAppWithHeaders hdrs = gzipApp' $ mapResponseHeaders (hdrs ++)
 
 gzipFileApp :: GzipSettings -> Application
 gzipFileApp = flip gzipFileApp' id
@@ -529,13 +529,13 @@ caseDebugRequestBody = do
   where
     params = [("foo", "bar"), ("baz", "bin")]
     -- the time cannot be known, so match around it
-    postOutput = (T.pack $ "POST /\n  Params: " ++ (show params), "s\n")
+    postOutput = (T.pack $ "POST /\n  Params: " ++ show params, "s\n")
     getOutput params' = ("GET /location\n  Params: " <> T.pack (show params') <> "\n  Accept: \n  Status: 200 OK 0", "s\n")
 
     debugApp (beginning, ending) req send = do
         iactual <- I.newIORef mempty
         middleware <- mkRequestLogger def
-            { destination = Callback $ \strs -> I.modifyIORef iactual $ (`mappend` strs)
+            { destination = Callback $ \strs -> I.modifyIORef iactual (`mappend` strs)
             , outputFormat = Detailed False
             }
         res <- middleware (\_req f -> f $ responseLBS status200 [ ] "") req send

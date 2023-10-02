@@ -1,20 +1,19 @@
-{-# LANGUAGE CPP #-}
 -- | Some helpers for dealing with WAI 'Header's.
 module Network.Wai.Header
     ( contentLength
     , parseQValueList
     , replaceHeader
-    , splitCommas
-    , trimWS
     ) where
 
 import Control.Monad (guard)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Internal (w2c)
-import Data.Word8 (Word8, _0, _1, _comma, _period, _semicolon, _space)
+import Data.Word8 (_0, _1, _period, _semicolon, _space)
 import Network.HTTP.Types as H
 import Text.Read (readMaybe)
+
+import Network.Wai.Util (dropWhileEnd, splitCommas)
 
 -- | More useful for a response. A Wai Request already has a requestBodyLength
 contentLength :: [(HeaderName, S8.ByteString)] -> Maybe Integer
@@ -30,22 +29,6 @@ readInt bs =
 replaceHeader :: H.HeaderName -> S.ByteString -> [H.Header] -> [H.Header]
 replaceHeader name val old =
     (name, val) : filter ((/= name) . fst) old
-
--- | Used to split a header value which is a comma separated list
-splitCommas :: S.ByteString -> [S.ByteString]
-splitCommas = map trimWS . S.split _comma
-
--- Trim whitespace
-trimWS :: S.ByteString -> S.ByteString
-trimWS = dropWhileEnd (== _space) . S.dropWhile (== _space)
-
--- | Dropping all 'Word8's from the end that satisfy the predicate.
-dropWhileEnd :: (Word8 -> Bool) -> S.ByteString -> S.ByteString
-#if MIN_VERSION_bytestring(0,10,12)
-dropWhileEnd = S.dropWhileEnd
-#else
-dropWhileEnd p = fst . S.spanEnd p
-#endif
 
 -- | Only to be used on header's values which support quality value syntax
 --

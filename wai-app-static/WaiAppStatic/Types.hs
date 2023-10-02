@@ -67,6 +67,7 @@ type Pieces = [Piece]
 data MaxAge = NoMaxAge -- ^ no cache-control set
             | MaxAgeSeconds Int -- ^ set to the given number of seconds
             | MaxAgeForever -- ^ essentially infinite caching; in reality, probably one year
+            | NoStore -- ^ set cache-control to no-store @since 3.1.8
 
 -- | Just the name of a folder.
 type FolderName = Piece

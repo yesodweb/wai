@@ -13,9 +13,9 @@ import Control.Exception (allowInterrupt)
 import qualified Data.ByteString as S
 import Data.IORef (newIORef, readIORef)
 import Data.Streaming.Network (bindPortTCP)
-import Foreign.C.Error (Errno(..), eCONNABORTED, eMFILE)
+import Foreign.C.Error (Errno(..), eCONNABORTED)
 import GHC.IO.Exception (IOException(..), IOErrorType(..))
-import Network.Socket (Socket, close, withSocketsDo, SockAddr, setSocketOption, SocketOption(..))
+import Network.Socket (Socket, close, withSocketsDo, SockAddr, setSocketOption, SocketOption(..), getSocketName)
 #if MIN_VERSION_network(3,1,1)
 import Network.Socket (gracefulClose)
 #endif
@@ -60,6 +60,7 @@ socketConnection _ s = do
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
+    mysa <- getSocketName s
     return Connection {
         connSendMany = Sock.sendMany s
       , connSendAll = sendall
@@ -77,9 +78,10 @@ socketConnection _ s = do
       , connClose = close s
 #endif
       , connRecv = receive' s bufferPool
-      , connRecvBuf = receiveBuf s
+      , connRecvBuf = \_ _ -> return True -- obsoleted
       , connWriteBuffer = writeBufferRef
       , connHTTP2 = isH2
+      , connMySockAddr = mysa
       }
   where
     receive' sock pool = UnliftIO.handleIO handler $ receive sock pool
@@ -277,11 +279,9 @@ acceptConnection set getConnMaker app counter ii = do
         case ex of
             Right x -> return $ Just x
             Left e -> do
-                let getErrno (Errno cInt) = cInt
-                    eConnAborted = getErrno eCONNABORTED
-                    eMfile = getErrno eMFILE
-                    merrno = ioe_errno e
-                if merrno == Just eConnAborted || merrno == Just eMfile
+                let eConnAborted = getErrno eCONNABORTED
+                    getErrno (Errno cInt) = cInt
+                if ioe_errno e == Just eConnAborted
                     then acceptNewConnection
                     else do
                         settingsOnException set Nothing $ toException e

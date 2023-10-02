@@ -1,5 +1,9 @@
 # wai-app-static changelog
 
+## 3.1.8
+
+* Added `NoStore` constructor to `MaxAge` [#938](https://github.com/yesodweb/wai/pull/938)
+
 ## 3.1.7.5
 
 * Removed dependency of `time`, `old-locale` and `network` [#902](https://github.com/yesodweb/wai/pull/902)

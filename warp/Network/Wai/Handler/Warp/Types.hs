@@ -1,6 +1,6 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Types where
 
@@ -8,9 +8,10 @@ import qualified UnliftIO
 import qualified Data.ByteString as S
 import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 import Data.Typeable (Typeable)
-#ifdef MIN_VERSION_x509
+#ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
+import Network.Socket (SockAddr)
 import Network.Socket.BufferPool
 import System.Posix.Types (Fd)
 import qualified System.TimeManager as T
@@ -99,6 +100,8 @@ data WriteBuffer = WriteBuffer {
     , bufFree :: IO ()
     }
 
+type RecvBuf = Buffer -> BufSize -> IO Bool
+
 -- | Data type to manipulate IO actions for connections.
 --   This is used to abstract IO actions for plain HTTP and HTTP over TLS.
 data Connection = Connection {
@@ -114,8 +117,7 @@ data Connection = Connection {
     , connClose       :: IO ()
     -- | The connection receiving function. This returns "" for EOF or exceptions.
     , connRecv        :: Recv
-    -- | The connection receiving function. This tries to fill the buffer.
-    --   This returns when the buffer is filled or reaches EOF.
+    -- | Obsoleted.
     , connRecvBuf     :: RecvBuf
     -- | Reference to a write buffer. When during sending of a 'Builder'
     -- response it's detected the current 'WriteBuffer' is too small it will be
@@ -124,6 +126,7 @@ data Connection = Connection {
     , connWriteBuffer :: IORef WriteBuffer
     -- | Is this connection HTTP/2?
     , connHTTP2       :: IORef Bool
+    , connMySockAddr  :: SockAddr
     }
 
 getConnHTTP2 :: Connection -> IO Bool
@@ -179,14 +182,14 @@ data Transport = TCP -- ^ Plain channel: TCP
                  , tlsMinorVersion :: Int
                  , tlsNegotiatedProtocol :: Maybe ByteString -- ^ The result of Application Layer Protocol Negociation in RFC 7301
                  , tlsChiperID :: Word16
-#ifdef MIN_VERSION_x509
+#ifdef MIN_VERSION_crypton_x509
                  , tlsClientCertificate :: Maybe CertificateChain
 #endif
                  }  -- ^ Encrypted channel: TLS or SSL
                | QUIC {
                    quicNegotiatedProtocol :: Maybe ByteString
                  , quicChiperID :: Word16
-#ifdef MIN_VERSION_x509
+#ifdef MIN_VERSION_crypton_x509
                  , quicClientCertificate :: Maybe CertificateChain
 #endif
                  }
@@ -199,7 +202,7 @@ isTransportQUIC :: Transport -> Bool
 isTransportQUIC QUIC{} = True
 isTransportQUIC _      = False
 
-#ifdef MIN_VERSION_x509
+#ifdef MIN_VERSION_crypton_x509
 getTransportClientCertificate :: Transport -> Maybe CertificateChain
 getTransportClientCertificate TCP              = Nothing
 getTransportClientCertificate (TLS _ _ _ _ cc) = cc

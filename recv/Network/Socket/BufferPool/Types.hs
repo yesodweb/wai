@@ -24,9 +24,5 @@ data BufferPool = BufferPool {
 -- | Type for the receiving function with a buffer pool.
 type Recv = IO ByteString
 
--- | Type for the receiving function with a buffer.
---   The result boolean indicates whether or not the buffer is fully filled.
-type RecvBuf = Buffer -> BufSize -> IO Bool
-
 -- | Type for the receiving function which receives N bytes.
 type RecvN = Int -> IO ByteString
