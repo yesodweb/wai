@@ -223,6 +223,7 @@ getSessionManager TLSSettings{..} = case tlsSessionManagerConfig of
 --   specified 'Socket'.
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket tlsset set sock app = do
+    settingsInstallShutdownHandler set (close sock)
     credentials <- loadCredentials tlsset
     mgr <- getSessionManager tlsset
     runTLSSocket' tlsset set credentials mgr sock app
