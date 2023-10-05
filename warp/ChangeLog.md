@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.30
+
+* Fixed adding superfluous `Server` header if response already has it.
+   [#943](https://github.com/yesodweb/wai/pull/943)
+
 ## 3.3.29
 
 * Preparing coming "http2" v4.2.0.
