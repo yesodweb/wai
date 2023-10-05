@@ -95,7 +95,7 @@ import Network.Wai.Handler.Warp.Types
 --
 --     Simple applications should specify 'Nothing' to
 --     'Maybe' 'FilePart'. The size of the specified file is obtained
---     by disk access or from the file infor cache.
+--     by disk access or from the file info cache.
 --     If-Modified-Since, If-Unmodified-Since, If-Range and Range
 --     are processed. Since a proper status is chosen, 'Status' is
 --     ignored. Last-Modified is inserted.
@@ -118,14 +118,14 @@ sendResponse settings conn ii th req reqidxhdr src response = do
         -- and status, the response to HEAD is processed here.
         --
         -- See definition of rsp below for proper body stripping.
-        (ms, mlen) <- sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize rsp
+        (ms, mlen) <- sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize method rsp
         case ms of
             Nothing         -> return ()
             Just realStatus -> logger req realStatus mlen
         T.tickle th
         return ret
       else do
-        _ <- sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize RspNoBody
+        _ <- sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize method RspNoBody
         logger req s Nothing
         T.tickle th
         return isPersist
@@ -142,7 +142,8 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     (isPersist,isChunked0) = infoFromRequest req reqidxhdr
     isChunked = not isHead && isChunked0
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist,isChunked)
-    isHead = requestMethod req == H.methodHead
+    method = requestMethod req
+    isHead = method == H.methodHead
     rsp = case response of
         ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr isHead (T.tickle th)
         ResponseBuilder _ _ b
@@ -202,12 +203,13 @@ sendRsp :: Connection
         -> H.ResponseHeaders
         -> IndexedHeader -- Response
         -> Int -- maxBuilderResponseBufferSize
+        -> H.Method
         -> Rsp
         -> IO (Maybe H.Status, Maybe Integer)
 
 ----------------------------------------------------------------
 
-sendRsp conn _ _ ver s hs _ _ RspNoBody = do
+sendRsp conn _ _ ver s hs _ _ _ RspNoBody = do
     -- Not adding Content-Length.
     -- User agents treats it as Content-Length: 0.
     composeHeader ver s hs >>= connSendAll conn
@@ -215,7 +217,7 @@ sendRsp conn _ _ ver s hs _ _ RspNoBody = do
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th ver s hs _ maxRspBufSize (RspBuilder body needsChunked) = do
+sendRsp conn _ th ver s hs _ maxRspBufSize _ (RspBuilder body needsChunked) = do
     header <- composeHeaderBuilder ver s hs needsChunked
     let hdrBdy
          | needsChunked = header <> chunkedTransferEncoding body
@@ -227,7 +229,7 @@ sendRsp conn _ th ver s hs _ maxRspBufSize (RspBuilder body needsChunked) = do
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th ver s hs _ _ (RspStream streamingBody needsChunked) = do
+sendRsp conn _ th ver s hs _ _ _ (RspStream streamingBody needsChunked) = do
     header <- composeHeaderBuilder ver s hs needsChunked
     (recv, finish) <- newByteStringBuilderRecv $ reuseBufferStrategy
                     $ toBuilderBuffer $ connWriteBuffer conn
@@ -251,7 +253,7 @@ sendRsp conn _ th ver s hs _ _ (RspStream streamingBody needsChunked) = do
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th _ _ _ _ _ (RspRaw withApp src) = do
+sendRsp conn _ th _ _ _ _ _ _ (RspRaw withApp src) = do
     withApp recv send
     return (Nothing, Nothing)
   where
@@ -265,8 +267,8 @@ sendRsp conn _ th _ _ _ _ _ (RspRaw withApp src) = do
 
 -- Sophisticated WAI applications.
 -- We respect s0. s0 MUST be a proper value.
-sendRsp conn ii th ver s0 hs0 rspidxhdr maxRspBufSize (RspFile path (Just part) _ isHead hook) =
-    sendRspFile2XX conn ii th ver s0 hs rspidxhdr maxRspBufSize path beg len isHead hook
+sendRsp conn ii th ver s0 hs0 rspidxhdr maxRspBufSize method (RspFile path (Just part) _ isHead hook) =
+    sendRspFile2XX conn ii th ver s0 hs rspidxhdr maxRspBufSize method path beg len isHead hook
   where
     beg = filePartOffset part
     len = filePartByteCount part
@@ -276,17 +278,17 @@ sendRsp conn ii th ver s0 hs0 rspidxhdr maxRspBufSize (RspFile path (Just part) 
 
 -- Simple WAI applications.
 -- Status is ignored
-sendRsp conn ii th ver _ hs0 rspidxhdr maxRspBufSize (RspFile path Nothing reqidxhdr isHead hook) = do
+sendRsp conn ii th ver _ hs0 rspidxhdr maxRspBufSize method (RspFile path Nothing reqidxhdr isHead hook) = do
     efinfo <- UnliftIO.tryIO $ getFileInfo ii path
     case efinfo of
         Left (_ex :: UnliftIO.IOException) ->
 #ifdef WARP_DEBUG
           print _ex >>
 #endif
-          sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize
-        Right finfo -> case conditionalRequest finfo hs0 rspidxhdr reqidxhdr of
-          WithoutBody s         -> sendRsp conn ii th ver s hs0 rspidxhdr maxRspBufSize RspNoBody
-          WithBody s hs beg len -> sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize path beg len isHead hook
+          sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize method
+        Right finfo -> case conditionalRequest finfo hs0 method rspidxhdr reqidxhdr of
+          WithoutBody s         -> sendRsp conn ii th ver s hs0 rspidxhdr maxRspBufSize method RspNoBody
+          WithBody s hs beg len -> sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize method path beg len isHead hook
 
 ----------------------------------------------------------------
 
@@ -298,14 +300,15 @@ sendRspFile2XX :: Connection
                -> H.ResponseHeaders
                -> IndexedHeader
                -> Int
+               -> H.Method
                -> FilePath
                -> Integer
                -> Integer
                -> Bool
                -> IO ()
                -> IO (Maybe H.Status, Maybe Integer)
-sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize path beg len isHead hook
-  | isHead = sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize RspNoBody
+sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize method path beg len isHead hook
+  | isHead = sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize method RspNoBody
   | otherwise = do
       lheader <- composeHeader ver s hs
       (mfd, fresher) <- getFd ii path
@@ -321,8 +324,10 @@ sendRspFile404 :: Connection
                -> H.ResponseHeaders
                -> IndexedHeader
                -> Int
+               -> H.Method
                -> IO (Maybe H.Status, Maybe Integer)
-sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize = sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize (RspBuilder body True)
+sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize method =
+    sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize method (RspBuilder body True)
   where
     s = H.notFound404
     hs =  replaceHeader H.hContentType "text/plain; charset=utf-8" hs0

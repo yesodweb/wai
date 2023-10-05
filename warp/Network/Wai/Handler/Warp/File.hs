@@ -35,10 +35,11 @@ data RspFileInfo = WithoutBody H.Status
 
 conditionalRequest :: I.FileInfo
                    -> H.ResponseHeaders
+                   -> H.Method
                    -> IndexedHeader -- ^ Response
                    -> IndexedHeader -- ^ Request
                    -> RspFileInfo
-conditionalRequest finfo hs0 rspidx reqidx = case condition of
+conditionalRequest finfo hs0 method rspidx reqidx = case condition of
     nobody@(WithoutBody _) -> nobody
     WithBody s _ off len   -> let !hs1 = addContentHeaders hs0 off len size
                                   !hasLM = isJust $ rspidx ! fromEnum ResLastModified
