@@ -6,17 +6,18 @@ module Network.Wai.Handler.Warp.HTTP2.Response (
     fromResponse
   ) where
 
-import qualified UnliftIO
 import qualified Data.ByteString.Builder as BB
+import qualified Data.List as L (find)
 import qualified Network.HTTP.Types as H
 import qualified Network.HTTP2.Server as H2
 import Network.Wai hiding (responseFile, responseBuilder, responseStream)
 import Network.Wai.Internal (Response(..))
+import qualified UnliftIO
 
 import Network.Wai.Handler.Warp.File
+import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.HTTP2.Request (getHTTP2Data)
 import Network.Wai.Handler.Warp.HTTP2.Types
-import Network.Wai.Handler.Warp.Header
 import qualified Network.Wai.Handler.Warp.Response as R
 import qualified Network.Wai.Handler.Warp.Settings as S
 import Network.Wai.Handler.Warp.Types
@@ -28,13 +29,13 @@ fromResponse settings ii req rsp = do
     date <- getDate ii
     rspst@(h2rsp, st, hasBody) <- case rsp of
       ResponseFile    st rsphdr path mpart -> do
-          let rsphdr' = add date svr rsphdr
+          let rsphdr' = add date rsphdr
           responseFile    st rsphdr' isHead path mpart ii reqhdr
       ResponseBuilder st rsphdr builder -> do
-          let rsphdr' = add date svr rsphdr
+          let rsphdr' = add date rsphdr
           return $ responseBuilder st rsphdr' isHead builder
       ResponseStream  st rsphdr strmbdy -> do
-          let rsphdr' = add date svr rsphdr
+          let rsphdr' = add date rsphdr
           return $ responseStream  st rsphdr' isHead strmbdy
       _ -> error "ResponseRaw is not supported in HTTP/2"
     mh2data <- getHTTP2Data req
@@ -47,10 +48,13 @@ fromResponse settings ii req rsp = do
   where
     !isHead = requestMethod req == H.methodHead
     !reqhdr = requestHeaders req
-    !svr    = S.settingsServerName settings
-    add date server rsphdr = R.addAltSvc settings $
-        (H.hDate, date) : (H.hServer, server) : rsphdr
-    -- fixme: not adding svr if already exists
+    !server = S.settingsServerName settings
+    add date rsphdr =
+        let hasServerHdr = L.find ((== H.hServer) . fst) rsphdr
+            addSVR =
+                maybe ((H.hServer, server) :) (const id) hasServerHdr
+        in R.addAltSvc settings $
+            (H.hDate, date) : addSVR rsphdr
 
 ----------------------------------------------------------------
 
