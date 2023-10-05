@@ -8,6 +8,7 @@ import Network.HTTP.Types
 import Network.Wai.Handler.Warp.File
 import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.Header
+import System.IO.Unsafe (unsafePerformIO)
 
 import Test.Hspec
 
@@ -105,5 +106,13 @@ spec = do
             regularBody
         testFileRange
             "still gives only a range, even after conditionals"
-            [("If-None-Match", "SomeETag"), ("If-Modified-Since", farFuture), ("Range","bytes=10-20")]
-            $ make206Body 10 6
+            [("If-None-Match", "SomeETag"), ("If-Modified-Since", farFuture), ("Range","bytes=10-13")]
+            $ make206Body 10 4
+        testFileRange
+            "gives the a range, if the condition is met"
+            [("If-Range", fileInfoDate (unsafePerformIO $ getInfo "attic/hex")), ("Range","bytes=2-7")]
+            $ make206Body 2 6
+        testFileRange
+            "gives the entire body and ignores the Range header if the condition isn't met"
+            [("If-Range", farPast), ("Range","bytes=2-7")]
+            regularBody
