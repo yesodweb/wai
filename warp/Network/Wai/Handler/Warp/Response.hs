@@ -224,8 +224,8 @@ sendRsp conn _ th ver s hs _ maxRspBufSize _ (RspBuilder body needsChunked) = do
                                  <> chunkedTransferTerminator
          | otherwise    = header <> body
         writeBufferRef = connWriteBuffer conn
-    toBufIOWith maxRspBufSize writeBufferRef (\bs -> connSendAll conn bs >> T.tickle th) hdrBdy
-    return (Just s, Nothing) -- fixme: can we tell the actual sent bytes?
+    len <- toBufIOWith maxRspBufSize writeBufferRef (\bs -> connSendAll conn bs >> T.tickle th) hdrBdy
+    return (Just s, Just $ fromIntegral len)
 
 ----------------------------------------------------------------
 

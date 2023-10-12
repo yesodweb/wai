@@ -10,19 +10,20 @@ import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
 
-toBufIOWith :: Int -> IORef WriteBuffer -> (ByteString -> IO ()) -> Builder -> IO ()
+toBufIOWith :: Int -> IORef WriteBuffer -> (ByteString -> IO ()) -> Builder -> IO Int
 toBufIOWith maxRspBufSize writeBufferRef io builder = do
   writeBuffer <- readIORef writeBufferRef
-  loop writeBuffer firstWriter
+  loop writeBuffer firstWriter 0
   where
     firstWriter = runBuilder builder
-    loop writeBuffer writer = do
+    loop writeBuffer writer bytesSent = do
       let buf = bufBuffer writeBuffer
           size = bufSize writeBuffer
       (len, signal) <- writer buf size
       bufferIO buf len io
+      let totalBytesSent = len + bytesSent
       case signal of
-        Done -> return ()
+        Done -> return totalBytesSent
         More minSize next
           | size < minSize -> do
               when (minSize > maxRspBufSize) $
@@ -40,8 +41,8 @@ toBufIOWith maxRspBufSize writeBufferRef io builder = do
                 biggerWriteBuffer <- createWriteBuffer minSize
                 writeIORef writeBufferRef biggerWriteBuffer
                 return biggerWriteBuffer
-              loop biggerWriteBuffer next
-          | otherwise -> loop writeBuffer next
+              loop biggerWriteBuffer next totalBytesSent
+          | otherwise -> loop writeBuffer next totalBytesSent
         Chunk bs next -> do
           io bs
-          loop writeBuffer next
+          loop writeBuffer next totalBytesSent
