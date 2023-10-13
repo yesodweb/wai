@@ -157,6 +157,7 @@ serveFile StaticSettings {..} req file
     -- First check etag values, if turned on
     | ssUseHash = do
         mHash <- fileGetHash file
+        -- FIXME: Doesn't support multiple hashes in 'If-None-Match' header
         case (mHash, lookup "if-none-match" $ W.requestHeaders req) of
             -- if-none-match matches the actual hash, return a 304
             (Just hash, Just lastHash) | hash == lastHash -> return NotModified

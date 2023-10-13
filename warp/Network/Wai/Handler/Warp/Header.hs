@@ -31,35 +31,50 @@ data RequestHeaderIndex = ReqContentLength
                         | ReqIfRange
                         | ReqReferer
                         | ReqUserAgent
+                        | ReqIfMatch
+                        | ReqIfNoneMatch
                         deriving (Enum,Bounded)
 
 -- | The size for 'IndexedHeader' for HTTP Request.
---   From 0 to this corresponds to \"Content-Length\", \"Transfer-Encoding\",
---   \"Expect\", \"Connection\", \"Range\", \"Host\",
---   \"If-Modified-Since\", \"If-Unmodified-Since\" and \"If-Range\".
+--   From 0 to this corresponds to:
+--
+-- - \"Content-Length\"
+-- - \"Transfer-Encoding\"
+-- - \"Expect\"
+-- - \"Connection\"
+-- - \"Range\"
+-- - \"Host\"
+-- - \"If-Modified-Since\"
+-- - \"If-Unmodified-Since\"
+-- - \"If-Range\"
+-- - \"Referer\"
+-- - \"User-Agent\"
+-- - \"If-Match\"
+-- - \"If-None-Match\"
 requestMaxIndex :: Int
 requestMaxIndex = fromEnum (maxBound :: RequestHeaderIndex)
 
 requestKeyIndex :: HeaderName -> Int
 requestKeyIndex hn = case BS.length bs of
-   4  -> if bs == "host" then fromEnum ReqHost else -1
-   5  -> if bs == "range" then fromEnum ReqRange else -1
-   6  -> if bs == "expect" then fromEnum ReqExpect else -1
-   7  -> if bs == "referer" then fromEnum ReqReferer else -1
-   8  -> if bs == "if-range" then fromEnum ReqIfRange else -1
-   10 -> if bs == "user-agent" then fromEnum ReqUserAgent else
-         if bs == "connection" then fromEnum ReqConnection else -1
-   14 -> if bs == "content-length" then fromEnum ReqContentLength else -1
-   17 -> if bs == "transfer-encoding" then fromEnum ReqTransferEncoding else
-         if bs == "if-modified-since" then fromEnum ReqIfModifiedSince
-         else -1
-   19 -> if bs == "if-unmodified-since" then fromEnum ReqIfUnmodifiedSince else -1
+   4  | bs == "host" -> fromEnum ReqHost
+   5  | bs == "range" -> fromEnum ReqRange
+   6  | bs == "expect" -> fromEnum ReqExpect
+   7  | bs == "referer" -> fromEnum ReqReferer
+   8  | bs == "if-range" -> fromEnum ReqIfRange
+      | bs == "if-match" -> fromEnum ReqIfMatch
+   10 | bs == "user-agent" -> fromEnum ReqUserAgent
+      | bs == "connection" -> fromEnum ReqConnection
+   13 | bs == "if-none-match" -> fromEnum ReqIfNoneMatch
+   14 | bs == "content-length" -> fromEnum ReqContentLength
+   17 | bs == "transfer-encoding" -> fromEnum ReqTransferEncoding
+      | bs == "if-modified-since" -> fromEnum ReqIfModifiedSince
+   19 | bs == "if-unmodified-since" -> fromEnum ReqIfUnmodifiedSince
    _  -> -1
   where
     bs = foldedCase hn
 
 defaultIndexRequestHeader :: IndexedHeader
-defaultIndexRequestHeader = array (0,requestMaxIndex) [(i,Nothing)|i<-[0..requestMaxIndex]]
+defaultIndexRequestHeader = array (0, requestMaxIndex) [(i, Nothing) | i <- [0..requestMaxIndex]]
 
 ----------------------------------------------------------------
 
@@ -78,10 +93,10 @@ responseMaxIndex = fromEnum (maxBound :: ResponseHeaderIndex)
 
 responseKeyIndex :: HeaderName -> Int
 responseKeyIndex hn = case BS.length bs of
-    4  -> if bs == "date" then fromEnum ResDate else -1
-    6  -> if bs == "server" then fromEnum ResServer else -1
-    13 -> if bs == "last-modified" then fromEnum ResLastModified else -1
-    14 -> if bs == "content-length" then fromEnum ResContentLength else -1
+    4  | bs == "date" -> fromEnum ResDate
+    6  | bs == "server" -> fromEnum ResServer
+    13 | bs == "last-modified" -> fromEnum ResLastModified
+    14 | bs == "content-length" -> fromEnum ResContentLength
     _  -> -1
   where
     bs = foldedCase hn
