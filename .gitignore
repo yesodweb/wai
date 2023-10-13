@@ -11,3 +11,4 @@ cabal.sandbox.config
 *~
 stack*.yaml.lock
 dist-newstyle/
+.hie
