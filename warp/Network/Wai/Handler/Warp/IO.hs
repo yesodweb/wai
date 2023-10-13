@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 module Network.Wai.Handler.Warp.IO where
 
 import Control.Exception (mask_)
@@ -10,7 +8,7 @@ import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
 
-toBufIOWith :: Int -> IORef WriteBuffer -> (ByteString -> IO ()) -> Builder -> IO Int
+toBufIOWith :: Int -> IORef WriteBuffer -> (ByteString -> IO ()) -> Builder -> IO Integer
 toBufIOWith maxRspBufSize writeBufferRef io builder = do
   writeBuffer <- readIORef writeBufferRef
   loop writeBuffer firstWriter 0
@@ -21,7 +19,7 @@ toBufIOWith maxRspBufSize writeBufferRef io builder = do
           size = bufSize writeBuffer
       (len, signal) <- writer buf size
       bufferIO buf len io
-      let totalBytesSent = len + bytesSent
+      let totalBytesSent = toInteger len + bytesSent
       case signal of
         Done -> return totalBytesSent
         More minSize next
