@@ -1,3 +1,9 @@
+## 0.1.2.0
+
+* Added `defaultExtensionMap` to provide the inverse of `defaultMimeMap`.
+
+See PR [#930](https://github.com/yesodweb/wai/pull/930) and [#948](https://github.com/yesodweb/wai/pull/948).
+
 ## 0.1.1.0
 
 * Replace `audio/x-mpegurl` with IANA registered type
