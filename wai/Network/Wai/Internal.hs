@@ -98,6 +98,17 @@ data Request = Request {
 getRequestBodyChunk :: Request -> IO B.ByteString
 getRequestBodyChunk = requestBody
 
+-- | Set the 'requestBody' attribute on a request without triggering a
+-- deprecation warning.
+--
+-- The supplied IO action should return the next chunk of the body each time it
+-- is called and 'B.empty' when it has been fully consumed.
+--
+-- @since 3.2.5
+setRequestBodyChunks :: IO B.ByteString -> Request -> Request
+setRequestBodyChunks requestBody r =
+  r {requestBody = requestBody}
+
 instance Show Request where
     show Request{..} = "Request {" ++ intercalate ", " [a ++ " = " ++ b | (a,b) <- fields] ++ "}"
         where
