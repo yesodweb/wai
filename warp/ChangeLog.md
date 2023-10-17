@@ -2,7 +2,13 @@
 
 ## 3.3.30
 
-* Fixed adding superfluous `Server` header if response already has it.
+* Length of `ResponseBuilder` responses will now also be passed to the logger.
+   [#946](https://github.com/yesodweb/wai/pull/946)
+* Using `If-(None-)Match` headers simultaneously with `If-(Un)Modified-Since` headers now
+  follow the RFC 9110 standard. So `If-(Un)Modified-Since` headers will be correctly ignored
+  if their respective `-Match` counterpart is also present in the request headers.
+   [#945](https://github.com/yesodweb/wai/pull/945)
+* Fixed adding superfluous `Server` header when using HTTP/2.0 if response already has it.
    [#943](https://github.com/yesodweb/wai/pull/943)
 
 ## 3.3.29

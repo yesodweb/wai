@@ -212,7 +212,7 @@ Test-Suite spec
                    , text
                    , time-manager
                    , vault
-                   , wai                       >= 3.2      && < 3.3
+                   , wai                       >= 3.2.2.1  && < 3.3
                    , word8
                    , unliftio
   if flag(x509)
