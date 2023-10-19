@@ -1,5 +1,9 @@
 # ChangeLog for wai
 
+## 3.2.5
+
+* Add `setRequestBodyChunks` to mirror `getRequestBodyChunk` and avoid deprecation warnings when using `requestBody` as a setter. [#949](https://github.com/yesodweb/wai/pull/949)
+
 ## 3.2.4
 
 * Overhaul documentation of `Middleware`. [#858](https://github.com/yesodweb/wai/pull/858)
