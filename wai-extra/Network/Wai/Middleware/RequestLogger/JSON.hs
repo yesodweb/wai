@@ -148,6 +148,8 @@ requestHeadersToJSON :: RequestHeaders -> Value
 requestHeadersToJSON = toJSON . map hToJ where
   -- Redact cookies
   hToJ ("Cookie", _) = toJSON ("Cookie" :: Text, "-RDCT-" :: Text)
+  -- Redact authorization
+  hToJ ("Authorization", _) = toJSON ("Authorization" :: Text, "-RDCT-" :: Text)
   hToJ hd = headerToJSON hd
 
 responseHeadersToJSON :: [Header] -> Value
