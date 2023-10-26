@@ -108,6 +108,8 @@ import           System.IO.Unsafe             (unsafeInterleaveIO)
 ----------------------------------------------------------------
 
 -- | Creating 'Response' from a file.
+--
+-- @since 2.0.0
 responseFile :: H.Status -> H.ResponseHeaders -> FilePath -> Maybe FilePart -> Response
 responseFile = ResponseFile
 
@@ -134,11 +136,15 @@ responseFile = ResponseFile
 --
 -- A3. You can force a Builder to output a ByteString before it is an
 -- optimal size by sending a flush command.
+--
+-- @since 2.0.0
 responseBuilder :: H.Status -> H.ResponseHeaders -> Builder -> Response
 responseBuilder = ResponseBuilder
 
 -- | Creating 'Response' from 'L.ByteString'. This is a wrapper for
 --   'responseBuilder'.
+--
+-- @since 0.3.0
 responseLBS :: H.Status -> H.ResponseHeaders -> L.ByteString -> Response
 responseLBS s h = ResponseBuilder s h . lazyByteString
 
@@ -163,7 +169,7 @@ responseLBS s h = ResponseBuilder s h . lazyByteString
 -- as well. However, placing the call on the outside allows your status value
 -- and response headers to depend on the scarce resource.
 --
--- Since 3.0.0
+-- @since 3.0.0
 responseStream :: H.Status
                -> H.ResponseHeaders
                -> StreamingBody
@@ -180,7 +186,7 @@ responseStream = ResponseStream
 -- In the event that you read from the request body before returning a
 -- @responseRaw@, behavior is undefined.
 --
--- Since 2.1.0
+-- @since 2.1.0
 responseRaw :: (IO B.ByteString -> (B.ByteString -> IO ()) -> IO ())
             -> Response
             -> Response
@@ -189,6 +195,8 @@ responseRaw = ResponseRaw
 ----------------------------------------------------------------
 
 -- | Accessing 'H.Status' in 'Response'.
+--
+-- @since 1.2.0
 responseStatus :: Response -> H.Status
 responseStatus (ResponseFile    s _ _ _) = s
 responseStatus (ResponseBuilder s _ _  ) = s
@@ -196,6 +204,8 @@ responseStatus (ResponseStream  s _ _  ) = s
 responseStatus (ResponseRaw _ res      ) = responseStatus res
 
 -- | Accessing 'H.ResponseHeaders' in 'Response'.
+--
+-- @since 2.0.0
 responseHeaders :: Response -> H.ResponseHeaders
 responseHeaders (ResponseFile    _ hs _ _) = hs
 responseHeaders (ResponseBuilder _ hs _  ) = hs
@@ -203,6 +213,8 @@ responseHeaders (ResponseStream  _ hs _  ) = hs
 responseHeaders (ResponseRaw _ res)        = responseHeaders res
 
 -- | Converting the body information in 'Response' to a 'StreamingBody'.
+--
+-- @since 3.0.0
 responseToStream :: Response
                  -> ( H.Status
                     , H.ResponseHeaders
@@ -238,6 +250,8 @@ responseToStream (ResponseBuilder s h b) =
 responseToStream (ResponseRaw _ res) = responseToStream res
 
 -- | Apply the provided function to the response header list of the Response.
+--
+-- @since 3.0.3.0
 mapResponseHeaders :: (H.ResponseHeaders -> H.ResponseHeaders) -> Response -> Response
 mapResponseHeaders f (ResponseFile s h b1 b2) = ResponseFile s (f h) b1 b2
 mapResponseHeaders f (ResponseBuilder s h b) = ResponseBuilder s (f h) b
@@ -245,6 +259,8 @@ mapResponseHeaders f (ResponseStream s h b) = ResponseStream s (f h) b
 mapResponseHeaders _ r@(ResponseRaw _ _) = r
 
 -- | Apply the provided function to the response status of the Response.
+--
+-- @since 3.2.1
 mapResponseStatus :: (H.Status -> H.Status) -> Response -> Response
 mapResponseStatus f (ResponseFile s h b1 b2) = ResponseFile (f s) h b1 b2
 mapResponseStatus f (ResponseBuilder s h b) = ResponseBuilder (f s) h b
@@ -271,7 +287,7 @@ type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseRe
 
 -- | A default, blank request.
 --
--- Since 2.0.0
+-- @since 2.0.0
 defaultRequest :: Request
 defaultRequest = Request
     { requestMethod = H.methodGet
@@ -444,15 +460,19 @@ type Middleware = Application -> Application
 modifyRequest :: (Request -> Request) -> Middleware
 modifyRequest f app = app . f
 
--- | apply a function that modifies a response as a 'Middleware'
+-- | Apply a function that modifies a response as a 'Middleware'
+--
+-- @since 3.0.3.0
 modifyResponse :: (Response -> Response) -> Middleware
 modifyResponse f app req respond = app req $ respond . f
 
-
--- | conditionally apply a 'Middleware'
+-- | Conditionally apply a 'Middleware'
+--
+-- @since 3.0.3.0
 ifRequest :: (Request -> Bool) -> Middleware -> Middleware
-ifRequest rpred middle app req | rpred req = middle app req
-                               | otherwise =        app req
+ifRequest rpred middle app req
+    | rpred req = middle app req
+    | otherwise =        app req
 
 -- $streamingRequestBodies
 --
@@ -510,7 +530,7 @@ ifRequest rpred middle app req | rpred req = middle app req
 --
 -- Note: Since this function consumes the request body, future calls to it will return the empty string.
 --
--- Since 3.0.1
+-- @since 3.0.1
 strictRequestBody :: Request -> IO L.ByteString
 strictRequestBody req =
     loop id
@@ -533,7 +553,7 @@ consumeRequestBodyStrict = strictRequestBody
 --
 -- Note: Since this function consumes the request body, future calls to it will return the empty string.
 --
--- Since 1.4.1
+-- @since 1.4.1
 lazyRequestBody :: Request -> IO L.ByteString
 lazyRequestBody req =
     loop

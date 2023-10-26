@@ -1,12 +1,11 @@
 {-# OPTIONS_HADDOCK not-home #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 -- | Internal constructors and helper functions. Note that no guarantees are
 -- given for stability of these interfaces.
 module Network.Wai.Internal where
 
 import           Data.ByteString.Builder      (Builder)
-import qualified Data.ByteString              as B hiding (pack)
+import qualified Data.ByteString              as B
 import           Data.Text                    (Text)
 import           Data.Typeable                (Typeable)
 import           Data.Vault.Lazy              (Vault)
@@ -70,23 +69,23 @@ data Request = Request {
   -- | The size of the request body. In the case of a chunked request body,
   -- this may be unknown.
   --
-  -- Since 1.4.0
+  -- @since 1.4.0
   ,  requestBodyLength     :: RequestBodyLength
   -- | The value of the Host header in a HTTP request.
   --
-  -- Since 2.0.0
+  -- @since 2.0.0
   ,  requestHeaderHost     :: Maybe B.ByteString
   -- | The value of the Range header in a HTTP request.
   --
-  -- Since 2.0.0
+  -- @since 2.0.0
   ,  requestHeaderRange   :: Maybe B.ByteString
   -- | The value of the Referer header in a HTTP request.
   --
-  -- Since 3.2.0
+  -- @since 3.2.0
   ,  requestHeaderReferer   :: Maybe B.ByteString
   -- | The value of the User-Agent header in a HTTP request.
   --
-  -- Since 3.2.0
+  -- @since 3.2.0
   ,  requestHeaderUserAgent :: Maybe B.ByteString
   }
   deriving (Typeable)
@@ -142,18 +141,20 @@ data Response
 -- data, and the second parameter provides a means of flushing the data to the
 -- client.
 --
--- Since 3.0.0
+-- @since 3.0.0
 type StreamingBody = (Builder -> IO ()) -> IO () -> IO ()
 
 -- | The size of the request body. In the case of chunked bodies, the size will
 -- not be known.
 --
--- Since 1.4.0
+-- @since 1.4.0
 data RequestBodyLength = ChunkedBody | KnownLength Word64 deriving Show
 
 -- | Information on which part to be sent.
 --   Sophisticated application handles Range (and If-Range) then
 --   create 'FilePart'.
+--
+-- @since 0.4.0
 data FilePart = FilePart
     { filePartOffset    :: Integer
     , filePartByteCount :: Integer
@@ -167,6 +168,6 @@ data FilePart = FilePart
 -- It is /highly/ advised that only WAI handlers import and use the data
 -- constructor for this data type.
 --
--- Since 3.0.0
+-- @since 3.0.0
 data ResponseReceived = ResponseReceived
     deriving Typeable
