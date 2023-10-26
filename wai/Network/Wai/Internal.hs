@@ -16,7 +16,7 @@ import           Data.List                    (intercalate)
 
 -- | Information on the request sent by the client. This abstracts away the
 -- details of the underlying implementation.
-{-# DEPRECATED requestBody "requestBody's name is misleading because it only gets a partial chunk of the body. Use getRequestBodyChunk instead." #-}
+{-# DEPRECATED requestBody "requestBody's name is misleading because it only gets a partial chunk of the body. Use getRequestBodyChunk instead when getting the field, and setRequestBodyChunks when setting the field." #-}
 data Request = Request {
   -- | Request method such as GET.
      requestMethod        :: H.Method
