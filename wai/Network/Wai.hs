@@ -53,7 +53,6 @@ module Network.Wai
     , remoteHost
     , pathInfo
     , queryString
-    , setRequestBodyChunks
     , getRequestBodyChunk
     , requestBody
     , vault
@@ -68,6 +67,7 @@ module Network.Wai
     , lazyRequestBody
     , consumeRequestBodyLazy
       -- ** Request modifiers
+    , setRequestBodyChunks
     , mapRequestHeaders
       -- * Response
     , Response
