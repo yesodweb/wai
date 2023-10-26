@@ -67,6 +67,8 @@ module Network.Wai
     , consumeRequestBodyStrict
     , lazyRequestBody
     , consumeRequestBodyLazy
+      -- ** Request modifiers
+    , mapRequestHeaders
       -- * Response
     , Response
     , StreamingBody
@@ -86,6 +88,7 @@ module Network.Wai
     , mapResponseStatus
       -- * Middleware composition
     , ifRequest
+    , modifyRequest
     , modifyResponse
     ) where
 
@@ -95,7 +98,6 @@ import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as L
 import qualified Data.ByteString.Lazy.Internal as LI
 import           Data.ByteString.Lazy.Internal (defaultChunkSize)
-import           Data.ByteString.Lazy.Char8   ()
 import           Data.Function                (fix)
 import qualified Network.HTTP.Types           as H
 import           Network.Socket               (SockAddr (SockAddrInet))
@@ -436,6 +438,11 @@ defaultRequest = Request
 
 type Middleware = Application -> Application
 
+-- | Apply a function that modifies a request as a 'Middleware'
+--
+-- @since 3.2.4
+modifyRequest :: (Request -> Request) -> Middleware
+modifyRequest f app = app . f
 
 -- | apply a function that modifies a response as a 'Middleware'
 modifyResponse :: (Response -> Response) -> Middleware
@@ -545,3 +552,9 @@ lazyRequestBody req =
 -- @since 3.2.3
 consumeRequestBodyLazy :: Request -> IO L.ByteString
 consumeRequestBodyLazy = lazyRequestBody
+
+-- | Apply the provided function to the request header list of the 'Request'.
+--
+-- @since 3.2.4
+mapRequestHeaders :: (H.RequestHeaders -> H.RequestHeaders) -> Request -> Request
+mapRequestHeaders f request = request { requestHeaders = f (requestHeaders request) }
