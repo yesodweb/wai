@@ -1,8 +1,10 @@
+{-# LANGUAGE LambdaCase #-}
 module Network.WaiSpec (spec) where
 
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Network.Wai
+import Data.Word (Word8)
 import Data.IORef
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -54,29 +56,24 @@ spec = do
             body `shouldBe` expected
     describe "lazyRequestBody" $ do
         prop "works" $ \chunks -> do
-            ref <- newIORef $ map S.pack $ filter (not . null) chunks
-            let req = defaultRequest
-                        { requestBody = atomicModifyIORef ref $ \bss ->
-                            case bss of
-                                [] -> ([], S.empty)
-                                x:y -> (y, x)
-                        }
+            req <- mkRequestFromChunks chunks
             body <- lazyRequestBody req
             body `shouldBe` L.fromChunks (map S.pack chunks)
         it "is lazy" $ do
-            let req = defaultRequest
-                        { requestBody = error "requestBody"
-                        }
+            let req = setRequestBodyChunks (error "requestBody") defaultRequest
             _ <- lazyRequestBody req
             return ()
     describe "strictRequestBody" $ do
         prop "works" $ \chunks -> do
-            ref <- newIORef $ map S.pack $ filter (not . null) chunks
-            let req = defaultRequest
-                        { requestBody = atomicModifyIORef ref $ \bss ->
-                            case bss of
-                                [] -> ([], S.empty)
-                                x:y -> (y, x)
-                        }
+            req <- mkRequestFromChunks chunks
             body <- strictRequestBody req
             body `shouldBe` L.fromChunks (map S.pack chunks)
+
+mkRequestFromChunks :: [[Word8]] -> IO Request
+mkRequestFromChunks chunks = do
+    ref <- newIORef $ map S.pack $ filter (not . null) chunks
+    pure $
+        flip setRequestBodyChunks defaultRequest $
+            atomicModifyIORef ref $ \case
+                [] -> ([], S.empty)
+                x:y -> (y, x)
