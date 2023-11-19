@@ -59,7 +59,7 @@ http2 settings ii conn transport app peersa th bs = do
           }
     checkTLS
     setConnHTTP2 conn True
-    H2.run conf $ http2server settings ii transport peersa app
+    H2.run H2.defaultServerConfig conf $ http2server settings ii transport peersa app
   where
     checkTLS = case transport of
         TCP -> return () -- direct
