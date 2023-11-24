@@ -1,5 +1,9 @@
 # ChangeLog for warp
 
+## 3.3.31
+
+* Supporting http2 v5.0.
+
 ## 3.3.30
 
 * Length of `ResponseBuilder` responses will now also be passed to the logger.
