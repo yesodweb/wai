@@ -103,7 +103,7 @@ getRequestBodyChunk = requestBody
 -- The supplied IO action should return the next chunk of the body each time it
 -- is called and 'B.empty' when it has been fully consumed.
 --
--- @since 3.2.5
+-- @since 3.2.4
 setRequestBodyChunks :: IO B.ByteString -> Request -> Request
 setRequestBodyChunks requestBody r =
   r {requestBody = requestBody}
