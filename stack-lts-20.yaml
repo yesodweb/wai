@@ -1,18 +1,19 @@
-resolver: lts-20.26
+resolver: lts-20
 packages:
-- ./recv
 - ./auto-update
 - ./mime-types
+- ./recv
+- ./time-manager
 - ./wai
-- ./wai-extra
-- ./warp
-- ./warp-tls
+- ./wai-conduit
 - ./wai-app-static
+- ./wai-extra
 - ./wai-frontend-monadcgi
 - ./wai-http2-extra
 - ./wai-websockets
-- ./wai-conduit
-- ./time-manager
+- ./warp
+- ./warp-quic
+- ./warp-tls
 flags:
   wai-extra:
     build-example: true
@@ -22,10 +23,22 @@ nix:
   - fcgi
   - zlib
 extra-deps:
-  - crypton-0.33
+  - cgi-3001.5.0.1
+  - crypto-token-0.0.2
+  - crypton-0.34
   - crypton-x509-1.7.6
   - crypton-x509-store-1.6.9
+  - crypton-x509-system-1.6.7
   - crypton-x509-validation-1.6.12
-  - tls-1.8.0
-  - cgi-3001.5.0.1
+  - fast-logger-3.2.2
+  - http2-5.0.0
+  - http3-0.0.7
+  - memory-0.18.0
   - multipart-0.2.1
+  - network-byte-order-0.1.7
+  - network-control-0.0.2
+  - network-udp-0.0.0
+  - quic-0.1.12
+  - sockaddr-0.0.1
+  - tls-1.9.0
+  - unix-time-0.4.11
