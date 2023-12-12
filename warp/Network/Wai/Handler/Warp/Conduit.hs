@@ -40,25 +40,23 @@ readISource (ISource src ref) = do
             toSend = min count (S.length bs)
             -- How many bytes will still remain to be sent downstream
             count' = count - toSend
-        case () of
-            ()
-                -- The expected count is greater than the size of the
-                -- chunk we just read. Send the entire chunk
-                -- downstream, and then loop on this function for the
-                -- next chunk.
-                | count' > 0 -> do
-                    I.writeIORef ref count'
-                    return bs
 
-                -- Some of the bytes in this chunk should not be sent
-                -- downstream. Split up the chunk into the sent and
-                -- not-sent parts, add the not-sent parts onto the new
-                -- source, and send the rest of the chunk downstream.
-                | otherwise -> do
-                    let (x, y) = S.splitAt toSend bs
-                    leftoverSource src y
-                    assert (count' == 0) $ I.writeIORef ref count'
-                    return x
+        I.writeIORef ref count'
+
+        if count' > 0 then
+            -- The expected count is greater than the size of the
+            -- chunk we just read. Send the entire chunk
+            -- downstream, and then loop on this function for the
+            -- next chunk.
+            return bs
+          else do
+            -- Some of the bytes in this chunk should not be sent
+            -- downstream. Split up the chunk into the sent and
+            -- not-sent parts, add the not-sent parts onto the new
+            -- source, and send the rest of the chunk downstream.
+            let (x, y) = S.splitAt toSend bs
+            leftoverSource src y
+            assert (count' == 0) $ return x
 
 ----------------------------------------------------------------
 
