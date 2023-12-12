@@ -1,4 +1,4 @@
-resolver: lts-21.21
+resolver: lts-18
 packages:
 - ./auto-update
 - ./mime-types
@@ -12,7 +12,6 @@ packages:
 - ./wai-http2-extra
 - ./wai-websockets
 - ./warp
-- ./warp-quic
 - ./warp-tls
 flags:
   wai-extra:
@@ -23,16 +22,12 @@ nix:
   - fcgi
   - zlib
 extra-deps:
-  - crypto-token-0.0.2
-  - crypton-0.34
+  - crypton-0.33
   - crypton-x509-1.7.6
   - crypton-x509-store-1.6.9
-  - crypton-x509-system-1.6.7
   - crypton-x509-validation-1.6.12
   - http2-5.0.0
-  - http3-0.0.7
+  - network-byte-order-0.1.7
   - network-control-0.0.2
-  - network-udp-0.0.0
-  - quic-0.1.12
-  - sockaddr-0.0.1
-  - tls-1.9.0
+  - tls-1.7.0
+  - unix-time-0.4.11

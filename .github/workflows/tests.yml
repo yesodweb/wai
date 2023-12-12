@@ -18,12 +18,12 @@ jobs:
         - "--resolver nightly --stack-yaml stack-nightly.yaml"
         - "--resolver lts-21"
         - "--resolver lts-20 --stack-yaml stack-lts-20.yaml"
-        - "--resolver lts-19"
-        - "--resolver lts-18"
+        - "--resolver lts-19 --stack-yaml stack-lts-19.yaml"
+        - "--resolver lts-18 --stack-yaml stack-lts-18.yaml"
 
     steps:
       - name: Clone project
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
 # Getting weird OS X errors...
 #      - name: Cache dependencies
