@@ -6,7 +6,7 @@ license:             BSD3
 license-file:        LICENSE
 synopsis:            Warp based on QUIC
 description:         WAI handler for HTTP/3 based on QUIC
-homepage:            https://github.com/kazu-yamamoto/warp-quic
+homepage:            https://github.com/yesodweb/wai
 category:            Network
 cabal-version:       >=1.10
 build-type:          Simple
