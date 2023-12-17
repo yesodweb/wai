@@ -184,13 +184,12 @@ extractSetCookieFromSResponse response = do
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
     refChunks <- liftIO $ newIORef $ L.toChunks bod
-    request $
-      req
-        { requestBody = atomicModifyIORef refChunks $ \bss ->
+    let rbody = atomicModifyIORef refChunks $ \bss ->
             case bss of
                 [] -> ([], S.empty)
                 x:y -> (y, x)
-        }
+    request $ setRequestBodyChunks rbody req
+{- HLint ignore srequest "Use lambda-case" -}
 
 runResponse :: IORef SResponse -> Response -> IO ResponseReceived
 runResponse ref res = do

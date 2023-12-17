@@ -378,7 +378,7 @@ parseRequestBodyEx :: ParseRequestBodyOptions
 parseRequestBodyEx o s r =
     case getRequestBodyType r of
         Nothing -> return ([], [])
-        Just rbt -> sinkRequestBodyEx o s rbt (requestBody r)
+        Just rbt -> sinkRequestBodyEx o s rbt (getRequestBodyChunk r)
 
 sinkRequestBody :: BackEnd y
                 -> RequestBodyType

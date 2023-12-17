@@ -42,10 +42,10 @@ spec = describe "RequestSizeLimitMiddleware" $ do
       isStatus200 resp
 
   describe "streaming chunked bodies" $ do
-    let streamingReq = defaultRequest
+    let streamingReq =
+            setRequestBodyChunks (return "a") defaultRequest
                     { isSecure = False
                     , requestBodyLength = ChunkedBody
-                    , requestBody = return "a"
                     }
     it "413s if the combined chunk size is > the size limit" $ do
       resp <- runStreamingChunkApp 11 tenByteLimitSettings streamingReq

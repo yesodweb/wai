@@ -83,13 +83,12 @@ requestSizeCheck maxSize req =
     case requestBodyLength req of
         KnownLength len  ->
             if len > maxSize
-                then return $ req { requestBody = throwIO (RequestSizeException maxSize) }
+                then return $ setRequestBodyChunks (throwIO $ RequestSizeException maxSize) req
                 else return req
         ChunkedBody      -> do
             currentSize <- newIORef 0
-            return $ req
-                { requestBody = do
-                    bs <- requestBody req
+            let rbody = do
+                    bs <- getRequestBodyChunk req
                     total <-
                         atomicModifyIORef' currentSize $ \sz ->
                             let nextSize = sz + fromIntegral (S.length bs)
@@ -97,4 +96,4 @@ requestSizeCheck maxSize req =
                     if total > maxSize
                     then throwIO (RequestSizeException maxSize)
                     else return bs
-                }
+            return $ setRequestBodyChunks rbody req

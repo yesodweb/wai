@@ -101,21 +101,21 @@ runGeneric vars inputH outputH xsendfile app = do
                 a:_ -> addrAddress a
                 [] -> error $ "Invalid REMOTE_ADDR or REMOTE_HOST: " ++ remoteHost'
         reqHeaders = map (cleanupVarName *** B.pack) vars
-        env = Request
-            { requestMethod = rmethod
-            , rawPathInfo = B.pack pinfo
-            , pathInfo = H.decodePathSegments $ B.pack pinfo
-            , rawQueryString = B.pack qstring
-            , queryString = H.parseQuery $ B.pack qstring
-            , requestHeaders = reqHeaders
-            , isSecure = isSecure'
-            , remoteHost = addr
-            , httpVersion = H.http11 -- FIXME
-            , requestBody = requestBody'
-            , vault = mempty
-            , requestBodyLength = KnownLength $ fromIntegral contentLength
-            , requestHeaderHost = lookup "host" reqHeaders
-            , requestHeaderRange = lookup hRange reqHeaders
+        env =
+            setRequestBodyChunks requestBody' $ defaultRequest
+                { requestMethod = rmethod
+                , rawPathInfo = B.pack pinfo
+                , pathInfo = H.decodePathSegments $ B.pack pinfo
+                , rawQueryString = B.pack qstring
+                , queryString = H.parseQuery $ B.pack qstring
+                , requestHeaders = reqHeaders
+                , isSecure = isSecure'
+                , remoteHost = addr
+                , httpVersion = H.http11 -- FIXME
+                , vault = mempty
+                , requestBodyLength = KnownLength $ fromIntegral contentLength
+                , requestHeaderHost = lookup "host" reqHeaders
+                , requestHeaderRange = lookup hRange reqHeaders
 #if MIN_VERSION_wai(3,2,0)
             , requestHeaderReferer = lookup "referer" reqHeaders
             , requestHeaderUserAgent = lookup "user-agent" reqHeaders

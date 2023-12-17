@@ -50,7 +50,7 @@ import Network.Wai
   ( Request(..), requestBodyLength, RequestBodyLength(..)
   , Middleware
   , Response, responseStatus, responseHeaders
-  , getRequestBodyChunk
+  , getRequestBodyChunk, setRequestBodyChunks
   )
 import Network.Wai.Internal (Response (..))
 import Network.Wai.Logger
@@ -400,7 +400,7 @@ getRequestBody req = do
          case chunks of
              [] -> ([], S8.empty)
              x:y -> (y, x)
-  let req' = req { requestBody = rbody }
+  let req' = setRequestBodyChunks rbody req
   return (req', body)
 {- HLint ignore getRequestBody "Use lambda-case" -}
 

@@ -38,6 +38,8 @@ setPost req = do
   body <- (mconcat . toChunks) `fmap` lazyRequestBody req
   ref <- newIORef body
   let rb = atomicModifyIORef ref $ \bs -> (mempty, bs)
+      req' = setRequestBodyChunks rb req
   case parseQuery body of
-    (("_method", Just newmethod):_) -> return $ req {requestBody = rb, requestMethod = newmethod}
-    _                               -> return $ req {requestBody = rb}
+    (("_method", Just newmethod):_) -> return req' {requestMethod = newmethod}
+    _                               -> return req'
+{- HLint ignore setPost "Use tuple-section" -}

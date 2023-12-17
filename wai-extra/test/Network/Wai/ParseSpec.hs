@@ -12,7 +12,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
 import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
-import Network.Wai (Request (requestBody, requestHeaders), defaultRequest)
+import Network.Wai (Request (requestHeaders), defaultRequest, setRequestBodyChunks)
 import Network.Wai.Handler.Warp (InvalidRequest(..))
 import System.IO (IOMode (ReadMode), withFile)
 import Test.HUnit (Assertion, (@=?), (@?=))
@@ -281,9 +281,10 @@ toRequest' ctype content = SRequest defaultRequest
     } (L.fromChunks $ map S.singleton $ S.unpack content)
 
 toRequest'' :: S8.ByteString -> S8.ByteString -> IO SRequest
-toRequest'' ctype content = mkRB content >>= \b -> return $ SRequest defaultRequest
-    { requestHeaders = [("Content-Type", ctype)], requestBody = b
-    } (L.fromChunks $ map S.singleton $ S.unpack content)
+toRequest'' ctype content =
+    mkRB content >>= \b -> do
+        let req = setRequestBodyChunks b defaultRequest {requestHeaders = [("Content-Type", ctype)]}
+        return $ SRequest req (L.fromChunks $ map S.singleton $ S.unpack content)
 
 mkRB :: S8.ByteString -> IO (IO S8.ByteString)
 mkRB content = do

@@ -9,7 +9,7 @@ import Control.Exception (try)
 import Control.Monad (forever)
 import Data.ByteString (ByteString)
 import Network.HTTP.Types (HeaderName)
-import Network.Wai (Request (..), RequestBodyLength (..), defaultRequest)
+import Network.Wai (Request (..), RequestBodyLength (..), defaultRequest, getRequestBodyChunk, setRequestBodyChunks)
 import Network.Wai.Request
 import Test.Hspec
 
@@ -21,26 +21,26 @@ spec = do
     describe "requestSizeCheck" $ do
         it "too large content length should throw RequestSizeException" $ do
             let limit = 1024
-                largeRequest = defaultRequest
-                    { isSecure = False
-                    , requestBodyLength = KnownLength (limit + 1)
-                    , requestBody = return "repeat this chunk"
-                    }
+                largeRequest =
+                    setRequestBodyChunks (return "repeat this chunk") defaultRequest
+                        { isSecure = False
+                        , requestBodyLength = KnownLength (limit + 1)
+                        }
             checkedRequest <- requestSizeCheck limit largeRequest
-            body <- try (requestBody checkedRequest)
+            body <- try (getRequestBodyChunk checkedRequest)
             case body of
                 Left (RequestSizeException l) -> l `shouldBe` limit
                 Right _   -> expectationFailure "request size check failed"
 
         it "too many chunks should throw RequestSizeException" $ do
             let limit = 1024
-                largeRequest = defaultRequest
-                    { isSecure = False
-                    , requestBodyLength = ChunkedBody
-                    , requestBody = return "repeat this chunk"
-                    }
+                largeRequest =
+                    setRequestBodyChunks (return "repeat this chunk") defaultRequest
+                        { isSecure = False
+                        , requestBodyLength = ChunkedBody
+                        }
             checkedRequest <- requestSizeCheck limit largeRequest
-            body <- try (forever $ requestBody checkedRequest)
+            body <- try (forever $ getRequestBodyChunk checkedRequest)
             case body of
                 Left (RequestSizeException l) -> l `shouldBe` limit
                 Right _   -> expectationFailure "request size check failed"

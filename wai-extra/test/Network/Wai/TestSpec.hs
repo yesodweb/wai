@@ -84,9 +84,7 @@ spec = do
       let getBodyChunk = IORef.atomicModifyIORef bodyRef $ \leftover -> ("", leftover)
       sresp <- flip runSession echoApp $
         request $
-          defaultRequest
-            { requestBody = getBodyChunk
-            }
+          setRequestBodyChunks getBodyChunk defaultRequest
       simpleBody sresp `shouldBe` "request body"
 
     it "returns the response headers of an echo app" $ do

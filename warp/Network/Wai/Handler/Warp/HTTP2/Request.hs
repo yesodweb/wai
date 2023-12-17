@@ -17,7 +17,6 @@ import Network.HPACK.Token
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
-import Network.Wai.Internal (Request(..))
 import System.IO.Unsafe (unsafePerformIO)
 import qualified System.TimeManager as T
 
@@ -45,9 +44,11 @@ toRequest ii settings addr ht bodylen body th transport = do
 toRequest' :: InternalInfo -> S.Settings -> SockAddr
            -> IORef (Maybe HTTP2Data)
            -> ToReq
-toRequest' ii settings addr ref (reqths,reqvt) bodylen body th transport = return req
+toRequest' ii settings addr ref (reqths,reqvt) bodylen body th transport =
+    -- setting 'requestBody' with 'setRequestBodyChunks' to  avoid warnings
+    return $! setRequestBodyChunks body req
   where
-    !req = Request {
+    !req = defaultRequest {
         requestMethod = colonMethod
       , httpVersion = if isTransportQUIC transport then http30 else H.http20
       , rawPathInfo = rawPath
@@ -57,7 +58,6 @@ toRequest' ii settings addr ref (reqths,reqvt) bodylen body th transport = retur
       , requestHeaders = headers
       , isSecure = isTransportSecure transport
       , remoteHost = addr
-      , requestBody = body
       , vault = vaultValue
       , requestBodyLength = maybe ChunkedBody (KnownLength . fromIntegral) bodylen
       , requestHeaderHost      = mHost <|> mAuth
