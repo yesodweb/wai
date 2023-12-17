@@ -22,6 +22,7 @@ module Network.Wai.Middleware.Gzip
       -- ** The Settings
       -- $settings
     , GzipSettings
+    , defaultGzipSettings
     , gzipFiles
     , gzipCheckMime
     , gzipSizeThreshold
@@ -124,7 +125,7 @@ import Network.Wai.Util (splitCommas, trimWS)
 -- @
 -- myGzipSettings :: 'GzipSettings'
 -- myGzipSettings =
---   'def'
+--   'defaultGzipSettings'
 --     { 'gzipFiles' = 'GzipCompress'
 --     , 'gzipCheckMime' = myMimeCheckFunction
 --     , 'gzipSizeThreshold' = 860
@@ -197,7 +198,10 @@ data GzipFiles
 -- | Use default MIME settings; /do not/ compress files; skip
 -- compression on data smaller than 860 bytes.
 instance Default GzipSettings where
-    def = GzipSettings GzipIgnore defaultCheckMime minimumLength
+    def = defaultGzipSettings
+
+defaultGzipSettings :: GzipSettings
+defaultGzipSettings = GzipSettings GzipIgnore defaultCheckMime minimumLength
 
 -- | MIME types that will be compressed by default:
 -- @text/@ @*@, @application/json@, @application/javascript@,
