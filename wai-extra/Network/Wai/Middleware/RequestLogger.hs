@@ -402,6 +402,7 @@ getRequestBody req = do
              x:y -> (y, x)
   let req' = req { requestBody = rbody }
   return (req', body)
+{- HLint ignore getRequestBody "Use lambda-case" -}
 
 detailedMiddleware' :: Callback
                     -> DetailedSettings
@@ -502,6 +503,7 @@ detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode 
         <> " "
         <> toLogStr (pack $ show $ diffUTCTime t1 t0)
         <> "\n"
+{- HLint ignore detailedMiddleware' "Use lambda-case" -}
 
 statusBS :: Response -> BS.ByteString
 statusBS = pack . show . statusCode . responseStatus

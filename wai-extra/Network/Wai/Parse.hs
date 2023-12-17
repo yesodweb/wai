@@ -497,6 +497,7 @@ readSource (Source f ref) = do
     if S.null bs
         then f
         else return bs
+{- HLint ignore readSource "Use tuple-section" -}
 
 leftover :: Source -> S.ByteString -> IO ()
 leftover (Source _ ref) = writeIORef ref

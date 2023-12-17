@@ -59,3 +59,4 @@ eventStreamAppRaw handler _ sendResponse =
             case eventToBuilder event of
                 Nothing -> return ()
                 Just b  -> sendChunk b
+{- HLint ignore eventStreamAppRaw "Use forM_" -}
