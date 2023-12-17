@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.14.0
+
+* `defaultGzipSettings` now exported to not depend on `Data.Default` [#959](https://github.com/yesodweb/wai/pull/959)
+
 ## 3.1.13.0
 
 * Added `Combine Headers` `Middleware` [#901](https://github.com/yesodweb/wai/pull/901)

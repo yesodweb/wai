@@ -200,6 +200,13 @@ data GzipFiles
 instance Default GzipSettings where
     def = defaultGzipSettings
 
+-- | Default settings for the 'gzip' middleware.
+--
+-- * Does not compress files.
+-- * Uses 'defaultCheckMime'.
+-- * Compession threshold set to 860 bytes.
+--
+-- @since 3.1.14.0
 defaultGzipSettings :: GzipSettings
 defaultGzipSettings = GzipSettings GzipIgnore defaultCheckMime minimumLength
 
