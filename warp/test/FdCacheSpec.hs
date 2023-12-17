@@ -6,7 +6,7 @@ import Test.Hspec
 #ifndef WINDOWS
 import Data.IORef
 import Network.Wai.Handler.Warp.FdCache
-import System.Posix.IO (fdRead)
+import System.Posix.IO.ByteString (fdRead)
 import System.Posix.Types (Fd(..))
 
 main :: IO ()

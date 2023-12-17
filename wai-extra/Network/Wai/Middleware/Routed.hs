@@ -35,5 +35,4 @@ hostedMiddleware domain middle app req
   | otherwise            = app req
 
 hasDomain :: ByteString -> Request -> Bool
-hasDomain domain req = maybe False (== domain) mHost
-  where mHost = requestHeaderHost req
+hasDomain domain req = Just domain == requestHeaderHost req

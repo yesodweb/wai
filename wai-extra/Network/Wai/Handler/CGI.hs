@@ -89,8 +89,7 @@ runGeneric vars inputH outputH xsendfile app = do
         remoteHost' =
             case lookup "REMOTE_ADDR" vars of
                 Just x -> x
-                Nothing ->
-                    fromMaybe "" $ lookup "REMOTE_HOST" vars
+                Nothing -> lookup' "REMOTE_HOST" vars
         isSecure' =
             case map toLower $ lookup' "SERVER_PROTOCOL" vars of
                 "https" -> True

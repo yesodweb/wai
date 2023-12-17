@@ -138,7 +138,7 @@ setRawPathInfo r rawPinfo =
     let pInfo = dropFrontSlash $ T.split (== '/') $ TE.decodeUtf8 rawPinfo
     in  r { rawPathInfo = rawPinfo, pathInfo = pInfo }
   where
-    dropFrontSlash ("":"":[]) = [] -- homepage, a single slash
+    dropFrontSlash ["",""] = [] -- homepage, a single slash
     dropFrontSlash ("":path) = path
     dropFrontSlash path = path
 

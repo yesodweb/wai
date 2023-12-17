@@ -42,6 +42,7 @@ import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Builder.Extra as Blaze (flush)
 import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
+import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Default.Class (Default (..))
 import Data.Function (fix)
 import Data.Maybe (isJust)
@@ -348,9 +349,7 @@ compressFile s hs file mETag cache sendResponse = do
     tmpfile = cache ++ '/' : map safe file ++ eTag
 
     safe c
-        | 'A' <= c && c <= 'Z' = c
-        | 'a' <= c && c <= 'z' = c
-        | '0' <= c && c <= '9' = c
+        | isAsciiUpper c || isAsciiLower c || isDigit c = c
     safe '-' = '-'
     safe '_' = '_'
     safe _ = '_'

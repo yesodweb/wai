@@ -32,6 +32,6 @@ streamFile app env sendResponse = app env $ \res ->
             sendBody :: StreamingBody -> IO ResponseReceived
             sendBody body = do
                len <- getFileSize fp
-               let hs' = (hContentLength, (S8.pack (show len))) : hs
+               let hs' = (hContentLength, S8.pack (show len)) : hs
                sendResponse $ responseStream s hs' body
       _ -> sendResponse res

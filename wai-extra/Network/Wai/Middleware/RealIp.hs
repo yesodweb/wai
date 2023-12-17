@@ -48,7 +48,7 @@ realIpHeader header =
 --
 -- @since 3.1.5
 realIpTrusted :: HeaderName -> (IP.IP -> Bool) -> Middleware
-realIpTrusted header isTrusted app req respond = app req' respond
+realIpTrusted header isTrusted app req = app req'
   where
     req' = fromMaybe req $ do
              (ip, port) <- IP.fromSockAddr (remoteHost req)
@@ -90,5 +90,5 @@ findRealIp reqHeaders header isTrusted =
   where
     -- account for repeated headers
     headerVals = [ v | (k, v) <- reqHeaders, k == header ]
-    ips = mapMaybe (readMaybe . B8.unpack) $ concatMap (B8.split ',') headerVals
+    ips = concatMap (mapMaybe (readMaybe . B8.unpack) . B8.split ',') headerVals
     nonTrusted = filter (not . isTrusted) ips

@@ -58,6 +58,7 @@ import Control.Exception (catchJust)
 import qualified Control.Exception as E
 import Control.Monad (guard, unless, when)
 import Control.Monad.Trans.Resource (InternalState, allocate, register, release, runInternalState)
+import Data.Bifunctor (bimap)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
@@ -400,7 +401,7 @@ sinkRequestBodyEx o s r body = do
                 Left y'  -> ((y':y, z), ())
                 Right z' -> ((y, z':z), ())
     conduitRequestBodyEx o s r body add
-    (\(a, b) -> (reverse a, reverse b)) <$> readIORef ref
+    bimap reverse reverse <$> readIORef ref
 
 conduitRequestBodyEx :: ParseRequestBodyOptions
                      -> BackEnd y

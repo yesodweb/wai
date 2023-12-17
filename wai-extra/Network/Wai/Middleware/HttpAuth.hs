@@ -43,7 +43,7 @@ type CheckCreds = ByteString
 basicAuth :: CheckCreds
           -> AuthSettings
           -> Middleware
-basicAuth checkCreds = basicAuth' (\_ -> checkCreds)
+basicAuth = basicAuth' . const
 
 -- | Like 'basicAuth', but also passes a request to the authentication function.
 --
@@ -120,7 +120,7 @@ extractBasicAuth bs =
     extract encoded =
         let raw = decodeLenient encoded
             (username, password') = S.break (== _colon) raw
-        in ((username,) . snd) <$> S.uncons password'
+        in (username,) . snd <$> S.uncons password'
 
 -- | Extract bearer authentication data from __Authorization__ header
 -- value. Returns bearer token

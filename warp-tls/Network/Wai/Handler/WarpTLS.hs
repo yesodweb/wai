@@ -47,9 +47,22 @@ module Network.Wai.Handler.WarpTLS (
     ) where
 
 import Control.Applicative ((<|>))
-import UnliftIO.Exception (Exception, throwIO, bracket, finally, handleAny, try, IOException, onException, SomeException(..), handleJust)
-import qualified UnliftIO.Exception as E
 import Control.Monad (void, guard)
+import UnliftIO.Exception (
+    Exception,
+    IOException,
+    SomeException (..),
+    bracket,
+    finally,
+    fromException,
+    handle,
+    handleAny,
+    handleJust,
+    onException,
+    throwIO,
+    try,
+ )
+import qualified UnliftIO.Exception as E
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Data.Default.Class (def)
@@ -77,7 +90,6 @@ import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal
 import Network.Wai.Handler.WarpTLS.Internal(CertSettings(..), TLSSettings(..), OnInsecure(..))
 import System.IO.Error (ioeGetErrorType, isEOFError)
-import UnliftIO.Exception (handle, fromException)
 
 -- | The default 'CertSettings'.
 defaultCertSettings :: CertSettings

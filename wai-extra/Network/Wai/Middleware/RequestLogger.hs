@@ -98,7 +98,7 @@ defaultApacheSettings :: ApacheSettings
 defaultApacheSettings = ApacheSettings
     { apacheIPAddrSource = FromSocket
     , apacheRequestFilter = \_ _ -> True
-    , apacheUserGetter = \_ -> Nothing
+    , apacheUserGetter = const Nothing
     }
 
 -- | Where to take IP addresses for clients from. See 'IPAddrSource' for more information.
