@@ -10,7 +10,7 @@ module Network.Wai.Handler.Warp.HTTP2 (
   ) where
 
 import qualified Data.ByteString as BS
-import Data.IORef (IORef, newIORef, writeIORef, readIORef)
+import Data.IORef (readIORef)
 import qualified Data.IORef as I
 import qualified Network.HTTP2.Frame as H2
 import qualified Network.HTTP2.Server as H2
@@ -33,7 +33,6 @@ import Network.Wai.Handler.Warp.Types
 
 http2 :: S.Settings -> InternalInfo -> Connection -> Transport -> Application -> SockAddr -> T.Handle -> ByteString -> IO ()
 http2 settings ii conn transport app peersa th bs = do
-    istatus <- newIORef False
     rawRecvN <- makeRecvN bs $ connRecv conn
     writeBuffer <- readIORef $ connWriteBuffer conn
     -- This thread becomes the sender in http2 library.
@@ -43,7 +42,7 @@ http2 settings ii conn transport app peersa th bs = do
     -- output data from the worker. It's not good enough to tickle
     -- the time handler in the receiver only. So, we should tickle
     -- the time handler in both the receiver and the sender.
-    let recvN = wrappedRecvN th istatus (S.settingsSlowlorisSize settings) rawRecvN
+    let recvN = wrappedRecvN th (S.settingsSlowlorisSize settings) rawRecvN
         sendBS x = connSendAll conn x >> T.tickle th
         conf = H2.Config {
             confWriteBuffer       = bufBuffer writeBuffer
@@ -117,17 +116,15 @@ http2server settings ii transport addr app h2req0 aux0 response = do
             Nothing -> 0
             Just s  -> fromIntegral s
 
-wrappedRecvN :: T.Handle -> IORef Bool -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
-wrappedRecvN th istatus slowlorisSize readN bufsize = do
+wrappedRecvN :: T.Handle -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
+wrappedRecvN th slowlorisSize readN bufsize = do
     bs <-  UnliftIO.handleAny handler $ readN bufsize
-    unless (BS.null bs) $ do
-        writeIORef istatus True
     -- TODO: think about the slowloris protection in HTTP2: current code
     -- might open a slow-loris attack vector. Rather than timing we should
     -- consider limiting the per-client connections assuming that in HTTP2
     -- we should allow only few connections per host (real-world
     -- deployments with large NATs may be trickier).
-        when (BS.length bs >= slowlorisSize || bufsize <= slowlorisSize) $ T.tickle th
+    when (BS.length bs > 0 && BS.length bs >= slowlorisSize || bufsize <= slowlorisSize) $ T.tickle th
     return bs
  where
    handler :: UnliftIO.SomeException -> IO ByteString
