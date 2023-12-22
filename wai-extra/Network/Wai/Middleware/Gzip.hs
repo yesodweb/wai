@@ -22,6 +22,7 @@ module Network.Wai.Middleware.Gzip
       -- ** The Settings
       -- $settings
     , GzipSettings
+    , defaultGzipSettings
     , gzipFiles
     , gzipCheckMime
     , gzipSizeThreshold
@@ -42,6 +43,7 @@ import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Builder.Extra as Blaze (flush)
 import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
+import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Default.Class (Default (..))
 import Data.Function (fix)
 import Data.Maybe (isJust)
@@ -123,7 +125,7 @@ import Network.Wai.Util (splitCommas, trimWS)
 -- @
 -- myGzipSettings :: 'GzipSettings'
 -- myGzipSettings =
---   'def'
+--   'defaultGzipSettings'
 --     { 'gzipFiles' = 'GzipCompress'
 --     , 'gzipCheckMime' = myMimeCheckFunction
 --     , 'gzipSizeThreshold' = 860
@@ -196,7 +198,17 @@ data GzipFiles
 -- | Use default MIME settings; /do not/ compress files; skip
 -- compression on data smaller than 860 bytes.
 instance Default GzipSettings where
-    def = GzipSettings GzipIgnore defaultCheckMime minimumLength
+    def = defaultGzipSettings
+
+-- | Default settings for the 'gzip' middleware.
+--
+-- * Does not compress files.
+-- * Uses 'defaultCheckMime'.
+-- * Compession threshold set to 860 bytes.
+--
+-- @since 3.1.14.0
+defaultGzipSettings :: GzipSettings
+defaultGzipSettings = GzipSettings GzipIgnore defaultCheckMime minimumLength
 
 -- | MIME types that will be compressed by default:
 -- @text/@ @*@, @application/json@, @application/javascript@,
@@ -348,9 +360,7 @@ compressFile s hs file mETag cache sendResponse = do
     tmpfile = cache ++ '/' : map safe file ++ eTag
 
     safe c
-        | 'A' <= c && c <= 'Z' = c
-        | 'a' <= c && c <= 'z' = c
-        | '0' <= c && c <= '9' = c
+        | isAsciiUpper c || isAsciiLower c || isDigit c = c
     safe '-' = '-'
     safe '_' = '_'
     safe _ = '_'

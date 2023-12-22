@@ -38,7 +38,7 @@ type Path = [Text]
 newtype UrlMap' a = UrlMap' { unUrlMap :: [(Path, a)] }
 
 instance Functor UrlMap' where
-    fmap f (UrlMap' xs) = UrlMap' (fmap (\(p, a) -> (p, f a)) xs)
+    fmap f (UrlMap' xs) = UrlMap' (fmap (fmap f) xs)
 
 instance Applicative UrlMap' where
     pure x                        = UrlMap' [([], x)]
@@ -61,7 +61,7 @@ mount' prefix thing = UrlMap' [(prefix, toApplication thing)]
 -- | A convenience function like mount', but for mounting things under a single
 -- path segment.
 mount :: ToApplication a => Text -> a -> UrlMap
-mount prefix thing = mount' [prefix] thing
+mount prefix = mount' [prefix]
 
 -- | Mount something at the root. Use this for the last application in the
 -- block, to avoid 500 errors from none of the applications matching.
@@ -72,7 +72,7 @@ try :: Eq a
     => [a] -- ^ Path info of request
     -> [([a], b)] -- ^ List of applications to match
     -> Maybe ([a], b)
-try xs tuples = foldl go Nothing tuples
+try xs = foldl go Nothing
     where
         go (Just x) _ = Just x
         go _ (prefix, y) = stripPrefix prefix xs >>= \xs' -> return (xs', y)

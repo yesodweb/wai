@@ -58,6 +58,7 @@ import Control.Exception (catchJust)
 import qualified Control.Exception as E
 import Control.Monad (guard, unless, when)
 import Control.Monad.Trans.Resource (InternalState, allocate, register, release, runInternalState)
+import Data.Bifunctor (bimap)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
@@ -377,7 +378,7 @@ parseRequestBodyEx :: ParseRequestBodyOptions
 parseRequestBodyEx o s r =
     case getRequestBodyType r of
         Nothing -> return ([], [])
-        Just rbt -> sinkRequestBodyEx o s rbt (requestBody r)
+        Just rbt -> sinkRequestBodyEx o s rbt (getRequestBodyChunk r)
 
 sinkRequestBody :: BackEnd y
                 -> RequestBodyType
@@ -400,7 +401,7 @@ sinkRequestBodyEx o s r body = do
                 Left y'  -> ((y':y, z), ())
                 Right z' -> ((y, z':z), ())
     conduitRequestBodyEx o s r body add
-    (\(a, b) -> (reverse a, reverse b)) <$> readIORef ref
+    bimap reverse reverse <$> readIORef ref
 
 conduitRequestBodyEx :: ParseRequestBodyOptions
                      -> BackEnd y
@@ -496,6 +497,7 @@ readSource (Source f ref) = do
     if S.null bs
         then f
         else return bs
+{- HLint ignore readSource "Use tuple-section" -}
 
 leftover :: Source -> S.ByteString -> IO ()
 leftover (Source _ ref) = writeIORef ref

@@ -8,7 +8,7 @@ synopsis:        Run CGI apps on WAI.
 description:     API docs and the README are available at <http://www.stackage.org/package/wai-frontend-monadcgi>.
 category:        Web
 stability:       stable
-cabal-version:   >= 1.6
+cabal-version:   >= 1.8
 build-type:      Simple
 extra-source-files: README.md ChangeLog.md
 

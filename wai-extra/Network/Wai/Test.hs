@@ -138,7 +138,7 @@ setRawPathInfo r rawPinfo =
     let pInfo = dropFrontSlash $ T.split (== '/') $ TE.decodeUtf8 rawPinfo
     in  r { rawPathInfo = rawPinfo, pathInfo = pInfo }
   where
-    dropFrontSlash ("":"":[]) = [] -- homepage, a single slash
+    dropFrontSlash ["",""] = [] -- homepage, a single slash
     dropFrontSlash ("":path) = path
     dropFrontSlash path = path
 
@@ -184,13 +184,12 @@ extractSetCookieFromSResponse response = do
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
     refChunks <- liftIO $ newIORef $ L.toChunks bod
-    request $
-      req
-        { requestBody = atomicModifyIORef refChunks $ \bss ->
+    let rbody = atomicModifyIORef refChunks $ \bss ->
             case bss of
                 [] -> ([], S.empty)
                 x:y -> (y, x)
-        }
+    request $ setRequestBodyChunks rbody req
+{- HLint ignore srequest "Use lambda-case" -}
 
 runResponse :: IORef SResponse -> Response -> IO ResponseReceived
 runResponse ref res = do

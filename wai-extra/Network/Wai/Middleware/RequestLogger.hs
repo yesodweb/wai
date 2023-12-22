@@ -50,7 +50,7 @@ import Network.Wai
   ( Request(..), requestBodyLength, RequestBodyLength(..)
   , Middleware
   , Response, responseStatus, responseHeaders
-  , getRequestBodyChunk
+  , getRequestBodyChunk, setRequestBodyChunks
   )
 import Network.Wai.Internal (Response (..))
 import Network.Wai.Logger
@@ -98,7 +98,7 @@ defaultApacheSettings :: ApacheSettings
 defaultApacheSettings = ApacheSettings
     { apacheIPAddrSource = FromSocket
     , apacheRequestFilter = \_ _ -> True
-    , apacheUserGetter = \_ -> Nothing
+    , apacheUserGetter = const Nothing
     }
 
 -- | Where to take IP addresses for clients from. See 'IPAddrSource' for more information.
@@ -400,8 +400,9 @@ getRequestBody req = do
          case chunks of
              [] -> ([], S8.empty)
              x:y -> (y, x)
-  let req' = req { requestBody = rbody }
+  let req' = setRequestBodyChunks rbody req
   return (req', body)
+{- HLint ignore getRequestBody "Use lambda-case" -}
 
 detailedMiddleware' :: Callback
                     -> DetailedSettings
@@ -502,6 +503,7 @@ detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode 
         <> " "
         <> toLogStr (pack $ show $ diffUTCTime t1 t0)
         <> "\n"
+{- HLint ignore detailedMiddleware' "Use lambda-case" -}
 
 statusBS :: Response -> BS.ByteString
 statusBS = pack . show . statusCode . responseStatus

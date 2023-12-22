@@ -11,6 +11,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import qualified Data.ByteString.Unsafe as S
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Foreign.C (CChar, CInt (..))
 import Foreign.Marshal.Alloc (free, mallocBytes)
 import Foreign.Ptr (Ptr, castPtr, nullPtr)
@@ -27,10 +28,12 @@ runOne :: Maybe ByteString -> Application -> IO ()
 runOne sf app = do
     socket <- c'accept 0 nullPtr nullPtr
     headersBS <- readNetstring socket
-    let headers@((_, conLenS):_) = parseHeaders $ S.split 0 headersBS
-    let conLen = case reads conLenS of
-                    (i, _):_ -> i
-                    [] -> 0
+    let headers = parseHeaders $ S.split 0 headersBS
+    let conLen =
+            fromMaybe 0 $ do
+                (_, conLenS) <- listToMaybe headers
+                (i, _) <- listToMaybe $ reads conLenS
+                pure i
     conLenI <- newIORef conLen
     runGeneric headers (requestBodyFunc $ input socket conLenI)
               (write socket) sf app
@@ -73,10 +76,10 @@ readNetstring socket = do
   where
     readLen l = do
         bs <- readByteString socket 1
-        let [c] = S8.unpack bs
-        if c == ':'
-            then return l
-            else readLen $ l * 10 + (fromEnum c - fromEnum '0')
+        case S8.unpack bs of
+            [':'] -> return l
+            [c] -> readLen $ l * 10 + (fromEnum c - fromEnum '0')
+            _ -> error "Network.Wai.Handler.SCGI.readNetstring: should never happen"
 
 readByteString :: CInt -> Int -> IO S.ByteString
 readByteString socket len = do

@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP  #-}
+#if __GLASGOW_HASKELL__ < 900 || __GLASGOW_HASKELL__ >= 902
 import Test.DocTest
+#endif
 
 main :: IO ()
 main =

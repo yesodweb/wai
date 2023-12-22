@@ -57,7 +57,7 @@ Library
                    , text
                    , time-manager
                    , vault                     >= 0.3
-                   , wai                       >= 3.2      && < 3.3
+                   , wai                       >= 3.2.4    && < 3.3
                    , word8
                    , unliftio
   if flag(x509)

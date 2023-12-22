@@ -6,11 +6,12 @@ module Network.Socket.BufferPool.Buffer (
   ) where
 
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal (ByteString(..), memcpy)
+import Data.ByteString.Internal (ByteString(..))
 import Data.ByteString.Unsafe (unsafeTake, unsafeDrop)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc (mallocBytes, finalizerFree)
+import Foreign.Marshal.Utils (copyBytes)
 import Foreign.Ptr (castPtr, plusPtr)
 
 import Network.Socket.BufferPool.Types
@@ -59,6 +60,6 @@ mallocBS size = do
 --   This function returns the point where the next copy should start.
 copy :: Buffer -> ByteString -> IO Buffer
 copy ptr (PS fp o l) = withForeignPtr fp $ \p -> do
-    memcpy ptr (p `plusPtr` o) (fromIntegral l)
+    copyBytes ptr (p `plusPtr` o) (fromIntegral l)
     return $ ptr `plusPtr` l
 {-# INLINE copy #-}
