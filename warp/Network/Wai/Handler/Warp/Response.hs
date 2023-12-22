@@ -145,7 +145,7 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     method = requestMethod req
     isHead = method == H.methodHead
     rsp = case response of
-        ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr isHead (T.tickle th)
+        ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr (T.tickle th)
         ResponseBuilder _ _ b
           | isHead                  -> RspNoBody
           | otherwise               -> RspBuilder b needsChunked
@@ -188,7 +188,7 @@ sanitizeHeaderValue v = case C8.lines $ S.filter (/= _cr) v of
 ----------------------------------------------------------------
 
 data Rsp = RspNoBody
-         | RspFile FilePath (Maybe FilePart) IndexedHeader Bool (IO ())
+         | RspFile FilePath (Maybe FilePart) IndexedHeader (IO ())
          | RspBuilder Builder Bool
          | RspStream StreamingBody Bool
          | RspRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) (IO ByteString)
@@ -267,8 +267,8 @@ sendRsp conn _ th _ _ _ _ _ _ (RspRaw withApp src) = do
 
 -- Sophisticated WAI applications.
 -- We respect s0. s0 MUST be a proper value.
-sendRsp conn ii th ver s0 hs0 rspidxhdr maxRspBufSize method (RspFile path (Just part) _ isHead hook) =
-    sendRspFile2XX conn ii th ver s0 hs rspidxhdr maxRspBufSize method path beg len isHead hook
+sendRsp conn ii th ver s0 hs0 rspidxhdr maxRspBufSize method (RspFile path (Just part) _ hook) =
+    sendRspFile2XX conn ii th ver s0 hs rspidxhdr maxRspBufSize method path beg len hook
   where
     beg = filePartOffset part
     len = filePartByteCount part
@@ -278,7 +278,7 @@ sendRsp conn ii th ver s0 hs0 rspidxhdr maxRspBufSize method (RspFile path (Just
 
 -- Simple WAI applications.
 -- Status is ignored
-sendRsp conn ii th ver _ hs0 rspidxhdr maxRspBufSize method (RspFile path Nothing reqidxhdr isHead hook) = do
+sendRsp conn ii th ver _ hs0 rspidxhdr maxRspBufSize method (RspFile path Nothing reqidxhdr hook) = do
     efinfo <- UnliftIO.tryIO $ getFileInfo ii path
     case efinfo of
         Left (_ex :: UnliftIO.IOException) ->
@@ -288,7 +288,7 @@ sendRsp conn ii th ver _ hs0 rspidxhdr maxRspBufSize method (RspFile path Nothin
           sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize method
         Right finfo -> case conditionalRequest finfo hs0 method rspidxhdr reqidxhdr of
           WithoutBody s         -> sendRsp conn ii th ver s hs0 rspidxhdr maxRspBufSize method RspNoBody
-          WithBody s hs beg len -> sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize method path beg len isHead hook
+          WithBody s hs beg len -> sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize method path beg len hook
 
 ----------------------------------------------------------------
 
@@ -304,11 +304,10 @@ sendRspFile2XX :: Connection
                -> FilePath
                -> Integer
                -> Integer
-               -> Bool
                -> IO ()
                -> IO (Maybe H.Status, Maybe Integer)
-sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize method path beg len isHead hook
-  | isHead = sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize method RspNoBody
+sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize method path beg len hook
+  | method == H.methodHead = sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize method RspNoBody
   | otherwise = do
       lheader <- composeHeader ver s hs
       (mfd, fresher) <- getFd ii path
