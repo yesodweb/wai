@@ -1,5 +1,10 @@
 # Changelog for wai-extra
 
+## Next
+
+* add `RequestParseException` type and expose it from the `Network.Wai.Parse` module.
+* Behavior change : `parseRequestBody` and `parseRequestBodyEx` (exported from `Network.Wai.Parse`) throw `RequestParseException` rather than calling `error`.
+
 ## 3.1.14.0
 
 * `defaultGzipSettings` now exported to not depend on `Data.Default` [#959](https://github.com/yesodweb/wai/pull/959)
