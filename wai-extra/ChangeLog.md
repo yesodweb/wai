@@ -2,8 +2,9 @@
 
 ## 3.1.15
 
-* add `RequestParseException` type and expose it from the `Network.Wai.Parse` module.
-* Behavior change : `parseRequestBody` and `parseRequestBodyEx` (exported from `Network.Wai.Parse`) throw `RequestParseException` rather than calling `error`.
+* Request parsing throws an exception rather than `error`ing [#964](https://github.com/yesodweb/wai/pull/964):
+    * Add `RequestParseException` type and expose it from the `Network.Wai.Parse` module.
+    * Behavior change : `parseRequestBody` and `parseRequestBodyEx` (exported from `Network.Wai.Parse`) throw `RequestParseException` rather than calling `error`.
 
 ## 3.1.14.0
 
