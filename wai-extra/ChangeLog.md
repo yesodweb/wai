@@ -1,6 +1,6 @@
 # Changelog for wai-extra
 
-## Next
+## 3.1.15.0
 
 * add `RequestParseException` type and expose it from the `Network.Wai.Parse` module.
 * Behavior change : `parseRequestBody` and `parseRequestBodyEx` (exported from `Network.Wai.Parse`) throw `RequestParseException` rather than calling `error`.
