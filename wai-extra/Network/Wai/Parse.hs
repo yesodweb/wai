@@ -362,7 +362,7 @@ parseContentType a = do
 -- receiving input from the internet), it is recommended to
 -- use the 'parseRequestBodyEx' function instead.
 --
--- @since 3.1.15.0 : throws 'RequestParseException' if something goes wrong
+-- @since 3.1.15 : throws 'RequestParseException' if something goes wrong
 parseRequestBody :: BackEnd y
                  -> Request
                  -> IO ([Param], [File y])
@@ -375,7 +375,7 @@ parseRequestBody = parseRequestBodyEx noLimitParseRequestBodyOptions
 -- for filenames. The a depends on the used backend that
 -- is responsible for storing the received files.
 --
--- @since 3.1.15.0 : throws 'RequestParseException' if something goes wrong
+-- @since 3.1.15 : throws 'RequestParseException' if something goes wrong
 parseRequestBodyEx :: ParseRequestBodyOptions
                    -> BackEnd y
                    -> Request
@@ -466,12 +466,12 @@ takeLine maxlen src =
                         Nothing -> return ()
                     return . Just $ killCR res
 
--- | @since 3.1.15.0 : throws 'RequestParseException' if something goes wrong
+-- | @since 3.1.15 : throws 'RequestParseException' if something goes wrong
 takeLines' :: Maybe Int -> Maybe Int -> Source -> IO [S.ByteString]
 takeLines' lineLength maxLines source =
     reverse <$> takeLines'' [] lineLength maxLines source
 
--- | @since 3.1.15.0 : throws 'RequestParseException' if something goes wrong
+-- | @since 3.1.15 : throws 'RequestParseException' if something goes wrong
 takeLines''
     :: [S.ByteString]
     -> Maybe Int
@@ -509,7 +509,7 @@ readSource (Source f ref) = do
 leftover :: Source -> S.ByteString -> IO ()
 leftover (Source _ ref) = writeIORef ref
 
--- | @since 3.1.15.0 : throws 'RequestParseException' if something goes wrong
+-- | @since 3.1.15 : throws 'RequestParseException' if something goes wrong
 parsePiecesEx :: ParseRequestBodyOptions
               -> BackEnd y
               -> S.ByteString
@@ -587,7 +587,7 @@ parsePiecesEx o sink bound rbody add =
 
 -- | Things that could go wrong while parsing a 'Request'
 --
--- @since 3.1.15.0 :
+-- @since 3.1.15
 data RequestParseException = MaxParamSizeExceeded Int
                            | ParamNameTooLong S.ByteString Int
                            | MaxFileNumberExceeded Int
