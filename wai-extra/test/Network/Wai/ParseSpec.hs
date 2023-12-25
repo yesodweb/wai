@@ -113,11 +113,11 @@ caseParseRequestBody = do
 
   it "exceeding number of files" $ do
     SRequest req4 _bod4 <- toRequest'' ctype3 content3
-    (parseRequestBodyEx ( setMaxRequestNumFiles 0 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxRequestNumFiles 0 def ) lbsBackEnd req4) `shouldThrow` anyException
 
   it "exceeding parameter length" $ do
     SRequest req4 _bod4 <- toRequest'' ctype3 content3
-    (parseRequestBodyEx ( setMaxRequestKeyLength 2 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxRequestKeyLength 2 def ) lbsBackEnd req4) `shouldThrow` anyException
 
   it "exceeding file size" $ do
     SRequest req4 _bod4 <- toRequest'' ctype3 content3
@@ -139,7 +139,7 @@ caseParseRequestBody = do
 
   it "exceeding max header lines" $ do
     SRequest req4 _bod4 <- toRequest'' ctype2 content2
-    (parseRequestBodyEx ( setMaxHeaderLines 1 def ) lbsBackEnd req4) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxHeaderLines 1 def ) lbsBackEnd req4) `shouldThrow` anyException
 
   it "exceeding header line size" $ do
     SRequest req4 _bod4 <- toRequest'' ctype3 content4
@@ -158,7 +158,7 @@ caseParseRequestBody = do
     let content = "thisisalongparameterkey=andthisbeanevenlongerparametervaluehelloworldhowareyou"
     let ctype = "application/x-www-form-urlencoded"
     SRequest req _bod <- toRequest'' ctype content
-    (parseRequestBodyEx ( setMaxRequestParmsSize 10 def ) lbsBackEnd req) `shouldThrow` anyErrorCall
+    (parseRequestBodyEx ( setMaxRequestParmsSize 10 def ) lbsBackEnd req) `shouldThrow` anyException
 
   where
     content2 =
