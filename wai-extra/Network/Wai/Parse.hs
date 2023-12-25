@@ -362,7 +362,7 @@ parseContentType a = do
 -- receiving input from the internet), it is recommended to
 -- use the 'parseRequestBodyEx' function instead.
 --
--- @since 3.1.15 : throws 'RequestParseException' if something goes wrong
+-- since 3.1.15 : throws 'RequestParseException' if something goes wrong
 parseRequestBody :: BackEnd y
                  -> Request
                  -> IO ([Param], [File y])
@@ -375,7 +375,7 @@ parseRequestBody = parseRequestBodyEx noLimitParseRequestBodyOptions
 -- for filenames. The a depends on the used backend that
 -- is responsible for storing the received files.
 --
--- @since 3.1.15 : throws 'RequestParseException' if something goes wrong
+-- since 3.1.15 : throws 'RequestParseException' if something goes wrong
 parseRequestBodyEx :: ParseRequestBodyOptions
                    -> BackEnd y
                    -> Request
@@ -385,6 +385,7 @@ parseRequestBodyEx o s r =
         Nothing -> return ([], [])
         Just rbt -> sinkRequestBodyEx o s rbt (getRequestBodyChunk r)
 
+-- | since 3.1.15 : throws 'RequestParseException' if something goes wrong
 sinkRequestBody :: BackEnd y
                 -> RequestBodyType
                 -> IO S.ByteString
@@ -394,6 +395,8 @@ sinkRequestBody = sinkRequestBodyEx noLimitParseRequestBodyOptions
 -- | Throws 'RequestParseException' if something goes wrong
 --
 -- @since 3.0.16.0
+--
+-- since 3.1.15 : throws 'RequestParseException' if something goes wrong
 sinkRequestBodyEx :: ParseRequestBodyOptions
                   -> BackEnd y
                   -> RequestBodyType
