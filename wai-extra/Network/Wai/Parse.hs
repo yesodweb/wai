@@ -67,7 +67,7 @@ import Data.IORef
 import Data.Int (Int64)
 import Data.List (sortBy)
 import Data.Maybe (catMaybes, fromMaybe)
-import Data.Word (Word8)
+import Data.Word8
 import Network.HTTP.Types (hContentType)
 import qualified Network.HTTP.Types as H
 import Network.Wai
@@ -86,20 +86,20 @@ parseHttpAccept :: S.ByteString -> [S.ByteString]
 parseHttpAccept = map fst
                 . sortBy (rcompare `on` snd)
                 . map (addSpecificity . grabQ)
-                . S.split 44 -- comma
+                . S.split _comma
   where
     rcompare :: (Double,Int) -> (Double,Int) -> Ordering
     rcompare = flip compare
     addSpecificity (s, q) =
         -- Prefer higher-specificity types
-        let semicolons = S.count 0x3B s
-            stars = S.count 0x2A s
+        let semicolons = S.count _semicolon s
+            stars = S.count _asterisk s
         in (s, (q, semicolons - stars))
     grabQ s =
         -- Stripping all spaces may be too harsh.
         -- Maybe just strip either side of semicolon?
-        let (s', q) = S.breakSubstring ";q=" (S.filter (/=0x20) s) -- 0x20 is space
-            q' = S.takeWhile (/=0x3B) (S.drop 3 q) -- 0x3B is semicolon
+        let (s', q) = S.breakSubstring ";q=" (S.filter (/= _space) s)
+            q' = S.takeWhile (/= _semicolon) (S.drop 3 q)
          in (s', readQ q')
     readQ s = case reads $ S8.unpack s of
                 (x, _):_ -> x
@@ -333,26 +333,23 @@ getRequestBodyType req = do
 -- @since 1.3.2
 parseContentType :: S.ByteString -> (S.ByteString, [(S.ByteString, S.ByteString)])
 parseContentType a = do
-    let (ctype, b) = S.break (== semicolon) a
+    let (ctype, b) = S.break (== _semicolon) a
         attrs = goAttrs id $ S.drop 1 b
      in (ctype, attrs)
   where
-    semicolon = 59
-    equals = 61
-    space = 32
-    dq s = if S.length s > 2 && S.head s == 34 && S.last s == 34 -- quote
+    dq s = if S.length s > 2 && S.head s == _quotedbl && S.last s == _quotedbl
                 then S.tail $ S.init s
                 else s
     goAttrs front bs
         | S.null bs = front []
         | otherwise =
-            let (x, rest) = S.break (== semicolon) bs
+            let (x, rest) = S.break (== _semicolon) bs
              in goAttrs (front . (goAttr x:)) $ S.drop 1 rest
     goAttr bs =
-        let (k, v') = S.break (== equals) bs
+        let (k, v') = S.break (== _equal) bs
             v = S.drop 1 v'
          in (strip k, dq $ strip v)
-    strip = S.dropWhile (== space) . fst . S.breakEnd (/= space)
+    strip = S.dropWhile (== _space) . fst . S.breakEnd (/= _space)
 
 -- | Parse the body of an HTTP request.
 -- See parseRequestBodyEx for details.
@@ -449,7 +446,7 @@ takeLine maxlen src =
 
     close front = leftover src front >> return Nothing
     push front bs = do
-        let (x, y) = S.break (== 10) bs -- LF
+        let (x, y) = S.break (== _lf) bs
          in if S.null y
                 then go $ front `S.append` x
                 else do
@@ -574,8 +571,8 @@ parsePiecesEx o sink bound rbody add =
         contDisp = mk $ S8.pack "Content-Disposition"
         contType = mk $ S8.pack "Content-Type"
         parsePair s =
-            let (x, y) = breakDiscard 58 s -- colon
-             in (mk x, S.dropWhile (== 32) y) -- space
+            let (x, y) = breakDiscard _colon s
+             in (mk x, S.dropWhile (== _space) y)
 
 
 data Bound = FoundBound S.ByteString S.ByteString
@@ -695,22 +692,22 @@ sinkTillBound bound iter seed0 src max' = do
     return (b, seed)
 
 parseAttrs :: S.ByteString -> [(S.ByteString, S.ByteString)]
-parseAttrs = map go . S.split 59 -- semicolon
+parseAttrs = map go . S.split _semicolon
   where
-    tw = S.dropWhile (== 32) -- space
-    dq s = if S.length s > 2 && S.head s == 34 && S.last s == 34 -- quote
+    tw = S.dropWhile (== _space)
+    dq s = if S.length s > 2 && S.head s == _quotedbl && S.last s == _quotedbl
                 then S.tail $ S.init s
                 else s
     go s =
-        let (x, y) = breakDiscard 61 s -- equals sign
+        let (x, y) = breakDiscard _equal s
          in (tw x, dq $ tw y)
 
 killCRLF :: S.ByteString -> S.ByteString
 killCRLF bs
-    | S.null bs || S.last bs /= 10 = bs -- line feed
+    | S.null bs || S.last bs /= _lf = bs
     | otherwise = killCR $ S.init bs
 
 killCR :: S.ByteString -> S.ByteString
 killCR bs
-    | S.null bs || S.last bs /= 13 = bs -- carriage return
+    | S.null bs || S.last bs /= _cr = bs
     | otherwise = S.init bs
