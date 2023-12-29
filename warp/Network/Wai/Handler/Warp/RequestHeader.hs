@@ -9,6 +9,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C8 (unpack)
 import Data.ByteString.Internal (memchr)
 import qualified Data.CaseInsensitive as CI
+import Data.Word8
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr, nullPtr)
 import Foreign.Storable (peek)
@@ -62,13 +63,13 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
         limptr = methodptr `plusPtr` len
         lim0 = fromIntegral len
 
-    pathptr0 <- memchr methodptr 32 lim0 -- ' '
+    pathptr0 <- memchr methodptr _space lim0
     when (pathptr0 == nullPtr || (limptr `minusPtr` pathptr0) < 11) $
         throwIO baderr
     let pathptr = pathptr0 `plusPtr` 1
         lim1 = fromIntegral (limptr `minusPtr` pathptr0)
 
-    httpptr0 <- memchr pathptr 32 lim1 -- ' '
+    httpptr0 <- memchr pathptr _space lim1
     when (httpptr0 == nullPtr || (limptr `minusPtr` httpptr0) < 9) $
         throwIO baderr
     let httpptr = httpptr0 `plusPtr` 1
@@ -76,7 +77,7 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
 
     checkHTTP httpptr
     !hv <- httpVersion httpptr
-    queryptr <- memchr pathptr 63 lim2 -- '?'
+    queryptr <- memchr pathptr _question lim2
 
     let !method = bs ptr methodptr pathptr0
         !path
@@ -94,18 +95,18 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
         w0 <- peek $ p `plusPtr` n
         when (w0 /= w) $ throwIO NonHttp
     checkHTTP httpptr = do
-        check httpptr 0 72 -- 'H'
-        check httpptr 1 84 -- 'T'
-        check httpptr 2 84 -- 'T'
-        check httpptr 3 80 -- 'P'
-        check httpptr 4 47 -- '/'
-        check httpptr 6 46 -- '.'
+        check httpptr 0 _H
+        check httpptr 1 _T
+        check httpptr 2 _T
+        check httpptr 3 _P
+        check httpptr 4 _slash
+        check httpptr 6 _period
     httpVersion httpptr = do
         major <- peek (httpptr `plusPtr` 5) :: IO Word8
         minor <- peek (httpptr `plusPtr` 7) :: IO Word8
         let version
-              | major == 49 = if minor == 49 then H.http11 else H.http10
-              | major == 50 && minor == 48 = H.HttpVersion 2 0
+              | major == _1 = if minor == _1 then H.http11 else H.http10
+              | major == _2 && minor == _0 = H.http20
               | otherwise   = H.http10
         return version
     bs ptr p0 p1 = PS fptr o l
@@ -128,6 +129,6 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
 
 parseHeader :: ByteString -> H.Header
 parseHeader s =
-    let (k, rest) = S.break (== 58) s -- ':'
-        rest' = S.dropWhile (\c -> c == 32 || c == 9) $ S.drop 1 rest
+    let (k, rest) = S.break (== _colon) s
+        rest' = S.dropWhile (\c -> c == _space || c == _tab) $ S.drop 1 rest
      in (CI.mk k, rest')

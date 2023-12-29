@@ -24,6 +24,7 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.IORef as I
 import Data.Typeable (Typeable)
 import qualified Data.Vault.Lazy as Vault
+import Data.Word8 (_cr, _lf, _space, _tab)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
@@ -244,8 +245,7 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen lines prepend) bs'
     --    , is this part of a multiline header
     --    )
     mNL = do
-        -- 10 is the code point for newline (\n)
-        chunkNL <- S.elemIndex 10 bs'
+        chunkNL <- S.elemIndex _lf bs'
         let headerNL = chunkNL + S.length (prepend "")
             chunkNLlen = chunkNL + 1
         -- check if there are two more bytes in the bs
@@ -254,9 +254,9 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen lines prepend) bs'
             let c = S.index bs (headerNL + 1)
                 b = case headerNL of
                       0 -> True
-                      1 -> S.index bs 0 == 13
+                      1 -> S.index bs 0 == _cr
                       _ -> False
-                isMultiline = not b && (c == 32 || c == 9)
+                isMultiline = not b && (c == _space || c == _tab)
             in Just (chunkNLlen, headerNL, isMultiline)
             else
             Just (chunkNLlen, headerNL, False)
@@ -311,7 +311,9 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen lines prepend) bs'
 
 {-# INLINE checkCR #-}
 checkCR :: ByteString -> Int -> Int
-checkCR bs pos = if pos > 0 && 13 == S.index bs p then p else pos -- 13 is CR (\r)
+checkCR bs pos
+    | pos > 0 && S.index bs p == _cr = p
+    | otherwise = pos
   where
     !p = pos - 1
 

@@ -5,6 +5,7 @@ module Network.Wai.Handler.Warp.Conduit where
 import UnliftIO (assert, throwIO)
 import qualified Data.ByteString as S
 import qualified Data.IORef as I
+import Data.Word8 (_0, _9, _A, _F, _a, _cr, _f, _lf)
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
@@ -104,17 +105,19 @@ readCSource (CSource src ref) = do
         bs <- readSource src
         case S.uncons bs of
             Nothing -> return ()
-            Just (13, bs') -> dropLF bs'
-            Just (10, bs') -> leftoverSource src bs'
-            Just _ -> leftoverSource src bs
+            Just (w8, bs')
+                | w8 == _cr -> dropLF bs'
+                | w8 == _lf -> leftoverSource src bs'
+                | otherwise -> leftoverSource src bs
 
     dropLF bs =
         case S.uncons bs of
             Nothing -> do
                 bs2 <- readSource' src
                 unless (S.null bs2) $ dropLF bs2
-            Just (10, bs') -> leftoverSource src bs'
-            Just _ -> leftoverSource src bs
+            Just (w8, bs') ->
+                leftoverSource src $
+                    if w8 == _lf then bs' else bs
 
     go NeedLen = getLen
     go NeedLenNewline = dropCRLF >> getLen
@@ -137,13 +140,13 @@ readCSource (CSource src ref) = do
                 return S.empty
             else do
                 (x, y) <-
-                    case S.break (== 10) bs of
+                    case S.break (== _lf) bs of
                         (x, y)
                             | S.null y -> do
                                 bs2 <- readSource' src
                                 return $ if S.null bs2
                                     then (x, y)
-                                    else S.break (== 10) $ bs `S.append` bs2
+                                    else S.break (== _lf) $ bs `S.append` bs2
                             | otherwise -> return (x, y)
                 let w =
                         S.foldl' (\i c -> i * 16 + fromIntegral (hexToWord c)) 0
@@ -157,11 +160,11 @@ readCSource (CSource src ref) = do
                 withLen w y''
 
     hexToWord w
-        | w < 58 = w - 48
-        | w < 71 = w - 55
+        | w <= _9 = w - _0
+        | w <= _F = w - 55
         | otherwise = w - 87
 
 isHexDigit :: Word8 -> Bool
-isHexDigit w = w >= 48 && w <= 57
-            || w >= 65 && w <= 70
-            || w >= 97 && w <= 102
+isHexDigit w = w >= _0 && w <= _9
+            || w >= _A && w <= _F
+            || w >= _a && w <= _f

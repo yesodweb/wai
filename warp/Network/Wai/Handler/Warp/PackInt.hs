@@ -3,6 +3,7 @@
 module Network.Wai.Handler.Warp.PackInt where
 
 import Data.ByteString.Internal (unsafeCreate)
+import Data.Word8 (_0)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (poke)
 import qualified Network.HTTP.Types as H
@@ -29,7 +30,7 @@ packIntegral n = unsafeCreate len go0
     go :: Integral a => a -> Ptr Word8 -> IO ()
     go i p = do
         let (d,r) = i `divMod` 10
-        poke p (48 + fromIntegral r)
+        poke p (_0 + fromIntegral r)
         when (d /= 0) $ go d (p `plusPtr` (-1))
 
 {-# SPECIALIZE packIntegral :: Int -> ByteString #-}
@@ -49,7 +50,7 @@ packStatus status = unsafeCreate 3 $ \p -> do
     poke (p `plusPtr` 2) (toW8 r0)
   where
     toW8 :: Int -> Word8
-    toW8 n = 48 + fromIntegral n
+    toW8 n = _0 + fromIntegral n
     !s = fromIntegral $ H.statusCode status
     (!q0,!r0) = s `divMod` 10
     (!q1,!r1) = q0 `divMod` 10
