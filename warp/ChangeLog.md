@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.32
+
+* Reworked header lines (CRLF) parsing to not unnecessarily copy bytestrings.
+   [####](https://github.com/yesodweb/wai/pulls)
+
 ## 3.3.31
 
 * Supporting http2 v5.0.
