@@ -6,6 +6,7 @@ module RequestSpec (main, spec) where
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Data.IORef
+import Data.Monoid (Sum (..))
 import qualified Network.HTTP.Types.Header as HH
 import Network.Wai.Handler.Warp.File (parseByteRanges)
 import Network.Wai.Handler.Warp.Request
