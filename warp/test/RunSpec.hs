@@ -266,21 +266,24 @@ spec = do
         it "double connect" $ runTest 1 doubleConnect [singlePostHello]
 
     describe "connection termination" $ do
-        --        it "ConnectionClosedByPeer" $ runTerminateTest ConnectionClosedByPeer "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello"
-        it "IncompleteHeaders" $
+        -- it "ConnectionClosedByPeer" $ runTerminateTest ConnectionClosedByPeer "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello"
+        it "IncompleteHeaders" $ do
+            runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r"
             runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r\n"
+            runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r"
+            runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-lengt"
 
     describe "special input" $ do
+        let appWithSocket f = do
+                iheaders <- I.newIORef []
+                let app req respond = do
+                        liftIO $ I.writeIORef iheaders $ requestHeaders req
+                        respond $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ f iheaders
+
         it "multiline headers" $ do
-            iheaders <- I.newIORef []
-            let app req f = do
-                    liftIO $ I.writeIORef iheaders $ requestHeaders req
-                    f $ responseLBS status200 [] ""
-            withApp defaultSettings app $ withMySocket $ \ms -> do
-                let input =
-                        S.concat
-                            [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
-                            ]
+            appWithSocket $ \iheaders ms -> do
+                let input = "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
                 msWrite ms input
                 threadDelay 5000
                 headers <- I.readIORef iheaders
@@ -288,21 +291,23 @@ spec = do
                     `shouldBe` [ ("foo", "bar baz\tbin")
                                ]
         it "no space between colon and value" $ do
-            iheaders <- I.newIORef []
-            let app req f = do
-                    liftIO $ I.writeIORef iheaders $ requestHeaders req
-                    f $ responseLBS status200 [] ""
-            withApp defaultSettings app $ withMySocket $ \ms -> do
-                let input =
-                        S.concat
-                            [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
-                            ]
+            appWithSocket $ \iheaders ms -> do
+                let input = "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
                 msWrite ms input
                 threadDelay 5000
                 headers <- I.readIORef iheaders
-                headers
-                    `shouldBe` [ ("foo", "bar")
-                               ]
+                headers `shouldBe`
+                    [ ("foo", "bar")
+                    ]
+        it "recognizes multiline headers" $ do
+            appWithSocket $ \iheaders ms -> do
+                msWrite ms "GET / HTTP/1.1\r\nfoo: and\r\n"
+                msWrite ms " baz as well\r\n\r\n"
+                threadDelay 5000
+                headers <- I.readIORef iheaders
+                headers `shouldBe`
+                    [ ("foo", "and baz as well")
+                    ]
 
     describe "chunked bodies" $ do
         it "works" $ do
