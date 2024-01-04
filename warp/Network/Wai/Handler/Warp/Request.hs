@@ -18,6 +18,7 @@ module Network.Wai.Handler.Warp.Request (
 import qualified Control.Concurrent as Conc (yield)
 import Data.Array ((!))
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
 import qualified Data.IORef as I
@@ -236,7 +237,7 @@ timeoutBody remainingRef timeoutHandle rbody handle100Continue = do
 
 ----------------------------------------------------------------
 
-type BSEndo = ByteString -> ByteString
+type BSEndo = B.Builder -> B.Builder
 type BSEndoList = [ByteString] -> [ByteString]
 
 data THStatus
@@ -253,88 +254,86 @@ close :: Sink ByteString IO a
 close = throwIO IncompleteHeaders
 -}
 
+-- | Assumes the 'ByteString' is never 'S.null'
 push :: Int -> Source -> THStatus -> ByteString -> IO [ByteString]
-push maxTotalHeaderLength src (THStatus totalLen chunkLen lines prepend) bs'
+push maxTotalHeaderLength src (THStatus totalLen chunkLen reqLines prepend) bs
     -- Too many bytes
     | currentTotal > maxTotalHeaderLength = throwIO OverLargeHeader
-    | otherwise = push' mNL
+    | otherwise =
+        case S.elemIndex _lf bs of
+            -- No newline found
+            Nothing -> withNewChunk noNewlineFound
+            -- Newline found at index 'ix'
+            Just ix -> newlineFound ix
   where
-    currentTotal = totalLen + chunkLen
-    -- bs: current header chunk, plus maybe (parts of) next header
-    bs = prepend bs'
     bsLen = S.length bs
-    -- Maybe newline
-    -- Returns: Maybe
-    --    ( length of this chunk up to newline
-    --    , position of newline in relation to entire current header
-    --    , is this part of a multiline header
-    --    )
-    mNL = do
-        chunkNL <- S.elemIndex _lf bs'
-        let headerNL = chunkNL + S.length (prepend "")
-            chunkNLlen = chunkNL + 1
-        -- check if there are two more bytes in the bs
-        -- if so, see if the second of those is a horizontal space
-        if bsLen > headerNL + 1
-            then
-                let c = S.index bs (headerNL + 1)
-                    b = case headerNL of
-                        0 -> True
-                        1 -> S.index bs 0 == _cr
-                        _ -> False
-                    isMultiline = not b && (c == _space || c == _tab)
-                 in Just (chunkNLlen, headerNL, isMultiline)
-            else Just (chunkNLlen, headerNL, False)
-
-    {-# INLINE push' #-}
-    push' :: Maybe (Int, Int, Bool) -> IO [ByteString]
-    -- No newline find in this chunk.  Add it to the prepend,
-    -- update the length, and continue processing.
-    push' Nothing = do
-        bst <- readSource' src
-        when (S.null bst) $ throwIO IncompleteHeaders
-        push maxTotalHeaderLength src status bst
+    currentTotal = totalLen + chunkLen
+    isWS c = c == _space || c == _tab
+    {-# INLINE finishUp #-}
+    finishUp rest = do
+        when (not $ S.null rest) $ leftoverSource src rest
+        pure $ reqLines []
+    {-# INLINE withNewChunk #-}
+    withNewChunk :: (S.ByteString -> IO a) -> IO a
+    withNewChunk f = do
+        newChunk <- readSource' src
+        when (S.null newChunk) $ throwIO IncompleteHeaders
+        f newChunk
+    {-# INLINE noNewlineFound #-}
+    noNewlineFound newChunk
+        -- The chunk split the CRLF in half
+        | SU.unsafeLast bs == _cr && S.head newChunk == _lf =
+            let bs' = SU.unsafeDrop 1 newChunk
+             in if bsLen == 1 && chunkLen == 0
+                -- first part is only CRLF, we're done
+                then finishUp bs'
+                else do
+                    rest <- if S.length newChunk == 1
+                        -- new chunk is only LF, we need more to check for multiline
+                        then withNewChunk pure
+                        else pure bs'
+                    let nextIsWS = isWS $ SU.unsafeHead rest
+                        status = addEither nextIsWS (bsLen + 1) (SU.unsafeTake (bsLen - 1) bs)
+                    push maxTotalHeaderLength src status rest
+        -- chunk and keep going
+        | otherwise = push maxTotalHeaderLength src (addChunk bsLen bs) newChunk
+    {-# INLINE newlineFound #-}
+    newlineFound ix
+        -- Is end of headers
+        | startsWithLF && chunkLen == 0 =
+            finishUp (SU.unsafeDrop end bs)
+        | otherwise = do
+            -- LF is on last byte
+            rest <- if end == bsLen
+                -- we need more chunks to check for whitespace
+                then withNewChunk pure
+                else pure $ SU.unsafeDrop end bs
+            let nextIsWS = isWS $ SU.unsafeHead rest
+                status = addEither nextIsWS end (SU.unsafeTake (checkCR bs ix) bs)
+            push maxTotalHeaderLength src status rest
       where
-        prepend' = S.append bs
-        thisChunkLen = S.length bs'
-        newChunkLen = chunkLen + thisChunkLen
-        status = THStatus totalLen newChunkLen lines prepend'
-    -- Found a newline, but next line continues as a multiline header
-    push' (Just (chunkNLlen, end, True)) =
-        push maxTotalHeaderLength src status rest
-      where
-        rest = S.drop (end + 1) bs
-        prepend' = S.append (SU.unsafeTake (checkCR bs end) bs)
-        -- If we'd just update the entire current chunk up to newline
-        -- we wouldn't count all the dropped newlines in between.
-        -- So update 'chunkLen' with current chunk up to newline
-        -- and use 'chunkLen' later on to add to 'totalLen'.
-        newChunkLen = chunkLen + chunkNLlen
-        status = THStatus totalLen newChunkLen lines prepend'
-    -- Found a newline at position end.
-    push' (Just (chunkNLlen, end, False))
-        -- leftover
-        | S.null line = do
-            when (start < bsLen) $ leftoverSource src (SU.unsafeDrop start bs)
-            return (lines [])
-        -- more headers
-        | otherwise =
-            let lines' = lines . (line :)
-                newTotalLength = totalLen + chunkLen + chunkNLlen
-                status = THStatus newTotalLength 0 lines' id
-             in if start < bsLen
-                    then -- more bytes in this chunk, push again
-
-                        let bs'' = SU.unsafeDrop start bs
-                         in push maxTotalHeaderLength src status bs''
-                    else do
-                        -- no more bytes in this chunk, ask for more
-                        bst <- readSource' src
-                        when (S.null bs) $ throwIO IncompleteHeaders
-                        push maxTotalHeaderLength src status bst
-      where
-        start = end + 1 -- start of next chunk
-        line = SU.unsafeTake (checkCR bs end) bs
+        end = ix + 1
+        startsWithLF =
+            case ix of
+                0 -> True
+                1 -> SU.unsafeHead bs == _cr
+                _ -> False
+    addEither p =
+        if p then addChunk else addLine
+    -- addLine: take the current chunk and add to 'lines' as optimal as possible
+    addLine len chunk =
+        let newTotal = currentTotal + len
+            newLine =
+                if chunkLen == 0
+                    then chunk
+                    else S.toStrict $ B.toLazyByteString $ prepend $ B.byteString chunk
+         in THStatus newTotal 0 (reqLines . (newLine:)) id
+    -- addChunk: take the current chunk and add to 'prepend' as optimal as possible
+    addChunk len chunk =
+        let newChunkTotal = chunkLen + len
+            newPrepend = prepend . (B.byteString chunk <>)
+         in THStatus totalLen newChunkTotal reqLines newPrepend
+{- HLint ignore push "Use unless" -}
 
 {-# INLINE checkCR #-}
 checkCR :: ByteString -> Int -> Int
