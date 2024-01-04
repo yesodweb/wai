@@ -318,16 +318,16 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen reqLines prepend) bs
                 0 -> True
                 1 -> SU.unsafeHead bs == _cr
                 _ -> False
-    addEither p =
-        if p then addChunk else addLine
-    -- addLine: take the current chunk and add to 'lines' as optimal as possible
-    addLine len chunk =
-        let newTotal = currentTotal + len
-            newLine =
-                if chunkLen == 0
-                    then chunk
-                    else S.toStrict $ B.toLazyByteString $ prepend $ B.byteString chunk
-         in THStatus newTotal 0 (reqLines . (newLine:)) id
+    addEither isMultiline len chunk
+        | isMultiline = addChunk len chunk
+        -- addLine: take the current chunk and add to 'lines' as optimal as possible
+        | otherwise =
+            let newTotal = currentTotal + len
+                toBS = S.toStrict . B.toLazyByteString
+                newLine =
+                    if chunkLen == 0 then chunk else toBS $ prepend $ B.byteString chunk
+            in THStatus newTotal 0 (reqLines . (newLine:)) id
+    {-# INLINE addChunk #-}
     -- addChunk: take the current chunk and add to 'prepend' as optimal as possible
     addChunk len chunk =
         let newChunkTotal = chunkLen + len
