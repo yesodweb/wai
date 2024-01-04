@@ -22,8 +22,8 @@ contentLength hdrs = lookup H.hContentLength hdrs >>= readInt
 readInt :: S8.ByteString -> Maybe Integer
 readInt bs =
     case S8.readInteger bs of
-        -- 'S8.all' is also 'True' for an empty string
-        Just (i, rest) | S8.all (== ' ') rest -> Just i
+        -- 'S.all' is also 'True' for an empty string
+        Just (i, rest) | S.all (== _space) rest -> Just i
         _ -> Nothing
 
 replaceHeader :: H.HeaderName -> S.ByteString -> [H.Header] -> [H.Header]
