@@ -36,7 +36,7 @@ spec = describe "stripHeader" $ do
 
         simpleHeaders resp1 `shouldBe` ciTestHeaders
         simpleHeaders resp2 `shouldBe` ciTestHeaders
-        simpleHeaders resp3 `shouldBe` tail ciTestHeaders
+        simpleHeaders resp3 `shouldBe` drop 1 ciTestHeaders
 
     it "strips specific set of headers" $ do
         resp1 <- runApp host (addHeaders testHeaders) defaultRequest
