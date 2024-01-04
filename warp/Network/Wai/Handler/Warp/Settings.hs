@@ -302,12 +302,10 @@ defaultFork io =
         case io unsafeUnmask of
             IO io' ->
                 case fork# io' s0 of
-                    (# s1, _tid #) ->
-                        (# s1, () #)
+                    (# s1, _tid #) -> (# s1, () #)
 #else
         case fork# (io unsafeUnmask) s0 of
-        (# s1, _tid #) ->
-            (# s1, () #)
+            (# s1, _tid #) -> (# s1, () #)
 #endif
 
 -- | Standard "accept" call for a listening socket.
