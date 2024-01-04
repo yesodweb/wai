@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Network.Wai.Handler.Warp.IO where
 
 import Control.Exception (mask_)
@@ -19,7 +20,7 @@ toBufIOWith maxRspBufSize writeBufferRef io builder = do
           size = bufSize writeBuffer
       (len, signal) <- writer buf size
       bufferIO buf len io
-      let totalBytesSent = toInteger len + bytesSent
+      let !totalBytesSent = toInteger len + bytesSent
       case signal of
         Done -> return totalBytesSent
         More minSize next
