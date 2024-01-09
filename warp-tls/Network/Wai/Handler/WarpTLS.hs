@@ -428,9 +428,9 @@ plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
         -- FIXME: Content-Length:
         -- FIXME: TLS/<version>
         sendAll s "HTTP/1.1 426 Upgrade Required\
-        \r\nUpgrade: TLS/1.0, HTTP/1.1\
-        \r\nConnection: Upgrade\
-        \r\nContent-Type: text/plain\r\n\r\n"
+            \\r\nUpgrade: TLS/1.0, HTTP/1.1\
+            \\r\nConnection: Upgrade\
+            \\r\nContent-Type: text/plain\r\n\r\n"
         mapM_ (sendAll s) $ L.toChunks lbs
         close s
         throwIO InsecureConnectionDenied

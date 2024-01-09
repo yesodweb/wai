@@ -17,9 +17,7 @@ import Network.Wai.Handler.Warp.Types
 fromPushPromises :: InternalInfo -> Request -> IO [H2.PushPromise]
 fromPushPromises ii req = do
     mh2data <- getHTTP2Data req
-    let pp = case mh2data of
-          Nothing     -> []
-          Just h2data -> http2dataPushPromise h2data
+    let pp = maybe [] http2dataPushPromise mh2data
     catMaybes <$> mapM (fromPushPromise ii) pp
 
 fromPushPromise :: InternalInfo -> PushPromise -> IO (Maybe H2.PushPromise)
