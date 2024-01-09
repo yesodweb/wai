@@ -12,6 +12,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
 import qualified Data.Text as TS
 import qualified Data.Text.Encoding as TE
+import Data.Word8 (_e)
 import Network.Wai (Request (requestHeaders), defaultRequest, setRequestBodyChunks)
 import Network.Wai.Handler.Warp (InvalidRequest(..))
 import System.IO (IOMode (ReadMode), withFile)
@@ -190,7 +191,7 @@ caseParseRequestBody = do
       <> "Photo blog using Hack.\r\n\r\n"
       <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
       <> "Content-Disposition: form-data; name=\"bla\"; filename=\"riedmi"
-      <> S8.replicate 8190 'e' <> "\"\r\n"
+      <> S.replicate 8190 _e <> "\"\r\n"
       <> "Content-Type: application/octet-stream\r\n\r\n"
       <> "Photo blog using Hack.\r\n\r\n"
       <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh--\r\n"

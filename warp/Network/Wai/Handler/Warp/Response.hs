@@ -26,7 +26,7 @@ import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Streaming.ByteString.Builder (newByteStringBuilderRecv, reuseBufferStrategy)
 import Data.Version (showVersion)
-import Data.Word8 (_cr, _lf)
+import Data.Word8 (_cr, _lf, _space, _tab)
 import qualified Network.HTTP.Types as H
 import qualified Network.HTTP.Types.Header as H
 import Network.Wai
@@ -179,11 +179,11 @@ sanitizeHeaderValue v = case C8.lines $ S.filter (/= _cr) v of
     []     -> ""
     x : xs -> C8.intercalate "\r\n" (x : mapMaybe addSpaceIfMissing xs)
   where
-    addSpaceIfMissing line = case C8.uncons line of
-        Nothing                           -> Nothing
+    addSpaceIfMissing line = case S.uncons line of
+        Nothing -> Nothing
         Just (first, _)
-          | first == ' ' || first == '\t' -> Just line
-          | otherwise                     -> Just $ " " <> line
+          | first == _space || first == _tab -> Just line
+          | otherwise -> Just $ _space `S.cons` line
 
 ----------------------------------------------------------------
 

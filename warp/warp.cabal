@@ -258,6 +258,7 @@ Benchmark parser
                   , recv
                   , time-manager
                   , unliftio
+                  , word8
   if flag(x509)
       Build-Depends: crypton-x509
   if impl(ghc < 8)

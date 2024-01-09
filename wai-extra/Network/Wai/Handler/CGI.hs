@@ -14,7 +14,7 @@ import Data.Monoid (mconcat, mempty, mappend)
 #endif
 import Control.Arrow ((***))
 import Control.Monad (unless, void)
-import Data.ByteString.Builder (byteString, char7, string8, toLazyByteString)
+import Data.ByteString.Builder (byteString, string8, toLazyByteString, word8)
 import Data.ByteString.Builder.Extra (flush)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as L
@@ -26,6 +26,7 @@ import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (fromMaybe)
 import qualified Data.Streaming.ByteString.Builder as Builder
 import qualified Data.String as String
+import Data.Word8 (_lf, _space)
 import Network.HTTP.Types (Status (..), hContentLength, hContentType, hRange)
 import qualified Network.HTTP.Types as H
 import Network.Socket (addrAddress, getAddrInfo)
@@ -137,7 +138,7 @@ runGeneric vars inputH outputH xsendfile app = do
                                 unless (B.null bs) $ do
                                     outputH bs
                                     loop
-                    sendBuilder $ headers s hs `mappend` char7 '\n'
+                    sendBuilder $ headers s hs `mappend` word8 _lf
                     b sendBuilder (sendBuilder flush)
                 blazeFinish >>= maybe (return ()) outputH
                 return ResponseReceived
@@ -145,7 +146,7 @@ runGeneric vars inputH outputH xsendfile app = do
     headers s hs = mconcat (map header $ status s : map header' (fixHeaders hs))
     status (Status i m) = (byteString "Status", mconcat
         [ string8 $ show i
-        , char7 ' '
+        , word8 _space
         , byteString m
         ])
     header' (x, y) = (byteString $ CI.original x, byteString y)
@@ -153,12 +154,12 @@ runGeneric vars inputH outputH xsendfile app = do
         [ x
         , byteString ": "
         , y
-        , char7 '\n'
+        , word8 _lf
         ]
     sfBuilder s hs sf fp = mconcat
         [ headers s hs
         , header (byteString sf, string8 fp)
-        , char7 '\n'
+        , word8 _lf
         , byteString sf
         , byteString " not supported"
         ]

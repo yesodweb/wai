@@ -229,6 +229,7 @@ test-suite spec
                    , wai-extra
                    , wai
                    , warp
+                   , word8
                    , zlib
     ghc-options:     -Wall
     default-language:          Haskell2010

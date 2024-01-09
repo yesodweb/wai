@@ -1,32 +1,26 @@
 resolver: nightly
 packages:
-- ./auto-update
-- ./mime-types
-- ./recv
-- ./time-manager
-- ./wai
-- ./wai-extra
-- ./wai-app-static
-- ./wai-frontend-monadcgi
-- ./wai-http2-extra
-- ./wai-websockets
-- ./wai-conduit
-- ./warp
-- ./warp-quic
-- ./warp-tls
+  - ./auto-update
+  - ./mime-types
+  - ./recv
+  - ./time-manager
+  - ./wai
+  - ./wai-app-static
+  - ./wai-conduit
+  - ./wai-extra
+  # Commented out packages until they are supported on nightly
+  # - ./wai-frontend-monadcgi
+  - ./wai-http2-extra
+  # - ./wai-websockets
+  - ./warp
+  # - ./warp-quic
+  - ./warp-tls
 flags:
   wai-extra:
     build-example: true
 nix:
   enable: false
   packages:
-  - fcgi
-  - zlib
-extra-deps:
-  - crypto-token-0.0.2
-  - crypton-0.34
-  - http3-0.0.7
-  - network-udp-0.0.0
-  - quic-0.1.12
-  - sockaddr-0.0.1
-  - tls-1.9.0
+    - fcgi
+    - zlib
+extra-deps: []

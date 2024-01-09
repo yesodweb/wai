@@ -15,6 +15,7 @@ import UnliftIO (SomeException, fromException, throwIO)
 import qualified Data.ByteString as BS
 import Data.Char (chr)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.Word8 (_cr, _space)
 import Network.Socket (SockAddr(SockAddrInet, SockAddrInet6))
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
@@ -58,8 +59,8 @@ http1 settings ii conn transport app origAddr th bs0 = do
                             return origAddr
 
     parseProxyProtocolHeader src seg = do
-        let (header,seg') = BS.break (== 0x0d) seg -- 0x0d == CR
-            maybeAddr = case BS.split 0x20 header of -- 0x20 == space
+        let (header,seg') = BS.break (== _cr) seg
+            maybeAddr = case BS.split _space header of
                 ["PROXY","TCP4",clientAddr,_,clientPort,_] ->
                     case [x | (x, t) <- reads (decodeAscii clientAddr), null t] of
                         [a] -> Just (SockAddrInet (readInt clientPort)

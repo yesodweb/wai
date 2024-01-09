@@ -13,6 +13,7 @@ import Data.ByteString.Builder
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
 #endif
+import Data.Word8 (_colon, _lf)
 
 {-|
     Type representing a communication over an event stream.  This can be an
@@ -38,7 +39,7 @@ data ServerEvent
     Newline as a Builder.
 -}
 nl :: Builder
-nl = char7 '\n'
+nl = word8 _lf
 
 
 {-|
@@ -49,7 +50,7 @@ nameField = string7 "event:"
 idField = string7 "id:"
 dataField = string7 "data:"
 retryField = string7 "retry:"
-commentField = char7 ':'
+commentField = word8 _colon
 
 
 {-|
