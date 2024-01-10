@@ -137,12 +137,10 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
         return ResponseReceived
     case r of
         Right ResponseReceived -> return ()
-        Left (e :: SomeException)
-          | Just (ExceptionInsideResponseBody e') <- fromException e -> throwIO e'
-          | otherwise -> do
-                keepAlive <- sendErrorResponse settings ii conn th istatus req e
-                settingsOnException settings (Just req) e
-                writeIORef keepAliveRef keepAlive
+        Left e -> do
+            keepAlive <- sendErrorResponse settings ii conn th istatus req e
+            settingsOnException settings (Just req) e
+            writeIORef keepAliveRef keepAlive
 
     keepAlive <- readIORef keepAliveRef
 
