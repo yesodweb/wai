@@ -71,7 +71,7 @@ import Data.Int (Int64)
 import Data.List (sortBy)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Typeable
-import Data.Word (Word8)
+import Data.Word8
 import Network.HTTP.Types (hContentType)
 import qualified Network.HTTP.Types as H
 import Network.Wai
