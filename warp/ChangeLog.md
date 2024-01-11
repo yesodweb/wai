@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.3.32
+
+* Respond with `Connection: close` header if connection is to be closed after a request.
+   [#958](https://github.com/yesodweb/wai/pull/958)
+
 ## 3.3.31
 
 * Supporting http2 v5.0.
