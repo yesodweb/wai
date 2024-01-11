@@ -1,7 +1,8 @@
 {-# LANGUAGE CPP #-}
-module Control.AutoUpdate.Util
-    ( atomicModifyIORef'
-    ) where
+
+module Control.AutoUpdate.Util (
+    atomicModifyIORef',
+) where
 
 #ifndef MIN_VERSION_base
 #define MIN_VERSION_base(x,y,z) 1

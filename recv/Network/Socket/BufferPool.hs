@@ -21,22 +21,25 @@
 --  When the buffer gets small
 --  and usefless, a new large buffer is allocated.
 module Network.Socket.BufferPool (
-  -- * Recv
-    Recv
-  , receive
-  , BufferPool
-  , newBufferPool
-  , withBufferPool
-  -- * RecvN
-  , RecvN
-  , makeRecvN
-  -- * Types
-  , Buffer
-  , BufSize
-  -- * Utilities
-  , mallocBS
-  , copy
-  ) where
+    -- * Recv
+    Recv,
+    receive,
+    BufferPool,
+    newBufferPool,
+    withBufferPool,
+
+    -- * RecvN
+    RecvN,
+    makeRecvN,
+
+    -- * Types
+    Buffer,
+    BufSize,
+
+    -- * Utilities
+    mallocBS,
+    copy,
+) where
 
 import Network.Socket.BufferPool.Buffer
 import Network.Socket.BufferPool.Recv

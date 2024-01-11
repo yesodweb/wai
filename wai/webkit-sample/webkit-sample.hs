@@ -1,11 +1,12 @@
-{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Rank2Types #-}
+
+import Data.ByteString (ByteString)
+import Data.ByteString.Builder (lazyByteString)
+import qualified Data.ByteString.Lazy as L
+import Data.Enumerator (Iteratee, consume)
 import Network.Wai
 import Network.Wai.Handler.Webkit
-import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as L
-import Data.Enumerator (consume, Iteratee)
-import Data.ByteString.Builder (lazyByteString)
 
 main :: IO ()
 main = putStrLn "http://localhost:3000/" >> run "Webkit Sample" app
@@ -18,13 +19,17 @@ app req = case pathInfo req of
     _ -> indexResponse
 
 indexResponse :: Iteratee ByteString IO Response
-indexResponse = return $ ResponseFile
-    status200
-    [("Content-Type" , "text/html")]
-    "index.html"
+indexResponse =
+    return $
+        ResponseFile
+            status200
+            [("Content-Type", "text/html")]
+            "index.html"
 
 postResponse :: L.ByteString -> Iteratee ByteString IO Response
-postResponse lbs = return $ ResponseBuilder
-    status200
-    [("Content-Type", "text/plain")]
-    (lazyByteString lbs)
+postResponse lbs =
+    return $
+        ResponseBuilder
+            status200
+            [("Content-Type", "text/plain")]
+            (lazyByteString lbs)

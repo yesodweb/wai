@@ -1,11 +1,11 @@
 {-# LANGUAGE CPP #-}
+
 -- | Redirect non-SSL requests to https
 --
 -- Since 3.0.7
-module  Network.Wai.Middleware.ForceSSL
-    ( forceSSL
-    ) where
-
+module Network.Wai.Middleware.ForceSSL (
+    forceSSL,
+) where
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative ((<$>))
@@ -26,12 +26,12 @@ forceSSL :: Middleware
 forceSSL app req sendResponse =
     case (appearsSecure req, redirectResponse req) of
         (False, Just resp) -> sendResponse resp
-        _                  -> app req sendResponse
+        _ -> app req sendResponse
 
 redirectResponse :: Request -> Maybe Response
 redirectResponse req = do
-  host <- requestHeaderHost req
-  return $ responseBuilder status [(hLocation, location host)] mempty
+    host <- requestHeaderHost req
+    return $ responseBuilder status [(hLocation, location host)] mempty
   where
     location h = "https://" <> h <> rawPathInfo req <> rawQueryString req
     status

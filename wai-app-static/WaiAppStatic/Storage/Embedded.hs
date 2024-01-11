@@ -1,12 +1,12 @@
-module WaiAppStatic.Storage.Embedded(
+module WaiAppStatic.Storage.Embedded (
     -- * Basic
-      embeddedSettings
+    embeddedSettings,
 
     -- * Template Haskell
-    , Etag
-    , EmbeddableEntry(..)
-    , mkSettings
-    ) where
+    Etag,
+    EmbeddableEntry (..),
+    mkSettings,
+) where
 
 import WaiAppStatic.Storage.Embedded.Runtime
 import WaiAppStatic.Storage.Embedded.TH

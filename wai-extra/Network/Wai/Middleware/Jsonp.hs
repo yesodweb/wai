@@ -1,5 +1,9 @@
 {-# LANGUAGE CPP #-}
+
 ---------------------------------------------------------
+
+---------------------------------------------------------
+
 -- |
 -- Module        : Network.Wai.Middleware.Jsonp
 -- Copyright     : Michael Snoyman
@@ -10,8 +14,6 @@
 -- Portability   : portable
 --
 -- Automatic wrapping of JSON responses to convert into JSONP.
---
----------------------------------------------------------
 module Network.Wai.Middleware.Jsonp (jsonp) where
 
 import Control.Monad (join)
@@ -46,10 +48,13 @@ jsonp app env sendResponse = do
     let env' =
             case callback of
                 Nothing -> env
-                Just _ -> env
-                        { requestHeaders = changeVal hAccept
-                                           "application/json"
-                                           $ requestHeaders env
+                Just _ ->
+                    env
+                        { requestHeaders =
+                            changeVal
+                                hAccept
+                                "application/json"
+                                $ requestHeaders env
                         }
     app env' $ \res ->
         case callback of
@@ -59,11 +64,12 @@ jsonp app env sendResponse = do
     go c r@(ResponseBuilder s hs b) =
         sendResponse $ case checkJSON hs of
             Nothing -> r
-            Just hs' -> responseBuilder s hs' $
-                byteStringCopy c
-                `mappend` char7 '('
-                `mappend` b
-                `mappend` char7 ')'
+            Just hs' ->
+                responseBuilder s hs' $
+                    byteStringCopy c
+                        `mappend` char7 '('
+                        `mappend` b
+                        `mappend` char7 ')'
     go c r =
         case checkJSON hs of
             Just hs' -> addCallback c s hs' wb
@@ -85,10 +91,12 @@ jsonp app env sendResponse = do
             _ <- body sendChunk flush
             sendChunk $ char7 ')'
 
-changeVal :: Eq a
-          => a
-          -> ByteString
-          -> [(a, ByteString)]
-          -> [(a, ByteString)]
-changeVal key val old = (key, val)
-                      : filter (\(k, _) -> k /= key) old
+changeVal
+    :: Eq a
+    => a
+    -> ByteString
+    -> [(a, ByteString)]
+    -> [(a, ByteString)]
+changeVal key val old =
+    (key, val)
+        : filter (\(k, _) -> k /= key) old

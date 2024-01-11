@@ -1,19 +1,19 @@
 {-# LANGUAGE BangPatterns #-}
 
 module Network.Wai.Handler.Warp.RequestHeader (
-      parseHeaderLines
-    ) where
+    parseHeaderLines,
+) where
 
-import UnliftIO (throwIO)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C8 (unpack)
 import Data.ByteString.Internal (memchr)
 import qualified Data.CaseInsensitive as CI
 import Data.Word8
 import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.Ptr (Ptr, plusPtr, minusPtr, nullPtr)
+import Foreign.Ptr (Ptr, minusPtr, nullPtr, plusPtr)
 import Foreign.Storable (peek)
 import qualified Network.HTTP.Types as H
+import UnliftIO (throwIO)
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
@@ -23,16 +23,18 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-parseHeaderLines :: [ByteString]
-                 -> IO (H.Method
-                       ,ByteString  --  Path
-                       ,ByteString  --  Path, parsed
-                       ,ByteString  --  Query
-                       ,H.HttpVersion
-                       ,H.RequestHeaders
-                       )
+parseHeaderLines
+    :: [ByteString]
+    -> IO
+        ( H.Method
+        , ByteString --  Path
+        , ByteString --  Path, parsed
+        , ByteString --  Query
+        , H.HttpVersion
+        , H.RequestHeaders
+        )
 parseHeaderLines [] = throwIO $ NotEnoughLines []
-parseHeaderLines (firstLine:otherLines) = do
+parseHeaderLines (firstLine : otherLines) = do
     (method, path', query, httpversion) <- parseRequestLine firstLine
     let path = H.extractPath path'
         hdr = map parseHeader otherLines
@@ -52,11 +54,14 @@ parseHeaderLines (firstLine:otherLines) = do
 -- *** Exception: Warp: Request line specified a non-HTTP request
 -- >>> parseRequestLine "PRI * HTTP/2.0"
 -- ("PRI","*","",HTTP/2.0)
-parseRequestLine :: ByteString
-                 -> IO (H.Method
-                       ,ByteString -- Path
-                       ,ByteString -- Query
-                       ,H.HttpVersion)
+parseRequestLine
+    :: ByteString
+    -> IO
+        ( H.Method
+        , ByteString -- Path
+        , ByteString -- Query
+        , H.HttpVersion
+        )
 parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> do
     when (len < 14) $ throwIO baderr
     let methodptr = ptr `plusPtr` off
@@ -81,13 +86,13 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
 
     let !method = bs ptr methodptr pathptr0
         !path
-          | queryptr == nullPtr = bs ptr pathptr httpptr0
-          | otherwise           = bs ptr pathptr queryptr
+            | queryptr == nullPtr = bs ptr pathptr httpptr0
+            | otherwise = bs ptr pathptr queryptr
         !query
-          | queryptr == nullPtr = S.empty
-          | otherwise           = bs ptr queryptr httpptr0
+            | queryptr == nullPtr = S.empty
+            | otherwise = bs ptr queryptr httpptr0
 
-    return (method,path,query,hv)
+    return (method, path, query, hv)
   where
     baderr = BadFirstLine $ C8.unpack requestLine
     check :: Ptr Word8 -> Int -> Word8 -> IO ()
@@ -105,9 +110,9 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
         major <- peek (httpptr `plusPtr` 5) :: IO Word8
         minor <- peek (httpptr `plusPtr` 7) :: IO Word8
         let version
-              | major == _1 = if minor == _1 then H.http11 else H.http10
-              | major == _2 && minor == _0 = H.http20
-              | otherwise   = H.http10
+                | major == _1 = if minor == _1 then H.http11 else H.http10
+                | major == _2 && minor == _0 = H.http20
+                | otherwise = H.http10
         return version
     bs ptr p0 p1 = PS fptr o l
       where
@@ -126,7 +131,6 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
 -- ("Host","example.com:8080")
 -- >>> parseHeader "NoSemiColon"
 -- ("NoSemiColon","")
-
 parseHeader :: ByteString -> H.Header
 parseHeader s =
     let (k, rest) = S.break (== _colon) s

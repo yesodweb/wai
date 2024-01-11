@@ -1,28 +1,32 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.Mime
-    ( -- * Lookups
-      mimeByExt
-    , defaultMimeLookup
-      -- * Defaults
-    , defaultMimeType
-    , defaultMimeMap
-    , defaultExtensionMap
-      -- * Utilities
-    , fileNameExtensions
-      -- * Types
-    , FileName
-    , MimeType
-    , MimeMap
-    , Extension
-    , ExtensionMap
-    ) where
 
-import qualified Data.List as L
-import Data.Text (Text)
-import qualified Data.Text as T
+module Network.Mime (
+    -- * Lookups
+    mimeByExt,
+    defaultMimeLookup,
+
+    -- * Defaults
+    defaultMimeType,
+    defaultMimeMap,
+    defaultExtensionMap,
+
+    -- * Utilities
+    fileNameExtensions,
+
+    -- * Types
+    FileName,
+    MimeType,
+    MimeMap,
+    Extension,
+    ExtensionMap,
+) where
+
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 ()
+import qualified Data.List as L
 import qualified Data.Map as Map
+import Data.Text (Text)
+import qualified Data.Text as T
 
 -- | Maps extensions to mime types.
 type MimeMap = Map.Map Extension MimeType
@@ -41,15 +45,17 @@ type FileName = Text
 type MimeType = ByteString
 
 -- | Look up a mime type from the given mime map and default mime type.
-mimeByExt :: MimeMap
-          -> MimeType -- ^ default mime type
-          -> FileName
-          -> MimeType
+mimeByExt
+    :: MimeMap
+    -> MimeType
+    -- ^ default mime type
+    -> FileName
+    -> MimeType
 mimeByExt mm def =
     go . fileNameExtensions
   where
     go [] = def
-    go (e:es) =
+    go (e : es) =
         case Map.lookup e mm of
             Nothing -> go es
             Just mt -> mt
@@ -274,10 +280,16 @@ mimeAscList =
     , ("dna", "application/vnd.dna")
     , ("doc", "application/msword")
     , ("docm", "application/vnd.ms-word.document.macroenabled.12")
-    , ("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    ,
+        ( "docx"
+        , "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
     , ("dot", "application/msword")
     , ("dotm", "application/vnd.ms-word.template.macroenabled.12")
-    , ("dotx", "application/vnd.openxmlformats-officedocument.wordprocessingml.template")
+    ,
+        ( "dotx"
+        , "application/vnd.openxmlformats-officedocument.wordprocessingml.template"
+        )
     , ("dp", "application/vnd.osgi.dp")
     , ("dpg", "application/vnd.dpgraph")
     , ("dra", "audio/vnd.dra")
@@ -494,11 +506,9 @@ mimeAscList =
     , ("lbd", "application/vnd.llamagraphics.life-balance.desktop")
     , ("lbe", "application/vnd.llamagraphics.life-balance.exchange+xml")
     , ("les", "application/vnd.hhe.lesson-player")
-
-    -- Added after deliberation in PR (https://github.com/yesodweb/wai/pull/534)
-    -- Accepted mainly because of StackOverflow (http://stackoverflow.com/questions/7319555/how-to-add-less-to-iis-7-0)
-    , ("less", "text/css")
-
+    , -- Added after deliberation in PR (https://github.com/yesodweb/wai/pull/534)
+      -- Accepted mainly because of StackOverflow (http://stackoverflow.com/questions/7319555/how-to-add-less-to-iis-7-0)
+      ("less", "text/css")
     , ("lha", "application/x-lzh-compressed")
     , ("link66", "application/vnd.route66.link66+xml")
     , ("list", "text/plain")
@@ -729,16 +739,25 @@ mimeAscList =
     , ("portpkg", "application/vnd.macports.portpkg")
     , ("pot", "application/vnd.ms-powerpoint")
     , ("potm", "application/vnd.ms-powerpoint.template.macroenabled.12")
-    , ("potx", "application/vnd.openxmlformats-officedocument.presentationml.template")
+    ,
+        ( "potx"
+        , "application/vnd.openxmlformats-officedocument.presentationml.template"
+        )
     , ("ppam", "application/vnd.ms-powerpoint.addin.macroenabled.12")
     , ("ppd", "application/vnd.cups-ppd")
     , ("ppm", "image/x-portable-pixmap")
     , ("pps", "application/vnd.ms-powerpoint")
     , ("ppsm", "application/vnd.ms-powerpoint.slideshow.macroenabled.12")
-    , ("ppsx", "application/vnd.openxmlformats-officedocument.presentationml.slideshow")
+    ,
+        ( "ppsx"
+        , "application/vnd.openxmlformats-officedocument.presentationml.slideshow"
+        )
     , ("ppt", "application/vnd.ms-powerpoint")
     , ("pptm", "application/vnd.ms-powerpoint.presentation.macroenabled.12")
-    , ("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+    ,
+        ( "pptx"
+        , "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        )
     , ("pqa", "application/vnd.palm")
     , ("prc", "application/x-mobipocket-ebook")
     , ("pre", "application/vnd.lotus-freelance")

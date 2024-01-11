@@ -1,20 +1,20 @@
 module BufferPoolSpec where
 
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Internal as B (ByteString(PS))
+import qualified Data.ByteString.Internal as B (ByteString (PS))
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Marshal.Utils (copyBytes)
 import Foreign.Ptr (plusPtr)
 
 import Network.Socket.BufferPool
-import Test.Hspec (Spec, hspec, shouldBe, describe, it)
+import Test.Hspec (Spec, describe, hspec, it, shouldBe)
 
 main :: IO ()
 main = hspec spec
 
 -- Two ByteStrings each big enough to fill a buffer (16K).
 wantData, otherData :: B.ByteString
-wantData  = B.replicate 16384 0xac
+wantData = B.replicate 16384 0xac
 otherData = B.replicate 16384 0x77
 
 spec :: Spec

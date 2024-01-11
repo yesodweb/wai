@@ -4,10 +4,8 @@
 module RunSpec (main, spec, withApp, MySocket, msWrite, msRead, withMySocket) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
-import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import Control.Concurrent.STM
-import qualified UnliftIO.Exception as E
-import UnliftIO.Exception (bracket, try, IOException, onException)
 import Control.Monad (forM_, replicateM_, unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
@@ -25,6 +23,8 @@ import Network.Wai.Handler.Warp
 import System.IO.Unsafe (unsafePerformIO)
 import System.Timeout (timeout)
 import Test.Hspec
+import UnliftIO.Exception (IOException, bracket, onException, try)
+import qualified UnliftIO.Exception as E
 
 import HTTP
 
@@ -35,35 +35,35 @@ type Counter = I.IORef (Either String Int)
 type CounterApplication = Counter -> Application
 
 data MySocket = MySocket
-  { msSocket :: !Socket
-  , msBuffer :: !(I.IORef ByteString)
-  }
+    { msSocket :: !Socket
+    , msBuffer :: !(I.IORef ByteString)
+    }
 
 msWrite :: MySocket -> ByteString -> IO ()
 msWrite = sendAll . msSocket
 
 msRead :: MySocket -> Int -> IO ByteString
 msRead (MySocket s ref) expected = do
-  bs <- I.readIORef ref
-  inner (bs:) (S.length bs)
+    bs <- I.readIORef ref
+    inner (bs :) (S.length bs)
   where
     inner front total =
-      case compare total expected of
-        EQ -> do
-          I.writeIORef ref mempty
-          pure $ S.concat $ front []
-        GT -> do
-          let bs = S.concat $ front []
-              (x, y) = S.splitAt expected bs
-          I.writeIORef ref y
-          pure x
-        LT -> do
-          bs <- safeRecv s 4096
-          if S.null bs
-            then do
-              I.writeIORef ref mempty
-              pure $ S.concat $ front []
-            else inner (front . (bs:)) (total + S.length bs)
+        case compare total expected of
+            EQ -> do
+                I.writeIORef ref mempty
+                pure $ S.concat $ front []
+            GT -> do
+                let bs = S.concat $ front []
+                    (x, y) = S.splitAt expected bs
+                I.writeIORef ref y
+                pure x
+            LT -> do
+                bs <- safeRecv s 4096
+                if S.null bs
+                    then do
+                        I.writeIORef ref mempty
+                        pure $ S.concat $ front []
+                    else inner (front . (bs :)) (total + S.length bs)
 
 msClose :: MySocket -> IO ()
 msClose = Network.Socket.close . msSocket
@@ -72,19 +72,22 @@ connectTo :: Int -> IO MySocket
 connectTo port = do
     s <- fst <$> getSocketTCP "127.0.0.1" port
     ref <- I.newIORef mempty
-    return MySocket {
-        msSocket = s
-      , msBuffer = ref
-      }
+    return
+        MySocket
+            { msSocket = s
+            , msBuffer = ref
+            }
 
 withMySocket :: (MySocket -> IO a) -> Int -> IO a
 withMySocket body port = bracket (connectTo port) msClose body
 
 incr :: MonadIO m => Counter -> m ()
 incr icount = liftIO $ I.atomicModifyIORef icount $ \ecount ->
-    (case ecount of
+    ( case ecount of
         Left s -> Left s
-        Right i -> Right $ i + 1, ())
+        Right i -> Right $ i + 1
+    , ()
+    )
 
 err :: (MonadIO m, Show a) => Counter -> a -> m ()
 err icount msg = liftIO $ I.writeIORef icount $ Left $ show msg
@@ -94,12 +97,12 @@ readBody icount req f = do
     body <- consumeBody $ getRequestBodyChunk req
     case () of
         ()
-            | pathInfo req == ["hello"] && L.fromChunks body /= "Hello"
-                -> err icount ("Invalid hello" :: String, body)
-            | requestMethod req == "GET" && L.fromChunks body /= ""
-                -> err icount ("Invalid GET" :: String, body)
-            | requestMethod req `notElem` ["GET", "POST"]
-                -> err icount ("Invalid request method (readBody)" :: String, requestMethod req)
+            | pathInfo req == ["hello"] && L.fromChunks body /= "Hello" ->
+                err icount ("Invalid hello" :: String, body)
+            | requestMethod req == "GET" && L.fromChunks body /= "" ->
+                err icount ("Invalid GET" :: String, body)
+            | requestMethod req `notElem` ["GET", "POST"] ->
+                err icount ("Invalid request method (readBody)" :: String, requestMethod req)
             | otherwise -> incr icount
     f $ responseLBS status200 [] "Read the body"
 
@@ -135,25 +138,31 @@ withApp :: Settings -> Application -> (Int -> IO a) -> IO a
 withApp settings app f = do
     port <- RunSpec.getPort
     baton <- newEmptyMVar
-    let settings' = setPort port
-                  $ setHost "127.0.0.1"
-                  $ setBeforeMainLoop (putMVar baton ())
-                    settings
+    let settings' =
+            setPort port $
+                setHost "127.0.0.1" $
+                    setBeforeMainLoop
+                        (putMVar baton ())
+                        settings
     bracket
         (forkIO $ runSettings settings' app `onException` putMVar baton ())
         killThread
-        (const $ do
+        ( const $ do
             takeMVar baton
             -- use timeout to make sure we don't take too long
             mres <- timeout (60 * 1000 * 1000) (f port)
             case mres of
-              Nothing -> error "Timeout triggered, too slow!"
-              Just a -> pure a)
+                Nothing -> error "Timeout triggered, too slow!"
+                Just a -> pure a
+        )
 
-runTest :: Int -- ^ expected number of requests
-        -> CounterApplication
-        -> [ByteString] -- ^ chunks to send
-        -> IO ()
+runTest
+    :: Int
+    -- ^ expected number of requests
+    -> CounterApplication
+    -> [ByteString]
+    -- ^ chunks to send
+    -> IO ()
 runTest expected app chunks = do
     ref <- I.newIORef (Right 0)
     withApp defaultSettings (app ref) $ withMySocket $ \ms -> do
@@ -167,9 +176,10 @@ runTest expected app chunks = do
 dummyApp :: Application
 dummyApp _ f = f $ responseLBS status200 [] "foo"
 
-runTerminateTest :: InvalidRequest
-                 -> ByteString
-                 -> IO ()
+runTerminateTest
+    :: InvalidRequest
+    -> ByteString
+    -> IO ()
 runTerminateTest expected input = do
     ref <- I.newIORef Nothing
     let onExc _ = I.writeIORef ref . Just
@@ -197,43 +207,66 @@ spec = do
     describe "non-pipelining" $ do
         it "no body, read" $ runTest 5 readBody $ replicate 5 singleGet
         it "no body, ignore" $ runTest 5 ignoreBody $ replicate 5 singleGet
-        it "has body, read" $ runTest 2 readBody
-            [ singlePostHello
-            , singleGet
-            ]
-        it "has body, ignore" $ runTest 2 ignoreBody
-            [ singlePostHello
-            , singleGet
-            ]
-        it "chunked body, read" $ runTest 2 readBody $
-            singleChunkedPostHello ++ [singleGet]
-        it "chunked body, ignore" $ runTest 2 ignoreBody $
-            singleChunkedPostHello ++ [singleGet]
+        it "has body, read" $
+            runTest
+                2
+                readBody
+                [ singlePostHello
+                , singleGet
+                ]
+        it "has body, ignore" $
+            runTest
+                2
+                ignoreBody
+                [ singlePostHello
+                , singleGet
+                ]
+        it "chunked body, read" $
+            runTest 2 readBody $
+                singleChunkedPostHello ++ [singleGet]
+        it "chunked body, ignore" $
+            runTest 2 ignoreBody $
+                singleChunkedPostHello ++ [singleGet]
     describe "pipelining" $ do
         it "no body, read" $ runTest 5 readBody [S.concat $ replicate 5 singleGet]
         it "no body, ignore" $ runTest 5 ignoreBody [S.concat $ replicate 5 singleGet]
-        it "has body, read" $ runTest 2 readBody $ return $ S.concat
-            [ singlePostHello
-            , singleGet
-            ]
-        it "has body, ignore" $ runTest 2 ignoreBody $ return $ S.concat
-            [ singlePostHello
-            , singleGet
-            ]
-        it "chunked body, read" $ runTest 2 readBody $ return $ S.concat
-            [ S.concat singleChunkedPostHello
-            , singleGet
-            ]
-        it "chunked body, ignore" $ runTest 2 ignoreBody $ return $ S.concat
-            [ S.concat singleChunkedPostHello
-            , singleGet
-            ]
+        it "has body, read" $
+            runTest 2 readBody $
+                return $
+                    S.concat
+                        [ singlePostHello
+                        , singleGet
+                        ]
+        it "has body, ignore" $
+            runTest 2 ignoreBody $
+                return $
+                    S.concat
+                        [ singlePostHello
+                        , singleGet
+                        ]
+        it "chunked body, read" $
+            runTest 2 readBody $
+                return $
+                    S.concat
+                        [ S.concat singleChunkedPostHello
+                        , singleGet
+                        ]
+        it "chunked body, ignore" $
+            runTest 2 ignoreBody $
+                return $
+                    S.concat
+                        [ S.concat singleChunkedPostHello
+                        , singleGet
+                        ]
     describe "no hanging" $ do
-        it "has body, read" $ runTest 1 readBody $ map S.singleton $ S.unpack singlePostHello
+        it "has body, read" $
+            runTest 1 readBody $
+                map S.singleton $
+                    S.unpack singlePostHello
         it "double connect" $ runTest 1 doubleConnect [singlePostHello]
 
     describe "connection termination" $ do
---        it "ConnectionClosedByPeer" $ runTerminateTest ConnectionClosedByPeer "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello"
+        --        it "ConnectionClosedByPeer" $ runTerminateTest ConnectionClosedByPeer "GET / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello"
         it "IncompleteHeaders" $
             runTerminateTest IncompleteHeaders "GET / HTTP/1.1\r\ncontent-length: 10\r\n"
 
@@ -244,30 +277,32 @@ spec = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ withMySocket $ \ms -> do
-                let input = S.concat
-                        [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
-                        ]
+                let input =
+                        S.concat
+                            [ "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
+                            ]
                 msWrite ms input
                 threadDelay 5000
                 headers <- I.readIORef iheaders
-                headers `shouldBe`
-                    [ ("foo", "bar baz\tbin")
-                    ]
+                headers
+                    `shouldBe` [ ("foo", "bar baz\tbin")
+                               ]
         it "no space between colon and value" $ do
             iheaders <- I.newIORef []
             let app req f = do
                     liftIO $ I.writeIORef iheaders $ requestHeaders req
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ withMySocket $ \ms -> do
-                let input = S.concat
-                        [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
-                        ]
+                let input =
+                        S.concat
+                            [ "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
+                            ]
                 msWrite ms input
                 threadDelay 5000
                 headers <- I.readIORef iheaders
-                headers `shouldBe`
-                    [ ("foo", "bar")
-                    ]
+                headers
+                    `shouldBe` [ ("foo", "bar")
+                               ]
 
     describe "chunked bodies" $ do
         it "works" $ do
@@ -275,81 +310,92 @@ spec = do
             ifront <- I.newIORef id
             let app req f = do
                     bss <- consumeBody $ getRequestBodyChunk req
-                    liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ withMySocket $ \ms -> do
-                let input = S.concat
-                        [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                        , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
-                        , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                        , "b\r\nHello World\r\n0\r\n\r\n"
-                        ]
+                let input =
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
+                            , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            , "b\r\nHello World\r\n0\r\n\r\n"
+                            ]
                 msWrite ms input
                 atomically $ do
-                  count <- readTVar countVar
-                  check $ count == 2
+                    count <- readTVar countVar
+                    check $ count == 2
                 front <- I.readIORef ifront
-                front [] `shouldBe`
-                    [ "Hello World\nBye"
-                    , "Hello World"
-                    ]
+                front []
+                    `shouldBe` [ "Hello World\nBye"
+                               , "Hello World"
+                               ]
         it "lots of chunks" $ do
             ifront <- I.newIORef id
             countVar <- newTVarIO (0 :: Int)
             let app req f = do
                     bss <- consumeBody $ getRequestBodyChunk req
-                    I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ withMySocket $ \ms -> do
-                let input = concat $ replicate 2 $
-                        ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"] ++
-                        replicate 50 "5\r\n12345\r\n" ++
-                        ["0\r\n\r\n"]
+                let input =
+                        concat $
+                            replicate 2 $
+                                ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"]
+                                    ++ replicate 50 "5\r\n12345\r\n"
+                                    ++ ["0\r\n\r\n"]
                 mapM_ (msWrite ms) input
                 atomically $ do
-                  count <- readTVar countVar
-                  check $ count == 2
+                    count <- readTVar countVar
+                    check $ count == 2
                 front <- I.readIORef ifront
                 front [] `shouldBe` replicate 2 (S.concat $ replicate 50 "12345")
--- For some reason, the following test on Windows causes the socket
--- to be killed prematurely. Worth investigating in the future if possible.
+        -- For some reason, the following test on Windows causes the socket
+        -- to be killed prematurely. Worth investigating in the future if possible.
         it "in chunks" $ do
             ifront <- I.newIORef id
             countVar <- newTVarIO (0 :: Int)
             let app req f = do
                     bss <- consumeBody $ getRequestBodyChunk req
-                    liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
                     atomically $ modifyTVar countVar (+ 1)
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ withMySocket $ \ms -> do
-                let input = S.concat
-                        [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                        , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
-                        , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                        , "b\r\nHello World\r\n0\r\n\r\n"
-                        ]
+                let input =
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
+                            , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            , "b\r\nHello World\r\n0\r\n\r\n"
+                            ]
                 mapM_ (msWrite ms . S.singleton) $ S.unpack input
                 atomically $ do
-                  count <- readTVar countVar
-                  check $ count == 2
+                    count <- readTVar countVar
+                    check $ count == 2
                 front <- I.readIORef ifront
-                front [] `shouldBe`
-                    [ "Hello World\nBye"
-                    , "Hello World"
-                    ]
+                front []
+                    `shouldBe` [ "Hello World\nBye"
+                               , "Hello World"
+                               ]
         it "timeout in request body" $ do
             ifront <- I.newIORef id
             let app req f = do
-                    bss <- consumeBody (getRequestBodyChunk req) `onException`
-                        liftIO (I.atomicModifyIORef ifront (\front -> (front . ("consume interrupted":), ())))
-                    liftIO $ threadDelay 4000000 `E.catch` \e -> do
-                        I.atomicModifyIORef ifront (\front ->
-                            ( front . ((S8.pack $ "threadDelay interrupted: " ++ show e):)
-                            , ()))
-                        E.throwIO (e :: E.SomeException)
-                    liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss:), ())
+                    bss <-
+                        consumeBody (getRequestBodyChunk req)
+                            `onException` liftIO
+                                (I.atomicModifyIORef ifront (\front -> (front . ("consume interrupted" :), ())))
+                    liftIO $
+                        threadDelay 4000000 `E.catch` \e -> do
+                            I.atomicModifyIORef
+                                ifront
+                                ( \front ->
+                                    ( front . ((S8.pack $ "threadDelay interrupted: " ++ show e) :)
+                                    , ()
+                                    )
+                                )
+                            E.throwIO (e :: E.SomeException)
+                    liftIO $ I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
                     f $ responseLBS status200 [] ""
             withApp (setTimeout 1 defaultSettings) app $ withMySocket $ \ms -> do
                 let bs1 = S.replicate 2048 88
@@ -384,13 +430,18 @@ spec = do
                 msWrite ms "67890"
                 timeout 100000 (msRead ms 10) `shouldReturn` Just "6677889900"
     it "only one date and server header" $ do
-        let app _ f = f $ responseLBS status200
-                [ ("server", "server")
-                , ("date", "date")
-                ] ""
-            getValues key = map snd
-                          . filter (\(key', _) -> key == key')
-                          . responseHeaders
+        let app _ f =
+                f $
+                    responseLBS
+                        status200
+                        [ ("server", "server")
+                        , ("date", "date")
+                        ]
+                        ""
+            getValues key =
+                map snd
+                    . filter (\(key', _) -> key == key')
+                    . responseHeaders
         withApp defaultSettings app $ \port -> do
             res <- sendGET $ "http://127.0.0.1:" ++ show port
             getValues hServer res `shouldBe` ["server"]
@@ -399,20 +450,20 @@ spec = do
     it "streaming echo #249" $ do
         countVar <- newTVarIO (0 :: Int)
         let app req f = f $ responseStream status200 [] $ \write _ -> do
-             let loop = do
-                    bs <- getRequestBodyChunk req
-                    unless (S.null bs) $ do
-                        write $ byteString bs
-                        atomically $ modifyTVar countVar (+ 1)
-                        loop
-             loop
+                let loop = do
+                        bs <- getRequestBodyChunk req
+                        unless (S.null bs) $ do
+                            write $ byteString bs
+                            atomically $ modifyTVar countVar (+ 1)
+                            loop
+                loop
         withApp defaultSettings app $ withMySocket $ \ms -> do
             msWrite ms "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"
             threadDelay 10000
             msWrite ms "5\r\nhello\r\n0\r\n\r\n"
             atomically $ do
-              count <- readTVar countVar
-              check $ count >= 1
+                count <- readTVar countVar
+                check $ count >= 1
             bs <- safeRecv (msSocket ms) 4096 -- must not use msRead
             S.takeWhile (/= 13) bs `shouldBe` "HTTP/1.1 200 OK"
 
@@ -441,11 +492,13 @@ spec = do
         it "file, no range" $ withApp defaultSettings app $ \port -> do
             bs <- S.readFile fp
             res <- sendHEAD $ concat ["http://127.0.0.1:", show port, "/file"]
-            getHeaderValue hContentLength (responseHeaders res) `shouldBe` Just (S8.pack $ show $ S.length bs)
+            getHeaderValue hContentLength (responseHeaders res)
+                `shouldBe` Just (S8.pack $ show $ S.length bs)
         it "file, with range" $ withApp defaultSettings app $ \port -> do
-            res <- sendHEADwH
-                (concat ["http://127.0.0.1:", show port, "/file"])
-                [(hRange, "bytes=0-1")]
+            res <-
+                sendHEADwH
+                    (concat ["http://127.0.0.1:", show port, "/file"])
+                    [(hRange, "bytes=0-1")]
             getHeaderValue hContentLength (responseHeaders res) `shouldBe` Just "2"
 
 consumeBody :: IO ByteString -> IO [ByteString]
@@ -456,4 +509,4 @@ consumeBody body =
         bs <- body
         if S.null bs
             then return $ front []
-            else loop $ front . (bs:)
+            else loop $ front . (bs :)

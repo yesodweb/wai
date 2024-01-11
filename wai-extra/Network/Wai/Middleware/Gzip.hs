@@ -1,4 +1,7 @@
 ---------------------------------------------------------
+
+---------------------------------------------------------
+
 -- |
 -- Module        : Network.Wai.Middleware.Gzip
 -- Copyright     : Michael Snoyman
@@ -9,34 +12,38 @@
 -- Portability   : portable
 --
 -- Automatic gzip compression of responses.
---
----------------------------------------------------------
-module Network.Wai.Middleware.Gzip
-    ( -- * How to use this module
-      -- $howto
+module Network.Wai.Middleware.Gzip (
+    -- * How to use this module
+    -- $howto
 
-      -- ** The Middleware
-      -- $gzip
-      gzip
+    -- ** The Middleware
+    -- $gzip
+    gzip,
 
-      -- ** The Settings
-      -- $settings
-    , GzipSettings
-    , defaultGzipSettings
-    , gzipFiles
-    , gzipCheckMime
-    , gzipSizeThreshold
+    -- ** The Settings
+    -- $settings
+    GzipSettings,
+    defaultGzipSettings,
+    gzipFiles,
+    gzipCheckMime,
+    gzipSizeThreshold,
 
-      -- ** How to handle file responses
-    , GzipFiles (..)
+    -- ** How to handle file responses
+    GzipFiles (..),
 
-      -- ** Miscellaneous
-      -- $miscellaneous
-    , defaultCheckMime
-    , def
-    ) where
+    -- ** Miscellaneous
+    -- $miscellaneous
+    defaultCheckMime,
+    def,
+) where
 
-import Control.Exception (IOException, SomeException, fromException, throwIO, try)
+import Control.Exception (
+    IOException,
+    SomeException,
+    fromException,
+    throwIO,
+    try,
+ )
 import Control.Monad (unless)
 import qualified Data.ByteString as S
 import Data.ByteString.Builder (byteString)
@@ -109,8 +116,6 @@ import Network.Wai.Util (splitCommas, trimWS)
 --   evaluate to 'True' when applied to 'gzipCheckMime'
 --   (though 'GzipPreCompressed' will use the \".gz\" file regardless
 --   of MIME type on any 'ResponseFile' response)
---
-
 
 -- $settings
 --
@@ -133,34 +138,34 @@ import Network.Wai.Util (splitCommas, trimWS)
 -- @
 
 data GzipSettings = GzipSettings
-    { -- | Gzip behavior for files
-      --
-      -- Only applies to 'ResponseFile' ('responseFile') responses.
-      -- So any streamed data will be compressed based solely on the
-      -- response headers having the right \"Content-Type\" and
-      -- \"Content-Length\". (which are checked with 'gzipCheckMime'
-      -- and 'gzipSizeThreshold', respectively)
-      gzipFiles :: GzipFiles
-      -- | Decide which files to compress based on MIME type
-      --
-      -- The 'S.ByteString' is the value of the \"Content-Type\" response
-      -- header and will default to 'False' if the header is missing.
-      --
-      -- E.g. if you'd only want to compress @json@ data, you might
-      -- define your own function as follows:
-      --
-      -- > myCheckMime mime = mime == "application/json"
+    { gzipFiles :: GzipFiles
+    -- ^ Gzip behavior for files
+    --
+    -- Only applies to 'ResponseFile' ('responseFile') responses.
+    -- So any streamed data will be compressed based solely on the
+    -- response headers having the right \"Content-Type\" and
+    -- \"Content-Length\". (which are checked with 'gzipCheckMime'
+    -- and 'gzipSizeThreshold', respectively)
     , gzipCheckMime :: S.ByteString -> Bool
-      -- | Skip compression when the size of the response body is
-      -- below this amount of bytes (default: 860.)
-      --
-      -- /Setting this option to less than 150 will actually increase/
-      -- /the size of outgoing data if its original size is less than 150 bytes/.
-      --
-      -- This will only skip compression if the response includes a
-      -- \"Content-Length\" header /AND/ the length is less than this
-      -- threshold.
+    -- ^ Decide which files to compress based on MIME type
+    --
+    -- The 'S.ByteString' is the value of the \"Content-Type\" response
+    -- header and will default to 'False' if the header is missing.
+    --
+    -- E.g. if you'd only want to compress @json@ data, you might
+    -- define your own function as follows:
+    --
+    -- > myCheckMime mime = mime == "application/json"
     , gzipSizeThreshold :: Integer
+    -- ^ Skip compression when the size of the response body is
+    -- below this amount of bytes (default: 860.)
+    --
+    -- /Setting this option to less than 150 will actually increase/
+    -- /the size of outgoing data if its original size is less than 150 bytes/.
+    --
+    -- This will only skip compression if the response includes a
+    -- \"Content-Length\" header /AND/ the length is less than this
+    -- threshold.
     }
 
 -- | Gzip behavior for files.
@@ -218,12 +223,13 @@ defaultCheckMime bs =
     S8.isPrefixOf "text/" bs || bs' `Set.member` toCompress
   where
     bs' = fst $ S.break (== _semicolon) bs
-    toCompress = Set.fromList
-        [ "application/json"
-        , "application/javascript"
-        , "application/ecmascript"
-        , "image/x-icon"
-        ]
+    toCompress =
+        Set.fromList
+            [ "application/json"
+            , "application/javascript"
+            , "application/ecmascript"
+            , "image/x-icon"
+            ]
 
 -- | Use gzip to compress the body of the response.
 gzip :: GzipSettings -> Middleware
@@ -233,14 +239,14 @@ gzip set app req sendResponse'
         let runAction x = case x of
                 (ResponseRaw{}, _) -> sendResponse res
                 -- Always skip if 'GzipIgnore'
-                (ResponseFile {}, GzipIgnore) -> sendResponse res
+                (ResponseFile{}, GzipIgnore) -> sendResponse res
                 -- If there's a compressed version of the file, we send that.
                 (ResponseFile s hs file Nothing, GzipPreCompressed nextAction) ->
                     let compressedVersion = file ++ ".gz"
-                    in doesFileExist compressedVersion >>= \y ->
-                        if y
-                            then sendResponse $ ResponseFile s (fixHeaders hs) compressedVersion Nothing
-                            else runAction (ResponseFile s hs file Nothing, nextAction)
+                     in doesFileExist compressedVersion >>= \y ->
+                            if y
+                                then sendResponse $ ResponseFile s (fixHeaders hs) compressedVersion Nothing
+                                else runAction (ResponseFile s hs file Nothing, nextAction)
                 -- Skip if it's not a MIME type we want to compress
                 _ | not $ isCorrectMime (responseHeaders res) -> sendResponse res
                 -- Use static caching logic
@@ -252,12 +258,12 @@ gzip set app req sendResponse'
                      in compressFile s hs file mETag cache sendResponse
                 -- Use streaming logic
                 _ -> compressE res sendResponse
-        in runAction (res, gzipFiles set)
+         in runAction (res, gzipFiles set)
   where
     isCorrectMime =
         maybe False (gzipCheckMime set) . lookup hContentType
     sendResponse = sendResponse' . mapResponseHeaders mAddVary
-    acceptEncoding   = "Accept-Encoding"
+    acceptEncoding = "Accept-Encoding"
     acceptEncodingLC = "accept-encoding"
     -- Instead of just adding a header willy-nilly, we check if
     -- "Vary" is already present, and add to it if not already included.
@@ -268,8 +274,9 @@ gzip set app req sendResponse'
                 lowercase = S.map W8.toLower
                 -- Field names are case-insensitive, so we lowercase to match
                 hasAccEnc = acceptEncodingLC `elem` fmap lowercase vals
-                newH | hasAccEnc = h
-                     | otherwise = (hVary, acceptEncoding <> ", " <> val)
+                newH
+                    | hasAccEnc = h
+                    | otherwise = (hVary, acceptEncoding <> ", " <> val)
              in newH : hs
         | otherwise = h : mAddVary hs
 
@@ -288,7 +295,8 @@ gzip set app req sendResponse'
             maybe False ("MSIE 6" `S.isInfixOf`) $ hUserAgent `lookup` reqHdrs
 
     -- Can we skip just by looking at the current 'Response'?
-    checkCompress :: (Response -> IO ResponseReceived) -> Response -> IO ResponseReceived
+    checkCompress
+        :: (Response -> IO ResponseReceived) -> Response -> IO ResponseReceived
     checkCompress continue res =
         if isEncodedAlready || isPartial || tooSmall
             then sendResponse res
@@ -311,7 +319,14 @@ gzip set app req sendResponse'
 minimumLength :: Integer
 minimumLength = 860
 
-compressFile :: Status -> [Header] -> FilePath -> Maybe S.ByteString -> FilePath -> (Response -> IO a) -> IO a
+compressFile
+    :: Status
+    -> [Header]
+    -> FilePath
+    -> Maybe S.ByteString
+    -> FilePath
+    -> (Response -> IO a)
+    -> IO a
 compressFile s hs file mETag cache sendResponse = do
     e <- doesFileExist tmpfile
     if e
@@ -319,25 +334,25 @@ compressFile s hs file mETag cache sendResponse = do
         else do
             createDirectoryIfMissing True cache
             x <- try $
-                 IO.withBinaryFile file IO.ReadMode $ \inH ->
-                 IO.withBinaryFile tmpfile IO.WriteMode $ \outH -> do
-                    deflate <- Z.initDeflate 7 $ Z.WindowBits 31
-                    -- FIXME this code should write to a temporary file, then
-                    -- rename to the final file
-                    let goPopper popper = fix $ \loop -> do
-                            res <- popper
-                            case res of
-                                Z.PRDone -> return ()
-                                Z.PRNext bs -> do
-                                    S.hPut outH bs
-                                    loop
-                                Z.PRError ex -> throwIO ex
-                    fix $ \loop -> do
-                        bs <- S.hGetSome inH defaultChunkSize
-                        unless (S.null bs) $ do
-                            Z.feedDeflate deflate bs >>= goPopper
-                            loop
-                    goPopper $ Z.finishDeflate deflate
+                IO.withBinaryFile file IO.ReadMode $ \inH ->
+                    IO.withBinaryFile tmpfile IO.WriteMode $ \outH -> do
+                        deflate <- Z.initDeflate 7 $ Z.WindowBits 31
+                        -- FIXME this code should write to a temporary file, then
+                        -- rename to the final file
+                        let goPopper popper = fix $ \loop -> do
+                                res <- popper
+                                case res of
+                                    Z.PRDone -> return ()
+                                    Z.PRNext bs -> do
+                                        S.hPut outH bs
+                                        loop
+                                    Z.PRError ex -> throwIO ex
+                        fix $ \loop -> do
+                            bs <- S.hGetSome inH defaultChunkSize
+                            unless (S.null bs) $ do
+                                Z.feedDeflate deflate bs >>= goPopper
+                                loop
+                        goPopper $ Z.finishDeflate deflate
             either onErr (const onSucc) (x :: Either SomeException ())
   where
     onSucc = sendResponse $ responseFile s (fixHeaders hs) tmpfile Nothing
@@ -365,9 +380,10 @@ compressFile s hs file mETag cache sendResponse = do
     safe '_' = '_'
     safe _ = '_'
 
-compressE :: Response
-          -> (Response -> IO ResponseReceived)
-          -> IO ResponseReceived
+compressE
+    :: Response
+    -> (Response -> IO ResponseReceived)
+    -> IO ResponseReceived
 compressE res sendResponse =
     wb $ \body -> sendResponse $
         responseStream s (fixHeaders hs) $ \sendChunk flush -> do

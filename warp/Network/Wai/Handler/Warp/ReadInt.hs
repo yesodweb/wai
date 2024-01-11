@@ -1,13 +1,13 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- Copyright     : Erik de Castro Lopo <erikd@mega-nerd.com>
 -- License       : BSD3
 
 module Network.Wai.Handler.Warp.ReadInt (
-    readInt
-  , readInt64
-  ) where
+    readInt,
+    readInt64,
+) where
 
 import qualified Data.ByteString as S
 import Data.Word8 (isDigit, _0)
@@ -28,5 +28,6 @@ readInt bs = fromIntegral $ readInt64 bs
 
 {-# NOINLINE readInt64 #-}
 readInt64 :: ByteString -> Int64
-readInt64 bs = S.foldl' (\ !i !c -> i * 10 + fromIntegral (c - _0)) 0
-             $ S.takeWhile isDigit bs
+readInt64 bs =
+    S.foldl' (\ !i !c -> i * 10 + fromIntegral (c - _0)) 0 $
+        S.takeWhile isDigit bs

@@ -1,31 +1,42 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
--- | Access files on the filesystem.
-module WaiAppStatic.Storage.Filesystem
-    ( -- * Types
-      ETagLookup
-      -- * Settings
-    , defaultWebAppSettings
-    , defaultFileServerSettings
-    , webAppSettingsWithLookup
-    ) where
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-import WaiAppStatic.Types
-import System.FilePath ((</>))
-import System.IO (withBinaryFile, IOMode(..))
-import System.Directory (doesFileExist, doesDirectoryExist, getDirectoryContents)
-import Data.List (foldl')
-import Control.Monad (forM)
-import Util
-import Data.ByteString (ByteString)
+-- | Access files on the filesystem.
+module WaiAppStatic.Storage.Filesystem (
+    -- * Types
+    ETagLookup,
+
+    -- * Settings
+    defaultWebAppSettings,
+    defaultFileServerSettings,
+    webAppSettingsWithLookup,
+) where
+
 import Control.Exception (SomeException, try)
-import qualified Network.Wai as W
-import WaiAppStatic.Listing
-import Network.Mime
-import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime, isRegularFile)
+import Control.Monad (forM)
+import Data.ByteString (ByteString)
+import Data.List (foldl')
 import Data.Maybe (catMaybes)
+import Network.Mime
+import qualified Network.Wai as W
+import System.Directory (
+    doesDirectoryExist,
+    doesFileExist,
+    getDirectoryContents,
+ )
+import System.FilePath ((</>))
+import System.IO (IOMode (..), withBinaryFile)
+import System.PosixCompat.Files (
+    fileSize,
+    getFileStatus,
+    isRegularFile,
+    modificationTime,
+ )
+import Util
+import WaiAppStatic.Listing
+import WaiAppStatic.Types
 #ifdef MIN_VERSION_crypton
 import Data.ByteArray.Encoding
 import Crypto.Hash (hashlazy, MD5, Digest)
@@ -42,70 +53,88 @@ pathFromPieces = foldl' (\fp p -> fp </> T.unpack (fromPiece p))
 
 -- | Settings optimized for a web application. Files will have aggressive
 -- caching applied and hashes calculated, and indices and listings are disabled.
-defaultWebAppSettings :: FilePath -- ^ root folder to serve from
-                      -> StaticSettings
-defaultWebAppSettings root = StaticSettings
-    { ssLookupFile = webAppLookup hashFileIfExists root
-    , ssMkRedirect  = defaultMkRedirect
-    , ssGetMimeType = return . defaultMimeLookup . fromPiece . fileName
-    , ssMaxAge  = MaxAgeForever
-    , ssListing = Nothing
-    , ssIndices = []
-    , ssRedirectToIndex = False
-    , ssUseHash = True
-    , ssAddTrailingSlash = False
-    , ss404Handler = Nothing
-    }
+defaultWebAppSettings
+    :: FilePath
+    -- ^ root folder to serve from
+    -> StaticSettings
+defaultWebAppSettings root =
+    StaticSettings
+        { ssLookupFile = webAppLookup hashFileIfExists root
+        , ssMkRedirect = defaultMkRedirect
+        , ssGetMimeType = return . defaultMimeLookup . fromPiece . fileName
+        , ssMaxAge = MaxAgeForever
+        , ssListing = Nothing
+        , ssIndices = []
+        , ssRedirectToIndex = False
+        , ssUseHash = True
+        , ssAddTrailingSlash = False
+        , ss404Handler = Nothing
+        }
 
 -- | Settings optimized for a file server. More conservative caching will be
 -- applied, and indices and listings are enabled.
-defaultFileServerSettings :: FilePath -- ^ root folder to serve from
-                          -> StaticSettings
-defaultFileServerSettings root = StaticSettings
-    { ssLookupFile = fileSystemLookup (fmap Just . hashFile) root
-    , ssMkRedirect = defaultMkRedirect
-    , ssGetMimeType = return . defaultMimeLookup . fromPiece . fileName
-    , ssMaxAge = NoMaxAge
-    , ssListing = Just defaultListing
-    , ssIndices = map unsafeToPiece ["index.html", "index.htm"]
-    , ssRedirectToIndex = False
-    , ssUseHash = False
-    , ssAddTrailingSlash = False
-    , ss404Handler = Nothing
-    }
+defaultFileServerSettings
+    :: FilePath
+    -- ^ root folder to serve from
+    -> StaticSettings
+defaultFileServerSettings root =
+    StaticSettings
+        { ssLookupFile = fileSystemLookup (fmap Just . hashFile) root
+        , ssMkRedirect = defaultMkRedirect
+        , ssGetMimeType = return . defaultMimeLookup . fromPiece . fileName
+        , ssMaxAge = NoMaxAge
+        , ssListing = Just defaultListing
+        , ssIndices = map unsafeToPiece ["index.html", "index.htm"]
+        , ssRedirectToIndex = False
+        , ssUseHash = False
+        , ssAddTrailingSlash = False
+        , ss404Handler = Nothing
+        }
 
 -- | Same as @defaultWebAppSettings@, but additionally uses a specialized
 -- @ETagLookup@ in place of the standard one. This can allow you to cache your
 -- hash values, or even precompute them.
-webAppSettingsWithLookup :: FilePath -- ^ root folder to serve from
-                         -> ETagLookup
-                         -> StaticSettings
+webAppSettingsWithLookup
+    :: FilePath
+    -- ^ root folder to serve from
+    -> ETagLookup
+    -> StaticSettings
 webAppSettingsWithLookup dir etagLookup =
-  (defaultWebAppSettings dir) { ssLookupFile = webAppLookup etagLookup dir}
+    (defaultWebAppSettings dir){ssLookupFile = webAppLookup etagLookup dir}
 
 -- | Convenience wrapper for @fileHelper@.
-fileHelperLR :: ETagLookup
-             -> FilePath -- ^ file location
-             -> Piece -- ^ file name
-             -> IO LookupResult
+fileHelperLR
+    :: ETagLookup
+    -> FilePath
+    -- ^ file location
+    -> Piece
+    -- ^ file name
+    -> IO LookupResult
 fileHelperLR a b c = fmap (maybe LRNotFound LRFile) $ fileHelper a b c
 
 -- | Attempt to load up a @File@ from the given path.
-fileHelper :: ETagLookup
-           -> FilePath -- ^ file location
-           -> Piece -- ^ file name
-           -> IO (Maybe File)
+fileHelper
+    :: ETagLookup
+    -> FilePath
+    -- ^ file location
+    -> Piece
+    -- ^ file name
+    -> IO (Maybe File)
 fileHelper hashFunc fp name = do
     efs <- try $ getFileStatus fp
     case efs of
         Left (_ :: SomeException) -> return Nothing
-        Right fs | isRegularFile fs -> return $ Just File
-            { fileGetSize = fromIntegral $ fileSize fs
-            , fileToResponse = \s h -> W.responseFile s h fp Nothing
-            , fileName = name
-            , fileGetHash = hashFunc fp
-            , fileGetModified = Just $ modificationTime fs
-            }
+        Right fs
+            | isRegularFile fs ->
+                return $
+                    Just
+                        File
+                            { fileGetSize = fromIntegral $ fileSize fs
+                            , fileToResponse = \s h -> W.responseFile s h fp Nothing
+                            , fileName = name
+                            , fileGetHash = hashFunc fp
+                            , fileGetModified = Just $ modificationTime fs
+                            }
         Right _ -> return Nothing
 
 -- | How to calculate etags. Can perform filesystem reads on each call, or use
@@ -144,14 +173,17 @@ hashFileIfExists fp = do
         Right x -> Just x
 
 isVisible :: FilePath -> Bool
-isVisible ('.':_) = False
+isVisible ('.' : _) = False
 isVisible "" = False
 isVisible _ = True
 
 -- | Get a proper @LookupResult@, checking if the path is a file or folder.
 -- Compare with @webAppLookup@, which only deals with files.
-fileSystemLookup :: ETagLookup
-                 -> FilePath -> Pieces -> IO LookupResult
+fileSystemLookup
+    :: ETagLookup
+    -> FilePath
+    -> Pieces
+    -> IO LookupResult
 fileSystemLookup hashFunc prefix pieces = do
     let fp = pathFromPieces prefix pieces
     fe <- doesFileExist fp

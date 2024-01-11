@@ -1,13 +1,13 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wai.Handler.Warp.ResponseHeader (composeHeader) where
 
 import qualified Data.ByteString as S
 import Data.ByteString.Internal (create)
 import qualified Data.CaseInsensitive as CI
-import Data.Word8
 import Data.List (foldl')
+import Data.Word8
 import Foreign.Ptr
 import GHC.Storable
 import qualified Network.HTTP.Types as H
@@ -24,7 +24,7 @@ composeHeader !httpversion !status !responseHeaders = create len $ \ptr -> do
     void $ copyCRLF ptr2
   where
     !len = 17 + slen + foldl' fieldLength 0 responseHeaders
-    fieldLength !l (!k,!v) = l + S.length (CI.original k) + S.length v + 4
+    fieldLength !l (!k, !v) = l + S.length (CI.original k) + S.length v + 4
     !slen = S.length $ H.statusMessage status
 
 httpVer11 :: ByteString
@@ -45,22 +45,22 @@ copyStatus !ptr !httpversion !status = do
     copyCRLF ptr2
   where
     httpVer
-      | httpversion == H.HttpVersion 1 1 = httpVer11
-      | otherwise = httpVer10
-    (q0,r0) = H.statusCode status `divMod` 10
-    (q1,r1) = q0 `divMod` 10
+        | httpversion == H.HttpVersion 1 1 = httpVer11
+        | otherwise = httpVer10
+    (q0, r0) = H.statusCode status `divMod` 10
+    (q1, r1) = q0 `divMod` 10
     r2 = q1 `mod` 10
 
 {-# INLINE copyHeaders #-}
 copyHeaders :: Ptr Word8 -> [H.Header] -> IO (Ptr Word8)
 copyHeaders !ptr [] = return ptr
-copyHeaders !ptr (h:hs) = do
+copyHeaders !ptr (h : hs) = do
     ptr1 <- copyHeader ptr h
     copyHeaders ptr1 hs
 
 {-# INLINE copyHeader #-}
 copyHeader :: Ptr Word8 -> H.Header -> IO (Ptr Word8)
-copyHeader !ptr (k,v) = do
+copyHeader !ptr (k, v) = do
     ptr1 <- copy ptr (CI.original k)
     writeWord8OffPtr ptr1 0 _colon
     writeWord8OffPtr ptr1 1 _space

@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.Wai.Middleware.RealIpSpec
-    ( spec
-    ) where
+module Network.Wai.Middleware.RealIpSpec (
+    spec,
+) where
 
 import qualified Data.ByteString.Lazy.Char8 as B8
 import qualified Data.IP as IP
@@ -82,10 +82,13 @@ spec = do
             simpleBody resp1 `shouldBe` "10.0.0.1"
             simpleBody resp2 `shouldBe` "10.0.0.2"
 
-
 runApp :: IP.IP -> RequestHeaders -> Middleware -> IO SResponse
-runApp ip hs mw = runSession
-    (request defaultRequest { remoteHost = IP.toSockAddr (ip, 80), requestHeaders = hs }) $ mw app
+runApp ip hs mw =
+    runSession
+        ( request
+            defaultRequest{remoteHost = IP.toSockAddr (ip, 80), requestHeaders = hs}
+        )
+        $ mw app
   where
     app req respond = respond $ responseLBS status200 [] $ renderIp req
     renderIp = B8.pack . maybe "" (show . fst) . IP.fromSockAddr . remoteHost

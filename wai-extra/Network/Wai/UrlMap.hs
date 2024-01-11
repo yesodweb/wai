@@ -1,21 +1,20 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances #-}
-{- | This module gives you a way to mount applications under sub-URIs.
-For example:
 
-> bugsApp, helpdeskApp, apiV1, apiV2, mainApp :: Application
->
-> myApp :: Application
-> myApp = mapUrls $
->       mount "bugs"     bugsApp
->   <|> mount "helpdesk" helpdeskApp
->   <|> mount "api"
->           (   mount "v1" apiV1
->           <|> mount "v2" apiV2
->           )
->   <|> mountRoot mainApp
-
--}
+-- | This module gives you a way to mount applications under sub-URIs.
+-- For example:
+--
+-- > bugsApp, helpdeskApp, apiV1, apiV2, mainApp :: Application
+-- >
+-- > myApp :: Application
+-- > myApp = mapUrls $
+-- >       mount "bugs"     bugsApp
+-- >   <|> mount "helpdesk" helpdeskApp
+-- >   <|> mount "api"
+-- >           (   mount "v1" apiV1
+-- >           <|> mount "v2" apiV2
+-- >           )
+-- >   <|> mountRoot mainApp
 module Network.Wai.UrlMap (
     UrlMap',
     UrlMap,
@@ -35,19 +34,22 @@ import Network.HTTP.Types (hContentType, status404)
 import Network.Wai (Application, Request (pathInfo, rawPathInfo), responseLBS)
 
 type Path = [Text]
-newtype UrlMap' a = UrlMap' { unUrlMap :: [(Path, a)] }
+newtype UrlMap' a = UrlMap' {unUrlMap :: [(Path, a)]}
 
 instance Functor UrlMap' where
     fmap f (UrlMap' xs) = UrlMap' (fmap (fmap f) xs)
 
 instance Applicative UrlMap' where
-    pure x                        = UrlMap' [([], x)]
-    (UrlMap' xs) <*> (UrlMap' ys) = UrlMap' [ (p, f y) |
-                                              (p, y) <- ys,
-                                              f <- map snd xs ]
+    pure x = UrlMap' [([], x)]
+    (UrlMap' xs) <*> (UrlMap' ys) =
+        UrlMap'
+            [ (p, f y)
+            | (p, y) <- ys
+            , f <- map snd xs
+            ]
 
 instance Alternative UrlMap' where
-    empty                         = UrlMap' empty
+    empty = UrlMap' empty
     (UrlMap' xs) <|> (UrlMap' ys) = UrlMap' (xs <|> ys)
 
 type UrlMap = UrlMap' Application
@@ -68,14 +70,17 @@ mount prefix = mount' [prefix]
 mountRoot :: ToApplication a => a -> UrlMap
 mountRoot = mount' []
 
-try :: Eq a
-    => [a] -- ^ Path info of request
-    -> [([a], b)] -- ^ List of applications to match
+try
+    :: Eq a
+    => [a]
+    -- ^ Path info of request
+    -> [([a], b)]
+    -- ^ List of applications to match
     -> Maybe ([a], b)
 try xs = foldl go Nothing
-    where
-        go (Just x) _ = Just x
-        go _ (prefix, y) = stripPrefix prefix xs >>= \xs' -> return (xs', y)
+  where
+    go (Just x) _ = Just x
+    go _ (prefix, y) = stripPrefix prefix xs >>= \xs' -> return (xs', y)
 
 class ToApplication a where
     toApplication :: a -> Application
@@ -87,16 +92,20 @@ instance ToApplication UrlMap where
     toApplication urlMap req sendResponse =
         case try (pathInfo req) (unUrlMap urlMap) of
             Just (newPath, app) ->
-                app (req { pathInfo = newPath
-                         , rawPathInfo = makeRaw newPath
-                         }) sendResponse
+                app
+                    ( req
+                        { pathInfo = newPath
+                        , rawPathInfo = makeRaw newPath
+                        }
+                    )
+                    sendResponse
             Nothing ->
-                sendResponse $ responseLBS
-                    status404
-                    [(hContentType, "text/plain")]
-                    "Not found\n"
-
-        where
+                sendResponse $
+                    responseLBS
+                        status404
+                        [(hContentType, "text/plain")]
+                        "Not found\n"
+      where
         makeRaw :: [Text] -> B.ByteString
         makeRaw = ("/" `B.append`) . T.encodeUtf8 . T.intercalate "/"
 

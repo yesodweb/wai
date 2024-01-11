@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+
 -- |
 --
 -- @since 3.0.14
@@ -28,16 +29,15 @@ forceDomain checkDomain app req sendResponse =
             app req sendResponse
         Just domain ->
             sendResponse $ redirectResponse domain
+  where
+    -- From: Network.Wai.Middleware.ForceSSL
+    redirectResponse domain =
+        responseBuilder status [(hLocation, location domain)] mempty
 
-    where
-        -- From: Network.Wai.Middleware.ForceSSL
-        redirectResponse domain =
-            responseBuilder status [(hLocation, location domain)] mempty
+    location h =
+        let p = if appearsSecure req then "https://" else "http://"
+         in p <> h <> rawPathInfo req <> rawQueryString req
 
-        location h =
-            let p = if appearsSecure req then "https://" else "http://" in
-            p <> h <> rawPathInfo req <> rawQueryString req
-
-        status
-            | requestMethod req == methodGet = status301
-            | otherwise = status307
+    status
+        | requestMethod req == methodGet = status301
+        | otherwise = status307

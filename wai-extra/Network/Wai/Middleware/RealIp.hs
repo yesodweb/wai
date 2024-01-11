@@ -1,11 +1,11 @@
 -- | Infer the remote IP address using headers
-module Network.Wai.Middleware.RealIp
-    ( realIp
-    , realIpHeader
-    , realIpTrusted
-    , defaultTrusted
-    , ipInRange
-    ) where
+module Network.Wai.Middleware.RealIp (
+    realIp,
+    realIpHeader,
+    realIpTrusted,
+    defaultTrusted,
+    ipInRange,
+) where
 
 import qualified Data.ByteString.Char8 as B8 (split, unpack)
 import qualified Data.IP as IP
@@ -51,23 +51,25 @@ realIpTrusted :: HeaderName -> (IP.IP -> Bool) -> Middleware
 realIpTrusted header isTrusted app req = app req'
   where
     req' = fromMaybe req $ do
-             (ip, port) <- IP.fromSockAddr (remoteHost req)
-             ip' <- if isTrusted ip
-                      then findRealIp (requestHeaders req) header isTrusted
-                      else Nothing
-             Just $ req { remoteHost = IP.toSockAddr (ip', port) }
+        (ip, port) <- IP.fromSockAddr (remoteHost req)
+        ip' <-
+            if isTrusted ip
+                then findRealIp (requestHeaders req) header isTrusted
+                else Nothing
+        Just $ req{remoteHost = IP.toSockAddr (ip', port)}
 
 -- | Standard private IP ranges.
 --
 -- @since 3.1.5
 defaultTrusted :: [IP.IPRange]
-defaultTrusted = [ "127.0.0.0/8"
-                 , "10.0.0.0/8"
-                 , "172.16.0.0/12"
-                 , "192.168.0.0/16"
-                 , "::1/128"
-                 , "fc00::/7"
-                 ]
+defaultTrusted =
+    [ "127.0.0.0/8"
+    , "10.0.0.0/8"
+    , "172.16.0.0/12"
+    , "192.168.0.0/16"
+    , "::1/128"
+    , "fc00::/7"
+    ]
 
 -- | Check if the given IP address is in the given range.
 --
@@ -81,14 +83,13 @@ ipInRange (IP.IPv6 ip) (IP.IPv6Range r) = ip `IP.isMatchedTo` r
 ipInRange (IP.IPv4 ip) (IP.IPv6Range r) = IP.ipv4ToIPv6 ip `IP.isMatchedTo` r
 ipInRange _ _ = False
 
-
 findRealIp :: RequestHeaders -> HeaderName -> (IP.IP -> Bool) -> Maybe IP.IP
 findRealIp reqHeaders header isTrusted =
     case (nonTrusted, ips) of
-      ([], xs) -> listToMaybe xs
-      (xs, _)  -> listToMaybe $ reverse xs
+        ([], xs) -> listToMaybe xs
+        (xs, _) -> listToMaybe $ reverse xs
   where
     -- account for repeated headers
-    headerVals = [ v | (k, v) <- reqHeaders, k == header ]
+    headerVals = [v | (k, v) <- reqHeaders, k == header]
     ips = concatMap (mapMaybe (readMaybe . B8.unpack) . B8.split ',') headerVals
     nonTrusted = filter (not . isTrusted) ips

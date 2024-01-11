@@ -1,17 +1,17 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
 
 module Main where
 
 import Control.Monad
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as B (unpack)
-import Data.Word8 (_H, _P, _T, _slash, _period)
+import Data.Word8 (_H, _P, _T, _period, _slash)
 import qualified Network.HTTP.Types as H
 import Network.Wai.Handler.Warp.Types
+import UnliftIO.Exception (impureThrow, throwIO)
 import Prelude hiding (lines)
-import UnliftIO.Exception (throwIO, impureThrow)
 
 import Data.ByteString.Internal
 import Data.Word
@@ -34,20 +34,22 @@ main :: IO ()
 main = do
     let requestLine1 = "GET http://www.example.com HTTP/1.1"
     let requestLine2 = "GET http://www.example.com/cgi-path/search.cgi?key=parser HTTP/1.0"
-    defaultMain [
-        bgroup "requestLine1" [
-             bench "parseRequestLine3" $ whnf parseRequestLine3 requestLine1
-           , bench "parseRequestLine2" $ whnfIO $ parseRequestLine2 requestLine1
-           , bench "parseRequestLine1" $ whnfIO $ parseRequestLine1 requestLine1
-           , bench "parseRequestLine0" $ whnfIO $ parseRequestLine0 requestLine1
-           ]
-      , bgroup "requestLine2" [
-             bench "parseRequestLine3" $ whnf parseRequestLine3 requestLine2
-           , bench "parseRequestLine2" $ whnfIO $ parseRequestLine2 requestLine2
-           , bench "parseRequestLine1" $ whnfIO $ parseRequestLine1 requestLine2
-           , bench "parseRequestLine0" $ whnfIO $ parseRequestLine0 requestLine2
-           ]
-      ]
+    defaultMain
+        [ bgroup
+            "requestLine1"
+            [ bench "parseRequestLine3" $ whnf parseRequestLine3 requestLine1
+            , bench "parseRequestLine2" $ whnfIO $ parseRequestLine2 requestLine1
+            , bench "parseRequestLine1" $ whnfIO $ parseRequestLine1 requestLine1
+            , bench "parseRequestLine0" $ whnfIO $ parseRequestLine0 requestLine1
+            ]
+        , bgroup
+            "requestLine2"
+            [ bench "parseRequestLine3" $ whnf parseRequestLine3 requestLine2
+            , bench "parseRequestLine2" $ whnfIO $ parseRequestLine2 requestLine2
+            , bench "parseRequestLine1" $ whnfIO $ parseRequestLine1 requestLine2
+            , bench "parseRequestLine0" $ whnfIO $ parseRequestLine0 requestLine2
+            ]
+        ]
 
 ----------------------------------------------------------------
 
@@ -61,26 +63,29 @@ main = do
 -- *** Exception: BadFirstLine "GET "
 -- >>> parseRequestLine3 "GET /NotHTTP UNKNOWN/1.1"
 -- *** Exception: NonHttp
-parseRequestLine3 :: ByteString
-                  -> (H.Method
-                     ,ByteString -- Path
-                     ,ByteString -- Query
-                     ,H.HttpVersion)
+parseRequestLine3
+    :: ByteString
+    -> ( H.Method
+       , ByteString -- Path
+       , ByteString -- Query
+       , H.HttpVersion
+       )
 parseRequestLine3 requestLine = ret
   where
-    (!method,!rest) = S.break (== 32) requestLine -- ' '
-    (!pathQuery,!httpVer')
-      | rest == "" = impureThrow badmsg
-      | otherwise  = S.break (== 32) (S.drop 1 rest) -- ' '
-    (!path,!query) = S.break (== 63) pathQuery -- '?'
+    (!method, !rest) = S.break (== 32) requestLine -- ' '
+    (!pathQuery, !httpVer')
+        | rest == "" = impureThrow badmsg
+        | otherwise = S.break (== 32) (S.drop 1 rest) -- ' '
+    (!path, !query) = S.break (== 63) pathQuery -- '?'
     !httpVer = S.drop 1 httpVer'
-    (!http,!ver)
-      | httpVer == "" = impureThrow badmsg
-      | otherwise     = S.break (== 47) httpVer -- '/'
-    !hv | http /= "HTTP" = impureThrow NonHttp
-        | ver == "/1.1"  = H.http11
-        | otherwise      = H.http10
-    !ret = (method,path,query,hv)
+    (!http, !ver)
+        | httpVer == "" = impureThrow badmsg
+        | otherwise = S.break (== 47) httpVer -- '/'
+    !hv
+        | http /= "HTTP" = impureThrow NonHttp
+        | ver == "/1.1" = H.http11
+        | otherwise = H.http10
+    !ret = (method, path, query, hv)
     badmsg = BadFirstLine $ B.unpack requestLine
 
 ----------------------------------------------------------------
@@ -95,11 +100,14 @@ parseRequestLine3 requestLine = ret
 -- *** Exception: BadFirstLine "GET "
 -- >>> parseRequestLine2 "GET /NotHTTP UNKNOWN/1.1"
 -- *** Exception: NonHttp
-parseRequestLine2 :: ByteString
-                  -> IO (H.Method
-                        ,ByteString -- Path
-                        ,ByteString -- Query
-                        ,H.HttpVersion)
+parseRequestLine2
+    :: ByteString
+    -> IO
+        ( H.Method
+        , ByteString -- Path
+        , ByteString -- Query
+        , H.HttpVersion
+        )
 parseRequestLine2 requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> do
     when (len < 14) $ throwIO baderr
     let methodptr = ptr `plusPtr` off
@@ -121,16 +129,15 @@ parseRequestLine2 requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> 
     checkHTTP httpptr
     !hv <- httpVersion httpptr
     queryptr <- memchr pathptr 63 lim2 -- '?'
-
     let !method = bs ptr methodptr pathptr0
         !path
-          | queryptr == nullPtr = bs ptr pathptr httpptr0
-          | otherwise           = bs ptr pathptr queryptr
+            | queryptr == nullPtr = bs ptr pathptr httpptr0
+            | otherwise = bs ptr pathptr queryptr
         !query
-          | queryptr == nullPtr = S.empty
-          | otherwise           = bs ptr queryptr httpptr0
+            | queryptr == nullPtr = S.empty
+            | otherwise = bs ptr queryptr httpptr0
 
-    return (method,path,query,hv)
+    return (method, path, query, hv)
   where
     baderr = BadFirstLine $ B.unpack requestLine
     check :: Ptr Word8 -> Int -> Word8 -> IO ()
@@ -147,10 +154,9 @@ parseRequestLine2 requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> 
     httpVersion httpptr = do
         major <- peek $ httpptr `plusPtr` 5
         minor <- peek $ httpptr `plusPtr` 7
-        if major == (49 :: Word8) && minor == (49 :: Word8) then
-            return H.http11
-          else
-            return H.http10
+        if major == (49 :: Word8) && minor == (49 :: Word8)
+            then return H.http11
+            else return H.http10
     bs ptr p0 p1 = PS fptr o l
       where
         o = p0 `minusPtr` ptr
@@ -168,23 +174,29 @@ parseRequestLine2 requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> 
 -- *** Exception: BadFirstLine "GET "
 -- >>> parseRequestLine1 "GET /NotHTTP UNKNOWN/1.1"
 -- *** Exception: NonHttp
-parseRequestLine1 :: ByteString
-                  -> IO (H.Method
-                        ,ByteString -- Path
-                        ,ByteString -- Query
-                        ,H.HttpVersion)
+parseRequestLine1
+    :: ByteString
+    -> IO
+        ( H.Method
+        , ByteString -- Path
+        , ByteString -- Query
+        , H.HttpVersion
+        )
 parseRequestLine1 requestLine = do
-    let (!method,!rest) = S.break (== 32) requestLine -- ' '
-        (!pathQuery,!httpVer') = S.break (== 32) (S.drop 1 rest) -- ' '
+    let (!method, !rest) = S.break (== 32) requestLine -- ' '
+        (!pathQuery, !httpVer') = S.break (== 32) (S.drop 1 rest) -- ' '
         !httpVer = S.drop 1 httpVer'
     when (rest == "" || httpVer == "") $
-        throwIO $ BadFirstLine $ B.unpack requestLine
-    let (!path,!query) = S.break (== 63) pathQuery -- '?'
-        (!http,!ver)   = S.break (== 47) httpVer -- '/'
+        throwIO $
+            BadFirstLine $
+                B.unpack requestLine
+    let (!path, !query) = S.break (== 63) pathQuery -- '?'
+        (!http, !ver) = S.break (== 47) httpVer -- '/'
     when (http /= "HTTP") $ throwIO NonHttp
-    let !hv | ver == "/1.1" = H.http11
-            | otherwise     = H.http10
-    return $! (method,path,query,hv)
+    let !hv
+            | ver == "/1.1" = H.http11
+            | otherwise = H.http10
+    return $! (method, path, query, hv)
 
 ----------------------------------------------------------------
 
@@ -198,23 +210,27 @@ parseRequestLine1 requestLine = do
 -- *** Exception: BadFirstLine "GET "
 -- >>> parseRequestLine0 "GET /NotHTTP UNKNOWN/1.1"
 -- *** Exception: NonHttp
-parseRequestLine0 :: ByteString
-                 -> IO (H.Method
-                       ,ByteString -- Path
-                       ,ByteString -- Query
-                       ,H.HttpVersion)
+parseRequestLine0
+    :: ByteString
+    -> IO
+        ( H.Method
+        , ByteString -- Path
+        , ByteString -- Query
+        , H.HttpVersion
+        )
 parseRequestLine0 s =
-    case filter (not . S.null) $ S.splitWith (\c -> c == 32 || c == 9) s of  --  '
-        (method':query:http'') -> do
+    case filter (not . S.null) $ S.splitWith (\c -> c == 32 || c == 9) s of --  '
+        (method' : query : http'') -> do
             let !method = method'
                 !http' = S.concat http''
                 (!hfirst, !hsecond) = S.splitAt 5 http'
             if hfirst == "HTTP/"
-               then let (!rpath, !qstring) = S.break (== 63) query  -- '?'
+                then
+                    let (!rpath, !qstring) = S.break (== 63) query -- '?'
                         !hv =
                             case hsecond of
                                 "1.1" -> H.http11
                                 _ -> H.http10
-                    in return $! (method, rpath, qstring, hv)
-               else throwIO NonHttp
+                     in return $! (method, rpath, qstring, hv)
+                else throwIO NonHttp
         _ -> throwIO $ BadFirstLine $ B.unpack s

@@ -1,11 +1,11 @@
 {-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Date (
-    withDateCache
-  , GMTDate
-  ) where
+    withDateCache,
+    GMTDate,
+) where
 
-import Control.AutoUpdate (defaultUpdateSettings, updateAction, mkAutoUpdate)
+import Control.AutoUpdate (defaultUpdateSettings, mkAutoUpdate, updateAction)
 import Data.ByteString
 import Network.HTTP.Date
 
@@ -25,9 +25,11 @@ withDateCache :: (IO GMTDate -> IO a) -> IO a
 withDateCache action = initialize >>= action
 
 initialize :: IO (IO GMTDate)
-initialize = mkAutoUpdate defaultUpdateSettings {
-                            updateAction = formatHTTPDate <$> getCurrentHTTPDate
-                          }
+initialize =
+    mkAutoUpdate
+        defaultUpdateSettings
+            { updateAction = formatHTTPDate <$> getCurrentHTTPDate
+            }
 
 #ifdef WINDOWS
 uToH :: UTCTime -> HTTPDate

@@ -1,34 +1,35 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
-{- |
-Sometimes incoming requests don't stick to the
-"no duplicate headers" invariant, for a number
-of possible reasons (e.g. proxy servers blindly
-adding headers), or your application (or other
-middleware) blindly adds headers.
 
-In those cases, you can use this 'Middleware'
-to make sure that headers that /can/ be combined
-/are/ combined. (e.g. applications might only
-check the first \"Accept\" header and fail, while
-there might be another one that would match)
-    -}
-module Network.Wai.Middleware.CombineHeaders
-    ( combineHeaders
-    , CombineSettings
-    , defaultCombineSettings
-    , HeaderMap
-    , HandleType
-    , defaultHeaderMap
+-- |
+-- Sometimes incoming requests don't stick to the
+-- "no duplicate headers" invariant, for a number
+-- of possible reasons (e.g. proxy servers blindly
+-- adding headers), or your application (or other
+-- middleware) blindly adds headers.
+--
+-- In those cases, you can use this 'Middleware'
+-- to make sure that headers that /can/ be combined
+-- /are/ combined. (e.g. applications might only
+-- check the first \"Accept\" header and fail, while
+-- there might be another one that would match)
+module Network.Wai.Middleware.CombineHeaders (
+    combineHeaders,
+    CombineSettings,
+    defaultCombineSettings,
+    HeaderMap,
+    HandleType,
+    defaultHeaderMap,
+
     -- * Adjusting the settings
-    , setHeader
-    , removeHeader
-    , setHeaderMap
-    , regular
-    , keepOnly
-    , setRequestHeaders
-    , setResponseHeaders
-    ) where
+    setHeader,
+    removeHeader,
+    setHeaderMap,
+    regular,
+    keepOnly,
+    setRequestHeaders,
+    setResponseHeaders,
+) where
 
 import qualified Data.ByteString as B
 import qualified Data.List as L (foldl', reverse)
@@ -36,7 +37,7 @@ import qualified Data.Map.Strict as M
 import Data.Word8 (_comma, _space, _tab)
 import Network.HTTP.Types (Header, HeaderName, RequestHeaders)
 import qualified Network.HTTP.Types.Header as H
-import Network.Wai (Middleware, requestHeaders, mapResponseHeaders)
+import Network.Wai (Middleware, mapResponseHeaders, requestHeaders)
 import Network.Wai.Util (dropWhileEnd)
 
 -- | The mapping of 'HeaderName' to 'HandleType'
@@ -56,14 +57,15 @@ type HeaderMap = M.Map HeaderName HandleType
 -- combined)
 --
 -- @since 3.1.13.0
-data CombineSettings = CombineSettings {
-    combineHeaderMap :: HeaderMap,
+data CombineSettings = CombineSettings
+    { combineHeaderMap :: HeaderMap
     -- ^ Which headers should be combined? And how? (cf. 'HandleType')
-    combineRequestHeaders :: Bool,
+    , combineRequestHeaders :: Bool
     -- ^ Should request headers be combined?
-    combineResponseHeaders :: Bool
+    , combineResponseHeaders :: Bool
     -- ^ Should response headers be combined?
-} deriving (Eq, Show)
+    }
+    deriving (Eq, Show)
 
 -- | Settings that combine request headers,
 -- but don't touch response headers.
@@ -111,11 +113,12 @@ data CombineSettings = CombineSettings {
 --
 -- @since 3.1.13.0
 defaultCombineSettings :: CombineSettings
-defaultCombineSettings = CombineSettings {
-    combineHeaderMap = defaultHeaderMap,
-    combineRequestHeaders = True,
-    combineResponseHeaders = False
-}
+defaultCombineSettings =
+    CombineSettings
+        { combineHeaderMap = defaultHeaderMap
+        , combineRequestHeaders = True
+        , combineResponseHeaders = False
+        }
 
 -- | Override the 'HeaderMap' of the 'CombineSettings'
 --  (default: 'defaultHeaderMap')
@@ -144,18 +147,18 @@ setResponseHeaders b set = set{combineResponseHeaders = b}
 -- @since 3.1.13.0
 setHeader :: HeaderName -> HandleType -> CombineSettings -> CombineSettings
 setHeader name typ settings =
-    settings {
-        combineHeaderMap = M.insert name typ $ combineHeaderMap settings
-    }
+    settings
+        { combineHeaderMap = M.insert name typ $ combineHeaderMap settings
+        }
 
 -- | Convenience function to remove a header from the header map.
 --
 -- @since 3.1.13.0
 removeHeader :: HeaderName -> CombineSettings -> CombineSettings
 removeHeader name settings =
-    settings {
-        combineHeaderMap = M.delete name $ combineHeaderMap settings
-    }
+    settings
+        { combineHeaderMap = M.delete name $ combineHeaderMap settings
+        }
 
 -- | This middleware will reorganize the incoming and/or outgoing
 -- headers in such a way that it combines any duplicates of
@@ -180,7 +183,7 @@ combineHeaders CombineSettings{..} app req resFunc =
     app newReq $ resFunc . adjustRes
   where
     newReq
-        | combineRequestHeaders = req { requestHeaders = mkNewHeaders oldHeaders }
+        | combineRequestHeaders = req{requestHeaders = mkNewHeaders oldHeaders}
         | otherwise = req
     oldHeaders = requestHeaders req
     adjustRes
@@ -191,14 +194,16 @@ combineHeaders CombineSettings{..} app req resFunc =
     go acc hdr@(name, _) =
         M.alter (checkHeader hdr) name acc
     checkHeader :: Header -> Maybe HeaderHandling -> Maybe HeaderHandling
-    checkHeader (name, newVal) = Just . \case
-        Nothing -> (name `M.lookup` combineHeaderMap, [newVal])
-        -- Yes, this reverses the order of headers, but these
-        -- will be reversed again in 'finishHeaders'
-        Just (mHandleType, hdrs) -> (mHandleType, newVal : hdrs)
+    checkHeader (name, newVal) =
+        Just . \case
+            Nothing -> (name `M.lookup` combineHeaderMap, [newVal])
+            -- Yes, this reverses the order of headers, but these
+            -- will be reversed again in 'finishHeaders'
+            Just (mHandleType, hdrs) -> (mHandleType, newVal : hdrs)
 
 -- | Unpack 'HeaderHandling' back into 'Header's again
-finishHeaders :: HeaderName -> HeaderHandling -> RequestHeaders -> RequestHeaders
+finishHeaders
+    :: HeaderName -> HeaderHandling -> RequestHeaders -> RequestHeaders
 finishHeaders name (shouldCombine, xs) hdrs =
     case shouldCombine of
         Just typ -> (name, combinedHeader typ) : hdrs
@@ -230,7 +235,7 @@ type HeaderHandling = (Maybe HandleType, [B.ByteString])
 data HandleType
     = Regular
     | KeepOnly B.ByteString
-   deriving (Eq, Show)
+    deriving (Eq, Show)
 
 -- | Use the regular strategy when combining headers.
 -- (i.e. merge into one header and separate values with commas)
@@ -256,44 +261,42 @@ keepOnly = KeepOnly
 --
 -- @since 3.1.13.0
 defaultHeaderMap :: HeaderMap
-defaultHeaderMap = M.fromList
-    [ (H.hAccept, Regular)
-    , ("Accept-CH", Regular)
-    , (H.hAcceptCharset, Regular)
-    , (H.hAcceptEncoding, Regular)
-    , (H.hAcceptLanguage, Regular)
-    , ("Accept-Post", Regular)
-    , ("Access-Control-Allow-Headers" , Regular) -- wildcard? yes, but can just add to list
-    , ("Access-Control-Allow-Methods" , Regular) -- wildcard? yes, but can just add to list
-    , ("Access-Control-Expose-Headers" , Regular) -- wildcard? yes, but can just add to list
-    , ("Access-Control-Request-Headers", Regular)
-    , (H.hAllow, Regular)
-    , ("Alt-Svc", KeepOnly "clear") -- special "clear" value (if any is "clear", only keep that one)
-    , (H.hCacheControl, Regular)
-    , ("Clear-Site-Data", KeepOnly "*") -- wildcard (if any is "*", only keep that one)
+defaultHeaderMap =
+    M.fromList
+        [ (H.hAccept, Regular)
+        , ("Accept-CH", Regular)
+        , (H.hAcceptCharset, Regular)
+        , (H.hAcceptEncoding, Regular)
+        , (H.hAcceptLanguage, Regular)
+        , ("Accept-Post", Regular)
+        , ("Access-Control-Allow-Headers", Regular) -- wildcard? yes, but can just add to list
+        , ("Access-Control-Allow-Methods", Regular) -- wildcard? yes, but can just add to list
+        , ("Access-Control-Expose-Headers", Regular) -- wildcard? yes, but can just add to list
+        , ("Access-Control-Request-Headers", Regular)
+        , (H.hAllow, Regular)
+        , ("Alt-Svc", KeepOnly "clear") -- special "clear" value (if any is "clear", only keep that one)
+        , (H.hCacheControl, Regular)
+        , ("Clear-Site-Data", KeepOnly "*") -- wildcard (if any is "*", only keep that one)
+        , -- If "close" and anything else is used together, it's already F-ed,
+          -- so just combine them.
+          (H.hConnection, Regular)
+        , (H.hContentEncoding, Regular)
+        , (H.hContentLanguage, Regular)
+        , ("Digest", Regular)
+        , -- We could handle this, but it's experimental AND
+          -- will be replaced by "Permissions-Policy"
+          -- , "Feature-Policy" -- "semicolon ';' separated"
 
-    -- If "close" and anything else is used together, it's already F-ed,
-    -- so just combine them.
-    , (H.hConnection, Regular)
-
-    , (H.hContentEncoding, Regular)
-    , (H.hContentLanguage, Regular)
-    , ("Digest", Regular)
-
-    -- We could handle this, but it's experimental AND
-    -- will be replaced by "Permissions-Policy"
-    -- , "Feature-Policy" -- "semicolon ';' separated"
-
-    , (H.hIfMatch, Regular)
-    , (H.hIfNoneMatch, KeepOnly "*") -- wildcard? (if any is "*", only keep that one)
-    , ("Link", Regular)
-    , ("Permissions-Policy", Regular)
-    , (H.hTE, Regular)
-    , ("Timing-Allow-Origin", KeepOnly "*") -- wildcard? (if any is "*", only keep that one)
-    , (H.hTrailer, Regular)
-    , (H.hTransferEncoding, Regular)
-    , (H.hUpgrade, Regular)
-    , (H.hVia, Regular)
-    , (H.hVary, KeepOnly "*") -- wildcard? (if any is "*", only keep that one)
-    , ("Want-Digest", Regular)
-    ]
+          (H.hIfMatch, Regular)
+        , (H.hIfNoneMatch, KeepOnly "*") -- wildcard? (if any is "*", only keep that one)
+        , ("Link", Regular)
+        , ("Permissions-Policy", Regular)
+        , (H.hTE, Regular)
+        , ("Timing-Allow-Origin", KeepOnly "*") -- wildcard? (if any is "*", only keep that one)
+        , (H.hTrailer, Regular)
+        , (H.hTransferEncoding, Regular)
+        , (H.hUpgrade, Regular)
+        , (H.hVia, Regular)
+        , (H.hVary, KeepOnly "*") -- wildcard? (if any is "*", only keep that one)
+        , ("Want-Digest", Regular)
+        ]

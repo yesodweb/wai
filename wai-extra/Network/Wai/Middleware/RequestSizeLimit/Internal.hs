@@ -1,9 +1,9 @@
 -- | Internal constructors and helper functions. Note that no guarantees are given for stability of these interfaces.
-module Network.Wai.Middleware.RequestSizeLimit.Internal
-    ( RequestSizeLimitSettings(..)
-    , setMaxLengthForRequest
-    , setOnLengthExceeded
-    ) where
+module Network.Wai.Middleware.RequestSizeLimit.Internal (
+    RequestSizeLimitSettings (..),
+    setMaxLengthForRequest,
+    setOnLengthExceeded,
+) where
 
 import Data.Word (Word64)
 import Network.Wai (Middleware, Request)
@@ -40,18 +40,24 @@ import Network.Wai (Middleware, Request)
 --
 -- @since 3.1.1
 data RequestSizeLimitSettings = RequestSizeLimitSettings
-    { maxLengthForRequest :: Request -> IO (Maybe Word64) -- ^ Function to determine the maximum request size in bytes for the request. Return 'Nothing' for no limit. Since 3.1.1
-    , onLengthExceeded :: Word64 -> Middleware -- ^ Callback function when maximum length is exceeded. The 'Word64' argument is the limit computed by 'maxLengthForRequest'. Since 3.1.1
+    { maxLengthForRequest :: Request -> IO (Maybe Word64)
+    -- ^ Function to determine the maximum request size in bytes for the request. Return 'Nothing' for no limit. Since 3.1.1
+    , onLengthExceeded :: Word64 -> Middleware
+    -- ^ Callback function when maximum length is exceeded. The 'Word64' argument is the limit computed by 'maxLengthForRequest'. Since 3.1.1
     }
 
 -- | Function to determine the maximum request size in bytes for the request. Return 'Nothing' for no limit.
 --
 -- @since 3.1.1
-setMaxLengthForRequest :: (Request -> IO (Maybe Word64)) -> RequestSizeLimitSettings -> RequestSizeLimitSettings
-setMaxLengthForRequest fn settings = settings { maxLengthForRequest = fn }
+setMaxLengthForRequest
+    :: (Request -> IO (Maybe Word64))
+    -> RequestSizeLimitSettings
+    -> RequestSizeLimitSettings
+setMaxLengthForRequest fn settings = settings{maxLengthForRequest = fn}
 
 -- | Callback function when maximum length is exceeded. The 'Word64' argument is the limit computed by 'setMaxLengthForRequest'.
 --
 -- @since 3.1.1
-setOnLengthExceeded :: (Word64 -> Middleware) -> RequestSizeLimitSettings -> RequestSizeLimitSettings
-setOnLengthExceeded fn settings = settings { onLengthExceeded = fn }
+setOnLengthExceeded
+    :: (Word64 -> Middleware) -> RequestSizeLimitSettings -> RequestSizeLimitSettings
+setOnLengthExceeded fn settings = settings{onLengthExceeded = fn}

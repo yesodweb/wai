@@ -4,11 +4,12 @@ module Control.ReaperSpec (spec) where
 -- import Control.Reaper
 -- import Data.IORef
 import Test.Hspec
--- import Test.Hspec.QuickCheck
 
+-- import Test.Hspec.QuickCheck
 
 spec :: Spec
 spec = return ()
+
 --   prop "works" $ \is -> do
 --     reaper <- mkReaper defaultReaperSettings
 --         { reaperAction = action

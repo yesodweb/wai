@@ -1,15 +1,15 @@
 module Network.Wai.Handler.Warp.Buffer (
-    createWriteBuffer
-  , allocateBuffer
-  , freeBuffer
-  , toBuilderBuffer
-  , bufferIO
-  ) where
+    createWriteBuffer,
+    allocateBuffer,
+    freeBuffer,
+    toBuilderBuffer,
+    bufferIO,
+) where
 
 import Data.IORef (IORef, readIORef)
 import qualified Data.Streaming.ByteString.Builder.Buffer as B (Buffer (..))
 import Foreign.ForeignPtr
-import Foreign.Marshal.Alloc (mallocBytes, free)
+import Foreign.Marshal.Alloc (free, mallocBytes)
 import Foreign.Ptr (plusPtr)
 import Network.Socket.BufferPool
 
@@ -22,13 +22,13 @@ import Network.Wai.Handler.Warp.Types
 -- containing that size and a finalizer.
 createWriteBuffer :: BufSize -> IO WriteBuffer
 createWriteBuffer size = do
-  bytes <- allocateBuffer size
-  return
-    WriteBuffer
-      { bufBuffer = bytes,
-        bufSize = size,
-        bufFree = freeBuffer bytes
-      }
+    bytes <- allocateBuffer size
+    return
+        WriteBuffer
+            { bufBuffer = bytes
+            , bufSize = size
+            , bufFree = freeBuffer bytes
+            }
 
 ----------------------------------------------------------------
 

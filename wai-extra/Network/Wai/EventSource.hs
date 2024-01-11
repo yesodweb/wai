@@ -1,13 +1,12 @@
-{-|
-    A WAI adapter to the HTML5 Server-Sent Events API.
-
-    If running through a proxy like Nginx you might need to add the
-    headers:
-
-    > [ ("X-Accel-Buffering", "no"), ("Cache-Control", "no-cache")]
-
-    There is a small example using these functions in the @example@ directory.
--}
+-- |
+--     A WAI adapter to the HTML5 Server-Sent Events API.
+--
+--     If running through a proxy like Nginx you might need to add the
+--     headers:
+--
+--     > [ ("X-Accel-Buffering", "no"), ("Cache-Control", "no-cache")]
+--
+--     There is a small example using these functions in the @example@ directory.
 module Network.Wai.EventSource (
     ServerEvent (..),
     eventSourceAppChan,
@@ -34,29 +33,32 @@ eventSourceAppChan chan req sendResponse = do
 -- the given IO action.
 eventSourceAppIO :: IO ServerEvent -> Application
 eventSourceAppIO src _ sendResponse =
-    sendResponse $ responseStream
-        status200
-        [(hContentType, "text/event-stream")]
+    sendResponse
+        $ responseStream
+            status200
+            [(hContentType, "text/event-stream")]
         $ \sendChunk flush -> do
             flush
             fix $ \loop -> do
                 se <- src
                 case eventToBuilder se of
                     Nothing -> return ()
-                    Just b  -> sendChunk b >> flush >> loop
+                    Just b -> sendChunk b >> flush >> loop
 
 -- | Make a new WAI EventSource application with a handler that emits events.
 --
 -- @since 3.0.28
-eventStreamAppRaw :: ((ServerEvent -> IO()) -> IO () -> IO ()) -> Application
+eventStreamAppRaw :: ((ServerEvent -> IO ()) -> IO () -> IO ()) -> Application
 eventStreamAppRaw handler _ sendResponse =
-    sendResponse $ responseStream
-        status200
-        [(hContentType, "text/event-stream")]
+    sendResponse
+        $ responseStream
+            status200
+            [(hContentType, "text/event-stream")]
         $ \sendChunk flush -> handler (sendEvent sendChunk) flush
-    where
-        sendEvent sendChunk event =
-            case eventToBuilder event of
-                Nothing -> return ()
-                Just b  -> sendChunk b
+  where
+    sendEvent sendChunk event =
+        case eventToBuilder event of
+            Nothing -> return ()
+            Just b -> sendChunk b
+
 {- HLint ignore eventStreamAppRaw "Use forM_" -}

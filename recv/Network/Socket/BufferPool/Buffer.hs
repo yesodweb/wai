@@ -1,16 +1,16 @@
 module Network.Socket.BufferPool.Buffer (
-    newBufferPool
-  , withBufferPool
-  , mallocBS
-  , copy
-  ) where
+    newBufferPool,
+    withBufferPool,
+    mallocBS,
+    copy,
+) where
 
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal (ByteString(..))
-import Data.ByteString.Unsafe (unsafeTake, unsafeDrop)
+import Data.ByteString.Internal (ByteString (..))
+import Data.ByteString.Unsafe (unsafeDrop, unsafeTake)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Foreign.ForeignPtr
-import Foreign.Marshal.Alloc (mallocBytes, finalizerFree)
+import Foreign.Marshal.Alloc (finalizerFree, mallocBytes)
 import Foreign.Marshal.Utils (copyBytes)
 import Foreign.Ptr (castPtr, plusPtr)
 
@@ -36,8 +36,10 @@ newBufferPool l h = BufferPool l h <$> newIORef BS.empty
 withBufferPool :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO ByteString
 withBufferPool (BufferPool l h ref) f = do
     buf0 <- readIORef ref
-    buf  <- if BS.length buf0 >= l then return buf0
-                                   else mallocBS h
+    buf <-
+        if BS.length buf0 >= l
+            then return buf0
+            else mallocBS h
     consumed <- withForeignBuffer buf f
     writeIORef ref $ unsafeDrop consumed buf
     return $ unsafeTake consumed buf

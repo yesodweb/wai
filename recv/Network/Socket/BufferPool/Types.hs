@@ -12,14 +12,15 @@ type Buffer = Ptr Word8
 type BufSize = Int
 
 -- | Type for read buffer pool.
-data BufferPool = BufferPool {
-    minBufSize :: Int -- ^ If the buffer is larger than or equal to this size,
-                      --   the buffer is used.
-                      --   Otherwise, a new buffer is allocated.
-                      --   The thrown buffer is eventually freed.
-  , maxBufSize :: Int
-  , poolBuffer :: IORef ByteString
-  }
+data BufferPool = BufferPool
+    { minBufSize :: Int
+    -- ^ If the buffer is larger than or equal to this size,
+    --   the buffer is used.
+    --   Otherwise, a new buffer is allocated.
+    --   The thrown buffer is eventually freed.
+    , maxBufSize :: Int
+    , poolBuffer :: IORef ByteString
+    }
 
 -- | Type for the receiving function with a buffer pool.
 type Recv = IO ByteString

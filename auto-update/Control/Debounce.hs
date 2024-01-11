@@ -23,37 +23,40 @@
 -- See the fast-logger package ("System.Log.FastLogger") for real-world usage.
 --
 -- @since 0.1.2
-module Control.Debounce
-    ( -- * Type
-      DI.DebounceSettings
-    , defaultDebounceSettings
-      -- * Accessors
-    , DI.debounceFreq
-    , DI.debounceAction
-    , DI.debounceEdge
-    , DI.leadingEdge
-    , DI.trailingEdge
-      -- * Creation
-    , mkDebounce
-    ) where
+module Control.Debounce (
+    -- * Type
+    DI.DebounceSettings,
+    defaultDebounceSettings,
 
-import           Control.Concurrent      (newEmptyMVar, threadDelay)
+    -- * Accessors
+    DI.debounceFreq,
+    DI.debounceAction,
+    DI.debounceEdge,
+    DI.leadingEdge,
+    DI.trailingEdge,
+
+    -- * Creation
+    mkDebounce,
+) where
+
+import Control.Concurrent (newEmptyMVar, threadDelay)
 import qualified Control.Debounce.Internal as DI
 
 -- | Default value for creating a 'DebounceSettings'.
 --
 -- @since 0.1.2
 defaultDebounceSettings :: DI.DebounceSettings
-defaultDebounceSettings = DI.DebounceSettings
-    { DI.debounceFreq = 1000000
-    , DI.debounceAction = return ()
-    , DI.debounceEdge = DI.leadingEdge
-    }
+defaultDebounceSettings =
+    DI.DebounceSettings
+        { DI.debounceFreq = 1000000
+        , DI.debounceAction = return ()
+        , DI.debounceEdge = DI.leadingEdge
+        }
 
 -- | Generate an action which will trigger the debounced action to be performed.
 --
 -- @since 0.1.2
 mkDebounce :: DI.DebounceSettings -> IO (IO ())
 mkDebounce settings = do
-  baton <- newEmptyMVar
-  DI.mkDebounceInternal baton threadDelay settings
+    baton <- newEmptyMVar
+    DI.mkDebounceInternal baton threadDelay settings

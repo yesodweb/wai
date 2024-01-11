@@ -1,4 +1,6 @@
-{-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module WaiAppEmbeddedTest (embSpec) where
 
 import Codec.Compression.GZip (compress)
@@ -28,27 +30,32 @@ embSpec = do
             assertBody (compress $ body 1000 'A') req
 
         it "304 when valid if-none-match sent" $ embed $ do
-            req <- request (setRawPathInfo defRequest "e1.txt")
-                             { requestHeaders = [("If-None-Match", "Etag 1")] }
+            req <-
+                request
+                    (setRawPathInfo defRequest "e1.txt")
+                        { requestHeaders = [("If-None-Match", "Etag 1")]
+                        }
             assertStatus 304 req
 
         it "ssIndices works" $ do
-            let testSettings = $(mkSettings mkEntries){
-                    ssIndices = [unsafeToPiece "index.html"]
-                }
+            let testSettings =
+                    $(mkSettings mkEntries)
+                        { ssIndices = [unsafeToPiece "index.html"]
+                        }
             embedSettings testSettings $ do
-              req <- request defRequest
-              assertStatus 200 req
-              assertBody "index file" req
+                req <- request defRequest
+                assertStatus 200 req
+                assertBody "index file" req
 
         it "ssIndices works with trailing slashes" $ do
-            let testSettings = $(mkSettings mkEntries){
-                    ssIndices = [unsafeToPiece "index.html"]
-                }
+            let testSettings =
+                    $(mkSettings mkEntries)
+                        { ssIndices = [unsafeToPiece "index.html"]
+                        }
             embedSettings testSettings $ do
-              req <- request (setRawPathInfo defRequest "/foo/")
-              assertStatus 200 req
-              assertBody "index file in subdir" req
+                req <- request (setRawPathInfo defRequest "/foo/")
+                assertStatus 200 req
+                assertBody "index file in subdir" req
 
     describe "embedded, uncompressed entry" $ do
         it "too short" $ embed $ do
@@ -68,13 +75,14 @@ embSpec = do
             assertBody (body 1000 'A') req
 
     describe "reloadable entry" $
-        it "served correctly" $ embed $ do
-            req <- request (setRawPathInfo defRequest "e4.css")
-            assertStatus 200 req
-            assertHeader "Content-Type" "text/css" req
-            assertNoHeader "Content-Encoding" req
-            assertHeader "ETag" "Etag 4" req
-            assertBody (body 2000 'Q') req
+        it "served correctly" $
+            embed $ do
+                req <- request (setRawPathInfo defRequest "e4.css")
+                assertStatus 200 req
+                assertHeader "Content-Type" "text/css" req
+                assertNoHeader "Content-Encoding" req
+                assertHeader "ETag" "Etag 4" req
+                assertBody (body 2000 'Q') req
 
     describe "entries without etags" $ do
         it "embedded entry" $ embed $ do
