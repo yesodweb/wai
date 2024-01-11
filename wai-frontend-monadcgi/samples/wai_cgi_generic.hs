@@ -1,14 +1,16 @@
 {-# LANGUAGE PackageImports #-}
+
 import qualified Network.CGI
-import qualified Network.Wai.Handler.SimpleServer
 import qualified Network.Wai.Frontend.MonadCGI
+import qualified Network.Wai.Handler.SimpleServer
 import "mtl" Control.Monad.Reader
 
 main :: IO ()
-main = Network.Wai.Handler.SimpleServer.run 3000
-     $ Network.Wai.Frontend.MonadCGI.cgiToAppGeneric
-       monadToIO
-       mainCGI
+main =
+    Network.Wai.Handler.SimpleServer.run 3000 $
+        Network.Wai.Frontend.MonadCGI.cgiToAppGeneric
+            monadToIO
+            mainCGI
 
 mainCGI :: Network.CGI.CGIT (Reader String) Network.CGI.CGIResult
 mainCGI = do

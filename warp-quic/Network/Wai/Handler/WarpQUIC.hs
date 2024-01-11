@@ -21,21 +21,23 @@ runQUIC :: QUICSettings -> Settings -> Application -> IO ()
 runQUIC quicsettings settings app = do
     withII settings $ \ii ->
         Q.run quicsettings $ \conn -> do
-           info <- getConnectionInfo conn
-           mccc <- clientCertificateChain conn
-           let addr = remoteSockAddr info
-               malpn = alpn info
-               transport = QUIC {
-                   quicNegotiatedProtocol = malpn
-                 , quicChiperID = cipherID $ cipher info
-                 , quicClientCertificate = mccc
-                 }
-               pread = pReadMaker ii
-               timmgr = timeoutManager ii
-               conf = H3.Config H3.defaultHooks pread timmgr
-           case malpn of
-             Nothing -> return ()
-             Just appProto -> do
-                 let runX | "h3" `BS.isPrefixOf` appProto = H3.run
-                          | otherwise                     = HQ.run
-                 runX conn conf $ http2server settings ii transport addr app
+            info <- getConnectionInfo conn
+            mccc <- clientCertificateChain conn
+            let addr = remoteSockAddr info
+                malpn = alpn info
+                transport =
+                    QUIC
+                        { quicNegotiatedProtocol = malpn
+                        , quicChiperID = cipherID $ cipher info
+                        , quicClientCertificate = mccc
+                        }
+                pread = pReadMaker ii
+                timmgr = timeoutManager ii
+                conf = H3.Config H3.defaultHooks pread timmgr
+            case malpn of
+                Nothing -> return ()
+                Just appProto -> do
+                    let runX
+                            | "h3" `BS.isPrefixOf` appProto = H3.run
+                            | otherwise = HQ.run
+                    runX conn conf $ http2server settings ii transport addr app

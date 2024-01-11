@@ -1,15 +1,16 @@
 {-# LANGUAGE LambdaCase #-}
+
 module Network.WaiSpec (spec) where
 
+import Control.Monad (forM_)
+import qualified Data.ByteString as S
+import Data.ByteString.Builder (Builder, toLazyByteString, word8)
+import qualified Data.ByteString.Lazy as L
+import Data.IORef
+import Data.Word (Word8)
+import Network.Wai
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
-import Network.Wai
-import Data.Word (Word8)
-import Data.IORef
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
-import Data.ByteString.Builder (Builder, toLazyByteString, word8)
-import Control.Monad (forM_)
 
 spec :: Spec
 spec = do
@@ -29,8 +30,11 @@ spec = do
             body <- getBody $ responseLBS undefined undefined $ L.pack bytes
             body `shouldBe` S.pack bytes
         prop "responseBuilder" $ \bytes -> do
-            body <- getBody $ responseBuilder undefined undefined
-                            $ mconcat $ map word8 bytes
+            body <-
+                getBody $
+                    responseBuilder undefined undefined $
+                        mconcat $
+                            map word8 bytes
             body `shouldBe` S.pack bytes
         prop "responseStream" $ \chunks -> do
             body <- getBody $ responseStream undefined undefined $ \sendChunk _ ->
@@ -47,11 +51,15 @@ spec = do
             let total = S.length totalBS
                 offset = abs offset' `mod` total
                 count = abs count' `mod` (total - offset)
-            body <- getBody $ responseFile undefined undefined fp $ Just FilePart
-                { filePartOffset = fromIntegral offset
-                , filePartByteCount = fromIntegral count
-                , filePartFileSize = fromIntegral total
-                }
+            body <-
+                getBody $
+                    responseFile undefined undefined fp $
+                        Just
+                            FilePart
+                                { filePartOffset = fromIntegral offset
+                                , filePartByteCount = fromIntegral count
+                                , filePartFileSize = fromIntegral total
+                                }
             let expected = S.take count $ S.drop offset totalBS
             body `shouldBe` expected
     describe "lazyRequestBody" $ do
@@ -76,4 +84,4 @@ mkRequestFromChunks chunks = do
         flip setRequestBodyChunks defaultRequest $
             atomicModifyIORef ref $ \case
                 [] -> ([], S.empty)
-                x:y -> (y, x)
+                x : y -> (y, x)

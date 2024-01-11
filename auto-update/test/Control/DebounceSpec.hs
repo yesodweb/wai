@@ -75,7 +75,6 @@ spec = describe "mkDebounce" $ do
             returnFromWait
             waitUntil 5 $ readIORef ref `shouldReturn` 1
 
-
 -- | Make a controllable delay function
 getWaitAction :: IO (p -> IO (), IO ())
 getWaitAction = do
@@ -87,20 +86,24 @@ getWaitAction = do
 -- | Get a debounce system with access to the internals for testing
 getDebounce :: DI.DebounceEdge -> IO (IORef Int, IO (), MVar (), IO ())
 getDebounce edge = do
-  ref <- newIORef 0
-  let action = modifyIORef ref (+ 1)
+    ref <- newIORef 0
+    let action = modifyIORef ref (+ 1)
 
-  (waitAction, returnFromWait) <- getWaitAction
+    (waitAction, returnFromWait) <- getWaitAction
 
-  baton <- newEmptyMVar
+    baton <- newEmptyMVar
 
-  debounced <- DI.mkDebounceInternal baton waitAction defaultDebounceSettings {
-    debounceFreq = 5000000 -- unused
-    , debounceAction = action
-    , debounceEdge = edge
-    }
+    debounced <-
+        DI.mkDebounceInternal
+            baton
+            waitAction
+            defaultDebounceSettings
+                { debounceFreq = 5000000 -- unused
+                , debounceAction = action
+                , debounceEdge = edge
+                }
 
-  return (ref, debounced, baton, returnFromWait)
+    return (ref, debounced, baton, returnFromWait)
 
 -- | Pause briefly (100ms)
 pause :: IO ()
@@ -112,8 +115,9 @@ waitForBatonToBeTaken baton = waitUntil 5 $ tryReadMVar baton `shouldReturn` Not
 -- | Wait up to n seconds for an action to complete without throwing an HUnitFailure
 waitUntil :: Int -> IO a -> IO ()
 waitUntil n action = recovering policy [handler] (\_status -> void action)
-  where policy = constantDelay 1000 `mappend` limitRetries (n * 1000) -- 1ms * n * 1000 tries = n seconds
-        handler _status = Handler (\HUnitFailure{} -> return True)
+  where
+    policy = constantDelay 1000 `mappend` limitRetries (n * 1000) -- 1ms * n * 1000 tries = n seconds
+    handler _status = Handler (\HUnitFailure{} -> return True)
 
 main :: IO ()
 main = hspec spec

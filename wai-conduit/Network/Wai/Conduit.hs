@@ -1,23 +1,25 @@
 -- | A light-weight wrapper around @Network.Wai@ to provide easy conduit support.
-module Network.Wai.Conduit
-    ( -- * Request body
-      sourceRequestBody
-      -- * Response body
-    , responseSource
-    , responseRawSource
-      -- * Re-export
-    , module Network.Wai
-    ) where
+module Network.Wai.Conduit (
+    -- * Request body
+    sourceRequestBody,
 
-import Network.Wai
-import Data.Conduit
+    -- * Response body
+    responseSource,
+    responseRawSource,
+
+    -- * Re-export
+    module Network.Wai,
+) where
+
+import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import Control.Monad (unless)
-import Network.HTTP.Types
 import Data.ByteString.Builder (Builder)
+import Data.Conduit
 import qualified Data.Conduit.List as CL
+import Network.HTTP.Types
+import Network.Wai
 
 -- | Stream the request body.
 --
@@ -37,12 +39,17 @@ sourceRequestBody req =
 -- | Create an HTTP response out of a @Source@.
 --
 -- Since 3.0.0
-responseSource :: Status -> ResponseHeaders -> ConduitT () (Flush Builder) IO () -> Response
+responseSource
+    :: Status -> ResponseHeaders -> ConduitT () (Flush Builder) IO () -> Response
 responseSource s hs src = responseStream s hs $ \send flush ->
-    runConduit $ src .| CL.mapM_ (\mbuilder ->
-        case mbuilder of
-            Chunk b -> send b
-            Flush -> flush)
+    runConduit $
+        src
+            .| CL.mapM_
+                ( \mbuilder ->
+                    case mbuilder of
+                        Chunk b -> send b
+                        Flush -> flush
+                )
 
 -- | Create a raw response using @Source@ and @Sink@ conduits.
 --
@@ -55,10 +62,11 @@ responseSource s hs src = responseStream s hs $ \send flush ->
 -- the handler does not support @responseRaw@.
 --
 -- Since 3.0.0
-responseRawSource :: (MonadIO m, MonadIO n)
-                  => (ConduitT () ByteString m () -> ConduitT ByteString Void n () -> IO ())
-                  -> Response
-                  -> Response
+responseRawSource
+    :: (MonadIO m, MonadIO n)
+    => (ConduitT () ByteString m () -> ConduitT ByteString Void n () -> IO ())
+    -> Response
+    -> Response
 responseRawSource app =
     responseRaw app'
   where

@@ -15,7 +15,8 @@ import Test.Hspec
 main :: IO ()
 main = hspec spec
 
-changeHeaders :: (ResponseHeaders -> ResponseHeaders) -> RspFileInfo -> RspFileInfo
+changeHeaders
+    :: (ResponseHeaders -> ResponseHeaders) -> RspFileInfo -> RspFileInfo
 changeHeaders f rfi =
     case rfi of
         WithBody s hs off len -> WithBody s (f hs) off len
@@ -27,10 +28,11 @@ getHeaders rfi =
         WithBody _ hs _ _ -> hs
         _ -> []
 
-testFileRange :: String
-              -> RequestHeaders
-              -> RspFileInfo
-              -> Spec
+testFileRange
+    :: String
+    -> RequestHeaders
+    -> RspFileInfo
+    -> Spec
 testFileRange desc reqhs ans = it desc $ do
     finfo <- getInfo "attic/hex"
     let f = (:) ("Last-Modified", fileInfoDate finfo)
@@ -41,21 +43,25 @@ testFileRange desc reqhs ans = it desc $ do
         []
         methodGet
         (indexResponseHeader hs)
-        (indexRequestHeader reqhs) `shouldBe` ans'
+        (indexRequestHeader reqhs)
+        `shouldBe` ans'
 
 farPast, farFuture :: ByteString
 farPast = "Thu, 01 Jan 1970 00:00:00 GMT"
 farFuture = "Sun, 05 Oct 3000 00:00:00 GMT"
 
 regularBody :: RspFileInfo
-regularBody = WithBody ok200 [("Content-Length","16"),("Accept-Ranges","bytes")] 0 16
+regularBody = WithBody ok200 [("Content-Length", "16"), ("Accept-Ranges", "bytes")] 0 16
 
 make206Body :: Integer -> Integer -> RspFileInfo
 make206Body start len =
-    WithBody status206 [crHeader, lenHeader, ("Accept-Ranges","bytes")] start len
+    WithBody status206 [crHeader, lenHeader, ("Accept-Ranges", "bytes")] start len
   where
     lenHeader = ("Content-Length", fromString $ show len)
-    crHeader = ("Content-Range", fromString $ "bytes " <> show start <> "-" <> show (start + len - 1) <> "/16")
+    crHeader =
+        ( "Content-Range"
+        , fromString $ "bytes " <> show start <> "-" <> show (start + len - 1) <> "/16"
+        )
 
 spec :: Spec
 spec = do
@@ -66,15 +72,15 @@ spec = do
             regularBody
         testFileRange
             "gets a file size from file system and handles Range and returns Partical Content"
-            [("Range","bytes=2-14")]
+            [("Range", "bytes=2-14")]
             $ make206Body 2 13
         testFileRange
             "truncates end point of range to file size"
-            [("Range","bytes=10-20")]
+            [("Range", "bytes=10-20")]
             $ make206Body 10 6
         testFileRange
             "gets a file size from file system and handles Range and returns OK if Range means the entire"
-            [("Range:","bytes=0-15")]
+            [("Range:", "bytes=0-15")]
             regularBody
         testFileRange
             "returns a 412 if the file has been changed in the meantime"
@@ -90,7 +96,10 @@ spec = do
             regularBody
         testFileRange
             "still gives only a range, even after conditionals"
-            [("If-Match", "SomeETag"), ("If-Unmodified-Since", farPast), ("Range","bytes=10-20")]
+            [ ("If-Match", "SomeETag")
+            , ("If-Unmodified-Since", farPast)
+            , ("Range", "bytes=10-20")
+            ]
             $ make206Body 10 6
         testFileRange
             "gets a file if the file has been changed in the meantime"
@@ -106,13 +115,18 @@ spec = do
             regularBody
         testFileRange
             "still gives only a range, even after conditionals"
-            [("If-None-Match", "SomeETag"), ("If-Modified-Since", farFuture), ("Range","bytes=10-13")]
+            [ ("If-None-Match", "SomeETag")
+            , ("If-Modified-Since", farFuture)
+            , ("Range", "bytes=10-13")
+            ]
             $ make206Body 10 4
         testFileRange
             "gives the a range, if the condition is met"
-            [("If-Range", fileInfoDate (unsafePerformIO $ getInfo "attic/hex")), ("Range","bytes=2-7")]
+            [ ("If-Range", fileInfoDate (unsafePerformIO $ getInfo "attic/hex"))
+            , ("Range", "bytes=2-7")
+            ]
             $ make206Body 2 6
         testFileRange
             "gives the entire body and ignores the Range header if the condition isn't met"
-            [("If-Range", farPast), ("Range","bytes=2-7")]
+            [("If-Range", farPast), ("Range", "bytes=2-7")]
             regularBody

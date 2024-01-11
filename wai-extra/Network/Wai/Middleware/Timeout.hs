@@ -1,9 +1,9 @@
 -- | Timeout requests
-module Network.Wai.Middleware.Timeout
-    ( timeout
-    , timeoutStatus
-    , timeoutAs
-    ) where
+module Network.Wai.Middleware.Timeout (
+    timeout,
+    timeoutStatus,
+    timeoutAs,
+) where
 
 import Network.HTTP.Types (Status, status503)
 import Network.Wai

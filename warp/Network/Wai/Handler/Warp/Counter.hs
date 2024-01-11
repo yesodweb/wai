@@ -1,17 +1,16 @@
 {-# LANGUAGE CPP #-}
 
 module Network.Wai.Handler.Warp.Counter (
-    Counter
-  , newCounter
-  , waitForZero
-  , increase
-  , decrease
-  ) where
+    Counter,
+    newCounter,
+    waitForZero,
+    increase,
+    decrease,
+) where
 
 import Control.Concurrent.STM
 
 import Network.Wai.Handler.Warp.Imports
-
 
 newtype Counter = Counter (TVar Int)
 

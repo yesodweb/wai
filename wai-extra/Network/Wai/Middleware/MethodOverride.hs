@@ -1,6 +1,6 @@
-module Network.Wai.Middleware.MethodOverride
-    ( methodOverride
-    ) where
+module Network.Wai.Middleware.MethodOverride (
+    methodOverride,
+) where
 
 import Control.Monad (join)
 import Network.Wai (Middleware, queryString, requestMethod)
@@ -16,5 +16,5 @@ methodOverride app req =
   where
     req' =
         case (requestMethod req, join $ lookup "_method" $ queryString req) of
-            ("POST", Just m) -> req { requestMethod = m }
+            ("POST", Just m) -> req{requestMethod = m}
             _ -> req

@@ -2,24 +2,24 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.Wai.Middleware.Push.Referer.Manager (
-    MakePushPromise
-  , defaultMakePushPromise
-  , Settings(..)
-  , defaultSettings
-  , Manager
-  , URLPath
-  , getManager
-  , Network.Wai.Middleware.Push.Referer.Manager.lookup
-  , Network.Wai.Middleware.Push.Referer.Manager.insert
-  ) where
+    MakePushPromise,
+    defaultMakePushPromise,
+    Settings (..),
+    defaultSettings,
+    Manager,
+    URLPath,
+    getManager,
+    Network.Wai.Middleware.Push.Referer.Manager.lookup,
+    Network.Wai.Middleware.Push.Referer.Manager.insert,
+) where
 
 import Control.Monad (unless)
 import Data.IORef
 import Network.Wai.Handler.Warp hiding (Settings, defaultSettings)
 import System.IO.Unsafe (unsafePerformIO)
 
-import Network.Wai.Middleware.Push.Referer.Types
 import qualified Network.Wai.Middleware.Push.Referer.LRU as LRU
+import Network.Wai.Middleware.Push.Referer.Types
 
 newtype Manager = Manager (IORef (LRU.Cache URLPath PushPromise))
 

@@ -1,9 +1,10 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-module Network.Wai.Handler.SCGI
-    ( run
-    , runSendfile
-    ) where
+
+module Network.Wai.Handler.SCGI (
+    run,
+    runSendfile,
+) where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
@@ -35,8 +36,12 @@ runOne sf app = do
                 (i, _) <- listToMaybe $ reads conLenS
                 pure i
     conLenI <- newIORef conLen
-    runGeneric headers (requestBodyFunc $ input socket conLenI)
-              (write socket) sf app
+    runGeneric
+        headers
+        (requestBodyFunc $ input socket conLenI)
+        (write socket)
+        sf
+        app
     drain socket conLenI
     _ <- c'close socket
     return ()
@@ -52,8 +57,9 @@ input socket ilen rlen = do
     case len of
         0 -> return Nothing
         _ -> do
-            bs <- readByteString socket
-                $ minimum [defaultChunkSize, len, rlen]
+            bs <-
+                readByteString socket $
+                    minimum [defaultChunkSize, len, rlen]
             writeIORef ilen $ len - S.length bs
             return $ Just bs
 
@@ -64,7 +70,7 @@ drain socket ilen = do
     return ()
 
 parseHeaders :: [S.ByteString] -> [(String, String)]
-parseHeaders (x:y:z) = (S8.unpack x, S8.unpack y) : parseHeaders z
+parseHeaders (x : y : z) = (S8.unpack x, S8.unpack y) : parseHeaders z
 parseHeaders _ = []
 
 readNetstring :: CInt -> IO S.ByteString

@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.Wai.Middleware.ApprootSpec
-    ( main
-    , spec
-    ) where
+
+module Network.Wai.Middleware.ApprootSpec (
+    main,
+    spec,
+) where
 
 import Data.ByteString (ByteString)
 import Network.HTTP.Types (RequestHeaders, status200)
@@ -22,16 +23,23 @@ spec = do
             simpleHeaders resp `shouldBe` [("Approot", expected)]
     test "respects host header" "foobar" False [] "http://foobar"
     test "respects isSecure" "foobar" True [] "https://foobar"
-    test "respects SSL headers" "foobar" False
-        [("HTTP_X_FORWARDED_SSL", "on")] "https://foobar"
+    test
+        "respects SSL headers"
+        "foobar"
+        False
+        [("HTTP_X_FORWARDED_SSL", "on")]
+        "https://foobar"
 
 runApp :: ByteString -> Bool -> RequestHeaders -> IO SResponse
-runApp host secure headers = runSession
-    (request defaultRequest
-        { requestHeaderHost = Just host
-        , isSecure = secure
-        , requestHeaders = headers
-        }) $ fromRequest app
-
+runApp host secure headers =
+    runSession
+        ( request
+            defaultRequest
+                { requestHeaderHost = Just host
+                , isSecure = secure
+                , requestHeaders = headers
+                }
+        )
+        $ fromRequest app
   where
     app req respond = respond $ responseLBS status200 [("Approot", getApproot req)] ""

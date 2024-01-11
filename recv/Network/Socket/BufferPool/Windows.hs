@@ -1,7 +1,8 @@
 {-# LANGUAGE CPP #-}
-module Network.Socket.BufferPool.Windows
-  ( windowsThreadBlockHack
-  ) where
+
+module Network.Socket.BufferPool.Windows (
+    windowsThreadBlockHack,
+) where
 
 #ifdef mingw32_HOST_OS
 import Control.Concurrent.MVar

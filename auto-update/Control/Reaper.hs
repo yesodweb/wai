@@ -1,5 +1,5 @@
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE BangPatterns       #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | This module provides the ability to create reapers: dedicated cleanup
 -- threads. These threads will automatically spawn and die based on the
@@ -12,28 +12,32 @@
 -- For real-world usage, search the <https://github.com/yesodweb/wai WAI family of packages>
 -- for imports of "Control.Reaper".
 module Control.Reaper (
-      -- * Example: Regularly cleaning a cache
-      -- $example1
+    -- * Example: Regularly cleaning a cache
+    -- $example1
 
-      -- * Settings
-      ReaperSettings
-    , defaultReaperSettings
-      -- * Accessors
-    , reaperAction
-    , reaperDelay
-    , reaperCons
-    , reaperNull
-    , reaperEmpty
-      -- * Type
-    , Reaper(..)
-      -- * Creation
-    , mkReaper
-      -- * Helper
-    , mkListAction
-    ) where
+    -- * Settings
+    ReaperSettings,
+    defaultReaperSettings,
+
+    -- * Accessors
+    reaperAction,
+    reaperDelay,
+    reaperCons,
+    reaperNull,
+    reaperEmpty,
+
+    -- * Type
+    Reaper (..),
+
+    -- * Creation
+    mkReaper,
+
+    -- * Helper
+    mkListAction,
+) where
 
 import Control.AutoUpdate.Util (atomicModifyIORef')
-import Control.Concurrent (forkIO, threadDelay, killThread, ThreadId)
+import Control.Concurrent (ThreadId, forkIO, killThread, threadDelay)
 import Control.Exception (mask_)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 
@@ -90,30 +94,34 @@ data ReaperSettings workload item = ReaperSettings
 --
 -- @since 0.1.1
 defaultReaperSettings :: ReaperSettings [item] item
-defaultReaperSettings = ReaperSettings
-    { reaperAction = \wl -> return (wl ++)
-    , reaperDelay = 30000000
-    , reaperCons = (:)
-    , reaperNull = null
-    , reaperEmpty = []
-    }
+defaultReaperSettings =
+    ReaperSettings
+        { reaperAction = \wl -> return (wl ++)
+        , reaperDelay = 30000000
+        , reaperCons = (:)
+        , reaperNull = null
+        , reaperEmpty = []
+        }
 
 -- | A data structure to hold reaper APIs.
-data Reaper workload item = Reaper {
-    -- | Adding an item to the workload
-    reaperAdd  :: item -> IO ()
-    -- | Reading workload.
-  , reaperRead :: IO workload
-    -- | Stopping the reaper thread if exists.
+data Reaper workload item = Reaper
+    { reaperAdd :: item -> IO ()
+    -- ^ Adding an item to the workload
+    , reaperRead :: IO workload
+    -- ^ Reading workload.
+    , reaperStop :: IO workload
+    -- ^ Stopping the reaper thread if exists.
     --   The current workload is returned.
-  , reaperStop :: IO workload
-    -- | Killing the reaper thread immediately if exists.
-  , reaperKill :: IO ()
-  }
+    , reaperKill :: IO ()
+    -- ^ Killing the reaper thread immediately if exists.
+    }
 
 -- | State of reaper.
-data State workload = NoReaper           -- ^ No reaper thread
-                    | Workload !workload  -- ^ The current jobs
+data State workload
+    = -- | No reaper thread
+      NoReaper
+    | -- | The current jobs
+      Workload !workload
 
 -- | Create a reaper addition function. This function can be used to add
 -- new items to the workload. Spawning of reaper threads will be handled
@@ -123,52 +131,62 @@ data State workload = NoReaper           -- ^ No reaper thread
 mkReaper :: ReaperSettings workload item -> IO (Reaper workload item)
 mkReaper settings@ReaperSettings{..} = do
     stateRef <- newIORef NoReaper
-    tidRef   <- newIORef Nothing
-    return Reaper {
-        reaperAdd  = add settings stateRef tidRef
-      , reaperRead = readRef stateRef
-      , reaperStop = stop stateRef
-      , reaperKill = kill tidRef
-      }
+    tidRef <- newIORef Nothing
+    return
+        Reaper
+            { reaperAdd = add settings stateRef tidRef
+            , reaperRead = readRef stateRef
+            , reaperStop = stop stateRef
+            , reaperKill = kill tidRef
+            }
   where
     readRef stateRef = do
         mx <- readIORef stateRef
         case mx of
-            NoReaper    -> return reaperEmpty
+            NoReaper -> return reaperEmpty
             Workload wl -> return wl
     stop stateRef = atomicModifyIORef' stateRef $ \mx ->
         case mx of
-            NoReaper   -> (NoReaper, reaperEmpty)
+            NoReaper -> (NoReaper, reaperEmpty)
             Workload x -> (Workload reaperEmpty, x)
     kill tidRef = do
         mtid <- readIORef tidRef
         case mtid of
-            Nothing  -> return ()
+            Nothing -> return ()
             Just tid -> killThread tid
 
-add :: ReaperSettings workload item
-    -> IORef (State workload) -> IORef (Maybe ThreadId)
-    -> item -> IO ()
+add
+    :: ReaperSettings workload item
+    -> IORef (State workload)
+    -> IORef (Maybe ThreadId)
+    -> item
+    -> IO ()
 add settings@ReaperSettings{..} stateRef tidRef item =
     mask_ $ do
-      next <- atomicModifyIORef' stateRef cons
-      next
+        next <- atomicModifyIORef' stateRef cons
+        next
   where
-    cons NoReaper      = let wl = reaperCons item reaperEmpty
-                         in (Workload wl, spawn settings stateRef tidRef)
-    cons (Workload wl) = let wl' = reaperCons item wl
-                         in (Workload wl', return ())
+    cons NoReaper =
+        let wl = reaperCons item reaperEmpty
+         in (Workload wl, spawn settings stateRef tidRef)
+    cons (Workload wl) =
+        let wl' = reaperCons item wl
+         in (Workload wl', return ())
 
-spawn :: ReaperSettings workload item
-      -> IORef (State workload) -> IORef (Maybe ThreadId)
-      -> IO ()
+spawn
+    :: ReaperSettings workload item
+    -> IORef (State workload)
+    -> IORef (Maybe ThreadId)
+    -> IO ()
 spawn settings stateRef tidRef = do
     tid <- forkIO $ reaper settings stateRef tidRef
     writeIORef tidRef $ Just tid
 
-reaper :: ReaperSettings workload item
-       -> IORef (State workload) -> IORef (Maybe ThreadId)
-       -> IO ()
+reaper
+    :: ReaperSettings workload item
+    -> IORef (State workload)
+    -> IORef (Maybe ThreadId)
+    -> IO ()
 reaper settings@ReaperSettings{..} stateRef tidRef = do
     threadDelay reaperDelay
     -- Getting the current jobs. Push an empty job to the reference.
@@ -181,15 +199,15 @@ reaper settings@ReaperSettings{..} stateRef tidRef = do
     next <- atomicModifyIORef' stateRef (check merge)
     next
   where
-    swapWithEmpty NoReaper      = error "Control.Reaper.reaper: unexpected NoReaper (1)"
+    swapWithEmpty NoReaper = error "Control.Reaper.reaper: unexpected NoReaper (1)"
     swapWithEmpty (Workload wl) = (Workload reaperEmpty, wl)
 
-    check _ NoReaper   = error "Control.Reaper.reaper: unexpected NoReaper (2)"
+    check _ NoReaper = error "Control.Reaper.reaper: unexpected NoReaper (2)"
     check merge (Workload wl)
-      -- If there is no job, reaper is terminated.
-      | reaperNull wl' = (NoReaper, writeIORef tidRef Nothing)
-      -- If there are jobs, carry them out.
-      | otherwise      = (Workload wl', reaper settings stateRef tidRef)
+        -- If there is no job, reaper is terminated.
+        | reaperNull wl' = (NoReaper, writeIORef tidRef Nothing)
+        -- If there are jobs, carry them out.
+        | otherwise = (Workload wl', reaper settings stateRef tidRef)
       where
         wl' = merge wl
 
@@ -199,19 +217,20 @@ reaper settings@ReaperSettings{..} stateRef tidRef = do
 -- expired.
 --
 -- @since 0.1.1
-mkListAction :: (item -> IO (Maybe item'))
-             -> [item]
-             -> IO ([item'] -> [item'])
+mkListAction
+    :: (item -> IO (Maybe item'))
+    -> [item]
+    -> IO ([item'] -> [item'])
 mkListAction f =
     go id
   where
     go !front [] = return front
-    go !front (x:xs) = do
+    go !front (x : xs) = do
         my <- f x
         let front' =
                 case my of
                     Nothing -> front
-                    Just y  -> front . (y:)
+                    Just y -> front . (y :)
         go front' xs
 
 -- $example1

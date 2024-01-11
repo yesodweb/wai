@@ -1,43 +1,38 @@
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TupleSections #-}
 
-module Network.Wai.Middleware.Rewrite
-    ( -- * How to use this module
-      -- $howto
+module Network.Wai.Middleware.Rewrite (
+    -- * How to use this module
+    -- $howto
 
-      -- ** A note on semantics
+    -- ** A note on semantics
+    -- $semantics
 
-      -- $semantics
+    -- ** Paths and Queries
+    -- $pathsandqueries
+    PathsAndQueries,
 
-      -- ** Paths and Queries
+    -- ** An example rewriting paths with queries
+    -- $takeover
 
-      -- $pathsandqueries
-      PathsAndQueries
+    -- ** Upgrading from wai-extra ≤ 3.0.16.1
+    -- $upgrading
 
-      -- ** An example rewriting paths with queries
+    -- * 'Middleware'
 
-      -- $takeover
+    -- ** Recommended functions
+    rewriteWithQueries,
+    rewritePureWithQueries,
+    rewriteRoot,
 
-      -- ** Upgrading from wai-extra ≤ 3.0.16.1
+    -- ** Deprecated
+    rewrite,
+    rewritePure,
 
-      -- $upgrading
-
-      -- * 'Middleware'
-
-      -- ** Recommended functions
-    , rewriteWithQueries
-    , rewritePureWithQueries
-    , rewriteRoot
-
-      -- ** Deprecated
-    , rewrite
-    , rewritePure
-
-      -- * Operating on 'Request's
-
-    , rewriteRequest
-    , rewriteRequestPure
-    ) where
+    -- * Operating on 'Request's
+    rewriteRequest,
+    rewriteRequestPure,
+) where
 
 -- GHC ≤ 7.10 does not export Applicative functions from the prelude.
 #if __GLASGOW_HASKELL__ <= 710
@@ -50,7 +45,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Network.HTTP.Types as H
 import Network.Wai
-
 
 -- $howto
 -- This module provides 'Middleware' to rewrite URL paths. It also provides
@@ -202,7 +196,9 @@ import Network.Wai
 -- upgrading as the upgraded functions no longer modify 'rawPathInfo'.
 
 --------------------------------------------------
+
 -- * Types
+
 --------------------------------------------------
 
 -- | A tuple of the path sections as ['Text'] and query parameters as
@@ -216,7 +212,9 @@ import Network.Wai
 type PathsAndQueries = ([Text], H.Query)
 
 --------------------------------------------------
+
 -- * Rewriting 'Middleware'
+
 --------------------------------------------------
 
 -- | Rewrite based on your own conversion function for paths only, to be
@@ -225,14 +223,17 @@ type PathsAndQueries = ([Text], H.Query)
 -- For new code, use 'rewriteWithQueries' instead.
 rewrite :: ([Text] -> H.RequestHeaders -> IO [Text]) -> Middleware
 rewrite convert app req sendResponse = do
-  let convertIO = pathsOnly . curry $ liftIO . uncurry convert
-  newReq <- rewriteRequestRawM convertIO req
-  app newReq sendResponse
-{-# WARNING rewrite [
-          "This modifies the 'rawPathInfo' field of a 'Request'."
-        , " This is not recommended behaviour; it is however how"
-        , " this function has worked in the past."
-        , " Use 'rewriteWithQueries' instead"] #-}
+    let convertIO = pathsOnly . curry $ liftIO . uncurry convert
+    newReq <- rewriteRequestRawM convertIO req
+    app newReq sendResponse
+{-# WARNING
+    rewrite
+    [ "This modifies the 'rawPathInfo' field of a 'Request'."
+    , " This is not recommended behaviour; it is however how"
+    , " this function has worked in the past."
+    , " Use 'rewriteWithQueries' instead"
+    ]
+    #-}
 
 -- | Rewrite based on pure conversion function for paths only, to be
 -- supplied by users of this library.
@@ -240,28 +241,33 @@ rewrite convert app req sendResponse = do
 -- For new code, use 'rewritePureWithQueries' instead.
 rewritePure :: ([Text] -> H.RequestHeaders -> [Text]) -> Middleware
 rewritePure convert app req =
-  let convertPure = pathsOnly . curry $ Identity . uncurry convert
-      newReq = runIdentity $ rewriteRequestRawM convertPure req
-  in  app newReq
-{-# WARNING rewritePure [
-          "This modifies the 'rawPathInfo' field of a 'Request'."
-        , " This is not recommended behaviour; it is however how"
-        , " this function has worked in the past."
-        , " Use 'rewritePureWithQueries' instead"] #-}
+    let convertPure = pathsOnly . curry $ Identity . uncurry convert
+        newReq = runIdentity $ rewriteRequestRawM convertPure req
+     in app newReq
+{-# WARNING
+    rewritePure
+    [ "This modifies the 'rawPathInfo' field of a 'Request'."
+    , " This is not recommended behaviour; it is however how"
+    , " this function has worked in the past."
+    , " Use 'rewritePureWithQueries' instead"
+    ]
+    #-}
 
 -- | Rewrite based on your own conversion function for paths and queries.
 -- This function is to be supplied by users of this library, and operates
 -- in 'IO'.
-rewriteWithQueries :: (PathsAndQueries -> H.RequestHeaders -> IO PathsAndQueries)
-                   -> Middleware
+rewriteWithQueries
+    :: (PathsAndQueries -> H.RequestHeaders -> IO PathsAndQueries)
+    -> Middleware
 rewriteWithQueries convert app req sendResponse = do
-  newReq <- rewriteRequestM convert req
-  app newReq sendResponse
+    newReq <- rewriteRequestM convert req
+    app newReq sendResponse
 
 -- | Rewrite based on pure conversion function for paths and queries. This
 -- function is to be supplied by users of this library.
-rewritePureWithQueries :: (PathsAndQueries -> H.RequestHeaders -> PathsAndQueries)
-                       -> Middleware
+rewritePureWithQueries
+    :: (PathsAndQueries -> H.RequestHeaders -> PathsAndQueries)
+    -> Middleware
 rewritePureWithQueries convert app req = app $ rewriteRequestPure convert req
 
 -- | Rewrite root requests (/) to a specified path
@@ -280,60 +286,79 @@ rewriteRoot root = rewritePureWithQueries onlyRoot
     onlyRoot paths _ = paths
 
 --------------------------------------------------
+
 -- * Modifying 'Request's directly
+
 --------------------------------------------------
 
 -- | Modify a 'Request' using the supplied function in 'IO'. This is suitable for
 -- the reverse proxy example.
-rewriteRequest :: (PathsAndQueries -> H.RequestHeaders -> IO PathsAndQueries)
-               -> Request -> IO Request
+rewriteRequest
+    :: (PathsAndQueries -> H.RequestHeaders -> IO PathsAndQueries)
+    -> Request
+    -> IO Request
 rewriteRequest convert req =
-  let convertIO = curry $ liftIO . uncurry convert
-  in  rewriteRequestRawM convertIO req
+    let convertIO = curry $ liftIO . uncurry convert
+     in rewriteRequestRawM convertIO req
 
 -- | Modify a 'Request' using the pure supplied function. This is suitable for
 -- the reverse proxy example.
-rewriteRequestPure :: (PathsAndQueries -> H.RequestHeaders -> PathsAndQueries)
-                   -> Request -> Request
+rewriteRequestPure
+    :: (PathsAndQueries -> H.RequestHeaders -> PathsAndQueries)
+    -> Request
+    -> Request
 rewriteRequestPure convert req =
-  let convertPure = curry $ Identity . uncurry convert
-  in  runIdentity $ rewriteRequestRawM convertPure req
+    let convertPure = curry $ Identity . uncurry convert
+     in runIdentity $ rewriteRequestRawM convertPure req
 
 --------------------------------------------------
+
 -- * Helper functions
+
 --------------------------------------------------
 
 -- | This helper function factors out the common behaviour of rewriting requests.
-rewriteRequestM :: (Applicative m, Monad m)
-                => (PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries)
-                -> Request -> m Request
+rewriteRequestM
+    :: (Applicative m, Monad m)
+    => (PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries)
+    -> Request
+    -> m Request
 rewriteRequestM convert req = do
-  (pInfo, qByteStrings) <- curry convert (pathInfo req) (queryString req) (requestHeaders req)
-  pure req {pathInfo = pInfo, queryString = qByteStrings}
+    (pInfo, qByteStrings) <-
+        curry convert (pathInfo req) (queryString req) (requestHeaders req)
+    pure req{pathInfo = pInfo, queryString = qByteStrings}
 
 -- | This helper function preserves the semantics of wai-extra ≤ 3.0, in
 -- which the rewrite functions modify the 'rawPathInfo' parameter. Note
 -- that this has not been extended to modify the 'rawQueryInfo' as
 -- modifying either of these values has been deprecated.
-rewriteRequestRawM :: (Applicative m, Monad m)
-                    => (PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries)
-                    -> Request -> m Request
+rewriteRequestRawM
+    :: (Applicative m, Monad m)
+    => (PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries)
+    -> Request
+    -> m Request
 rewriteRequestRawM convert req = do
-  newReq <- rewriteRequestM convert req
-  let rawPInfo = TE.encodeUtf8 . T.intercalate "/" . pathInfo $ newReq
-  pure newReq { rawPathInfo = rawPInfo }
-{-# WARNING rewriteRequestRawM [
-          "This modifies the 'rawPathInfo' field of a 'Request'."
-        , " This is not recommended behaviour; it is however how"
-        , " this function has worked in the past."
-        , " Use 'rewriteRequestM' instead"] #-}
+    newReq <- rewriteRequestM convert req
+    let rawPInfo = TE.encodeUtf8 . T.intercalate "/" . pathInfo $ newReq
+    pure newReq{rawPathInfo = rawPInfo}
+{-# WARNING
+    rewriteRequestRawM
+    [ "This modifies the 'rawPathInfo' field of a 'Request'."
+    , " This is not recommended behaviour; it is however how"
+    , " this function has worked in the past."
+    , " Use 'rewriteRequestM' instead"
+    ]
+    #-}
 
 -- | Produce a function that works on 'PathsAndQueries' from one working
 -- only on paths. This is not exported, as it is only needed to handle
 -- code written for versions ≤ 3.0 of the library; see the
 -- example above using 'Data.Bifunctor.first' to do something similar.
-pathsOnly :: (Applicative m, Monad m)
-          => ([Text] -> H.RequestHeaders -> m [Text])
-          -> PathsAndQueries -> H.RequestHeaders -> m PathsAndQueries
+pathsOnly
+    :: (Applicative m, Monad m)
+    => ([Text] -> H.RequestHeaders -> m [Text])
+    -> PathsAndQueries
+    -> H.RequestHeaders
+    -> m PathsAndQueries
 pathsOnly convert psAndQs headers = (,[]) <$> convert (fst psAndQs) headers
 {-# INLINE pathsOnly #-}

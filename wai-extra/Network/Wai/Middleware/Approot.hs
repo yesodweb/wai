@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+
 -- | Middleware for establishing the root of the application.
 --
 -- Many application need the ability to create URLs referring back to the
@@ -13,18 +14,20 @@
 -- @/foo/bar?baz=bin@. For example, if your application is hosted on
 -- example.com using HTTPS, the approot would be @https://example.com@. Note
 -- the lack of a trailing slash.
-module Network.Wai.Middleware.Approot
-    ( -- * Middleware
-      approotMiddleware
-      -- * Common providers
-    , envFallback
-    , envFallbackNamed
-    , hardcoded
-    , fromRequest
-      -- * Functions for applications
-    , getApproot
-    , getApprootMay
-    ) where
+module Network.Wai.Middleware.Approot (
+    -- * Middleware
+    approotMiddleware,
+
+    -- * Common providers
+    envFallback,
+    envFallbackNamed,
+    hardcoded,
+    fromRequest,
+
+    -- * Functions for applications
+    getApproot,
+    getApprootMay,
+) where
 
 import Control.Exception (Exception, throw)
 import Data.ByteString (ByteString)
@@ -48,11 +51,13 @@ approotKey = unsafePerformIO V.newKey
 -- functionality more conveniently.
 --
 -- Since 3.0.7
-approotMiddleware :: (Request -> IO ByteString) -- ^ get the approot
-                  -> Middleware
+approotMiddleware
+    :: (Request -> IO ByteString)
+    -- ^ get the approot
+    -> Middleware
 approotMiddleware getRoot app req respond = do
     ar <- getRoot req
-    let req' = req { vault = V.insert approotKey ar $ vault req }
+    let req' = req{vault = V.insert approotKey ar $ vault req}
     app req' respond
 
 -- | Same as @'envFallbackNamed' "APPROOT"@.

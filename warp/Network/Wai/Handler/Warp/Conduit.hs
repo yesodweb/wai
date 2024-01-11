@@ -2,10 +2,10 @@
 
 module Network.Wai.Handler.Warp.Conduit where
 
-import UnliftIO (assert, throwIO)
 import qualified Data.ByteString as S
 import qualified Data.IORef as I
 import Data.Word8 (_0, _9, _A, _F, _a, _cr, _f, _lf)
+import UnliftIO (assert, throwIO)
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
@@ -30,44 +30,44 @@ readISource (ISource src ref) = do
     if count == 0
         then return S.empty
         else do
+            bs <- readSource src
 
-        bs <- readSource src
+            -- If no chunk available, then there aren't enough bytes in the
+            -- stream. Throw a ConnectionClosedByPeer
+            when (S.null bs) $ throwIO ConnectionClosedByPeer
 
-        -- If no chunk available, then there aren't enough bytes in the
-        -- stream. Throw a ConnectionClosedByPeer
-        when (S.null bs) $ throwIO ConnectionClosedByPeer
+            let -- How many of the bytes in this chunk to send downstream
+                toSend = min count (S.length bs)
+                -- How many bytes will still remain to be sent downstream
+                count' = count - toSend
 
-        let -- How many of the bytes in this chunk to send downstream
-            toSend = min count (S.length bs)
-            -- How many bytes will still remain to be sent downstream
-            count' = count - toSend
+            I.writeIORef ref count'
 
-        I.writeIORef ref count'
-
-        if count' > 0 then
-            -- The expected count is greater than the size of the
-            -- chunk we just read. Send the entire chunk
-            -- downstream, and then loop on this function for the
-            -- next chunk.
-            return bs
-          else do
-            -- Some of the bytes in this chunk should not be sent
-            -- downstream. Split up the chunk into the sent and
-            -- not-sent parts, add the not-sent parts onto the new
-            -- source, and send the rest of the chunk downstream.
-            let (x, y) = S.splitAt toSend bs
-            leftoverSource src y
-            assert (count' == 0) $ return x
+            if count' > 0
+                then -- The expected count is greater than the size of the
+                -- chunk we just read. Send the entire chunk
+                -- downstream, and then loop on this function for the
+                -- next chunk.
+                    return bs
+                else do
+                    -- Some of the bytes in this chunk should not be sent
+                    -- downstream. Split up the chunk into the sent and
+                    -- not-sent parts, add the not-sent parts onto the new
+                    -- source, and send the rest of the chunk downstream.
+                    let (x, y) = S.splitAt toSend bs
+                    leftoverSource src y
+                    assert (count' == 0) $ return x
 
 ----------------------------------------------------------------
 
 data CSource = CSource !Source !(I.IORef ChunkState)
 
-data ChunkState = NeedLen
-                | NeedLenNewline
-                | HaveLen Word
-                | DoneChunking
-    deriving Show
+data ChunkState
+    = NeedLen
+    | NeedLenNewline
+    | HaveLen Word
+    | DoneChunking
+    deriving (Show)
 
 mkCSource :: Source -> IO CSource
 mkCSource src = do
@@ -144,13 +144,14 @@ readCSource (CSource src ref) = do
                         (x, y)
                             | S.null y -> do
                                 bs2 <- readSource' src
-                                return $ if S.null bs2
-                                    then (x, y)
-                                    else S.break (== _lf) $ bs `S.append` bs2
+                                return $
+                                    if S.null bs2
+                                        then (x, y)
+                                        else S.break (== _lf) $ bs `S.append` bs2
                             | otherwise -> return (x, y)
                 let w =
-                        S.foldl' (\i c -> i * 16 + fromIntegral (hexToWord c)) 0
-                        $ S.takeWhile isHexDigit x
+                        S.foldl' (\i c -> i * 16 + fromIntegral (hexToWord c)) 0 $
+                            S.takeWhile isHexDigit x
 
                 let y' = S.drop 1 y
                 y'' <-
@@ -165,6 +166,7 @@ readCSource (CSource src ref) = do
         | otherwise = w - 87
 
 isHexDigit :: Word8 -> Bool
-isHexDigit w = w >= _0 && w <= _9
-            || w >= _A && w <= _F
-            || w >= _a && w <= _f
+isHexDigit w =
+    w >= _0 && w <= _9
+        || w >= _A && w <= _F
+        || w >= _a && w <= _f

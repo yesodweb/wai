@@ -10,16 +10,20 @@ import Network.HTTP.Types
 import Network.Wai hiding (responseHeaders)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Response
-import RunSpec (withApp, msWrite, msRead, withMySocket)
+import RunSpec (msRead, msWrite, withApp, withMySocket)
 import Test.Hspec
 
 main :: IO ()
 main = hspec spec
 
-testRange :: S.ByteString -- ^ range value
-          -> String -- ^ expected output
-          -> Maybe String -- ^ expected content-range value
-          -> Spec
+testRange
+    :: S.ByteString
+    -- ^ range value
+    -> String
+    -- ^ expected output
+    -> Maybe String
+    -- ^ expected content-range value
+    -> Spec
 testRange range out crange = it title $ withApp defaultSettings app $ withMySocket $ \ms -> do
     msWrite ms "GET / HTTP/1.0\r\n"
     msWrite ms "Range: bytes="
@@ -36,14 +40,19 @@ testRange range out crange = it title $ withApp defaultSettings app $ withMySock
     title = show (range, out, crange)
     toHeader s =
         case break (== ':') s of
-            (x, ':':y) -> Just (x, dropWhile (== ' ') y)
+            (x, ':' : y) -> Just (x, dropWhile (== ' ') y)
             _ -> Nothing
 
-testPartial :: Integer -- ^ file size
-            -> Integer -- ^ offset
-            -> Integer -- ^ byte count
-            -> String -- ^ expected output
-            -> Spec
+testPartial
+    :: Integer
+    -- ^ file size
+    -> Integer
+    -- ^ offset
+    -> Integer
+    -- ^ byte count
+    -> String
+    -- ^ expected output
+    -> Spec
 testPartial size offset count out = it title $ withApp defaultSettings app $ withMySocket $ \ms -> do
     msWrite ms "GET / HTTP/1.0\r\n\r\n"
     threadDelay 10000
@@ -57,21 +66,22 @@ testPartial size offset count out = it title $ withApp defaultSettings app $ wit
     title = show (offset, count, out)
     toHeader s =
         case break (== ':') s of
-            (x, ':':y) -> Just (x, dropWhile (== ' ') y)
+            (x, ':' : y) -> Just (x, dropWhile (== ' ') y)
             _ -> Nothing
-    range = "bytes " ++ show offset ++ "-" ++ show (offset + count - 1) ++ "/" ++ show size
+    range =
+        "bytes " ++ show offset ++ "-" ++ show (offset + count - 1) ++ "/" ++ show size
 
 spec :: Spec
 spec = do
-{- http-client does not support this.
-    describe "preventing response splitting attack" $ do
-        it "sanitizes header values" $ do
-            let app _ respond = respond $ responseLBS status200 [("foo", "foo\r\nbar")] "Hello"
-            withApp defaultSettings app $ \port -> do
-                res <- sendGET $ "http://127.0.0.1:" ++ show port
-                getHeaderValue "foo" (responseHeaders res) `shouldBe`
-                  Just "foo   bar" -- HTTP inserts two spaces for \r\n.
--}
+    {- http-client does not support this.
+        describe "preventing response splitting attack" $ do
+            it "sanitizes header values" $ do
+                let app _ respond = respond $ responseLBS status200 [("foo", "foo\r\nbar")] "Hello"
+                withApp defaultSettings app $ \port -> do
+                    res <- sendGET $ "http://127.0.0.1:" ++ show port
+                    getHeaderValue "foo" (responseHeaders res) `shouldBe`
+                      Just "foo   bar" -- HTTP inserts two spaces for \r\n.
+    -}
 
     describe "sanitizeHeaderValue" $ do
         it "doesn't alter valid multiline header values" $ do

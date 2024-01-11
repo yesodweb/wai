@@ -1,116 +1,127 @@
-{-|
-
-This module defines a generic web application interface. It is a common
-protocol between web servers and web applications.
-
-The overriding design principles here are performance and generality. To
-address performance, this library uses a streaming interface for request and
-response bodies, paired with bytestring's 'Builder' type.  The advantages of a
-streaming API over lazy IO have been debated elsewhere and so will not be
-addressed here.  However, helper functions like 'responseLBS' allow you to
-continue using lazy IO if you so desire.
-
-Generality is achieved by removing many variables commonly found in similar
-projects that are not universal to all servers. The goal is that the 'Request'
-object contains only data which is meaningful in all circumstances.
-
-Please remember when using this package that, while your application may
-compile without a hitch against many different servers, there are other
-considerations to be taken when moving to a new backend. For example, if you
-transfer from a CGI application to a FastCGI one, you might suddenly find you
-have a memory leak. Conversely, a FastCGI application would be well served to
-preload all templates from disk when first starting; this would kill the
-performance of a CGI application.
-
-This package purposely provides very little functionality. You can find various
-middlewares, backends and utilities on Hackage. Some of the most commonly used
-include:
-
-[warp] <http://hackage.haskell.org/package/warp>
-
-[wai-extra] <http://hackage.haskell.org/package/wai-extra>
-
--}
 -- Ignore deprecations, because this module needs to use the deprecated requestBody to construct a response.
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
-module Network.Wai
-    (
-      -- * Types
-      Application
-    , Middleware
-    , ResponseReceived
-      -- * Request
-    , Request
-    , defaultRequest
-    , RequestBodyLength (..)
-      -- ** Request accessors
-    , requestMethod
-    , httpVersion
-    , rawPathInfo
-    , rawQueryString
-    , requestHeaders
-    , isSecure
-    , remoteHost
-    , pathInfo
-    , queryString
-    , getRequestBodyChunk
-    , requestBody
-    , vault
-    , requestBodyLength
-    , requestHeaderHost
-    , requestHeaderRange
-    , requestHeaderReferer
-    , requestHeaderUserAgent
-    -- $streamingRequestBodies
-    , strictRequestBody
-    , consumeRequestBodyStrict
-    , lazyRequestBody
-    , consumeRequestBodyLazy
-      -- ** Request modifiers
-    , setRequestBodyChunks
-    , mapRequestHeaders
-      -- * Response
-    , Response
-    , StreamingBody
-    , FilePart (..)
-      -- ** Response composers
-    , responseFile
-    , responseBuilder
-    , responseLBS
-    , responseStream
-    , responseRaw
-      -- ** Response accessors
-    , responseStatus
-    , responseHeaders
-      -- ** Response modifiers
-    , responseToStream
-    , mapResponseHeaders
-    , mapResponseStatus
-      -- * Middleware composition
-    , ifRequest
-    , modifyRequest
-    , modifyResponse
-    ) where
 
-import           Data.ByteString.Builder      (Builder, byteString, lazyByteString)
-import           Control.Monad                (unless)
-import qualified Data.ByteString              as B
-import qualified Data.ByteString.Lazy         as L
+-- |
+--
+-- This module defines a generic web application interface. It is a common
+-- protocol between web servers and web applications.
+--
+-- The overriding design principles here are performance and generality. To
+-- address performance, this library uses a streaming interface for request and
+-- response bodies, paired with bytestring's 'Builder' type.  The advantages of a
+-- streaming API over lazy IO have been debated elsewhere and so will not be
+-- addressed here.  However, helper functions like 'responseLBS' allow you to
+-- continue using lazy IO if you so desire.
+--
+-- Generality is achieved by removing many variables commonly found in similar
+-- projects that are not universal to all servers. The goal is that the 'Request'
+-- object contains only data which is meaningful in all circumstances.
+--
+-- Please remember when using this package that, while your application may
+-- compile without a hitch against many different servers, there are other
+-- considerations to be taken when moving to a new backend. For example, if you
+-- transfer from a CGI application to a FastCGI one, you might suddenly find you
+-- have a memory leak. Conversely, a FastCGI application would be well served to
+-- preload all templates from disk when first starting; this would kill the
+-- performance of a CGI application.
+--
+-- This package purposely provides very little functionality. You can find various
+-- middlewares, backends and utilities on Hackage. Some of the most commonly used
+-- include:
+--
+-- [warp] <http://hackage.haskell.org/package/warp>
+--
+-- [wai-extra] <http://hackage.haskell.org/package/wai-extra>
+module Network.Wai (
+    -- * Types
+    Application,
+    Middleware,
+    ResponseReceived,
+
+    -- * Request
+    Request,
+    defaultRequest,
+    RequestBodyLength (..),
+
+    -- ** Request accessors
+    requestMethod,
+    httpVersion,
+    rawPathInfo,
+    rawQueryString,
+    requestHeaders,
+    isSecure,
+    remoteHost,
+    pathInfo,
+    queryString,
+    getRequestBodyChunk,
+    requestBody,
+    vault,
+    requestBodyLength,
+    requestHeaderHost,
+    requestHeaderRange,
+    requestHeaderReferer,
+    requestHeaderUserAgent,
+    -- $streamingRequestBodies
+    strictRequestBody,
+    consumeRequestBodyStrict,
+    lazyRequestBody,
+    consumeRequestBodyLazy,
+
+    -- ** Request modifiers
+    setRequestBodyChunks,
+    mapRequestHeaders,
+
+    -- * Response
+    Response,
+    StreamingBody,
+    FilePart (..),
+
+    -- ** Response composers
+    responseFile,
+    responseBuilder,
+    responseLBS,
+    responseStream,
+    responseRaw,
+
+    -- ** Response accessors
+    responseStatus,
+    responseHeaders,
+
+    -- ** Response modifiers
+    responseToStream,
+    mapResponseHeaders,
+    mapResponseStatus,
+
+    -- * Middleware composition
+    ifRequest,
+    modifyRequest,
+    modifyResponse,
+) where
+
+import Control.Monad (unless)
+import qualified Data.ByteString as B
+import Data.ByteString.Builder (
+    Builder,
+    byteString,
+    lazyByteString,
+ )
+import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import qualified Data.ByteString.Lazy.Internal as LI
-import           Data.ByteString.Lazy.Internal (defaultChunkSize)
-import           Data.Function                (fix)
-import qualified Network.HTTP.Types           as H
-import           Network.Socket               (SockAddr (SockAddrInet))
-import           Network.Wai.Internal
-import qualified System.IO                    as IO
-import           System.IO.Unsafe             (unsafeInterleaveIO)
+import Data.Function (fix)
+import qualified Network.HTTP.Types as H
+import Network.Socket (SockAddr (SockAddrInet))
+import Network.Wai.Internal
+import qualified System.IO as IO
+import System.IO.Unsafe (unsafeInterleaveIO)
 
 ----------------------------------------------------------------
 
 -- | Creating 'Response' from a file.
 --
 -- @since 2.0.0
-responseFile :: H.Status -> H.ResponseHeaders -> FilePath -> Maybe FilePart -> Response
+responseFile
+    :: H.Status -> H.ResponseHeaders -> FilePath -> Maybe FilePart -> Response
 responseFile = ResponseFile
 
 -- | Creating 'Response' from 'Builder'.
@@ -170,10 +181,11 @@ responseLBS s h = ResponseBuilder s h . lazyByteString
 -- and response headers to depend on the scarce resource.
 --
 -- @since 3.0.0
-responseStream :: H.Status
-               -> H.ResponseHeaders
-               -> StreamingBody
-               -> Response
+responseStream
+    :: H.Status
+    -> H.ResponseHeaders
+    -> StreamingBody
+    -> Response
 responseStream = ResponseStream
 
 -- | Create a response for a raw application. This is useful for \"upgrade\"
@@ -187,9 +199,10 @@ responseStream = ResponseStream
 -- @responseRaw@, behavior is undefined.
 --
 -- @since 2.1.0
-responseRaw :: (IO B.ByteString -> (B.ByteString -> IO ()) -> IO ())
-            -> Response
-            -> Response
+responseRaw
+    :: (IO B.ByteString -> (B.ByteString -> IO ()) -> IO ())
+    -> Response
+    -> Response
 responseRaw = ResponseRaw
 
 ----------------------------------------------------------------
@@ -198,28 +211,29 @@ responseRaw = ResponseRaw
 --
 -- @since 1.2.0
 responseStatus :: Response -> H.Status
-responseStatus (ResponseFile    s _ _ _) = s
-responseStatus (ResponseBuilder s _ _  ) = s
-responseStatus (ResponseStream  s _ _  ) = s
-responseStatus (ResponseRaw _ res      ) = responseStatus res
+responseStatus (ResponseFile s _ _ _) = s
+responseStatus (ResponseBuilder s _ _) = s
+responseStatus (ResponseStream s _ _) = s
+responseStatus (ResponseRaw _ res) = responseStatus res
 
 -- | Accessing 'H.ResponseHeaders' in 'Response'.
 --
 -- @since 2.0.0
 responseHeaders :: Response -> H.ResponseHeaders
-responseHeaders (ResponseFile    _ hs _ _) = hs
-responseHeaders (ResponseBuilder _ hs _  ) = hs
-responseHeaders (ResponseStream  _ hs _  ) = hs
-responseHeaders (ResponseRaw _ res)        = responseHeaders res
+responseHeaders (ResponseFile _ hs _ _) = hs
+responseHeaders (ResponseBuilder _ hs _) = hs
+responseHeaders (ResponseStream _ hs _) = hs
+responseHeaders (ResponseRaw _ res) = responseHeaders res
 
 -- | Converting the body information in 'Response' to a 'StreamingBody'.
 --
 -- @since 3.0.0
-responseToStream :: Response
-                 -> ( H.Status
-                    , H.ResponseHeaders
-                    , (StreamingBody -> IO a) -> IO a
-                    )
+responseToStream
+    :: Response
+    -> ( H.Status
+       , H.ResponseHeaders
+       , (StreamingBody -> IO a) -> IO a
+       )
 responseToStream (ResponseStream s h b) = (s, h, ($ b))
 responseToStream (ResponseFile s h fp (Just part)) =
     ( s
@@ -239,7 +253,7 @@ responseToStream (ResponseFile s h fp Nothing) =
     ( s
     , h
     , \withBody -> IO.withBinaryFile fp IO.ReadMode $ \handle ->
-       withBody $ \sendChunk _flush -> fix $ \loop -> do
+        withBody $ \sendChunk _flush -> fix $ \loop -> do
             bs <- B.hGetSome handle defaultChunkSize
             unless (B.null bs) $ do
                 sendChunk $ byteString bs
@@ -252,7 +266,8 @@ responseToStream (ResponseRaw _ res) = responseToStream res
 -- | Apply the provided function to the response header list of the Response.
 --
 -- @since 3.0.3.0
-mapResponseHeaders :: (H.ResponseHeaders -> H.ResponseHeaders) -> Response -> Response
+mapResponseHeaders
+    :: (H.ResponseHeaders -> H.ResponseHeaders) -> Response -> Response
 mapResponseHeaders f (ResponseFile s h b1 b2) = ResponseFile s (f h) b1 b2
 mapResponseHeaders f (ResponseBuilder s h b) = ResponseBuilder s (f h) b
 mapResponseHeaders f (ResponseStream s h b) = ResponseStream s (f h) b
@@ -282,32 +297,32 @@ mapResponseStatus _ r@(ResponseRaw _ _) = r
 --     (putStrLn \"Cleaning up\")
 --     (respond $ responseLBS status200 [] \"Hello World\")
 -- @
-type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
-
+type Application =
+    Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
 
 -- | A default, blank request.
 --
 -- @since 2.0.0
 defaultRequest :: Request
-defaultRequest = Request
-    { requestMethod = H.methodGet
-    , httpVersion = H.http10
-    , rawPathInfo = B.empty
-    , rawQueryString = B.empty
-    , requestHeaders = []
-    , isSecure = False
-    , remoteHost = SockAddrInet 0 0
-    , pathInfo = []
-    , queryString = []
-    , requestBody = return B.empty
-    , vault = mempty
-    , requestBodyLength = KnownLength 0
-    , requestHeaderHost = Nothing
-    , requestHeaderRange = Nothing
-    , requestHeaderReferer = Nothing
-    , requestHeaderUserAgent = Nothing
-    }
-
+defaultRequest =
+    Request
+        { requestMethod = H.methodGet
+        , httpVersion = H.http10
+        , rawPathInfo = B.empty
+        , rawQueryString = B.empty
+        , requestHeaders = []
+        , isSecure = False
+        , remoteHost = SockAddrInet 0 0
+        , pathInfo = []
+        , queryString = []
+        , requestBody = return B.empty
+        , vault = mempty
+        , requestBodyLength = KnownLength 0
+        , requestHeaderHost = Nothing
+        , requestHeaderRange = Nothing
+        , requestHeaderReferer = Nothing
+        , requestHeaderUserAgent = Nothing
+        }
 
 -- | A @Middleware@ is a component that sits between the server and application.
 --
@@ -451,7 +466,6 @@ defaultRequest = Request
 -- However, modifying the response (especially the response body) is not trivial,
 -- so in order to get a sense of how to do it (dealing with the type of 'responseToStream'),
 -- it’s best to look at an example, for example <https://hackage.haskell.org/package/wai-extra/docs/src/Network.Wai.Middleware.Gzip.html#gzip the GZIP middleware of wai-extra>.
-
 type Middleware = Application -> Application
 
 -- | Apply a function that modifies a request as a 'Middleware'
@@ -472,7 +486,7 @@ modifyResponse f app req respond = app req $ respond . f
 ifRequest :: (Request -> Bool) -> Middleware -> Middleware
 ifRequest rpred middle app req
     | rpred req = middle app req
-    | otherwise =        app req
+    | otherwise = app req
 
 -- $streamingRequestBodies
 --
@@ -576,5 +590,6 @@ consumeRequestBodyLazy = lazyRequestBody
 -- | Apply the provided function to the request header list of the 'Request'.
 --
 -- @since 3.2.4
-mapRequestHeaders :: (H.RequestHeaders -> H.RequestHeaders) -> Request -> Request
-mapRequestHeaders f request = request { requestHeaders = f (requestHeaders request) }
+mapRequestHeaders
+    :: (H.RequestHeaders -> H.RequestHeaders) -> Request -> Request
+mapRequestHeaders f request = request{requestHeaders = f (requestHeaders request)}

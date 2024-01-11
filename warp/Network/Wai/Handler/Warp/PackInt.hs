@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, BangPatterns #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wai.Handler.Warp.PackInt where
 
@@ -18,7 +19,6 @@ import Network.Wai.Handler.Warp.Imports
 --
 -- prop> packIntegral (abs n) == C8.pack (show (abs n))
 -- prop> \(Large n) -> let n' = fromIntegral (abs n :: Int) in packIntegral n' == C8.pack (show n')
-
 packIntegral :: Integral a => a -> ByteString
 packIntegral 0 = "0"
 packIntegral n | n < 0 = error "packIntegral"
@@ -29,10 +29,9 @@ packIntegral n = unsafeCreate len go0
     go0 p = go n $ p `plusPtr` (len - 1)
     go :: Integral a => a -> Ptr Word8 -> IO ()
     go i p = do
-        let (d,r) = i `divMod` 10
+        let (d, r) = i `divMod` 10
         poke p (_0 + fromIntegral r)
         when (d /= 0) $ go d (p `plusPtr` (-1))
-
 {-# SPECIALIZE packIntegral :: Int -> ByteString #-}
 {-# SPECIALIZE packIntegral :: Integer -> ByteString #-}
 
@@ -42,16 +41,15 @@ packIntegral n = unsafeCreate len go0
 -- "200"
 -- >>> packStatus H.preconditionFailed412
 -- "412"
-
 packStatus :: H.Status -> ByteString
 packStatus status = unsafeCreate 3 $ \p -> do
-    poke p               (toW8 r2)
+    poke p (toW8 r2)
     poke (p `plusPtr` 1) (toW8 r1)
     poke (p `plusPtr` 2) (toW8 r0)
   where
     toW8 :: Int -> Word8
     toW8 n = _0 + fromIntegral n
     !s = fromIntegral $ H.statusCode status
-    (!q0,!r0) = s `divMod` 10
-    (!q1,!r1) = q0 `divMod` 10
+    (!q0, !r0) = s `divMod` 10
+    (!q1, !r1) = q0 `divMod` 10
     !r2 = q1 `mod` 10
