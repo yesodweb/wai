@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP #-}
+{-# language DeriveDataTypeable #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# language LambdaCase #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
@@ -12,6 +14,7 @@ module Network.Wai.Parse
     , getRequestBodyType
     , sinkRequestBody
     , sinkRequestBodyEx
+    , RequestParseException(..)
     , BackEnd
     , lbsBackEnd
     , tempFileBackEnd
@@ -67,6 +70,7 @@ import Data.IORef
 import Data.Int (Int64)
 import Data.List (sortBy)
 import Data.Maybe (catMaybes, fromMaybe)
+import Data.Typeable
 import Data.Word8
 import Network.HTTP.Types (hContentType)
 import qualified Network.HTTP.Types as H
@@ -357,6 +361,8 @@ parseContentType a = do
 -- When dealing with untrusted data (as is usually the case when
 -- receiving input from the internet), it is recommended to
 -- use the 'parseRequestBodyEx' function instead.
+--
+-- since 3.1.15 : throws 'RequestParseException' if something goes wrong
 parseRequestBody :: BackEnd y
                  -> Request
                  -> IO ([Param], [File y])
@@ -368,6 +374,8 @@ parseRequestBody = parseRequestBodyEx noLimitParseRequestBodyOptions
 -- for all parameters, and a list of key,a pairs
 -- for filenames. The a depends on the used backend that
 -- is responsible for storing the received files.
+--
+-- since 3.1.15 : throws 'RequestParseException' if something goes wrong
 parseRequestBodyEx :: ParseRequestBodyOptions
                    -> BackEnd y
                    -> Request
@@ -377,15 +385,18 @@ parseRequestBodyEx o s r =
         Nothing -> return ([], [])
         Just rbt -> sinkRequestBodyEx o s rbt (getRequestBodyChunk r)
 
+-- | since 3.1.15 : throws 'RequestParseException' if something goes wrong
 sinkRequestBody :: BackEnd y
                 -> RequestBodyType
                 -> IO S.ByteString
                 -> IO ([Param], [File y])
 sinkRequestBody = sinkRequestBodyEx noLimitParseRequestBodyOptions
 
--- |
+-- | Throws 'RequestParseException' if something goes wrong
 --
 -- @since 3.0.16.0
+--
+-- since 3.1.15 : throws 'RequestParseException' if something goes wrong
 sinkRequestBodyEx :: ParseRequestBodyOptions
                   -> BackEnd y
                   -> RequestBodyType
@@ -418,7 +429,7 @@ conduitRequestBodyEx o _ UrlEncoded rbody add = do
                     let newsize = size + S.length bs
                     case prboMaxParmsSize o of
                         Just maxSize -> when (newsize > maxSize) $
-                            error "Maximum size of parameters exceeded"
+                          E.throwIO $ MaxParamSizeExceeded newsize
                         Nothing -> return ()
                     loop newsize $ front . (bs:)
     bs <- loop 0 id
@@ -458,10 +469,12 @@ takeLine maxlen src =
                         Nothing -> return ()
                     return . Just $ killCR res
 
+-- | @since 3.1.15 : throws 'RequestParseException' if something goes wrong
 takeLines' :: Maybe Int -> Maybe Int -> Source -> IO [S.ByteString]
 takeLines' lineLength maxLines source =
     reverse <$> takeLines'' [] lineLength maxLines source
 
+-- | @since 3.1.15 : throws 'RequestParseException' if something goes wrong
 takeLines''
     :: [S.ByteString]
     -> Maybe Int
@@ -472,7 +485,7 @@ takeLines'' lines lineLength maxLines src = do
     case maxLines of
         Just maxLines' ->
             when (length lines > maxLines') $
-                error "Too many lines in mime/multipart header"
+                E.throwIO $ TooManyHeaderLines (length lines)
         Nothing -> return ()
     res <- takeLine lineLength src
     case res of
@@ -499,6 +512,7 @@ readSource (Source f ref) = do
 leftover :: Source -> S.ByteString -> IO ()
 leftover (Source _ ref) = writeIORef ref
 
+-- | @since 3.1.15 : throws 'RequestParseException' if something goes wrong
 parsePiecesEx :: ParseRequestBodyOptions
               -> BackEnd y
               -> S.ByteString
@@ -526,11 +540,11 @@ parsePiecesEx o sink bound rbody add =
                     case prboKeyLength o of
                         Just maxKeyLength ->
                             when (S.length name > maxKeyLength) $
-                                error "Filename is too long"
+                                E.throwIO $ FilenameTooLong name maxKeyLength
                         Nothing -> return ()
                     case prboMaxNumFiles o of
                         Just maxFiles -> when (numFiles >= maxFiles) $
-                            error "Maximum number of files exceeded"
+                          E.throwIO $ MaxFileNumberExceeded numFiles
                         Nothing -> return ()
                     let ct = fromMaybe "application/octet-stream" mct
                         fi0 = FileInfo filename ct ()
@@ -545,7 +559,7 @@ parsePiecesEx o sink bound rbody add =
                     case prboKeyLength o of
                         Just maxKeyLength ->
                             when (S.length name > maxKeyLength) $
-                                error "Parameter name is too long"
+                                E.throwIO $ ParamNameTooLong name maxKeyLength
                         Nothing -> return ()
                     let seed = id
                     let iter front bs = return $ front . (:) bs
@@ -556,7 +570,7 @@ parsePiecesEx o sink bound rbody add =
                     let newParmSize = parmSize + S.length name + S.length bs
                     case prboMaxParmsSize o of
                         Just maxParmSize -> when (newParmSize > maxParmSize) $
-                            error "Maximum size of parameters exceeded"
+                          E.throwIO $ MaxParamSizeExceeded newParmSize
                         Nothing -> return ()
                     add $ Left x'
                     when wasFound $ loop (numParms + 1) numFiles
@@ -573,6 +587,25 @@ parsePiecesEx o sink bound rbody add =
         parsePair s =
             let (x, y) = breakDiscard _colon s
              in (mk x, S.dropWhile (== _space) y)
+
+-- | Things that could go wrong while parsing a 'Request'
+--
+-- @since 3.1.15
+data RequestParseException = MaxParamSizeExceeded Int
+                           | ParamNameTooLong S.ByteString Int
+                           | MaxFileNumberExceeded Int
+                           | FilenameTooLong S.ByteString Int
+                           | TooManyHeaderLines Int
+                           deriving (Eq, Typeable)
+instance E.Exception RequestParseException
+instance Show RequestParseException where
+  show = \case
+    MaxParamSizeExceeded lmax -> unwords ["maximum parameter size exceeded:", show lmax]
+    ParamNameTooLong s lmax -> unwords ["parameter name", S8.unpack s, "is too long:", show lmax]
+    MaxFileNumberExceeded lmax -> unwords ["maximum number of files exceeded:", show lmax]
+    FilenameTooLong fn lmax ->
+      unwords ["file name", S8.unpack fn, "too long:", show lmax]
+    TooManyHeaderLines nmax -> unwords ["Too many lines in mime/multipart header:", show nmax]
 
 
 data Bound = FoundBound S.ByteString S.ByteString
