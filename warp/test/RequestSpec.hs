@@ -105,16 +105,19 @@ spec = do
             y <- headerLines defaultMaxTotalHeaderLength True src
             y `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
+
         -- Length is 39, this shouldn't fail
         let testLengthHeaders = ["Sta", "tus: 200\r", "\n", "Content-Type: ", "text/plain\r\n\r\n"]
+            headerLength = getSum $ foldMap (Sum . S.length) testLengthHeaders
+            testLength = headerLength - 2 -- Because the second CRLF at the end isn't counted
         it "doesn't throw on correct length" $ do
             src <- mkSourceFunc testLengthHeaders >>= mkSource
-            x <- headerLines 39 True src
+            x <- headerLines testLength True src
             x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
         -- Length is still 39, this should fail
         it "throws error on correct length too long" $ do
             src <- mkSourceFunc testLengthHeaders >>= mkSource
-            headerLines 38 True src `shouldThrow` (== OverLargeHeader)
+            headerLines (testLength - 1) True src `shouldThrow` (== OverLargeHeader)
   where
     blankSafe = headerLinesList ["f", "oo\n", "bar\nbaz\n\r\n"]
     whiteSafe = headerLinesList ["foo\r\nbar\r\nbaz\r\n\r\n hi there"]
