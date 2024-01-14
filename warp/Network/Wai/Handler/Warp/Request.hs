@@ -1,22 +1,21 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 module Network.Wai.Handler.Warp.Request (
-    recvRequest
-  , headerLines
-  , pauseTimeoutKey
-  , getFileInfoKey
+    recvRequest,
+    headerLines,
+    pauseTimeoutKey,
+    getFileInfoKey,
 #ifdef MIN_VERSION_crypton_x509
-  , getClientCertificateKey
+    getClientCertificateKey,
 #endif
-  , NoKeepAliveRequest (..)
-  ) where
+    NoKeepAliveRequest (..),
+) where
 
 import qualified Control.Concurrent as Conc (yield)
-import UnliftIO (throwIO, Exception)
 import Data.Array ((!))
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as SU
@@ -28,14 +27,15 @@ import Data.Word8 (_cr, _lf, _space, _tab)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
+import UnliftIO (Exception, throwIO)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Internal
-import Prelude hiding (lines)
 import System.IO.Unsafe (unsafePerformIO)
 import qualified System.TimeManager as Timeout
+import Prelude hiding (lines)
 
 import Network.Wai.Handler.Warp.Conduit
 import Network.Wai.Handler.Warp.FileInfoCache
@@ -43,67 +43,80 @@ import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.RequestHeader
-import Network.Wai.Handler.Warp.Settings (Settings, settingsNoParsePath, settingsMaxTotalHeaderLength)
+import Network.Wai.Handler.Warp.Settings (
+    Settings,
+    settingsMaxTotalHeaderLength,
+    settingsNoParsePath,
+ )
 
 ----------------------------------------------------------------
 
 -- | Receiving a HTTP request from 'Connection' and parsing its header
 --   to create 'Request'.
-recvRequest :: Bool -- ^ first request on this connection?
-            -> Settings
-            -> Connection
-            -> InternalInfo
-            -> Timeout.Handle
-            -> SockAddr -- ^ Peer's address.
-            -> Source -- ^ Where HTTP request comes from.
-            -> Transport
-            -> IO (Request
-                  ,Maybe (I.IORef Int)
-                  ,IndexedHeader
-                  ,IO ByteString) -- ^
-            -- 'Request' passed to 'Application',
-            -- how many bytes remain to be consumed, if known
-            -- 'IndexedHeader' of HTTP request for internal use,
-            -- Body producing action used for flushing the request body
-
+recvRequest
+    :: Bool
+    -- ^ first request on this connection?
+    -> Settings
+    -> Connection
+    -> InternalInfo
+    -> Timeout.Handle
+    -> SockAddr
+    -- ^ Peer's address.
+    -> Source
+    -- ^ Where HTTP request comes from.
+    -> Transport
+    -> IO
+        ( Request
+        , Maybe (I.IORef Int)
+        , IndexedHeader
+        , IO ByteString
+        )
+    -- ^
+    -- 'Request' passed to 'Application',
+    -- how many bytes remain to be consumed, if known
+    -- 'IndexedHeader' of HTTP request for internal use,
+    -- Body producing action used for flushing the request body
 recvRequest firstRequest settings conn ii th addr src transport = do
     hdrlines <- headerLines (settingsMaxTotalHeaderLength settings) firstRequest src
-    (method, unparsedPath, path, query, httpversion, hdr) <- parseHeaderLines hdrlines
+    (method, unparsedPath, path, query, httpversion, hdr) <-
+        parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
         expect = idxhdr ! fromEnum ReqExpect
         cl = idxhdr ! fromEnum ReqContentLength
         te = idxhdr ! fromEnum ReqTransferEncoding
         handle100Continue = handleExpect conn httpversion expect
         rawPath = if settingsNoParsePath settings then unparsedPath else path
-        vaultValue = Vault.insert pauseTimeoutKey (Timeout.pause th)
-                   $ Vault.insert getFileInfoKey (getFileInfo ii)
+        vaultValue =
+            Vault.insert pauseTimeoutKey (Timeout.pause th)
+                . Vault.insert getFileInfoKey (getFileInfo ii)
 #ifdef MIN_VERSION_crypton_x509
-                   $ Vault.insert getClientCertificateKey (getTransportClientCertificate transport)
+                . Vault.insert getClientCertificateKey (getTransportClientCertificate transport)
 #endif
-                     Vault.empty
+                $ Vault.empty
     (rbody, remainingRef, bodyLength) <- bodyAndSource src cl te
     -- body producing function which will produce '100-continue', if needed
     rbody' <- timeoutBody remainingRef th rbody handle100Continue
     -- body producing function which will never produce 100-continue
     rbodyFlush <- timeoutBody remainingRef th rbody (return ())
-    let req = Request {
-            requestMethod     = method
-          , httpVersion       = httpversion
-          , pathInfo          = H.decodePathSegments path
-          , rawPathInfo       = rawPath
-          , rawQueryString    = query
-          , queryString       = H.parseQuery query
-          , requestHeaders    = hdr
-          , isSecure          = isTransportSecure transport
-          , remoteHost        = addr
-          , requestBody       = rbody'
-          , vault             = vaultValue
-          , requestBodyLength = bodyLength
-          , requestHeaderHost      = idxhdr ! fromEnum ReqHost
-          , requestHeaderRange     = idxhdr ! fromEnum ReqRange
-          , requestHeaderReferer   = idxhdr ! fromEnum ReqReferer
-          , requestHeaderUserAgent = idxhdr ! fromEnum ReqUserAgent
-          }
+    let req =
+            Request
+                { requestMethod = method
+                , httpVersion = httpversion
+                , pathInfo = H.decodePathSegments path
+                , rawPathInfo = rawPath
+                , rawQueryString = query
+                , queryString = H.parseQuery query
+                , requestHeaders = hdr
+                , isSecure = isTransportSecure transport
+                , remoteHost = addr
+                , requestBody = rbody'
+                , vault = vaultValue
+                , requestBodyLength = bodyLength
+                , requestHeaderHost = idxhdr ! fromEnum ReqHost
+                , requestHeaderRange = idxhdr ! fromEnum ReqRange
+                , requestHeaderReferer = idxhdr ! fromEnum ReqReferer
+                , requestHeaderUserAgent = idxhdr ! fromEnum ReqUserAgent
+                }
     return (req, remainingRef, idxhdr, rbodyFlush)
 
 ----------------------------------------------------------------
@@ -112,11 +125,14 @@ headerLines :: Int -> Bool -> Source -> IO [ByteString]
 headerLines maxTotalHeaderLength firstRequest src = do
     bs <- readSource src
     if S.null bs
-        -- When we're working on a keep-alive connection and trying to
+        then -- When we're working on a keep-alive connection and trying to
         -- get the second or later request, we don't want to treat the
         -- lack of data as a real exception. See the http1 function in
         -- the Run module for more details.
-        then if firstRequest then throwIO ConnectionClosedByPeer else throwIO NoKeepAliveRequest
+
+            if firstRequest
+                then throwIO ConnectionClosedByPeer
+                else throwIO NoKeepAliveRequest
         else push maxTotalHeaderLength src (THStatus 0 0 id id) bs
 
 data NoKeepAliveRequest = NoKeepAliveRequest
@@ -125,66 +141,74 @@ instance Exception NoKeepAliveRequest
 
 ----------------------------------------------------------------
 
-handleExpect :: Connection
-             -> H.HttpVersion
-             -> Maybe HeaderValue
-             -> IO ()
+handleExpect
+    :: Connection
+    -> H.HttpVersion
+    -> Maybe HeaderValue
+    -> IO ()
 handleExpect conn ver (Just "100-continue") = do
     connSendAll conn continue
     Conc.yield
   where
     continue
-      | ver == H.http11 = "HTTP/1.1 100 Continue\r\n\r\n"
-      | otherwise       = "HTTP/1.0 100 Continue\r\n\r\n"
-handleExpect _    _   _                     = return ()
+        | ver == H.http11 = "HTTP/1.1 100 Continue\r\n\r\n"
+        | otherwise = "HTTP/1.0 100 Continue\r\n\r\n"
+handleExpect _ _ _ = return ()
 
 ----------------------------------------------------------------
 
-bodyAndSource :: Source
-              -> Maybe HeaderValue -- ^ content length
-              -> Maybe HeaderValue -- ^ transfer-encoding
-              -> IO (IO ByteString
-                    ,Maybe (I.IORef Int)
-                    ,RequestBodyLength
-                    )
+bodyAndSource
+    :: Source
+    -> Maybe HeaderValue
+    -- ^ content length
+    -> Maybe HeaderValue
+    -- ^ transfer-encoding
+    -> IO
+        ( IO ByteString
+        , Maybe (I.IORef Int)
+        , RequestBodyLength
+        )
 bodyAndSource src cl te
-  | chunked = do
-      csrc <- mkCSource src
-      return (readCSource csrc, Nothing, ChunkedBody)
-  | otherwise = do
-      isrc@(ISource _ remaining) <- mkISource src len
-      return (readISource isrc, Just remaining, bodyLen)
+    | chunked = do
+        csrc <- mkCSource src
+        return (readCSource csrc, Nothing, ChunkedBody)
+    | otherwise = do
+        isrc@(ISource _ remaining) <- mkISource src len
+        return (readISource isrc, Just remaining, bodyLen)
   where
     len = toLength cl
     bodyLen = KnownLength $ fromIntegral len
     chunked = isChunked te
 
 toLength :: Maybe HeaderValue -> Int
-toLength Nothing   = 0
+toLength Nothing = 0
 toLength (Just bs) = readInt bs
 
 isChunked :: Maybe HeaderValue -> Bool
 isChunked (Just bs) = CI.foldCase bs == "chunked"
-isChunked _         = False
+isChunked _ = False
 
 ----------------------------------------------------------------
 
-timeoutBody :: Maybe (I.IORef Int) -- ^ remaining
-            -> Timeout.Handle
-            -> IO ByteString
-            -> IO ()
-            -> IO (IO ByteString)
+timeoutBody
+    :: Maybe (I.IORef Int)
+    -- ^ remaining
+    -> Timeout.Handle
+    -> IO ByteString
+    -> IO ()
+    -> IO (IO ByteString)
 timeoutBody remainingRef timeoutHandle rbody handle100Continue = do
     isFirstRef <- I.newIORef True
 
     let checkEmpty =
             case remainingRef of
                 Nothing -> return . S.null
-                Just ref -> \bs -> if S.null bs
-                    then return True
-                    else do
-                        x <- I.readIORef ref
-                        return $! x <= 0
+                Just ref -> \bs ->
+                    if S.null bs
+                        then return True
+                        else do
+                            x <- I.readIORef ref
+                            return $! x <= 0
 
     return $ do
         isFirst <- I.readIORef isFirstRef
@@ -215,11 +239,12 @@ timeoutBody remainingRef timeoutHandle rbody handle100Continue = do
 type BSEndo = ByteString -> ByteString
 type BSEndoList = [ByteString] -> [ByteString]
 
-data THStatus = THStatus
-    !Int -- running total byte count (excluding current header chunk)
-    !Int -- current header chunk byte count
-    BSEndoList -- previously parsed lines
-    BSEndo -- bytestrings to be prepended
+data THStatus
+    = THStatus
+        !Int -- running total byte count (excluding current header chunk)
+        !Int -- current header chunk byte count
+        BSEndoList -- previously parsed lines
+        BSEndo -- bytestrings to be prepended
 
 ----------------------------------------------------------------
 
@@ -230,9 +255,9 @@ close = throwIO IncompleteHeaders
 
 push :: Int -> Source -> THStatus -> ByteString -> IO [ByteString]
 push maxTotalHeaderLength src (THStatus totalLen chunkLen lines prepend) bs'
-        -- Too many bytes
-        | currentTotal > maxTotalHeaderLength = throwIO OverLargeHeader
-        | otherwise = push' mNL
+    -- Too many bytes
+    | currentTotal > maxTotalHeaderLength = throwIO OverLargeHeader
+    | otherwise = push' mNL
   where
     currentTotal = totalLen + chunkLen
     -- bs: current header chunk, plus maybe (parts of) next header
@@ -250,16 +275,16 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen lines prepend) bs'
             chunkNLlen = chunkNL + 1
         -- check if there are two more bytes in the bs
         -- if so, see if the second of those is a horizontal space
-        if bsLen > headerNL + 1 then
-            let c = S.index bs (headerNL + 1)
-                b = case headerNL of
-                      0 -> True
-                      1 -> S.index bs 0 == _cr
-                      _ -> False
-                isMultiline = not b && (c == _space || c == _tab)
-            in Just (chunkNLlen, headerNL, isMultiline)
-            else
-            Just (chunkNLlen, headerNL, False)
+        if bsLen > headerNL + 1
+            then
+                let c = S.index bs (headerNL + 1)
+                    b = case headerNL of
+                        0 -> True
+                        1 -> S.index bs 0 == _cr
+                        _ -> False
+                    isMultiline = not b && (c == _space || c == _tab)
+                 in Just (chunkNLlen, headerNL, isMultiline)
+            else Just (chunkNLlen, headerNL, False)
 
     {-# INLINE push' #-}
     push' :: Maybe (Int, Int, Bool) -> IO [ByteString]
@@ -288,23 +313,25 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen lines prepend) bs'
         status = THStatus totalLen newChunkLen lines prepend'
     -- Found a newline at position end.
     push' (Just (chunkNLlen, end, False))
-      -- leftover
-      | S.null line = do
+        -- leftover
+        | S.null line = do
             when (start < bsLen) $ leftoverSource src (SU.unsafeDrop start bs)
             return (lines [])
-      -- more headers
-      | otherwise   = let lines' = lines . (line:)
-                          newTotalLength = totalLen + chunkLen + chunkNLlen
-                          status = THStatus newTotalLength 0 lines' id
-                      in if start < bsLen then
-                             -- more bytes in this chunk, push again
-                             let bs'' = SU.unsafeDrop start bs
-                              in push maxTotalHeaderLength src status bs''
-                           else do
-                             -- no more bytes in this chunk, ask for more
-                             bst <- readSource' src
-                             when (S.null bs) $ throwIO IncompleteHeaders
-                             push maxTotalHeaderLength src status bst
+        -- more headers
+        | otherwise =
+            let lines' = lines . (line :)
+                newTotalLength = totalLen + chunkLen + chunkNLlen
+                status = THStatus newTotalLength 0 lines' id
+             in if start < bsLen
+                    then -- more bytes in this chunk, push again
+
+                        let bs'' = SU.unsafeDrop start bs
+                         in push maxTotalHeaderLength src status bs''
+                    else do
+                        -- no more bytes in this chunk, ask for more
+                        bst <- readSource' src
+                        when (S.null bs) $ throwIO IncompleteHeaders
+                        push maxTotalHeaderLength src status bst
       where
         start = end + 1 -- start of next chunk
         line = SU.unsafeTake (checkCR bs end) bs

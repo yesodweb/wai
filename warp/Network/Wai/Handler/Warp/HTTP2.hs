@@ -1,13 +1,13 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Network.Wai.Handler.Warp.HTTP2 (
-    http2
-  , http2server
-  ) where
+    http2,
+    http2server,
+) where
 
 import qualified Data.ByteString as BS
 import Data.IORef (readIORef)
@@ -17,7 +17,7 @@ import qualified Network.HTTP2.Server as H2
 import Network.Socket (SockAddr)
 import Network.Socket.BufferPool
 import Network.Wai
-import Network.Wai.Internal (ResponseReceived(..))
+import Network.Wai.Internal (ResponseReceived (..))
 import qualified System.TimeManager as T
 import qualified UnliftIO
 
@@ -31,7 +31,16 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
-http2 :: S.Settings -> InternalInfo -> Connection -> Transport -> Application -> SockAddr -> T.Handle -> ByteString -> IO ()
+http2
+    :: S.Settings
+    -> InternalInfo
+    -> Connection
+    -> Transport
+    -> Application
+    -> SockAddr
+    -> T.Handle
+    -> ByteString
+    -> IO ()
 http2 settings ii conn transport app peersa th bs = do
     rawRecvN <- makeRecvN bs $ connRecv conn
     writeBuffer <- readIORef $ connWriteBuffer conn
@@ -44,21 +53,23 @@ http2 settings ii conn transport app peersa th bs = do
     -- the time handler in both the receiver and the sender.
     let recvN = wrappedRecvN th (S.settingsSlowlorisSize settings) rawRecvN
         sendBS x = connSendAll conn x >> T.tickle th
-        conf = H2.Config {
-            confWriteBuffer       = bufBuffer writeBuffer
-          , confBufferSize        = bufSize writeBuffer
-          , confSendAll           = sendBS
-          , confReadN             = recvN
-          , confPositionReadMaker = pReadMaker ii
-          , confTimeoutManager    = timeoutManager ii
+        conf =
+            H2.Config
+                { confWriteBuffer = bufBuffer writeBuffer
+                , confBufferSize = bufSize writeBuffer
+                , confSendAll = sendBS
+                , confReadN = recvN
+                , confPositionReadMaker = pReadMaker ii
+                , confTimeoutManager = timeoutManager ii
 #if MIN_VERSION_http2(4,2,0)
-          , confMySockAddr        = connMySockAddr conn
-          , confPeerSockAddr      = peersa
+                , confMySockAddr = connMySockAddr conn
+                , confPeerSockAddr = peersa
 #endif
-          }
+                }
     checkTLS
     setConnHTTP2 conn True
-    H2.run H2.defaultServerConfig conf $ http2server settings ii transport peersa app
+    H2.run H2.defaultServerConfig conf $
+        http2server settings ii transport peersa app
   where
     checkTLS = case transport of
         TCP -> return () -- direct
@@ -68,32 +79,33 @@ http2 settings ii conn transport app peersa th bs = do
 -- | Converting WAI application to the server type of http2 library.
 --
 -- Since 3.3.11
-http2server :: S.Settings
-            -> InternalInfo
-            -> Transport
-            -> SockAddr
-            -> Application
-            -> H2.Server
+http2server
+    :: S.Settings
+    -> InternalInfo
+    -> Transport
+    -> SockAddr
+    -> Application
+    -> H2.Server
 http2server settings ii transport addr app h2req0 aux0 response = do
     req <- toWAIRequest h2req0 aux0
     ref <- I.newIORef Nothing
     eResponseReceived <- UnliftIO.tryAny $ app req $ \rsp -> do
-        (h2rsp,st,hasBody) <- fromResponse settings ii req rsp
+        (h2rsp, st, hasBody) <- fromResponse settings ii req rsp
         pps <- if hasBody then fromPushPromises ii req else return []
         I.writeIORef ref $ Just (h2rsp, pps, st)
         _ <- response h2rsp pps
         return ResponseReceived
     case eResponseReceived of
-      Right ResponseReceived -> do
-          Just (h2rsp, pps, st) <- I.readIORef ref
-          let msiz = fromIntegral <$> H2.responseBodySize h2rsp
-          logResponse req st msiz
-          mapM_ (logPushPromise req) pps
-      Left e -> do
+        Right ResponseReceived -> do
+            Just (h2rsp, pps, st) <- I.readIORef ref
+            let msiz = fromIntegral <$> H2.responseBodySize h2rsp
+            logResponse req st msiz
+            mapM_ (logPushPromise req) pps
+        Left e -> do
             S.settingsOnException settings (Just req) e
             let ersp = S.settingsOnExceptionResponse settings e
                 st = responseStatus ersp
-            (h2rsp',_,_) <- fromResponse settings ii req ersp
+            (h2rsp', _, _) <- fromResponse settings ii req ersp
             let msiz = fromIntegral <$> H2.responseBodySize h2rsp'
             _ <- response h2rsp' []
             logResponse req st msiz
@@ -114,21 +126,24 @@ http2server settings ii transport addr app h2req0 aux0 response = do
         !path = H2.promiseRequestPath pp
         !siz = case H2.responseBodySize $ H2.promiseResponse pp of
             Nothing -> 0
-            Just s  -> fromIntegral s
+            Just s -> fromIntegral s
 
-wrappedRecvN :: T.Handle -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
+wrappedRecvN
+    :: T.Handle -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
 wrappedRecvN th slowlorisSize readN bufsize = do
-    bs <-  UnliftIO.handleAny handler $ readN bufsize
+    bs <- UnliftIO.handleAny handler $ readN bufsize
     -- TODO: think about the slowloris protection in HTTP2: current code
     -- might open a slow-loris attack vector. Rather than timing we should
     -- consider limiting the per-client connections assuming that in HTTP2
     -- we should allow only few connections per host (real-world
     -- deployments with large NATs may be trickier).
-    when (BS.length bs > 0 && BS.length bs >= slowlorisSize || bufsize <= slowlorisSize) $ T.tickle th
+    when
+        (BS.length bs > 0 && BS.length bs >= slowlorisSize || bufsize <= slowlorisSize) $
+        T.tickle th
     return bs
- where
-   handler :: UnliftIO.SomeException -> IO ByteString
-   handler _ = return ""
+  where
+    handler :: UnliftIO.SomeException -> IO ByteString
+    handler _ = return ""
 
 -- connClose must not be called here since Run:fork calls it
 goaway :: Connection -> H2.ErrorCodeId -> ByteString -> IO ()

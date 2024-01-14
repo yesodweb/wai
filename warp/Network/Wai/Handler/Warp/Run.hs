@@ -8,14 +8,25 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
-import qualified Control.Exception
 import Control.Exception (allowInterrupt)
+import qualified Control.Exception
 import qualified Data.ByteString as S
 import Data.IORef (newIORef, readIORef)
 import Data.Streaming.Network (bindPortTCP)
-import Foreign.C.Error (Errno(..), eCONNABORTED)
-import GHC.IO.Exception (IOException(..), IOErrorType(..))
-import Network.Socket (Socket, close, withSocketsDo, SockAddr, setSocketOption, SocketOption(..), getSocketName)
+import Foreign.C.Error (Errno (..), eCONNABORTED)
+import GHC.IO.Exception (IOErrorType (..), IOException (..))
+import Network.Socket (
+    SockAddr,
+    Socket,
+    SocketOption (..),
+    close,
+#if !WINDOWS
+    fdSocket,
+#endif
+    getSocketName,
+    setSocketOption,
+    withSocketsDo,
+ )
 #if MIN_VERSION_network(3,1,1)
 import Network.Socket (gracefulClose)
 #endif
@@ -26,8 +37,8 @@ import System.Environment (lookupEnv)
 import System.IO.Error (ioeGetErrorType)
 import qualified System.TimeManager as T
 import System.Timeout (timeout)
-import qualified UnliftIO
 import UnliftIO (toException)
+import qualified UnliftIO
 
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Counter
@@ -41,12 +52,8 @@ import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
-
-
 #if WINDOWS
 import Network.Wai.Handler.Warp.Windows
-#else
-import Network.Socket (fdSocket)
 #endif
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
@@ -61,54 +68,67 @@ socketConnection _ s = do
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
-    return Connection {
-        connSendMany = Sock.sendMany s
-      , connSendAll = sendall
-      , connSendFile = sendfile writeBufferRef
+    return
+        Connection
+            { connSendMany = Sock.sendMany s
+            , connSendAll = sendall
+            , connSendFile = sendfile writeBufferRef
 #if MIN_VERSION_network(3,1,1)
-      , connClose = do
-            h2 <- readIORef isH2
-            let tm = if h2 then settingsGracefulCloseTimeout2 set
-                           else settingsGracefulCloseTimeout1 set
-            if tm == 0 then
-                close s
-              else
-                gracefulClose s tm `UnliftIO.catchAny` \(UnliftIO.SomeException _) -> return ()
+            , connClose = do
+                h2 <- readIORef isH2
+                let tm =
+                        if h2
+                            then settingsGracefulCloseTimeout2 set
+                            else settingsGracefulCloseTimeout1 set
+                if tm == 0
+                    then close s
+                    else gracefulClose s tm `UnliftIO.catchAny` \(UnliftIO.SomeException _) -> return ()
 #else
-      , connClose = close s
+            , connClose = close s
 #endif
-      , connRecv = receive' s bufferPool
-      , connRecvBuf = \_ _ -> return True -- obsoleted
-      , connWriteBuffer = writeBufferRef
-      , connHTTP2 = isH2
-      , connMySockAddr = mysa
-      }
+            , connRecv = receive' s bufferPool
+            , connRecvBuf = \_ _ -> return True -- obsoleted
+            , connWriteBuffer = writeBufferRef
+            , connHTTP2 = isH2
+            , connMySockAddr = mysa
+            }
   where
     receive' sock pool = UnliftIO.handleIO handler $ receive sock pool
       where
         handler :: UnliftIO.IOException -> IO ByteString
         handler e
-          | ioeGetErrorType e == InvalidArgument = return ""
-          | otherwise                            = UnliftIO.throwIO e
+            | ioeGetErrorType e == InvalidArgument = return ""
+            | otherwise = UnliftIO.throwIO e
 
     sendfile writeBufferRef fid offset len hook headers = do
-      writeBuffer <- readIORef writeBufferRef
-      sendFile s (bufBuffer writeBuffer) (bufSize writeBuffer) sendall
-        fid offset len hook headers
+        writeBuffer <- readIORef writeBufferRef
+        sendFile
+            s
+            (bufBuffer writeBuffer)
+            (bufSize writeBuffer)
+            sendall
+            fid
+            offset
+            len
+            hook
+            headers
 
     sendall = sendAll' s
 
-    sendAll' sock bs = UnliftIO.handleJust
-      (\ e -> if ioeGetErrorType e == ResourceVanished
-        then Just ConnectionClosedByPeer
-        else Nothing)
-      UnliftIO.throwIO
-      $ Sock.sendAll sock bs
+    sendAll' sock bs =
+        UnliftIO.handleJust
+            ( \e ->
+                if ioeGetErrorType e == ResourceVanished
+                    then Just ConnectionClosedByPeer
+                    else Nothing
+            )
+            UnliftIO.throwIO
+            $ Sock.sendAll sock bs
 
 -- | Run an 'Application' on the given port.
 -- This calls 'runSettings' with 'defaultSettings'.
 run :: Port -> Application -> IO ()
-run p = runSettings defaultSettings { settingsPort = p }
+run p = runSettings defaultSettings{settingsPort = p}
 
 -- | Run an 'Application' on the port present in the @PORT@
 -- environment variable. Uses the 'Port' given when the variable is unset.
@@ -120,24 +140,25 @@ runEnv p app = do
     mp <- lookupEnv "PORT"
 
     maybe (run p app) runReadPort mp
-
   where
     runReadPort :: String -> IO ()
     runReadPort sp = case reads sp of
-        ((p', _):_) -> run p' app
+        ((p', _) : _) -> run p' app
         _ -> fail $ "Invalid value in $PORT: " ++ sp
 
 -- | Run an 'Application' with the given 'Settings'.
 -- This opens a listen socket on the port defined in 'Settings' and
 -- calls 'runSettingsSocket'.
 runSettings :: Settings -> Application -> IO ()
-runSettings set app = withSocketsDo $
-    UnliftIO.bracket
-        (bindPortTCP (settingsPort set) (settingsHost set))
-        close
-        (\socket -> do
-            setSocketCloseOnExec socket
-            runSettingsSocket set socket app)
+runSettings set app =
+    withSocketsDo $
+        UnliftIO.bracket
+            (bindPortTCP (settingsPort set) (settingsHost set))
+            close
+            ( \socket -> do
+                setSocketCloseOnExec socket
+                runSettingsSocket set socket app
+            )
 
 -- | This installs a shutdown handler for the given socket and
 -- calls 'runSettingsConnection' with the default connection setup action
@@ -174,20 +195,22 @@ runSettingsSocket set@Settings{settingsAccept = accept'} socket app = do
 -- in a separate worker thread instead of the main server loop.
 --
 -- Since 1.3.5
-runSettingsConnection :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
+runSettingsConnection
+    :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
 runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
   where
     getConnMaker = do
-      (conn, sa) <- getConn
-      return (return conn, sa)
+        (conn, sa) <- getConn
+        return (return conn, sa)
 
 -- | This modifies the connection maker so that it returns 'TCP' for 'Transport'
 -- (i.e. plain HTTP) then calls 'runSettingsConnectionMakerSecure'.
-runSettingsConnectionMaker :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
+runSettingsConnectionMaker
+    :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
 runSettingsConnectionMaker x y =
     runSettingsConnectionMakerSecure x (toTCP <$> y)
   where
-    toTCP = first ((, TCP) <$>)
+    toTCP = first ((,TCP) <$>)
 
 ----------------------------------------------------------------
 
@@ -197,7 +220,8 @@ runSettingsConnectionMaker x y =
 -- or HTTP over TLS.
 --
 -- Since 2.1.4
-runSettingsConnectionMakerSecure :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
+runSettingsConnectionMakerSecure
+    :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
 runSettingsConnectionMakerSecure set getConnMaker app = do
     settingsBeforeMainLoop set
     counter <- newCounter
@@ -209,21 +233,22 @@ runSettingsConnectionMakerSecure set getConnMaker app = do
 withII :: Settings -> (InternalInfo -> IO a) -> IO a
 withII set action =
     withTimeoutManager $ \tm ->
-    D.withDateCache $ \dc ->
-    F.withFdCache fdCacheDurationInSeconds $ \fdc ->
-    I.withFileInfoCache fdFileInfoDurationInSeconds $ \fic -> do
-        let ii = InternalInfo tm dc fdc fic
-        action ii
+        D.withDateCache $ \dc ->
+            F.withFdCache fdCacheDurationInSeconds $ \fdc ->
+                I.withFileInfoCache fdFileInfoDurationInSeconds $ \fic -> do
+                    let ii = InternalInfo tm dc fdc fic
+                    action ii
   where
     !fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
     !fdFileInfoDurationInSeconds = settingsFileInfoCacheDuration set * 1000000
     !timeoutInSeconds = settingsTimeout set * 1000000
     withTimeoutManager f = case settingsManager set of
         Just tm -> f tm
-        Nothing -> UnliftIO.bracket
-                   (T.initialize timeoutInSeconds)
-                   T.stopManager
-                   f
+        Nothing ->
+            UnliftIO.bracket
+                (T.initialize timeoutInSeconds)
+                T.stopManager
+                f
 
 -- Note that there is a thorough discussion of the exception safety of the
 -- following code at: https://github.com/yesodweb/wai/issues/146
@@ -238,12 +263,13 @@ withII set action =
 --    async exceptions.
 --
 -- Our approach is explained in the comments below.
-acceptConnection :: Settings
-                 -> IO (IO (Connection, Transport), SockAddr)
-                 -> Application
-                 -> Counter
-                 -> InternalInfo
-                 -> IO ()
+acceptConnection
+    :: Settings
+    -> IO (IO (Connection, Transport), SockAddr)
+    -> Application
+    -> Counter
+    -> InternalInfo
+    -> IO ()
 acceptConnection set getConnMaker app counter ii = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
@@ -269,7 +295,7 @@ acceptConnection set getConnMaker app counter ii = do
         -- negotiation.
         mx <- acceptNewConnection
         case mx of
-            Nothing             -> return ()
+            Nothing -> return ()
             Just (mkConn, addr) -> do
                 fork set mkConn addr app counter ii
                 acceptLoop
@@ -289,13 +315,14 @@ acceptConnection set getConnMaker app counter ii = do
 
 -- Fork a new worker thread for this connection maker, and ask for a
 -- function to unmask (i.e., allow async exceptions to be thrown).
-fork :: Settings
-     -> IO (Connection, Transport)
-     -> SockAddr
-     -> Application
-     -> Counter
-     -> InternalInfo
-     -> IO ()
+fork
+    :: Settings
+    -> IO (Connection, Transport)
+    -> SockAddr
+    -> Application
+    -> Counter
+    -> InternalInfo
+    -> IO ()
 fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
     -- Call the user-supplied on exception code if any
     -- exceptions are thrown.
@@ -317,9 +344,10 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
         -- fact that async exceptions are still masked.
         UnliftIO.bracket mkConn cleanUp (serve unmask)
   where
-    cleanUp (conn, _) = connClose conn `UnliftIO.finally` do
-                          writeBuffer <- readIORef $ connWriteBuffer conn
-                          bufFree writeBuffer
+    cleanUp (conn, _) =
+        connClose conn `UnliftIO.finally` do
+            writeBuffer <- readIORef $ connWriteBuffer conn
+            bufFree writeBuffer
 
     -- We need to register a timeout handler for this thread, and
     -- cancel that handler as soon as we exit.
@@ -327,42 +355,46 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask ->
         -- We now have fully registered a connection close handler in
         -- the case of all exceptions, so it is safe to once again
         -- allow async exceptions.
-        unmask .
+        unmask
+            .
             -- Call the user-supplied code for connection open and
             -- close events
-           UnliftIO.bracket (onOpen addr) (onClose addr) $ \goingon ->
-           -- Actually serve this connection.  bracket with closeConn
-           -- above ensures the connection is closed.
-           when goingon $ serveConnection conn ii th addr transport set app
+            UnliftIO.bracket (onOpen addr) (onClose addr)
+            $ \goingon ->
+                -- Actually serve this connection.  bracket with closeConn
+                -- above ensures the connection is closed.
+                when goingon $ serveConnection conn ii th addr transport set app
       where
         register = T.registerKillThread (timeoutManager ii) (connClose conn)
-        cancel   = T.cancel
+        cancel = T.cancel
 
-    onOpen adr    = increase counter >> settingsOnOpen  set adr
+    onOpen adr = increase counter >> settingsOnOpen set adr
     onClose adr _ = decrease counter >> settingsOnClose set adr
 
-serveConnection :: Connection
-                -> InternalInfo
-                -> T.Handle
-                -> SockAddr
-                -> Transport
-                -> Settings
-                -> Application
-                -> IO ()
+serveConnection
+    :: Connection
+    -> InternalInfo
+    -> T.Handle
+    -> SockAddr
+    -> Transport
+    -> Settings
+    -> Application
+    -> IO ()
 serveConnection conn ii th origAddr transport settings app = do
     -- fixme: Upgrading to HTTP/2 should be supported.
-    (h2,bs) <- if isHTTP2 transport then
-                   return (True, "")
-                 else do
-                   bs0 <- connRecv conn
-                   if S.length bs0 >= 4 && "PRI " `S.isPrefixOf` bs0 then
-                       return (True, bs0)
-                     else
-                       return (False, bs0)
-    if settingsHTTP2Enabled settings && h2 then do
-        http2 settings ii conn transport app origAddr th bs
-      else do
-        http1 settings ii conn transport app origAddr th bs
+    (h2, bs) <-
+        if isHTTP2 transport
+            then return (True, "")
+            else do
+                bs0 <- connRecv conn
+                if S.length bs0 >= 4 && "PRI " `S.isPrefixOf` bs0
+                    then return (True, bs0)
+                    else return (False, bs0)
+    if settingsHTTP2Enabled settings && h2
+        then do
+            http2 settings ii conn transport app origAddr th bs
+        else do
+            http1 settings ii conn transport app origAddr th bs
 
 -- | Set flag FileCloseOnExec flag on a socket (on Unix)
 --
@@ -389,4 +421,5 @@ gracefulShutdown set counter =
             waitForZero counter
         (Just seconds) ->
             void (timeout (seconds * microsPerSecond) (waitForZero counter))
-            where microsPerSecond = 1000000
+          where
+            microsPerSecond = 1000000
