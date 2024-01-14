@@ -63,11 +63,6 @@ parseRequestLine
         , H.HttpVersion
         )
 parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> do
-    -- FIXME: Is this still correct with 'HTTP/2' also being valid?
-    -- @
-    -- GET / HTTP/2
-    -- @
-    -- This is 12 characters long
     when (len < 14) $ throwIO baderr
     let methodptr = ptr `plusPtr` off
         limptr = methodptr `plusPtr` len
