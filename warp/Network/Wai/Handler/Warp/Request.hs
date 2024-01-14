@@ -24,7 +24,7 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.IORef as I
 import Data.Typeable (Typeable)
 import qualified Data.Vault.Lazy as Vault
-import Data.Word8 (_cr, _lf, _space, _tab)
+import Data.Word8 (_cr, _lf)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
@@ -83,10 +83,13 @@ recvRequest firstRequest settings conn ii th addr src transport = do
         parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
         expect = idxhdr ! fromEnum ReqExpect
-        cl = idxhdr ! fromEnum ReqContentLength
-        te = idxhdr ! fromEnum ReqTransferEncoding
         handle100Continue = handleExpect conn httpversion expect
-        rawPath = if settingsNoParsePath settings then unparsedPath else path
+    (rbody, remainingRef, bodyLength) <- bodyAndSource src idxhdr
+    -- body producing function which will produce '100-continue', if needed
+    rbody' <- timeoutBody remainingRef th rbody handle100Continue
+    -- body producing function which will never produce 100-continue
+    rbodyFlush <- timeoutBody remainingRef th rbody (return ())
+    let rawPath = if settingsNoParsePath settings then unparsedPath else path
         vaultValue =
             Vault.insert pauseTimeoutKey (Timeout.pause th)
                 . Vault.insert getFileInfoKey (getFileInfo ii)
@@ -94,12 +97,7 @@ recvRequest firstRequest settings conn ii th addr src transport = do
                 . Vault.insert getClientCertificateKey (getTransportClientCertificate transport)
 #endif
                 $ Vault.empty
-    (rbody, remainingRef, bodyLength) <- bodyAndSource src cl te
-    -- body producing function which will produce '100-continue', if needed
-    rbody' <- timeoutBody remainingRef th rbody handle100Continue
-    -- body producing function which will never produce 100-continue
-    rbodyFlush <- timeoutBody remainingRef th rbody (return ())
-    let req =
+        req =
             Request
                 { requestMethod = method
                 , httpVersion = httpversion
@@ -160,26 +158,23 @@ handleExpect _ _ _ = return ()
 
 bodyAndSource
     :: Source
-    -> Maybe HeaderValue
-    -- ^ content length
-    -> Maybe HeaderValue
-    -- ^ transfer-encoding
+    -> IndexedHeader
     -> IO
         ( IO ByteString
         , Maybe (I.IORef Int)
         , RequestBodyLength
         )
-bodyAndSource src cl te
+bodyAndSource src idxhdr
     | chunked = do
         csrc <- mkCSource src
         return (readCSource csrc, Nothing, ChunkedBody)
     | otherwise = do
+        let len = toLength $ idxhdr ! fromEnum ReqContentLength
+            bodyLen = KnownLength $ fromIntegral len
         isrc@(ISource _ remaining) <- mkISource src len
         return (readISource isrc, Just remaining, bodyLen)
   where
-    len = toLength cl
-    bodyLen = KnownLength $ fromIntegral len
-    chunked = isChunked te
+    chunked = isChunked $ idxhdr ! fromEnum ReqTransferEncoding
 
 toLength :: Maybe HeaderValue -> Int
 toLength Nothing = 0
@@ -268,11 +263,6 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen reqLines prepend) bs
   where
     bsLen = S.length bs
     currentTotal = totalLen + chunkLen
-    isWS c = c == _space || c == _tab
-    {-# INLINE finishUp #-}
-    finishUp rest = do
-        when (not $ S.null rest) $ leftoverSource src rest
-        pure $ reqLines []
     {-# INLINE withNewChunk #-}
     withNewChunk :: (S.ByteString -> IO a) -> IO a
     withNewChunk f = do
@@ -286,30 +276,39 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen reqLines prepend) bs
             let bs' = SU.unsafeDrop 1 newChunk
              in if bsLen == 1 && chunkLen == 0
                 -- first part is only CRLF, we're done
-                then finishUp bs'
+                then do
+                    when (not $ S.null bs') $ leftoverSource src bs'
+                    pure $ reqLines []
                 else do
                     rest <- if S.length newChunk == 1
                         -- new chunk is only LF, we need more to check for multiline
                         then withNewChunk pure
                         else pure bs'
-                    let nextIsWS = isWS $ SU.unsafeHead rest
-                        status = addEither nextIsWS (bsLen + 1) (SU.unsafeTake (bsLen - 1) bs)
+                    let status = addLine (bsLen + 1) (SU.unsafeTake (bsLen - 1) bs)
                     push maxTotalHeaderLength src status rest
         -- chunk and keep going
-        | otherwise = push maxTotalHeaderLength src (addChunk bsLen bs) newChunk
+        | otherwise = do
+            let newChunkTotal = chunkLen + bsLen
+                newPrepend = prepend . (B.byteString bs <>)
+                status = THStatus totalLen newChunkTotal reqLines newPrepend
+            push maxTotalHeaderLength src status newChunk
     {-# INLINE newlineFound #-}
     newlineFound ix
         -- Is end of headers
-        | startsWithLF && chunkLen == 0 =
-            finishUp (SU.unsafeDrop end bs)
+        | startsWithLF && chunkLen == 0 =  do
+            let rest = SU.unsafeDrop end bs
+            when (not $ S.null rest) $ leftoverSource src rest
+            pure $ reqLines []
         | otherwise = do
             -- LF is on last byte
             rest <- if end == bsLen
                 -- we need more chunks to check for whitespace
                 then withNewChunk pure
                 else pure $ SU.unsafeDrop end bs
-            let nextIsWS = isWS $ SU.unsafeHead rest
-                status = addEither nextIsWS end (SU.unsafeTake (checkCR bs ix) bs)
+            let p = ix - 1
+                chunk =
+                    if ix > 0 && SU.unsafeIndex bs p == _cr then p else ix
+                status = addLine end (SU.unsafeTake chunk bs)
             push maxTotalHeaderLength src status rest
       where
         end = ix + 1
@@ -318,30 +317,16 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen reqLines prepend) bs
                 0 -> True
                 1 -> SU.unsafeHead bs == _cr
                 _ -> False
-    addEither isMultiline len chunk
-        | isMultiline = addChunk len chunk
-        -- addLine: take the current chunk and add to 'lines' as optimal as possible
-        | otherwise =
-            let newTotal = currentTotal + len
-                toBS = S.toStrict . B.toLazyByteString
-                newLine =
-                    if chunkLen == 0 then chunk else toBS $ prepend $ B.byteString chunk
-            in THStatus newTotal 0 (reqLines . (newLine:)) id
-    {-# INLINE addChunk #-}
-    -- addChunk: take the current chunk and add to 'prepend' as optimal as possible
-    addChunk len chunk =
-        let newChunkTotal = chunkLen + len
-            newPrepend = prepend . (B.byteString chunk <>)
-         in THStatus totalLen newChunkTotal reqLines newPrepend
+    -- addLine: take the current chunk and, if there's nothing to prepend,
+    -- add straight to 'reqLines', otherwise first prepend then add.
+    addLine len chunk =
+        let newTotal = currentTotal + len
+            toBS = S.toStrict . B.toLazyByteString
+            newLine =
+                if chunkLen == 0 then chunk else toBS $ prepend $ B.byteString chunk
+        in THStatus newTotal 0 (reqLines . (newLine:)) id
 {- HLint ignore push "Use unless" -}
 
-{-# INLINE checkCR #-}
-checkCR :: ByteString -> Int -> Int
-checkCR bs pos
-    | pos > 0 && S.index bs p == _cr = p
-    | otherwise = pos
-  where
-    !p = pos - 1
 
 pauseTimeoutKey :: Vault.Key (IO ())
 pauseTimeoutKey = unsafePerformIO Vault.newKey
