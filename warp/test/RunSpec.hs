@@ -288,7 +288,9 @@ spec = do
                 threadDelay 5000
                 headers <- I.readIORef iheaders
                 headers
-                    `shouldBe` [ ("foo", "bar baz\tbin")
+                    `shouldBe` [ ("foo", "bar")
+                               , (" baz", "")
+                               , ("\tbin", "")
                                ]
         it "no space between colon and value" $ do
             appWithSocket $ \iheaders ms -> do
@@ -296,18 +298,17 @@ spec = do
                 msWrite ms input
                 threadDelay 5000
                 headers <- I.readIORef iheaders
-                headers `shouldBe`
-                    [ ("foo", "bar")
-                    ]
-        it "recognizes multiline headers" $ do
+                headers `shouldBe` [("foo", "bar")]
+        it "does not recognize multiline headers" $ do
             appWithSocket $ \iheaders ms -> do
                 msWrite ms "GET / HTTP/1.1\r\nfoo: and\r\n"
                 msWrite ms " baz as well\r\n\r\n"
                 threadDelay 5000
                 headers <- I.readIORef iheaders
-                headers `shouldBe`
-                    [ ("foo", "and baz as well")
-                    ]
+                headers
+                    `shouldBe` [ ("foo", "and")
+                               , (" baz as well", "")
+                               ]
 
     describe "chunked bodies" $ do
         it "works" $ do
