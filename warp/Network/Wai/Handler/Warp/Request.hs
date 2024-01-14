@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -19,6 +18,7 @@ import qualified Control.Concurrent as Conc (yield)
 import Data.Array ((!))
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Lazy as BL (toStrict)
 import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
 import qualified Data.IORef as I
@@ -237,8 +237,8 @@ type BSEndoList = [ByteString] -> [ByteString]
 
 data THStatus
     = THStatus
-        !Int -- running total byte count (excluding current header chunk)
-        !Int -- current header chunk byte count
+        Int -- running total byte count (excluding current header chunk)
+        Int -- current header chunk byte count
         BSEndoList -- previously parsed lines
         BSEndo -- bytestrings to be prepended
 
@@ -321,7 +321,7 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen reqLines prepend) bs
     -- add straight to 'reqLines', otherwise first prepend then add.
     addLine len chunk =
         let newTotal = currentTotal + len
-            toBS = S.toStrict . B.toLazyByteString
+            toBS = BL.toStrict . B.toLazyByteString
             newLine =
                 if chunkLen == 0 then chunk else toBS $ prepend $ B.byteString chunk
         in THStatus newTotal 0 (reqLines . (newLine:)) id
