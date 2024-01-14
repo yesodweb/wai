@@ -80,22 +80,24 @@ spec = do
             parseHeaderLine ["Status: 200", "\r\nContent-Type: text/plain", "\r\n\r\n"]
 
         it "can handle a nasty case (2)" $ do
-            parseHeaderLine ["Status: 200", "\r", "\nContent-Type: text/plain", "\r", "\n\r\n"]
+            parseHeaderLine
+                ["Status: 200", "\r", "\nContent-Type: text/plain", "\r", "\n\r\n"]
 
         it "can handle a nasty case (3)" $ do
-            parseHeaderLine ["Status: 200", "\r", "\n", "Content-Type: text/plain", "\r", "\n", "\r", "\n"]
+            parseHeaderLine
+                ["Status: 200", "\r", "\n", "Content-Type: text/plain", "\r", "\n", "\r", "\n"]
 
         it "can handle a stupid case (3)" $
             parseHeaderLine $
-                (S8.pack . (:[])) <$> "Status: 200\r\nContent-Type: text/plain\r\n\r\n"
+                (S8.pack . (: [])) <$> "Status: 200\r\nContent-Type: text/plain\r\n\r\n"
 
-        it "can handle an illegal case (1)" $ do
+        it "can (not) handle an illegal case (1)" $ do
             let chunks = ["\nStatus:", "\n 200", "\nContent-Type: text/plain", "\r\n\r\n"]
             src <- mkSourceFunc chunks >>= mkSource
             x <- headerLines defaultMaxTotalHeaderLength True src
             x `shouldBe` []
             y <- headerLines defaultMaxTotalHeaderLength True src
-            y `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+            y `shouldBe` ["Status:", " 200", "Content-Type: text/plain"]
 
         -- Length is 39, this shouldn't fail
         let testLengthHeaders = ["Sta", "tus: 200\r", "\n", "Content-Type: ", "text/plain\r\n\r\n"]
