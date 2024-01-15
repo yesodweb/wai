@@ -1,24 +1,32 @@
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 
 -- | File descriptor cache to avoid locks in kernel.
-
 module Network.Wai.Handler.Warp.FdCache (
-    withFdCache
-  , Fd
-  , Refresh
+    withFdCache,
+    Fd,
+    Refresh,
 #ifndef WINDOWS
-  , openFile
-  , closeFile
-  , setFileCloseOnExec
+    closeFile,
+    openFile,
+    setFileCloseOnExec,
 #endif
-  ) where
+) where
 
 #ifndef WINDOWS
-import UnliftIO.Exception (bracket)
 import Control.Reaper
 import Data.IORef
 import Network.Wai.Handler.Warp.MultiMap as MM
-import System.Posix.IO (openFd, OpenFileFlags(..), defaultFileFlags, OpenMode(ReadOnly), closeFd, FdOption(CloseOnExec), setFdOption)
+import System.Posix.IO (
+    FdOption (CloseOnExec),
+    OpenFileFlags (..),
+    OpenMode (ReadOnly),
+    closeFd,
+    defaultFileFlags,
+    openFd,
+    setFdOption,
+ )
+import UnliftIO.Exception (bracket)
 #endif
 import System.Posix.Types (Fd)
 
@@ -36,12 +44,14 @@ getFdNothing _ = return (Nothing, return ())
 --   argument. The first argument is a cache duration in second.
 withFdCache :: Int -> ((FilePath -> IO (Maybe Fd, Refresh)) -> IO a) -> IO a
 #ifdef WINDOWS
-withFdCache _        action = action getFdNothing
+withFdCache _ action = action getFdNothing
 #else
-withFdCache 0        action = action getFdNothing
-withFdCache duration action = bracket (initialize duration)
-                                      terminate
-                                      (action . getFd)
+withFdCache 0 action = action getFdNothing
+withFdCache duration action =
+    bracket
+        (initialize duration)
+        terminate
+        (action . getFd)
 
 ----------------------------------------------------------------
 
@@ -68,9 +78,9 @@ data FdEntry = FdEntry !Fd !MutableStatus
 openFile :: FilePath -> IO Fd
 openFile path = do
 #if MIN_VERSION_unix(2,8,0)
-    fd <- openFd path ReadOnly defaultFileFlags{nonBlock=False}
+    fd <- openFd path ReadOnly defaultFileFlags{nonBlock = False}
 #else
-    fd <- openFd path ReadOnly Nothing defaultFileFlags{nonBlock=False}
+    fd <- openFd path ReadOnly Nothing defaultFileFlags{nonBlock = False}
 #endif
     setFileCloseOnExec fd
     return fd
@@ -89,7 +99,7 @@ setFileCloseOnExec fd = setFdOption fd CloseOnExec True
 type FdCache = MultiMap FdEntry
 
 -- | Mutable Fd cacher.
-newtype MutableFdCache = MutableFdCache (Reaper FdCache (FilePath,FdEntry))
+newtype MutableFdCache = MutableFdCache (Reaper FdCache (FilePath, FdEntry))
 
 fdCache :: MutableFdCache -> IO FdCache
 fdCache (MutableFdCache reaper) = reaperRead reaper
@@ -103,23 +113,24 @@ look mfc path = MM.lookup path <$> fdCache mfc
 initialize :: Int -> IO MutableFdCache
 initialize duration = MutableFdCache <$> mkReaper settings
   where
-    settings = defaultReaperSettings {
-        reaperAction = clean
-      , reaperDelay = duration
-      , reaperCons = uncurry insert
-      , reaperNull = isEmpty
-      , reaperEmpty = empty
-      }
+    settings =
+        defaultReaperSettings
+            { reaperAction = clean
+            , reaperDelay = duration
+            , reaperCons = uncurry insert
+            , reaperNull = isEmpty
+            , reaperEmpty = empty
+            }
 
 clean :: FdCache -> IO (FdCache -> FdCache)
 clean old = do
     new <- pruneWith old prune
     return $ merge new
   where
-    prune (_,FdEntry fd mst) = status mst >>= act
+    prune (_, FdEntry fd mst) = status mst >>= act
       where
-        act Active   = inactive mst >> return True
-        act Inactive = closeFd fd   >> return False
+        act Active = inactive mst >> return True
+        act Inactive = closeFd fd >> return False
 
 ----------------------------------------------------------------
 
@@ -138,7 +149,7 @@ getFd mfc@(MutableFdCache reaper) path = look mfc path >>= get
   where
     get Nothing = do
         ent@(FdEntry fd mst) <- newFdEntry path
-        reaperAdd reaper (path,ent)
+        reaperAdd reaper (path, ent)
         return (Just fd, refresh mst)
     get (Just (FdEntry fd mst)) = do
         refresh mst

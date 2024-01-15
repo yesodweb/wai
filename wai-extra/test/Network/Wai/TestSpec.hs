@@ -145,27 +145,29 @@ spec = do
                                 )
 
         it
-            "sends a Cookie header with correct value after receiving a Set-Cookie header" $ do
-            sresp <- flip runSession cookieApp $ do
-                void $
+            "sends a Cookie header with correct value after receiving a Set-Cookie header"
+            $ do
+                sresp <- flip runSession cookieApp $ do
+                    void $
+                        request $
+                            setPath defaultRequest "/set/cookie_name/cookie_value"
                     request $
-                        setPath defaultRequest "/set/cookie_name/cookie_value"
-                request $
-                    setPath defaultRequest "/get"
-            simpleBody sresp `shouldBe` "[\"cookie_name=cookie_value\"]"
+                        setPath defaultRequest "/get"
+                simpleBody sresp `shouldBe` "[\"cookie_name=cookie_value\"]"
 
         it
-            "sends a Cookie header with updated value after receiving a Set-Cookie header update" $ do
-            sresp <- flip runSession cookieApp $ do
-                void $
+            "sends a Cookie header with updated value after receiving a Set-Cookie header update"
+            $ do
+                sresp <- flip runSession cookieApp $ do
+                    void $
+                        request $
+                            setPath defaultRequest "/set/cookie_name/cookie_value"
+                    void $
+                        request $
+                            setPath defaultRequest "/set/cookie_name/cookie_value2"
                     request $
-                        setPath defaultRequest "/set/cookie_name/cookie_value"
-                void $
-                    request $
-                        setPath defaultRequest "/set/cookie_name/cookie_value2"
-                request $
-                    setPath defaultRequest "/get"
-            simpleBody sresp `shouldBe` "[\"cookie_name=cookie_value2\"]"
+                        setPath defaultRequest "/get"
+                simpleBody sresp `shouldBe` "[\"cookie_name=cookie_value2\"]"
 
         it "handles multiple cookies" $ do
             sresp <- flip runSession cookieApp $ do

@@ -1,17 +1,15 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
+
 -- | Backend for Common Gateway Interface. Almost all users should use the
 -- 'run' function.
-module Network.Wai.Handler.CGI
-    ( run
-    , runSendfile
-    , runGeneric
-    , requestBodyFunc
-    ) where
+module Network.Wai.Handler.CGI (
+    run,
+    runSendfile,
+    runGeneric,
+    requestBodyFunc,
+) where
 
-#if __GLASGOW_HASKELL__ < 710
-import Data.Monoid (mconcat, mempty, mappend)
-#endif
 import Control.Arrow ((***))
 import Control.Monad (unless, void)
 import Data.ByteString.Builder (byteString, string8, toLazyByteString, word8)
@@ -24,6 +22,9 @@ import Data.Char (toLower)
 import Data.Function (fix)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (fromMaybe)
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (mconcat, mempty, mappend)
+#endif
 import qualified Data.Streaming.ByteString.Builder as Builder
 import qualified Data.String as String
 import Data.Word8 (_lf, _space)
@@ -46,9 +47,9 @@ getEnvironment = map (B.unpack *** B.unpack) `fmap` Env.getEnvironment
 
 safeRead :: Read a => a -> String -> a
 safeRead d s =
-  case reads s of
-    ((x, _):_) -> x
-    [] -> d
+    case reads s of
+        ((x, _) : _) -> x
+        [] -> d
 
 lookup' :: String -> [(String, String)] -> String
 lookup' key pairs = fromMaybe "" $ lookup key pairs
@@ -64,8 +65,11 @@ run app = do
 -- | Some web servers provide an optimization for sending files via a sendfile
 -- system call via a special header. To use this feature, provide that header
 -- name here.
-runSendfile :: B.ByteString -- ^ sendfile header
-            -> Application -> IO ()
+runSendfile
+    :: B.ByteString
+    -- ^ sendfile header
+    -> Application
+    -> IO ()
 runSendfile sf app = do
     vars <- getEnvironment
     let input = requestBodyHandle System.IO.stdin
@@ -76,12 +80,16 @@ runSendfile sf app = do
 -- use the same code as CGI. Most users will not need this function, and can
 -- stick with 'run' or 'runSendfile'.
 runGeneric
-     :: [(String, String)] -- ^ all variables
-     -> (Int -> IO (IO B.ByteString)) -- ^ responseBody of input
-     -> (B.ByteString -> IO ()) -- ^ destination for output
-     -> Maybe B.ByteString -- ^ does the server support the X-Sendfile header?
-     -> Application
-     -> IO ()
+    :: [(String, String)]
+    -- ^ all variables
+    -> (Int -> IO (IO B.ByteString))
+    -- ^ responseBody of input
+    -> (B.ByteString -> IO ())
+    -- ^ destination for output
+    -> Maybe B.ByteString
+    -- ^ does the server support the X-Sendfile header?
+    -> Application
+    -> IO ()
 runGeneric vars inputH outputH xsendfile app = do
     let rmethod = B.pack $ lookup' "REQUEST_METHOD" vars
         pinfo = lookup' "PATH_INFO" vars
@@ -99,29 +107,30 @@ runGeneric vars inputH outputH xsendfile app = do
     requestBody' <- inputH contentLength
     let addr =
             case addrs of
-                a:_ -> addrAddress a
+                a : _ -> addrAddress a
                 [] -> error $ "Invalid REMOTE_ADDR or REMOTE_HOST: " ++ remoteHost'
         reqHeaders = map (cleanupVarName *** B.pack) vars
         env =
-            setRequestBodyChunks requestBody' $ defaultRequest
-                { requestMethod = rmethod
-                , rawPathInfo = B.pack pinfo
-                , pathInfo = H.decodePathSegments $ B.pack pinfo
-                , rawQueryString = B.pack qstring
-                , queryString = H.parseQuery $ B.pack qstring
-                , requestHeaders = reqHeaders
-                , isSecure = isSecure'
-                , remoteHost = addr
-                , httpVersion = H.http11 -- FIXME
-                , vault = mempty
-                , requestBodyLength = KnownLength $ fromIntegral contentLength
-                , requestHeaderHost = lookup "host" reqHeaders
-                , requestHeaderRange = lookup hRange reqHeaders
+            setRequestBodyChunks requestBody' $
+                defaultRequest
+                    { requestMethod = rmethod
+                    , rawPathInfo = B.pack pinfo
+                    , pathInfo = H.decodePathSegments $ B.pack pinfo
+                    , rawQueryString = B.pack qstring
+                    , queryString = H.parseQuery $ B.pack qstring
+                    , requestHeaders = reqHeaders
+                    , isSecure = isSecure'
+                    , remoteHost = addr
+                    , httpVersion = H.http11 -- FIXME
+                    , vault = mempty
+                    , requestBodyLength = KnownLength $ fromIntegral contentLength
+                    , requestHeaderHost = lookup "host" reqHeaders
+                    , requestHeaderRange = lookup hRange reqHeaders
 #if MIN_VERSION_wai(3,2,0)
-            , requestHeaderReferer = lookup "referer" reqHeaders
-            , requestHeaderUserAgent = lookup "user-agent" reqHeaders
+                    , requestHeaderReferer = lookup "referer" reqHeaders
+                    , requestHeaderUserAgent = lookup "user-agent" reqHeaders
 #endif
-            }
+                    }
     void $ app env $ \res ->
         case (xsendfile, res) of
             (Just sf, ResponseFile s hs fp Nothing) -> do
@@ -144,25 +153,30 @@ runGeneric vars inputH outputH xsendfile app = do
                 return ResponseReceived
   where
     headers s hs = mconcat (map header $ status s : map header' (fixHeaders hs))
-    status (Status i m) = (byteString "Status", mconcat
-        [ string8 $ show i
-        , word8 _space
-        , byteString m
-        ])
+    status (Status i m) =
+        ( byteString "Status"
+        , mconcat
+            [ string8 $ show i
+            , word8 _space
+            , byteString m
+            ]
+        )
     header' (x, y) = (byteString $ CI.original x, byteString y)
-    header (x, y) = mconcat
-        [ x
-        , byteString ": "
-        , y
-        , word8 _lf
-        ]
-    sfBuilder s hs sf fp = mconcat
-        [ headers s hs
-        , header (byteString sf, string8 fp)
-        , word8 _lf
-        , byteString sf
-        , byteString " not supported"
-        ]
+    header (x, y) =
+        mconcat
+            [ x
+            , byteString ": "
+            , y
+            , word8 _lf
+            ]
+    sfBuilder s hs sf fp =
+        mconcat
+            [ headers s hs
+            , header (byteString sf, string8 fp)
+            , word8 _lf
+            , byteString sf
+            , byteString " not supported"
+            ]
     fixHeaders h =
         case lookup hContentType h of
             Nothing -> (hContentType, "text/html; charset=utf-8") : h
@@ -174,11 +188,11 @@ cleanupVarName "CONTENT_LENGTH" = hContentLength
 cleanupVarName "SCRIPT_NAME" = "CGI-Script-Name"
 cleanupVarName s =
     case s of
-        'H':'T':'T':'P':'_':a:as -> String.fromString $ a : helper' as
+        'H' : 'T' : 'T' : 'P' : '_' : a : as -> String.fromString $ a : helper' as
         _ -> String.fromString s -- FIXME remove?
   where
-    helper' ('_':x:rest) = '-' : x : helper' rest
-    helper' (x:rest) = toLower x : helper' rest
+    helper' ('_' : x : rest) = '-' : x : helper' rest
+    helper' (x : rest) = toLower x : helper' rest
     helper' [] = []
 
 requestBodyHandle :: Handle -> Int -> IO (IO B.ByteString)
@@ -186,7 +200,8 @@ requestBodyHandle h = requestBodyFunc $ \i -> do
     bs <- B.hGet h i
     return $ if B.null bs then Nothing else Just bs
 
-requestBodyFunc :: (Int -> IO (Maybe B.ByteString)) -> Int -> IO (IO B.ByteString)
+requestBodyFunc
+    :: (Int -> IO (Maybe B.ByteString)) -> Int -> IO (IO B.ByteString)
 requestBodyFunc get count0 = do
     ref <- newIORef count0
     return $ do

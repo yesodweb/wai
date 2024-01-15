@@ -1,28 +1,29 @@
-{-# LANGUAGE ForeignFunctionInterface, OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.Socket.BufferPool.Recv (
-    receive
-  , makeRecvN
-  ) where
+    receive,
+    makeRecvN,
+) where
 
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal (ByteString(..), unsafeCreate)
+import Data.ByteString.Internal (ByteString (..), unsafeCreate)
 import Data.IORef
 import Foreign.C.Error (eAGAIN, getErrno, throwErrno)
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, castPtr)
 import GHC.Conc (threadWaitRead)
 import Network.Socket (Socket, withFdSocket)
-import System.Posix.Types (Fd(..))
+import System.Posix.Types (Fd (..))
 
 #ifdef mingw32_HOST_OS
 import GHC.IO.FD (FD(..), readRawBufferPtr)
 import Network.Socket.BufferPool.Windows
 #endif
 
-import Network.Socket.BufferPool.Types
 import Network.Socket.BufferPool.Buffer
+import Network.Socket.BufferPool.Types
 
 ----------------------------------------------------------------
 
@@ -31,14 +32,14 @@ import Network.Socket.BufferPool.Buffer
 receive :: Socket -> BufferPool -> Recv
 receive sock pool = withBufferPool pool $ \ptr size -> do
 #if MIN_VERSION_network(3,1,0)
-  withFdSocket sock $ \fd -> do
+    withFdSocket sock $ \fd -> do
 #elif MIN_VERSION_network(3,0,0)
-    fd <- fdSocket sock
+        fd <- fdSocket sock
 #else
-    let fd = fdSocket sock
+        let fd = fdSocket sock
 #endif
-    let size' = fromIntegral size
-    fromIntegral <$> tryReceive fd ptr size'
+        let size' = fromIntegral size
+        fromIntegral <$> tryReceive fd ptr size'
 
 ----------------------------------------------------------------
 
@@ -47,19 +48,20 @@ tryReceive sock ptr size = go
   where
     go = do
 #ifdef mingw32_HOST_OS
-      bytes <- windowsThreadBlockHack $ fromIntegral <$> readRawBufferPtr "tryReceive" (FD sock 1) (castPtr ptr) 0 size
+        bytes <- windowsThreadBlockHack $
+            fromIntegral <$> readRawBufferPtr "tryReceive" (FD sock 1) (castPtr ptr) 0 size
 #else
-      bytes <- c_recv sock (castPtr ptr) size 0
+        bytes <- c_recv sock (castPtr ptr) size 0
 #endif
-      if bytes == -1 then do
-          errno <- getErrno
-          if errno == eAGAIN then do
-              threadWaitRead (Fd sock)
-              go
-            else
-              throwErrno "tryReceive"
-         else
-          return bytes
+        if bytes == -1
+            then do
+                errno <- getErrno
+                if errno == eAGAIN
+                    then do
+                        threadWaitRead (Fd sock)
+                        go
+                    else throwErrno "tryReceive"
+            else return bytes
 
 ----------------------------------------------------------------
 
@@ -89,29 +91,31 @@ recvN ref recv size = do
 
 tryRecvN :: ByteString -> Int -> IO ByteString -> IO (ByteString, ByteString)
 tryRecvN init0 siz0 recv
-  | siz0 <= len0 = return $ BS.splitAt siz0 init0
-  | otherwise    = go (init0:) (siz0 - len0)
+    | siz0 <= len0 = return $ BS.splitAt siz0 init0
+    | otherwise = go (init0 :) (siz0 - len0)
   where
     len0 = BS.length init0
     go build left = do
         bs <- recv
         let len = BS.length bs
-        if len == 0 then
-            return ("", "")
-          else if len >= left then do
-            let (consume, leftover) = BS.splitAt left bs
-                ret = concatN siz0 $ build [consume]
-            return (ret, leftover)
-          else do
-            let build' = build . (bs :)
-                left' = left - len
-            go build' left'
+        if len == 0
+            then return ("", "")
+            else
+                if len >= left
+                    then do
+                        let (consume, leftover) = BS.splitAt left bs
+                            ret = concatN siz0 $ build [consume]
+                        return (ret, leftover)
+                    else do
+                        let build' = build . (bs :)
+                            left' = left - len
+                        go build' left'
 
 concatN :: Int -> [ByteString] -> ByteString
 concatN total bss0 = unsafeCreate total $ \ptr -> goCopy bss0 ptr
   where
-    goCopy []       _   = return ()
-    goCopy (bs:bss) ptr = do
+    goCopy [] _ = return ()
+    goCopy (bs : bss) ptr = do
         ptr' <- copy ptr bs
         goCopy bss ptr'
 
