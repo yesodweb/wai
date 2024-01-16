@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wai.Handler.WarpTLS.Internal (
@@ -11,9 +10,9 @@ module Network.Wai.Handler.WarpTLS.Internal (
     getCertSettings,
 ) where
 
-import Data.Default.Class (def)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
+import Data.Default.Class (def)
 import qualified Data.IORef as I
 import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra as TLSExtra
@@ -65,37 +64,14 @@ data TLSSettings = TLSSettings
     --
     -- Since 1.4.0
     , tlsAllowedVersions :: [TLS.Version]
-#if MIN_VERSION_tls(1,5,0)
     -- ^ The TLS versions this server accepts.
     --
-    -- >>> tlsAllowedVersions defaultTlsSettings
-    -- [TLS13,TLS12,TLS11,TLS10]
-    --
     -- Since 1.4.2
-#else
-    -- ^ The TLS versions this server accepts.
-    --
-    -- >>> tlsAllowedVersions defaultTlsSettings
-    -- [TLS12,TLS11,TLS10]
-    --
-    -- Since 1.4.2
-#endif
-    , tlsCiphers :: [TLS.Cipher]
-#if MIN_VERSION_tls(1,5,0)
+    , tlsCiphers
+        :: [TLS.Cipher]
     -- ^ The TLS ciphers this server accepts.
     --
-    -- >>> tlsCiphers defaultTlsSettings
-    -- [ECDHE-ECDSA-AES256GCM-SHA384,ECDHE-ECDSA-AES128GCM-SHA256,ECDHE-RSA-AES256GCM-SHA384,ECDHE-RSA-AES128GCM-SHA256,DHE-RSA-AES256GCM-SHA384,DHE-RSA-AES128GCM-SHA256,ECDHE-ECDSA-AES256CBC-SHA384,ECDHE-RSA-AES256CBC-SHA384,DHE-RSA-AES256-SHA256,ECDHE-ECDSA-AES256CBC-SHA,ECDHE-RSA-AES256CBC-SHA,DHE-RSA-AES256-SHA1,RSA-AES256GCM-SHA384,RSA-AES256-SHA256,RSA-AES256-SHA1,AES128GCM-SHA256,AES256GCM-SHA384]
-    --
     -- Since 1.4.2
-#else
-    -- ^ The TLS ciphers this server accepts.
-    --
-    -- >>> tlsCiphers defaultTlsSettings
-    -- [ECDHE-ECDSA-AES256GCM-SHA384,ECDHE-ECDSA-AES128GCM-SHA256,ECDHE-RSA-AES256GCM-SHA384,ECDHE-RSA-AES128GCM-SHA256,DHE-RSA-AES256GCM-SHA384,DHE-RSA-AES128GCM-SHA256,ECDHE-ECDSA-AES256CBC-SHA384,ECDHE-RSA-AES256CBC-SHA384,DHE-RSA-AES256-SHA256,ECDHE-ECDSA-AES256CBC-SHA,ECDHE-RSA-AES256CBC-SHA,DHE-RSA-AES256-SHA1,RSA-AES256GCM-SHA384,RSA-AES256-SHA256,RSA-AES256-SHA1]
-    --
-    -- Since 1.4.2
-#endif
     , tlsWantClientCert :: Bool
     -- ^ Whether or not to demand a certificate from the client.  If this
     -- is set to True, you must handle received certificates in a server hook
@@ -165,11 +141,7 @@ defaultTlsSettings =
         { certSettings = defaultCertSettings
         , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
         , tlsLogging = def
-#if MIN_VERSION_tls(1,5,0)
-        , tlsAllowedVersions = [TLS.TLS13,TLS.TLS12,TLS.TLS11,TLS.TLS10]
-#else
-        , tlsAllowedVersions = [TLS.TLS12,TLS.TLS11,TLS.TLS10]
-#endif
+        , tlsAllowedVersions = TLS.supportedVersions def
         , tlsCiphers = ciphers
         , tlsWantClientCert = False
         , tlsServerHooks = def
