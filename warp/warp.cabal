@@ -139,6 +139,7 @@ Test-Suite spec
                      ExceptionSpec
                      FdCacheSpec
                      FileSpec
+                     PackIntSpec
                      ReadIntSpec
                      RequestSpec
                      ResponseHeaderSpec

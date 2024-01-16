@@ -21,9 +21,6 @@ import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.PackInt
 
--- $setup
--- >>> import Test.QuickCheck
-
 ----------------------------------------------------------------
 
 data RspFileInfo
