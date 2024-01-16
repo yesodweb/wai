@@ -74,16 +74,11 @@ import Network.Socket (
 import Network.Socket.BufferPool
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
-import qualified Network.TLS.Extra as TLSExtra
 import qualified Network.TLS.SessionManager as SM
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal
-import Network.Wai.Handler.WarpTLS.Internal (
-    CertSettings (..),
-    OnInsecure (..),
-    TLSSettings (..),
- )
+import Network.Wai.Handler.WarpTLS.Internal
 import System.IO.Error (ioeGetErrorType, isEOFError)
 import UnliftIO.Exception (
     Exception,
@@ -100,38 +95,6 @@ import UnliftIO.Exception (
     try,
  )
 import qualified UnliftIO.Exception as E
-
--- | The default 'CertSettings'.
-defaultCertSettings :: CertSettings
-defaultCertSettings = CertFromFile "certificate.pem" [] "key.pem"
-
-----------------------------------------------------------------
-
--- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name (aka accessors).
-defaultTlsSettings :: TLSSettings
-defaultTlsSettings =
-    TLSSettings
-        { certSettings = defaultCertSettings
-        , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
-        , tlsLogging = def
-#if MIN_VERSION_tls(1,5,0)
-        , tlsAllowedVersions = [TLS.TLS13,TLS.TLS12,TLS.TLS11,TLS.TLS10]
-#else
-        , tlsAllowedVersions = [TLS.TLS12,TLS.TLS11,TLS.TLS10]
-#endif
-        , tlsCiphers = ciphers
-        , tlsWantClientCert = False
-        , tlsServerHooks = def
-        , tlsServerDHEParams = Nothing
-        , tlsSessionManagerConfig = Nothing
-        , tlsCredentials = Nothing
-        , tlsSessionManager = Nothing
-        , tlsSupportedHashSignatures = TLS.supportedHashSignatures def
-        }
-
--- taken from stunnel example in tls-extra
-ciphers :: [TLS.Cipher]
-ciphers = TLSExtra.ciphersuite_strong
 
 ----------------------------------------------------------------
 
@@ -474,9 +437,7 @@ getTLSinfo ctx = do
                     TLS.TLS10 -> (3, 1)
                     TLS.TLS11 -> (3, 2)
                     TLS.TLS12 -> (3, 3)
-#if MIN_VERSION_tls(1,5,0)
-                    TLS.TLS13 -> (3,4)
-#endif
+                    _ -> (3,4)
             clientCert <- TLS.getClientCertificateChain ctx
             return
                 TLS
