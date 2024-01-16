@@ -7,18 +7,17 @@
 -- Example usage:
 --
 -- @
--- printString <- 'mkDebounce' 'defaultDebounceSettings'
+-- > printString <- 'mkDebounce' 'defaultDebounceSettings'
 --                  { 'debounceAction' = putStrLn "Running action"
 --                  , 'debounceFreq' = 5000000 -- 5 seconds
 --                  , 'debounceEdge' = 'DI.trailingEdge' -- Trigger on the trailing edge
 --                  }
+-- > printString
+-- Running action
+-- > printString
+-- \<Wait five seconds>
+-- Running action
 -- @
---
--- >>> printString
--- Running action
--- >>> printString
--- <Wait five seconds>
--- Running action
 --
 -- See the fast-logger package ("System.Log.FastLogger") for real-world usage.
 --
