@@ -1,18 +1,22 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wai.Handler.WarpTLS.Internal (
     CertSettings (..),
     TLSSettings (..),
+    defaultTlsSettings,
     OnInsecure (..),
 
     -- * Accessors
     getCertSettings,
 ) where
 
+import Data.Default.Class (def)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
 import qualified Network.TLS as TLS
+import qualified Network.TLS.Extra as TLSExtra
 import qualified Network.TLS.SessionManager as SM
 
 ----------------------------------------------------------------
@@ -147,3 +151,35 @@ data TLSSettings = TLSSettings
 -- | Some programs need access to cert settings
 getCertSettings :: TLSSettings -> CertSettings
 getCertSettings = certSettings
+
+-- | The default 'CertSettings'.
+defaultCertSettings :: CertSettings
+defaultCertSettings = CertFromFile "certificate.pem" [] "key.pem"
+
+----------------------------------------------------------------
+
+-- | Default 'TLSSettings'. Use this to create 'TLSSettings' with the field record name (aka accessors).
+defaultTlsSettings :: TLSSettings
+defaultTlsSettings =
+    TLSSettings
+        { certSettings = defaultCertSettings
+        , onInsecure = DenyInsecure "This server only accepts secure HTTPS connections."
+        , tlsLogging = def
+#if MIN_VERSION_tls(1,5,0)
+        , tlsAllowedVersions = [TLS.TLS13,TLS.TLS12,TLS.TLS11,TLS.TLS10]
+#else
+        , tlsAllowedVersions = [TLS.TLS12,TLS.TLS11,TLS.TLS10]
+#endif
+        , tlsCiphers = ciphers
+        , tlsWantClientCert = False
+        , tlsServerHooks = def
+        , tlsServerDHEParams = Nothing
+        , tlsSessionManagerConfig = Nothing
+        , tlsCredentials = Nothing
+        , tlsSessionManager = Nothing
+        , tlsSupportedHashSignatures = TLS.supportedHashSignatures def
+        }
+
+-- taken from stunnel example in tls-extra
+ciphers :: [TLS.Cipher]
+ciphers = TLSExtra.ciphersuite_strong
