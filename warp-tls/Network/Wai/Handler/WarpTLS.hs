@@ -437,9 +437,7 @@ getTLSinfo ctx = do
                     TLS.TLS10 -> (3, 1)
                     TLS.TLS11 -> (3, 2)
                     TLS.TLS12 -> (3, 3)
-#if MIN_VERSION_tls(1,5,0)
-                    TLS.TLS13 -> (3,4)
-#endif
+                    _ -> (3,4)
             clientCert <- TLS.getClientCertificateChain ctx
             return
                 TLS
