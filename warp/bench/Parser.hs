@@ -1,23 +1,26 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
 import Control.Monad
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as B (unpack)
-import Data.Word8 (_H, _P, _T, _period, _slash)
-import qualified Network.HTTP.Types as H
-import Network.Wai.Handler.Warp.Types
-import UnliftIO.Exception (impureThrow, throwIO)
-import Prelude hiding (lines)
-
+import qualified Data.ByteString.Char8 as B (pack, unpack)
 import Data.ByteString.Internal
-import Data.Word
+import Data.IORef (atomicModifyIORef', newIORef)
+import qualified Data.List as L
+import Data.Word8
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
+import qualified Network.HTTP.Types as H
+import UnliftIO.Exception (impureThrow, throwIO)
+import Prelude hiding (lines)
+
+import Network.Wai.Handler.Warp.Request (headerLines)
+import Network.Wai.Handler.Warp.Types
 
 #if MIN_VERSION_gauge(0, 2, 0)
 import Gauge
@@ -49,7 +52,16 @@ main = do
             , bench "parseRequestLine1" $ whnfIO $ parseRequestLine1 requestLine2
             , bench "parseRequestLine0" $ whnfIO $ parseRequestLine0 requestLine2
             ]
+        , bgroup
+            "parsing request"
+            [ bench "new parsing 4" $ whnfAppIO testIt (chunkRequest 4)
+            , bench "new parsing 10" $ whnfAppIO testIt (chunkRequest 10)
+            , bench "new parsing 25" $ whnfAppIO testIt (chunkRequest 25)
+            , bench "new parsing 100" $ whnfAppIO testIt (chunkRequest 100)
+            ]
         ]
+  where
+    testIt req = producer req >>= headerLines 800 False
 
 ----------------------------------------------------------------
 
@@ -72,15 +84,15 @@ parseRequestLine3
        )
 parseRequestLine3 requestLine = ret
   where
-    (!method, !rest) = S.break (== 32) requestLine -- ' '
+    (!method, !rest) = S.break (== _space) requestLine
     (!pathQuery, !httpVer')
         | rest == "" = impureThrow badmsg
-        | otherwise = S.break (== 32) (S.drop 1 rest) -- ' '
-    (!path, !query) = S.break (== 63) pathQuery -- '?'
+        | otherwise = S.break (== _space) (S.drop 1 rest)
+    (!path, !query) = S.break (== _question) pathQuery
     !httpVer = S.drop 1 httpVer'
     (!http, !ver)
         | httpVer == "" = impureThrow badmsg
-        | otherwise = S.break (== 47) httpVer -- '/'
+        | otherwise = S.break (== _slash) httpVer
     !hv
         | http /= "HTTP" = impureThrow NonHttp
         | ver == "/1.1" = H.http11
@@ -114,13 +126,13 @@ parseRequestLine2 requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> 
         limptr = methodptr `plusPtr` len
         lim0 = fromIntegral len
 
-    pathptr0 <- memchr methodptr 32 lim0 -- ' '
+    pathptr0 <- memchr methodptr _space lim0
     when (pathptr0 == nullPtr || (limptr `minusPtr` pathptr0) < 11) $
         throwIO baderr
     let pathptr = pathptr0 `plusPtr` 1
         lim1 = fromIntegral (limptr `minusPtr` pathptr0)
 
-    httpptr0 <- memchr pathptr 32 lim1 -- ' '
+    httpptr0 <- memchr pathptr _space lim1
     when (httpptr0 == nullPtr || (limptr `minusPtr` httpptr0) < 9) $
         throwIO baderr
     let httpptr = httpptr0 `plusPtr` 1
@@ -128,7 +140,7 @@ parseRequestLine2 requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> 
 
     checkHTTP httpptr
     !hv <- httpVersion httpptr
-    queryptr <- memchr pathptr 63 lim2 -- '?'
+    queryptr <- memchr pathptr _question lim2
     let !method = bs ptr methodptr pathptr0
         !path
             | queryptr == nullPtr = bs ptr pathptr httpptr0
@@ -154,7 +166,7 @@ parseRequestLine2 requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> 
     httpVersion httpptr = do
         major <- peek $ httpptr `plusPtr` 5
         minor <- peek $ httpptr `plusPtr` 7
-        if major == (49 :: Word8) && minor == (49 :: Word8)
+        if major == _1 && minor == _1
             then return H.http11
             else return H.http10
     bs ptr p0 p1 = PS fptr o l
@@ -183,15 +195,15 @@ parseRequestLine1
         , H.HttpVersion
         )
 parseRequestLine1 requestLine = do
-    let (!method, !rest) = S.break (== 32) requestLine -- ' '
-        (!pathQuery, !httpVer') = S.break (== 32) (S.drop 1 rest) -- ' '
+    let (!method, !rest) = S.break (== _space) requestLine
+        (!pathQuery, !httpVer') = S.break (== _space) (S.drop 1 rest)
         !httpVer = S.drop 1 httpVer'
     when (rest == "" || httpVer == "") $
         throwIO $
             BadFirstLine $
                 B.unpack requestLine
-    let (!path, !query) = S.break (== 63) pathQuery -- '?'
-        (!http, !ver) = S.break (== 47) httpVer -- '/'
+    let (!path, !query) = S.break (== _question) pathQuery
+        (!http, !ver) = S.break (== _slash) httpVer
     when (http /= "HTTP") $ throwIO NonHttp
     let !hv
             | ver == "/1.1" = H.http11
@@ -219,14 +231,14 @@ parseRequestLine0
         , H.HttpVersion
         )
 parseRequestLine0 s =
-    case filter (not . S.null) $ S.splitWith (\c -> c == 32 || c == 9) s of --  '
+    case filter (not . S.null) $ S.splitWith (\c -> c == _space || c == _tab) s of
         (method' : query : http'') -> do
             let !method = method'
                 !http' = S.concat http''
                 (!hfirst, !hsecond) = S.splitAt 5 http'
             if hfirst == "HTTP/"
                 then
-                    let (!rpath, !qstring) = S.break (== 63) query -- '?'
+                    let (!rpath, !qstring) = S.break (== _question) query
                         !hv =
                             case hsecond of
                                 "1.1" -> H.http11
@@ -234,3 +246,44 @@ parseRequestLine0 s =
                      in return $! (method, rpath, qstring, hv)
                 else throwIO NonHttp
         _ -> throwIO $ BadFirstLine $ B.unpack s
+
+producer :: [ByteString] -> IO Source
+producer a = do
+    ref <- newIORef a
+    mkSource $
+        atomicModifyIORef' ref $ \case
+            [] -> ([], S.empty)
+            b : bs -> (bs, b)
+
+chunkRequest :: Int -> [ByteString]
+chunkRequest chunkAmount =
+    go basicRequest
+  where
+    len = L.length basicRequest
+    chunkSize = (len `div` chunkAmount) + 1
+    go [] = []
+    go xs =
+        let (a, b) = L.splitAt chunkSize xs
+         in B.pack a : go b
+
+-- Random google search request
+basicRequest :: String
+basicRequest =
+    mconcat
+        [ "GET /search?q=test&sca_esv=600090652&source=hp&uact=5&oq=test&sclient=gws-wiz HTTP/3\r\n"
+        , "Host: www.google.com\r\n"
+        , "User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0\r\n"
+        , "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\n"
+        , "Accept-Language: en-US,en;q=0.5\r\n"
+        , "Accept-Encoding: gzip, deflate, br\r\n"
+        , "Referer: https://www.google.com/\r\n"
+        , "Alt-Used: www.google.com\r\n"
+        , "Connection: keep-alive\r\n"
+        , "Cookie: CONSENT=PENDING+252\r\n"
+        , "Upgrade-Insecure-Requests: 1\r\n"
+        , "Sec-Fetch-Dest: document\r\n"
+        , "Sec-Fetch-Mode: navigate\r\n"
+        , "Sec-Fetch-Site: same-origin\r\n"
+        , "Sec-Fetch-User: ?1\r\n"
+        , "TE: trailers\r\n\r\n"
+        ]
