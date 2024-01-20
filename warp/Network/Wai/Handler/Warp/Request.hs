@@ -17,8 +17,6 @@ module Network.Wai.Handler.Warp.Request (
 import qualified Control.Concurrent as Conc (yield)
 import Data.Array ((!))
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Lazy as BL (toStrict)
 import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
 import qualified Data.IORef as I
@@ -232,7 +230,7 @@ timeoutBody remainingRef timeoutHandle rbody handle100Continue = do
 
 ----------------------------------------------------------------
 
-type BSEndo = B.Builder -> B.Builder
+type BSEndo = S.ByteString -> S.ByteString
 type BSEndoList = [ByteString] -> [ByteString]
 
 data THStatus
@@ -252,14 +250,16 @@ close = throwIO IncompleteHeaders
 -- | Assumes the 'ByteString' is never 'S.null'
 push :: Int -> Source -> THStatus -> ByteString -> IO [ByteString]
 push maxTotalHeaderLength src (THStatus totalLen chunkLen reqLines prepend) bs
-    -- Too many bytes
-    | currentTotal > maxTotalHeaderLength = throwIO OverLargeHeader
-    | otherwise =
-        case S.elemIndex _lf bs of
-            -- No newline found
-            Nothing -> withNewChunk noNewlineFound
-            -- Newline found at index 'ix'
-            Just ix -> newlineFound ix
+    -- Newline found at index 'ix'
+    | Just ix <- S.elemIndex _lf bs = do
+        -- Too many bytes
+        when (currentTotal > maxTotalHeaderLength) $ throwIO OverLargeHeader
+        newlineFound ix
+    -- No newline found
+    | otherwise = do
+        -- Early easy abort
+        when (currentTotal + bsLen > maxTotalHeaderLength) $ throwIO OverLargeHeader
+        withNewChunk noNewlineFound
   where
     bsLen = S.length bs
     currentTotal = totalLen + chunkLen
@@ -280,7 +280,7 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen reqLines prepend) bs
                     when (not $ S.null bs') $ leftoverSource src bs'
                     pure $ reqLines []
                 else do
-                    rest <- if S.length newChunk == 1
+                    rest <- if S.null bs'
                         -- new chunk is only LF, we need more to check for multiline
                         then withNewChunk pure
                         else pure bs'
@@ -289,27 +289,26 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen reqLines prepend) bs
         -- chunk and keep going
         | otherwise = do
             let newChunkTotal = chunkLen + bsLen
-                newPrepend = prepend . (B.byteString bs <>)
+                newPrepend = prepend . (bs <>)
                 status = THStatus totalLen newChunkTotal reqLines newPrepend
             push maxTotalHeaderLength src status newChunk
     {-# INLINE newlineFound #-}
     newlineFound ix
         -- Is end of headers
-        | startsWithLF && chunkLen == 0 =  do
+        | chunkLen == 0 && startsWithLF =  do
             let rest = SU.unsafeDrop end bs
             when (not $ S.null rest) $ leftoverSource src rest
             pure $ reqLines []
         | otherwise = do
             -- LF is on last byte
-            rest <- if end == bsLen
-                -- we need more chunks to check for whitespace
-                then withNewChunk pure
-                else pure $ SU.unsafeDrop end bs
             let p = ix - 1
                 chunk =
                     if ix > 0 && SU.unsafeIndex bs p == _cr then p else ix
                 status = addLine end (SU.unsafeTake chunk bs)
-            push maxTotalHeaderLength src status rest
+                continue = push maxTotalHeaderLength src status
+            if end == bsLen
+                then withNewChunk continue
+                else continue $ SU.unsafeDrop end bs
       where
         end = ix + 1
         startsWithLF =
@@ -319,11 +318,11 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen reqLines prepend) bs
                 _ -> False
     -- addLine: take the current chunk and, if there's nothing to prepend,
     -- add straight to 'reqLines', otherwise first prepend then add.
+    {-# INLINE addLine #-}
     addLine len chunk =
         let newTotal = currentTotal + len
-            toBS = BL.toStrict . B.toLazyByteString
             newLine =
-                if chunkLen == 0 then chunk else toBS $ prepend $ B.byteString chunk
+                if chunkLen == 0 then chunk else prepend chunk
         in THStatus newTotal 0 (reqLines . (newLine:)) id
 {- HLint ignore push "Use unless" -}
 
