@@ -1,6 +1,6 @@
 # ChangeLog for warp
 
-## 3.3.32
+## 3.4.0
 
 * Reworked request lines (`CRLF`) parsing: [#968](https://github.com/yesodweb/wai/pulls)
     * We do not accept multiline headers anymore.
