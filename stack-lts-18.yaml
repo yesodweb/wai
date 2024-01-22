@@ -26,7 +26,7 @@ extra-deps:
   - crypton-x509-1.7.6
   - crypton-x509-store-1.6.9
   - crypton-x509-validation-1.6.12
-  - http2-5.0.0
+  - http2-5.1.0
   - network-byte-order-0.1.7
   - network-control-0.0.2
   - tls-1.7.0
