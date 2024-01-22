@@ -6,6 +6,8 @@
     * We do not accept multiline headers anymore.
       ([`RFC 7230`](https://www.rfc-editor.org/rfc/rfc7230#section-3.2.4) deprecated it 10 years ago)
     * Reworked request lines (`CRLF`) parsing to not unnecessarily copy bytestrings.
+* Using http2 v5.1.0.
+* `fourmolu` is used as an official formatter.
 
 ## 3.3.31
 
