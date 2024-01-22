@@ -8,12 +8,12 @@ packages:
   - ./wai-app-static
   - ./wai-conduit
   - ./wai-extra
-  # Commented out packages until they are supported on nightly
+  # Needs 'multipart' to accept 'bytestring < 0.13'
   # - ./wai-frontend-monadcgi
   - ./wai-http2-extra
-  # - ./wai-websockets
+  - ./wai-websockets
   - ./warp
-  # - ./warp-quic
+  - ./warp-quic
   - ./warp-tls
 flags:
   wai-extra:
@@ -23,4 +23,9 @@ nix:
   packages:
     - fcgi
     - zlib
-extra-deps: []
+extra-deps:
+  - crypto-token-0.1.0
+  - http3-0.0.7
+  - network-udp-0.0.0
+  - quic-0.1.15
+  - sockaddr-0.0.1

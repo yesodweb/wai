@@ -15,6 +15,8 @@ import Data.Word8 (isDigit, _0)
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
 
 {-# INLINE readInt #-}
+
+-- | Will 'takeWhile isDigit' and return the parsed 'Integral'.
 readInt :: Integral a => ByteString -> a
 readInt bs = fromIntegral $ readInt64 bs
 

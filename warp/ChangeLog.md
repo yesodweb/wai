@@ -1,5 +1,12 @@
 # ChangeLog for warp
 
+## 3.4.0
+
+* Reworked request lines (`CRLF`) parsing: [#968](https://github.com/yesodweb/wai/pulls)
+    * We do not accept multiline headers anymore.
+      ([`RFC 7230`](https://www.rfc-editor.org/rfc/rfc7230#section-3.2.4) deprecated it 10 years ago)
+    * Reworked request lines (`CRLF`) parsing to not unnecessarily copy bytestrings.
+
 ## 3.3.31
 
 * Supporting http2 v5.0.

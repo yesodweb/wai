@@ -1,5 +1,5 @@
 Name:                warp
-Version:             3.3.31
+Version:             3.4.0
 Synopsis:            A fast, light-weight web server for WAI applications.
 License:             MIT
 License-file:        LICENSE
@@ -139,6 +139,7 @@ Test-Suite spec
                      ExceptionSpec
                      FdCacheSpec
                      FileSpec
+                     HTTP
                      PackIntSpec
                      ReadIntSpec
                      RequestSpec
@@ -147,7 +148,6 @@ Test-Suite spec
                      RunSpec
                      SendFileSpec
                      WithApplicationSpec
-                     HTTP
                      Network.Wai.Handler.Warp
                      Network.Wai.Handler.Warp.Buffer
                      Network.Wai.Handler.Warp.Conduit
@@ -238,27 +238,41 @@ Test-Suite spec
 Benchmark parser
     Type:           exitcode-stdio-1.0
     Main-Is:        Parser.hs
-    other-modules:  Network.Wai.Handler.Warp.Date
+    other-modules:  Network.Wai.Handler.Warp.Conduit
+                    Network.Wai.Handler.Warp.Date
                     Network.Wai.Handler.Warp.FdCache
                     Network.Wai.Handler.Warp.FileInfoCache
                     Network.Wai.Handler.Warp.HashMap
+                    Network.Wai.Handler.Warp.Header
                     Network.Wai.Handler.Warp.Imports
                     Network.Wai.Handler.Warp.MultiMap
+                    Network.Wai.Handler.Warp.ReadInt
+                    Network.Wai.Handler.Warp.Request
+                    Network.Wai.Handler.Warp.RequestHeader
+                    Network.Wai.Handler.Warp.Settings
                     Network.Wai.Handler.Warp.Types
+                    Paths_warp
     HS-Source-Dirs: bench .
     Build-Depends:  base >= 4.8 && < 5
+                  , array
                   , auto-update
                   , bytestring
+                  , case-insensitive
                   , containers
                   , gauge
+                  , ghc-prim
                   , hashable
                   , http-date
                   , http-types
                   , network
                   , network
                   , recv
+                  , streaming-commons
+                  , text
                   , time-manager
                   , unliftio
+                  , vault
+                  , wai
                   , word8
   if flag(x509)
       Build-Depends: crypton-x509

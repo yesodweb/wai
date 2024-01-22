@@ -6,6 +6,7 @@ module RequestSpec (main, spec) where
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Data.IORef
+import Data.Monoid (Sum (..))
 import qualified Network.HTTP.Types.Header as HH
 import Network.Wai.Handler.Warp.File (parseByteRanges)
 import Network.Wai.Handler.Warp.Request
@@ -67,53 +68,50 @@ spec = do
         test "bytes=0-0,-1" $ Just [HH.ByteRangeFromTo 0 0, HH.ByteRangeSuffix 1]
 
     describe "headerLines" $ do
-        it "can handle a normal case" $ do
-            src <-
-                mkSourceFunc ["Status: 200\r\nContent-Type: text/plain\r\n\r\n"] >>= mkSource
-            x <- headerLines defaultMaxTotalHeaderLength True src
-            x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+        let parseHeaderLine chunks = do
+                src <- mkSourceFunc chunks >>= mkSource
+                x <- headerLines defaultMaxTotalHeaderLength True src
+                x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+
+        it "can handle a normal case" $
+            parseHeaderLine ["Status: 200\r\nContent-Type: text/plain\r\n\r\n"]
 
         it "can handle a nasty case (1)" $ do
-            src <-
-                mkSourceFunc ["Status: 200", "\r\nContent-Type: text/plain", "\r\n\r\n"]
-                    >>= mkSource
-            x <- headerLines defaultMaxTotalHeaderLength True src
-            x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+            parseHeaderLine ["Status: 200", "\r\nContent-Type: text/plain", "\r\n\r\n"]
+            parseHeaderLine ["Status: 200\r\n", "Content-Type: text/plain", "\r\n\r\n"]
 
-        it "can handle a nasty case (1)" $ do
-            src <-
-                mkSourceFunc ["Status: 200", "\r", "\nContent-Type: text/plain", "\r", "\n\r\n"]
-                    >>= mkSource
-            x <- headerLines defaultMaxTotalHeaderLength True src
-            x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+        it "can handle a nasty case (2)" $ do
+            parseHeaderLine
+                ["Status: 200", "\r", "\nContent-Type: text/plain", "\r", "\n\r\n"]
 
-        it "can handle a nasty case (1)" $ do
-            src <-
-                mkSourceFunc
-                    ["Status: 200", "\r", "\n", "Content-Type: text/plain", "\r", "\n", "\r", "\n"]
-                    >>= mkSource
-            x <- headerLines defaultMaxTotalHeaderLength True src
-            x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+        it "can handle a nasty case (3)" $ do
+            parseHeaderLine
+                ["Status: 200", "\r", "\n", "Content-Type: text/plain", "\r", "\n", "\r", "\n"]
 
-        it "can handle an illegal case (1)" $ do
-            src <-
-                mkSourceFunc ["\nStatus:", "\n 200", "\nContent-Type: text/plain", "\r\n\r\n"]
-                    >>= mkSource
+        it "can handle a stupid case (3)" $
+            parseHeaderLine $
+                S8.pack . (: []) <$> "Status: 200\r\nContent-Type: text/plain\r\n\r\n"
+
+        it "can (not) handle an illegal case (1)" $ do
+            let chunks = ["\nStatus:", "\n 200", "\nContent-Type: text/plain", "\r\n\r\n"]
+            src <- mkSourceFunc chunks >>= mkSource
             x <- headerLines defaultMaxTotalHeaderLength True src
             x `shouldBe` []
             y <- headerLines defaultMaxTotalHeaderLength True src
-            y `shouldBe` ["Status: 200", "Content-Type: text/plain"]
+            y `shouldBe` ["Status:", " 200", "Content-Type: text/plain"]
 
-        -- Length is 39, this shouldn't fail
         let testLengthHeaders = ["Sta", "tus: 200\r", "\n", "Content-Type: ", "text/plain\r\n\r\n"]
+            headerLength = getSum $ foldMap (Sum . S.length) testLengthHeaders
+            testLength = headerLength - 2 -- Because the second CRLF at the end isn't counted
+        -- Length is 39, this shouldn't fail
         it "doesn't throw on correct length" $ do
             src <- mkSourceFunc testLengthHeaders >>= mkSource
-            x <- headerLines 39 True src
+            x <- headerLines testLength True src
             x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
         -- Length is still 39, this should fail
         it "throws error on correct length too long" $ do
             src <- mkSourceFunc testLengthHeaders >>= mkSource
-            headerLines 38 True src `shouldThrow` (== OverLargeHeader)
+            headerLines (testLength - 1) True src `shouldThrow` (== OverLargeHeader)
   where
     blankSafe = headerLinesList ["f", "oo\n", "bar\nbaz\n\r\n"]
     whiteSafe = headerLinesList ["foo\r\nbar\r\nbaz\r\n\r\n hi there"]
