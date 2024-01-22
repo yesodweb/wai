@@ -30,7 +30,7 @@ extra-deps:
   - crypton-x509-system-1.6.7
   - crypton-x509-validation-1.6.12
   - fast-logger-3.2.2
-  - http2-5.0.0
+  - http2-5.1.0
   - http3-0.0.7
   - memory-0.18.0
   - network-3.1.4.0
