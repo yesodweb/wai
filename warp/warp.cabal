@@ -139,6 +139,7 @@ Test-Suite spec
                      ExceptionSpec
                      FdCacheSpec
                      FileSpec
+                     HTTP
                      PackIntSpec
                      ReadIntSpec
                      RequestSpec
@@ -147,7 +148,6 @@ Test-Suite spec
                      RunSpec
                      SendFileSpec
                      WithApplicationSpec
-                     HTTP
                      Network.Wai.Handler.Warp
                      Network.Wai.Handler.Warp.Buffer
                      Network.Wai.Handler.Warp.Conduit
