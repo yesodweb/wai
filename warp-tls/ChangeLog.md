@@ -1,5 +1,9 @@
 # ChangeLog
 
+## 3.4.4
+
+* Allow warp v3.4.
+
 ## 3.4.3
 
 * Install shutdown handlers passed via `Settings` to `run...` functions
