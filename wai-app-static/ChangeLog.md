@@ -1,5 +1,9 @@
 # wai-app-static changelog
 
+## 3.1.9
+
+* Added `NoCache` constructor to `MaxAge` [#977](https://github.com/yesodweb/wai/pull/977)
+
 ## 3.1.8
 
 * Added `NoStore` constructor to `MaxAge` [#938](https://github.com/yesodweb/wai/pull/938)
