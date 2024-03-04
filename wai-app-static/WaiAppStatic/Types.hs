@@ -76,6 +76,8 @@ data MaxAge
       MaxAgeForever
     | -- | set cache-control to no-store @since 3.1.8
       NoStore
+    | -- | set cache-control to no-cache @since 3.1.9
+      NoCache
 
 -- | Just the name of a folder.
 type FolderName = Piece
