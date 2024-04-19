@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.4.5
+
+* Making mkConn of WarpTLS interruptible
+  [#984](https://github.com/yesodweb/wai/pull/984)
+
 ## 3.4.4
 
 * Allow warp v3.4.
