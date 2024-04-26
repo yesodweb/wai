@@ -1,5 +1,5 @@
 Name:                time-manager
-Version:             0.0.1
+Version:             0.1.0
 Synopsis:            Scalable timer
 License:             MIT
 License-file:        LICENSE
@@ -11,10 +11,11 @@ Build-Type:          Simple
 Cabal-Version:       >=1.10
 Stability:           Stable
 Description:         Scalable timer functions provided by a timer manager.
+Extra-Source-Files:  ChangeLog.md
 
 Library
   Build-Depends:     base                      >= 4.12       && < 5
-                   , auto-update
+                   , auto-update               >= 0.2        && < 0.3
                    , unliftio
   Default-Language:  Haskell2010
   Exposed-modules:   System.TimeManager
