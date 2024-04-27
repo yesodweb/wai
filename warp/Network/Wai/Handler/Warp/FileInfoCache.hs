@@ -66,8 +66,8 @@ getInfoNaive = getInfo
 ----------------------------------------------------------------
 
 getAndRegisterInfo :: FileInfoCache -> FilePath -> IO FileInfo
-getAndRegisterInfo reaper@Reaper{..} path = do
-    cache <- reaperRead
+getAndRegisterInfo reaper path = do
+    cache <- reaperRead reaper
     case M.lookup path cache of
         Just Negative -> UnliftIO.throwIO (userError "FileInfoCache:getAndRegisterInfo")
         Just (Positive x) -> return x
@@ -76,14 +76,14 @@ getAndRegisterInfo reaper@Reaper{..} path = do
                 `UnliftIO.onException` negative reaper path
 
 positive :: FileInfoCache -> FilePath -> IO FileInfo
-positive Reaper{..} path = do
+positive reaper path = do
     info <- getInfo path
-    reaperAdd (path, Positive info)
+    reaperAdd reaper (path, Positive info)
     return info
 
 negative :: FileInfoCache -> FilePath -> IO FileInfo
-negative Reaper{..} path = do
-    reaperAdd (path, Negative)
+negative reaper path = do
+    reaperAdd reaper (path, Negative)
     UnliftIO.throwIO (userError "FileInfoCache:negative")
 
 ----------------------------------------------------------------

@@ -2,6 +2,8 @@
 
 ## 0.2.0
 
+* Creating Reaper.Internal to export Reaper constructor.
+* Hiding Reaper constructor.
 * Add `reaperModify` to the `Reaper` API, allowing workload modification outside
   of the main `reaperAction` loop.
   [#985](https://github.com/yesodweb/wai/pull/985)
