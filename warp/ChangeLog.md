@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.4.1
+
+* Using time-manager v0.1.0, and auto-update v0.2.0.
+  [#986](https://github.com/yesodweb/wai/pull/986)
+
 ## 3.4.0
 
 * Reworked request lines (`CRLF`) parsing: [#968](https://github.com/yesodweb/wai/pulls)
