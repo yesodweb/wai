@@ -11,6 +11,9 @@ module Network.Wai.Middleware.ValidateHeaders
     -- * Settings
     , ValidateHeadersSettings (..)
     , defaultValidateHeadersSettings
+    -- * Types
+    , InvalidHeader (..)
+    , InvalidHeaderReason (..)
     ) where
 
 import Data.CaseInsensitive (original)
@@ -24,21 +27,53 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as BSL
 
+-- | Middleware to validate response headers.
+--
+-- @since 3.1.15
+validateHeadersMiddleware :: ValidateHeadersSettings -> Middleware
+validateHeadersMiddleware settings app req respond =
+    app req respond'
+    where
+        respond' response = case getInvalidHeader $ responseHeaders response of
+            Just invalidHeader -> onInvalidHeader settings invalidHeader app req respond
+            Nothing -> respond response
+
+-- | Configuration for 'validateHeadersMiddleware'.
+-- 
+-- @since 3.1.15
 data ValidateHeadersSettings = ValidateHeadersSettings
+  -- | Called when an invalid header is present.
   { onInvalidHeader :: InvalidHeader -> Middleware
   }
 
+-- | Default configuration for 'validateHeadersMiddleware'.
+-- Checks that each header meets the requirements listed at the top of this module: Allowed octets for name and value and no trailing whitespace in the value.
+--
+-- @since 3.1.15
 defaultValidateHeadersSettings :: ValidateHeadersSettings
 defaultValidateHeadersSettings = ValidateHeadersSettings
   { onInvalidHeader = \invalidHeader _app _req respond -> respond $ invalidHeaderResponse invalidHeader
   }
 
+-- | Description of an invalid header.
+--
+-- @since 3.1.15
 data InvalidHeader = InvalidHeader Header InvalidHeaderReason
 
+-- | Reasons a header might be invalid.
+--
+-- @since 3.1.15
 data InvalidHeaderReason
+  -- | Header name contains an invalid octet.
   = InvalidOctetInHeaderName Word8
+  -- | Header value contains an invalid octet.
   | InvalidOctetInHeaderValue Word8
+  -- | Header value contains trailing whitespace.
   | TrailingWhitespaceInHeaderValue
+
+-- Internal stuff.
+-- 'getInvalidHeader' returns an appropriate 'InvalidHeader' for a given header if applicable.
+-- 'invalidHeaderResponse' creates a 'Response' for a given 'InvalidHeader'.
 
 getInvalidHeader :: ResponseHeaders -> Maybe InvalidHeader
 getInvalidHeader = firstJust . map go
@@ -101,14 +136,3 @@ invalidHeaderResponse (InvalidHeader (headerName, headerValue) reason) =
         showOctet octet
             | isVisibleASCII octet = BSL.fromStrict $ BS8.pack $ printf "'%c' (0x%02X)" (chr $ fromIntegral octet) octet
             | otherwise = BSL.fromStrict $ BS8.pack $ printf "0x%02X" octet
-
--- | Middleware to validate response headers.
---
--- @since 3.1.15
-validateHeadersMiddleware :: ValidateHeadersSettings -> Middleware
-validateHeadersMiddleware settings app req respond =
-    app req respond'
-    where
-        respond' response = case getInvalidHeader $ responseHeaders response of
-            Just invalidHeader -> onInvalidHeader settings invalidHeader app req respond
-            Nothing -> respond response
