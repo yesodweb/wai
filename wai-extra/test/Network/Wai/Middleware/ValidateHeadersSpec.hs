@@ -6,7 +6,7 @@ import Network.HTTP.Types (ResponseHeaders, status200)
 import Network.Wai (Application, defaultRequest, responseLBS)
 import Test.Hspec (Spec, describe, it)
 
-import Network.Wai.Middleware.ValidateHeaders (validateHeadersMiddleware)
+import Network.Wai.Middleware.ValidateHeaders (validateHeadersMiddleware, defaultValidateHeadersSettings)
 import Network.Wai.Test (Session, assertStatus, request, withSession)
 
 spec :: Spec
@@ -46,9 +46,13 @@ spec = do
             withHeadersApp [("MyHeader", "control character \0")] $ assertStatus 500 =<< request defaultRequest
             withHeadersApp [("MyHeader", "control character \27")] $ assertStatus 500 =<< request defaultRequest
 
+        it "does not allow trailing whitespace in header values" $ do
+            withHeadersApp [("MyHeader", " foo")] $ assertStatus 500 =<< request defaultRequest
+            withHeadersApp [("MyHeader", "foo ")] $ assertStatus 500 =<< request defaultRequest
+
 withHeadersApp :: ResponseHeaders -> Session a -> IO a
 withHeadersApp headers session =
-  withSession (validateHeadersMiddleware $ headersApp headers) session
+  withSession (validateHeadersMiddleware defaultValidateHeadersSettings $ headersApp headers) session
 
 headersApp :: ResponseHeaders -> Application
 headersApp headers _ respond =
