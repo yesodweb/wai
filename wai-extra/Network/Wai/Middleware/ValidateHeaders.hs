@@ -9,7 +9,7 @@ module Network.Wai.Middleware.ValidateHeaders
     -- * Middleware
     ( validateHeadersMiddleware
     -- * Settings
-    , ValidateHeadersSettings
+    , ValidateHeadersSettings (..)
     , defaultValidateHeadersSettings
     ) where
 
