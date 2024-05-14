@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.15
+
+* Added `validateHeadersMiddleware` for validating response headers set by the application [#990](https://github.com/yesodweb/wai/pull/990).
+
 ## 3.1.14
 
 * Request parsing throws an exception rather than `error`ing [#972](https://github.com/yesodweb/wai/pull/972):
