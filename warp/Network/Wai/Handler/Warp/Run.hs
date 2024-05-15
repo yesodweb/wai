@@ -386,8 +386,8 @@ serveConnection conn ii th origAddr transport settings app = do
         if isHTTP2 transport
             then return (True, "")
             else do
-                bs0 <- connRecv conn
-                if S.length bs0 >= 4 && "PRI " `S.isPrefixOf` bs0
+                bs0 <- recv4
+                if "PRI " `S.isPrefixOf` bs0
                     then return (True, bs0)
                     else return (False, bs0)
     if settingsHTTP2Enabled settings && h2
@@ -395,6 +395,18 @@ serveConnection conn ii th origAddr transport settings app = do
             http2 settings ii conn transport app origAddr th bs
         else do
             http1 settings ii conn transport app origAddr th bs
+  where
+    recv4 = do
+        bs0 <- connRecv conn
+        if S.length bs0 >= 4
+           then return bs0
+           else loop bs0
+    loop bs0 = do
+        bs1 <- connRecv conn
+        let bs = bs0 `S.append` bs1
+        if S.length bs >= 4
+           then return bs
+           else loop bs
 
 -- | Set flag FileCloseOnExec flag on a socket (on Unix)
 --
