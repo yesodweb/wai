@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.18
+
+* Added instances `Foldable` and `Traversable` for `UrlMap'` [#992](https://github.com/yesodweb/wai/pull/992)
+
 ## 3.1.17
 
 * Started deprecation of `data-default` [#1011](https://github.com/yesodweb/wai/pull/1011)
