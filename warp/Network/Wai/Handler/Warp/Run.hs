@@ -398,7 +398,7 @@ serveConnection conn ii th origAddr transport settings app = do
   where
     recv4 bs0 = do
         bs1 <- connRecv conn
-        if S.length bs1 == 0 then
+        if S.null bs1 then
             return bs0
           else do
             -- In the case where bs0 is "", (<>) is called unnecessarily.
