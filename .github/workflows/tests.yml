@@ -27,12 +27,13 @@ jobs:
       - name: Clone project
         uses: actions/checkout@v4
 
+      # Not sure how to have GHC not setup twice
+      # Something with settings "ghc-version"?
+      # ["9.8", "9.6", "9.4", "9.2", "9.0", "8.10"]
       - uses: haskell-actions/setup@v2
         name: Setup Haskell Stack
         with:
           stack-version: ${{ matrix.stack }}
-          stack-no-global: true
-          stack-setup-ghc: true
           enable-stack: true
 
 # Getting weird OS X errors...
