@@ -47,8 +47,12 @@ jobs:
         run: |
             set -ex
             EXTRA=""
+            BENCH="--bench"
             if [[ ${{ matrix.os }} = "windows-latest" ]]
             then
               EXTRA="--no-run-tests"
+            elif [[ ${{ matrix.os }} = "macos-latest" ]]
+            then
+              BENCH=""
             fi
-            stack test --no-terminal ${{ matrix.args }} --haddock --no-haddock-deps --bench --no-run-benchmarks $EXTRA
+            stack test --no-terminal ${{ matrix.args }} --haddock --no-haddock-deps $BENCH --no-run-benchmarks $EXTRA
