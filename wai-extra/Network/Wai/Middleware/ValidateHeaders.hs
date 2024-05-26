@@ -42,8 +42,8 @@ validateHeadersMiddleware settings app req respond =
 --
 -- @since 3.1.15
 data ValidateHeadersSettings = ValidateHeadersSettings
-  -- | Called when an invalid header is present.
-  { onInvalidHeader :: InvalidHeader -> Middleware
+  { -- | Called when an invalid header is present.
+    onInvalidHeader :: InvalidHeader -> Middleware
   }
 
 -- | Default configuration for 'validateHeadersMiddleware'.
