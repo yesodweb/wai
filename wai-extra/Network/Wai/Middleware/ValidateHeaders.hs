@@ -6,12 +6,12 @@
 --
 -- 'validateHeadersMiddleware' enforces these constraints for response headers by responding with a 500 Internal Server Error when an offending character is present. This is meant to catch programmer errors early on and reduce attack surface.
 module Network.Wai.Middleware.ValidateHeaders
-    -- * Middleware
-    ( validateHeadersMiddleware
-    -- * Settings
+    ( -- * Middleware
+      validateHeadersMiddleware
+      -- * Settings
     , ValidateHeadersSettings (..)
     , defaultValidateHeadersSettings
-    -- * Types
+      -- * Types
     , InvalidHeader (..)
     , InvalidHeaderReason (..)
     ) where
@@ -39,7 +39,7 @@ validateHeadersMiddleware settings app req respond =
             Nothing -> respond response
 
 -- | Configuration for 'validateHeadersMiddleware'.
--- 
+--
 -- @since 3.1.15
 data ValidateHeadersSettings = ValidateHeadersSettings
   -- | Called when an invalid header is present.
@@ -123,7 +123,7 @@ invalidHeaderResponse (InvalidHeader (headerName, headerValue) reason) =
         , "In header '"
         , BSL.fromStrict $ original headerName
         , "' with value '"
-        , BSL.fromStrict $ headerValue
+        , BSL.fromStrict headerValue
         , "': "
         , showReason reason
         , "\nYou are seeing this error message because validateHeadersMiddleware is enabled."
