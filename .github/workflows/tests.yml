@@ -31,6 +31,8 @@ jobs:
         name: Setup Haskell Stack
         with:
           stack-version: ${{ matrix.stack }}
+          stack-no-global: true
+          stack-setup-ghc: true
           enable-stack: true
 
 # Getting weird OS X errors...
