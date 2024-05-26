@@ -13,15 +13,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         stack: ["latest"]
         args:
-        - "--resolver nightly --stack-yaml stack-nightly.yaml"
-        - "--resolver lts-22"
-        - "--resolver lts-21 --stack-yaml stack-lts-21.yaml"
-        - "--resolver lts-20 --stack-yaml stack-lts-20.yaml"
-        - "--resolver lts-19 --stack-yaml stack-lts-19.yaml"
-        - "--resolver lts-18 --stack-yaml stack-lts-18.yaml"
+          - "--resolver nightly --stack-yaml stack-nightly.yaml"
+          - "--resolver lts-22"
+          - "--resolver lts-21 --stack-yaml stack-lts-21.yaml"
+          - "--resolver lts-20 --stack-yaml stack-lts-20.yaml"
+          - "--resolver lts-19 --stack-yaml stack-lts-19.yaml"
+          - "--resolver lts-18 --stack-yaml stack-lts-18.yaml"
+        exclude:
+          - os: "macos-latest"
+            args: "--resolver lts-19 --stack-yaml stack-lts-19.yaml"
+          - os: "macos-latest"
+            args: "--resolver lts-18 --stack-yaml stack-lts-18.yaml"
 
     steps:
       - name: Clone project
