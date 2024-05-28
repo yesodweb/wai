@@ -1,4 +1,4 @@
-resolver: lts-20
+resolver: lts-20.26
 packages:
 - ./auto-update
 - ./mime-types
@@ -24,21 +24,23 @@ nix:
   - zlib
 extra-deps:
   - cgi-3001.5.0.1
-  - crypto-token-0.0.2
+  - crypto-token-0.1.1
   - crypton-0.34
   - crypton-x509-1.7.6
   - crypton-x509-store-1.6.9
   - crypton-x509-system-1.6.7
   - crypton-x509-validation-1.6.12
   - fast-logger-3.2.2
-  - http2-5.1.0
-  - http3-0.0.8
+  - http-semantics-0.0.0
+  - http2-5.2.1
+  - http3-0.0.11
   - memory-0.18.0
   - multipart-0.2.1
   - network-byte-order-0.1.7
-  - network-control-0.0.2
+  - network-control-0.1.0
   - network-udp-0.0.0
-  - quic-0.1.12
+  - quic-0.1.20
   - sockaddr-0.0.1
-  - tls-1.9.0
-  - unix-time-0.4.11
+  - tls-2.0.6
+  - tls-session-manager-0.0.5
+  - unix-time-0.4.12

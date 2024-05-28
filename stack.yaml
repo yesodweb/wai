@@ -1,4 +1,4 @@
-resolver: lts-22.6
+resolver: lts-22.23
 packages:
 - ./auto-update
 - ./mime-types
@@ -23,10 +23,13 @@ nix:
   - fcgi
   - zlib
 extra-deps:
-  - crypto-token-0.1.0
-  - http2-5.1.0
-  - http3-0.0.8
+  - crypto-token-0.1.1
+  - http-semantics-0.0.0
+  - http2-5.2.1
+  - http3-0.0.11
+  - network-control-0.1.0
   - network-udp-0.0.0
-  - quic-0.1.14
+  - quic-0.1.20
   - sockaddr-0.0.1
-  - tls-1.9.0
+  - tls-2.0.6
+  - tls-session-manager-0.0.5
