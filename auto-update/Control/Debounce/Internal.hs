@@ -12,12 +12,14 @@ module Control.Debounce.Internal (
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (
     MVar,
-    takeMVar,
+    newEmptyMVar,
     tryPutMVar,
     tryTakeMVar,
  )
 import Control.Exception (SomeException, handle, mask_)
-import Control.Monad (forever, void)
+import Control.Monad (void)
+
+import Debug.Trace (trace)
 
 -- | Settings to control how debouncing should work.
 --
@@ -71,6 +73,16 @@ data DebounceEdge
 -- If the trigger happens again during the cooldown, wait until the end of the cooldown
 -- and then perform the action again, then enter a new cooldown period.
 --
+-- Example of how this style debounce works:
+--
+-- > ! = function execution
+-- > . = cooldown period
+-- > X = debounced code execution
+-- >
+-- > !    !    !  !
+-- >  ....... ....... .......
+-- > X       X       X
+--
 -- @since 0.1.6
 leadingEdge :: DebounceEdge
 leadingEdge = Leading
@@ -78,26 +90,70 @@ leadingEdge = Leading
 -- | Start a cooldown period and perform the action when the period ends. If another trigger
 -- happens during the cooldown, it has no effect.
 --
+-- Example of how this style debounce works:
+--
+-- @
+-- ! = function execution
+-- . = cooldown period
+-- X = debounced code execution
+--
+-- !     !     !  !
+--  .......     .......
+--         X           X
+-- @
+--
 -- @since 0.1.6
 trailingEdge :: DebounceEdge
 trailingEdge = Trailing
 
 mkDebounceInternal
     :: MVar () -> (Int -> IO ()) -> DebounceSettings -> IO (IO ())
-mkDebounceInternal baton delayFn (DebounceSettings freq action edge) = do
-    mask_ $ void $ forkIO $ forever $ do
-        takeMVar baton
-        case edge of
-            Leading -> do
+-- \* LEADING
+--
+--   1) try put baton to start
+--   2) succes -> start worker, failed -> try put trigger
+--   3) worker try take trigger
+--   4) do action
+--   5) delay
+--   7) try take trigger
+--   8) success -> repeat action, failed -> void $ try take baton
+mkDebounceInternal baton delayFn (DebounceSettings freq action Leading) = do
+    trigger <- newEmptyMVar
+    pure $ do
+        success <- tryTakeMVar baton
+        case success of
+            -- Why the F does this fail if I remove the 'trace'?!
+            Nothing -> trace "" $ void $ tryPutMVar trigger ()
+            Just () -> startWorker trigger
+  where
+    startWorker trigger =
+        let loop = do
                 ignoreExc action
                 delayFn freq
-            Trailing -> do
-                delayFn freq
-                -- Empty the baton of any other activations during the interval
-                void $ tryTakeMVar baton
-                ignoreExc action
-
-    return $ void $ tryPutMVar baton ()
+                isTriggered <- tryTakeMVar trigger
+                case isTriggered of
+                    Nothing -> void $ tryPutMVar baton ()
+                    Just () -> loop
+         in mask_ $ void $ forkIO $ do
+                void $ tryTakeMVar trigger
+                loop
+-- \* TRAILING
+--
+--   1) try put baton to start
+--   2) success -> start worker, failed -> die
+--   3) worker delay
+--   4) do action
+--   5) void $ try take baton
+mkDebounceInternal baton delayFn (DebounceSettings freq action Trailing) =
+    pure $ do
+        success <- tryTakeMVar baton
+        case success of
+            Nothing -> pure ()
+            Just () ->
+                mask_ $ void $ forkIO $ do
+                    delayFn freq
+                    ignoreExc action
+                    void $ tryPutMVar baton ()
 
 ignoreExc :: IO () -> IO ()
 ignoreExc = handle $ \(_ :: SomeException) -> return ()

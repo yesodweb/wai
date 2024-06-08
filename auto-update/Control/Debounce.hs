@@ -38,7 +38,7 @@ module Control.Debounce (
     mkDebounce,
 ) where
 
-import Control.Concurrent (newEmptyMVar, threadDelay)
+import Control.Concurrent (newMVar, threadDelay)
 import qualified Control.Debounce.Internal as DI
 
 -- | Default value for creating a 'DebounceSettings'.
@@ -57,5 +57,5 @@ defaultDebounceSettings =
 -- @since 0.1.2
 mkDebounce :: DI.DebounceSettings -> IO (IO ())
 mkDebounce settings = do
-    baton <- newEmptyMVar
+    baton <- newMVar ()
     DI.mkDebounceInternal baton threadDelay settings
