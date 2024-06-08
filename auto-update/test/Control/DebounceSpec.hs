@@ -91,7 +91,7 @@ getDebounce edge = do
 
     (waitAction, returnFromWait) <- getWaitAction
 
-    baton <- newEmptyMVar
+    baton <- newMVar ()
 
     debounced <-
         DI.mkDebounceInternal
