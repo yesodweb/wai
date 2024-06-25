@@ -1,5 +1,9 @@
 # ChangeLog
 
+## 3.4.6
+
+* Preparing for tls v2.1
+
 ## 3.4.5
 
 * Making mkConn of WarpTLS interruptible
