@@ -444,8 +444,8 @@ getTLSinfo ctx = do
     minfo <- TLS.contextGetInformation ctx
     case minfo of
         Nothing -> return TCP
-        Just TLS.Information{..} -> do
-            let (major, minor) = case infoVersion of
+        Just info -> do
+            let (major, minor) = case TLS.infoVersion info of
                     TLS.SSL2 -> (2, 0)
                     TLS.SSL3 -> (3, 0)
                     TLS.TLS10 -> (3, 1)
@@ -458,7 +458,7 @@ getTLSinfo ctx = do
                     { tlsMajorVersion = major
                     , tlsMinorVersion = minor
                     , tlsNegotiatedProtocol = proto
-                    , tlsChiperID = TLS.cipherID infoCipher
+                    , tlsChiperID = TLS.cipherID $ TLS.infoCipher info
                     , tlsClientCertificate = clientCert
                     }
 

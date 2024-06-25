@@ -23,7 +23,7 @@ Library
                    , wai                           >= 3.2      && < 3.3
                    , warp                          >= 3.3.29   && < 3.5
                    , data-default-class            >= 0.0.1
-                   , tls                           >= 1.7
+                   , tls                           >= 1.7      && < 2.2
                    , network                       >= 2.2.1
                    , streaming-commons
                    , tls-session-manager           >= 0.0.4
