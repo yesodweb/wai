@@ -1,5 +1,9 @@
 # ChangeLog for auto-update
 
+## 0.2.1
+
+* Labeling threads.
+
 ## 0.2.0
 
 * Creating Reaper.Internal to export Reaper constructor.
