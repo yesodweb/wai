@@ -46,6 +46,7 @@ import Control.Concurrent (ThreadId, forkIO, killThread, threadDelay)
 import Control.Exception (mask_)
 import Control.Reaper.Internal
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import GHC.Conc.Sync (labelThread)
 
 -- | Settings for creating a reaper. This type has two parameters:
 -- @workload@ gives the entire workload, whereas @item@ gives an
@@ -181,6 +182,7 @@ spawn
     -> IO ()
 spawn settings stateRef tidRef = do
     tid <- forkIO $ reaper settings stateRef tidRef
+    labelThread tid "Reaper"
     writeIORef tidRef $ Just tid
 
 reaper

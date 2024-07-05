@@ -65,6 +65,7 @@ import Control.Exception (
 import Control.Monad (void)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (fromMaybe)
+import GHC.Conc.Sync (labelThread)
 
 -- | Default value for creating an 'UpdateSettings'.
 --
@@ -172,7 +173,7 @@ mkAutoUpdateHelper us updateActionModify = do
     -- Note that since we throw away the ThreadId of this new thread and never
     -- calls myThreadId, normal async exceptions can never be thrown to it,
     -- only RTS exceptions.
-    mask_ $ void $ forkIO $ fillRefOnExit $ do
+    tid <- mask_ $ forkIO $ fillRefOnExit $ do
         -- This infinite loop makes up out worker thread. It takes an a
         -- responseVar value where the next value should be putMVar'ed to for
         -- the benefit of any requesters currently blocked on it.
@@ -200,7 +201,7 @@ mkAutoUpdateHelper us updateActionModify = do
 
         -- Kick off the loop, with the initial responseVar0 variable.
         loop responseVar0 Nothing
-
+    labelThread tid "AutoUpdate"
     return $ do
         mval <- readIORef currRef
         case mval of

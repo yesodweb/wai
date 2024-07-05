@@ -18,6 +18,7 @@ import Control.Concurrent.MVar (
  )
 import Control.Exception (SomeException, handle, mask_)
 import Control.Monad (forever, void)
+import GHC.Conc.Sync (labelThread)
 
 -- | Settings to control how debouncing should work.
 --
@@ -85,7 +86,7 @@ trailingEdge = Trailing
 mkDebounceInternal
     :: MVar () -> (Int -> IO ()) -> DebounceSettings -> IO (IO ())
 mkDebounceInternal baton delayFn (DebounceSettings freq action edge) = do
-    mask_ $ void $ forkIO $ forever $ do
+    tid <- mask_ $ forkIO $ forever $ do
         takeMVar baton
         case edge of
             Leading -> do
@@ -96,7 +97,7 @@ mkDebounceInternal baton delayFn (DebounceSettings freq action edge) = do
                 -- Empty the baton of any other activations during the interval
                 void $ tryTakeMVar baton
                 ignoreExc action
-
+    labelThread tid "Denounce"
     return $ void $ tryPutMVar baton ()
 
 ignoreExc :: IO () -> IO ()
