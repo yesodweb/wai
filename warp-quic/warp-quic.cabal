@@ -1,5 +1,5 @@
 name:                warp-quic
-version:             0.0.0
+version:             0.0.1
 author:              Kazu Yamamoto <kazu@iij.ad.jp>
 maintainer:          Kazu Yamamoto <kazu@iij.ad.jp>
 license:             BSD3
@@ -19,7 +19,8 @@ library
   build-depends:       base >= 4.13 && < 5
                      , bytestring
                      , http3
-                     , quic
+                     , network
+                     , quic >= 0.2 && < 0.3
                      , tls >= 1.7
                      , wai
                      , warp >= 3.3.15
