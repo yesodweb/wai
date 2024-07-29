@@ -1,28 +1,30 @@
-name:                warp-quic
-version:             0.0.1
-author:              Kazu Yamamoto <kazu@iij.ad.jp>
-maintainer:          Kazu Yamamoto <kazu@iij.ad.jp>
-license:             BSD3
-license-file:        LICENSE
-synopsis:            Warp based on QUIC
-description:         WAI handler for HTTP/3 based on QUIC
-homepage:            https://github.com/yesodweb/wai
-category:            Network
-cabal-version:       >=1.10
-build-type:          Simple
-extra-source-files:  ChangeLog.md
+cabal-version:      >=1.10
+name:               warp-quic
+version:            0.0.1
+license:            BSD3
+license-file:       LICENSE
+maintainer:         Kazu Yamamoto <kazu@iij.ad.jp>
+author:             Kazu Yamamoto <kazu@iij.ad.jp>
+homepage:           https://github.com/yesodweb/wai
+synopsis:           Warp based on QUIC
+description:        WAI handler for HTTP/3 based on QUIC
+category:           Network
+build-type:         Simple
+extra-source-files: ChangeLog.md
 
 library
-  default-language:    Haskell2010
-  ghc-options:         -Wall
-  exposed-modules:     Network.Wai.Handler.WarpQUIC
-  build-depends:       base >= 4.13 && < 5
-                     , bytestring
-                     , http3
-                     , network
-                     , quic >= 0.2 && < 0.3
-                     , tls >= 1.7
-                     , wai
-                     , warp >= 3.3.15
-  if impl(ghc >= 8)
-      default-extensions:  Strict StrictData
+    exposed-modules:  Network.Wai.Handler.WarpQUIC
+    default-language: Haskell2010
+    ghc-options:      -Wall
+    build-depends:
+        base >=4.13 && <5,
+        bytestring,
+        http3,
+        network,
+        quic >=0.2 && <0.3,
+        tls >=1.7,
+        wai,
+        warp >=3.3.15
+
+    if impl(ghc >=8)
+        default-extensions: Strict StrictData
