@@ -4,6 +4,7 @@
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 module Network.Wai.Handler.Warp.Request (
+    FirstRequest(..),
     recvRequest,
     headerLines,
     pauseTimeoutKey,
@@ -50,11 +51,13 @@ import Network.Wai.Handler.Warp.Settings (
 
 ----------------------------------------------------------------
 
+-- | first request on this connection?
+data FirstRequest = FirstRequest | SubsequentRequest
+
 -- | Receiving a HTTP request from 'Connection' and parsing its header
 --   to create 'Request'.
 recvRequest
-    :: Bool
-    -- ^ first request on this connection?
+    :: FirstRequest
     -> Settings
     -> Connection
     -> InternalInfo
@@ -118,7 +121,7 @@ recvRequest firstRequest settings conn ii th addr src transport = do
 
 ----------------------------------------------------------------
 
-headerLines :: Int -> Bool -> Source -> IO [ByteString]
+headerLines :: Int -> FirstRequest -> Source -> IO [ByteString]
 headerLines maxTotalHeaderLength firstRequest src = do
     bs <- readSource src
     if S.null bs
@@ -127,9 +130,9 @@ headerLines maxTotalHeaderLength firstRequest src = do
         -- lack of data as a real exception. See the http1 function in
         -- the Run module for more details.
 
-            if firstRequest
-                then throwIO ConnectionClosedByPeer
-                else throwIO NoKeepAliveRequest
+            case firstRequest of
+              FirstRequest -> throwIO ConnectionClosedByPeer
+              SubsequentRequest -> throwIO NoKeepAliveRequest
         else push maxTotalHeaderLength src (THStatus 0 0 id id) bs
 
 data NoKeepAliveRequest = NoKeepAliveRequest
