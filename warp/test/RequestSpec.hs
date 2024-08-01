@@ -70,7 +70,7 @@ spec = do
     describe "headerLines" $ do
         let parseHeaderLine chunks = do
                 src <- mkSourceFunc chunks >>= mkSource
-                x <- headerLines defaultMaxTotalHeaderLength True src
+                x <- headerLines defaultMaxTotalHeaderLength FirstRequest src
                 x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
         it "can handle a normal case" $
@@ -95,9 +95,9 @@ spec = do
         it "can (not) handle an illegal case (1)" $ do
             let chunks = ["\nStatus:", "\n 200", "\nContent-Type: text/plain", "\r\n\r\n"]
             src <- mkSourceFunc chunks >>= mkSource
-            x <- headerLines defaultMaxTotalHeaderLength True src
+            x <- headerLines defaultMaxTotalHeaderLength FirstRequest src
             x `shouldBe` []
-            y <- headerLines defaultMaxTotalHeaderLength True src
+            y <- headerLines defaultMaxTotalHeaderLength FirstRequest src
             y `shouldBe` ["Status:", " 200", "Content-Type: text/plain"]
 
         let testLengthHeaders = ["Sta", "tus: 200\r", "\n", "Content-Type: ", "text/plain\r\n\r\n"]
@@ -106,12 +106,12 @@ spec = do
         -- Length is 39, this shouldn't fail
         it "doesn't throw on correct length" $ do
             src <- mkSourceFunc testLengthHeaders >>= mkSource
-            x <- headerLines testLength True src
+            x <- headerLines testLength FirstRequest src
             x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
         -- Length is still 39, this should fail
         it "throws error on correct length too long" $ do
             src <- mkSourceFunc testLengthHeaders >>= mkSource
-            headerLines (testLength - 1) True src `shouldThrow` (== OverLargeHeader)
+            headerLines (testLength - 1) FirstRequest src `shouldThrow` (== OverLargeHeader)
   where
     blankSafe = headerLinesList ["f", "oo\n", "bar\nbaz\n\r\n"]
     whiteSafe = headerLinesList ["foo\r\nbar\r\nbaz\r\n\r\n hi there"]
@@ -135,7 +135,7 @@ headerLinesList' orig = do
                     writeIORef ref z
                     return y
     src' <- mkSource src
-    res <- headerLines defaultMaxTotalHeaderLength True src'
+    res <- headerLines defaultMaxTotalHeaderLength FirstRequest src'
     return (res, src')
 
 consumeLen :: Int -> Source -> IO S8.ByteString
