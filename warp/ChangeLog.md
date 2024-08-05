@@ -1,5 +1,11 @@
 # ChangeLog for warp
 
+
+## 3.4.2
+
+* Respond with `Connection: close` header if connection is to be closed after a request.
+   [#958](https://github.com/yesodweb/wai/pull/958)
+
 ## 3.4.1
 
 * Using time-manager v0.1.0, and auto-update v0.2.0.
