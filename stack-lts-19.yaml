@@ -31,15 +31,15 @@ extra-deps:
   - crypton-x509-system-1.6.7
   - crypton-x509-validation-1.6.12
   - fast-logger-3.2.2
-  - http-semantics-0.0.0
-  - http2-5.2.1
-  - http3-0.0.11
+  - http-semantics-0.2.0
+  - http2-5.3.1
+  - http3-0.0.16
   - memory-0.18.0
   - network-3.1.4.0
   - network-byte-order-0.1.7
   - network-control-0.1.0
   - network-udp-0.0.0
-  - quic-0.1.20
+  - quic-0.2.1
   - sockaddr-0.0.1
   - tls-2.0.6
   - tls-session-manager-0.0.5
