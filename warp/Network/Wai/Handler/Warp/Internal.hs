@@ -75,6 +75,7 @@ module Network.Wai.Handler.Warp.Internal (
 
     -- * Request and response
     Source,
+    FirstRequest (..),
     recvRequest,
     sendResponse,
 
