@@ -1,5 +1,9 @@
 # ChangeLog for warp
 
+## 3.4.2
+
+* serveConnection is re-exported from the Internal module.
+
 ## 3.4.1
 
 * Using time-manager v0.1.0, and auto-update v0.2.0.
