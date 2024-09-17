@@ -1,5 +1,9 @@
 # ChangeLog
 
+## 3.4.7
+
+* Expose `attachConn` to use post-handshake TLS connection.
+
 ## 3.4.6
 
 * Preparing for tls v2.1
