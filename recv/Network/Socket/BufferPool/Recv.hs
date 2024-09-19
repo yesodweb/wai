@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.Socket.BufferPool.Recv (
@@ -10,17 +8,7 @@ module Network.Socket.BufferPool.Recv (
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString (..), unsafeCreate)
 import Data.IORef
-import Foreign.C.Error (eAGAIN, getErrno, throwErrno)
-import Foreign.C.Types
-import Foreign.Ptr (Ptr, castPtr)
-import GHC.Conc (threadWaitRead)
-import Network.Socket (Socket, withFdSocket)
-import System.Posix.Types (Fd (..))
-
-#ifdef mingw32_HOST_OS
-import GHC.IO.FD (FD(..), readRawBufferPtr)
-import Network.Socket.BufferPool.Windows
-#endif
+import Network.Socket (Socket, recvBuf)
 
 import Network.Socket.BufferPool.Buffer
 import Network.Socket.BufferPool.Types
@@ -30,38 +18,7 @@ import Network.Socket.BufferPool.Types
 -- | The receiving function with a buffer pool.
 --   The buffer pool is automatically managed.
 receive :: Socket -> BufferPool -> Recv
-receive sock pool = withBufferPool pool $ \ptr size -> do
-#if MIN_VERSION_network(3,1,0)
-    withFdSocket sock $ \fd -> do
-#elif MIN_VERSION_network(3,0,0)
-        fd <- fdSocket sock
-#else
-        let fd = fdSocket sock
-#endif
-        let size' = fromIntegral size
-        fromIntegral <$> tryReceive fd ptr size'
-
-----------------------------------------------------------------
-
-tryReceive :: CInt -> Buffer -> CSize -> IO CInt
-tryReceive sock ptr size = go
-  where
-    go = do
-#ifdef mingw32_HOST_OS
-        bytes <- windowsThreadBlockHack $
-            fromIntegral <$> readRawBufferPtr "tryReceive" (FD sock 1) (castPtr ptr) 0 size
-#else
-        bytes <- c_recv sock (castPtr ptr) size 0
-#endif
-        if bytes == -1
-            then do
-                errno <- getErrno
-                if errno == eAGAIN
-                    then do
-                        threadWaitRead (Fd sock)
-                        go
-                    else throwErrno "tryReceive"
-            else return bytes
+receive sock pool = withBufferPool pool $ \ptr size -> recvBuf sock ptr size
 
 ----------------------------------------------------------------
 
@@ -118,9 +75,3 @@ concatN total bss0 = unsafeCreate total $ \ptr -> goCopy bss0 ptr
     goCopy (bs : bss) ptr = do
         ptr' <- copy ptr bs
         goCopy bss ptr'
-
-#ifndef mingw32_HOST_OS
--- fixme: the type of the return value
-foreign import ccall unsafe "recv"
-    c_recv :: CInt -> Ptr CChar -> CSize -> CInt -> IO CInt
-#endif
