@@ -55,7 +55,6 @@ library
         Network.Wai.Handler.Warp.FdCache
         Network.Wai.Handler.Warp.File
         Network.Wai.Handler.Warp.FileInfoCache
-        Network.Wai.Handler.Warp.HashMap
         Network.Wai.Handler.Warp.HTTP1
         Network.Wai.Handler.Warp.HTTP2
         Network.Wai.Handler.Warp.HTTP2.File
@@ -63,6 +62,7 @@ library
         Network.Wai.Handler.Warp.HTTP2.Request
         Network.Wai.Handler.Warp.HTTP2.Response
         Network.Wai.Handler.Warp.HTTP2.Types
+        Network.Wai.Handler.Warp.HashMap
         Network.Wai.Handler.Warp.Header
         Network.Wai.Handler.Warp.IO
         Network.Wai.Handler.Warp.Imports
@@ -177,6 +177,7 @@ test-suite spec
         SendFileSpec
         WithApplicationSpec
         Network.Wai.Handler.Warp
+        Network.Wai.Handler.Warp.Internal
         Network.Wai.Handler.Warp.Buffer
         Network.Wai.Handler.Warp.Conduit
         Network.Wai.Handler.Warp.Counter
@@ -195,7 +196,6 @@ test-suite spec
         Network.Wai.Handler.Warp.Header
         Network.Wai.Handler.Warp.IO
         Network.Wai.Handler.Warp.Imports
-        Network.Wai.Handler.Warp.MultiMap
         Network.Wai.Handler.Warp.PackInt
         Network.Wai.Handler.Warp.ReadInt
         Network.Wai.Handler.Warp.Request
