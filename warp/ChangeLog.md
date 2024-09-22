@@ -3,6 +3,7 @@
 ## 3.4.2
 
 * serveConnection is re-exported from the Internal module.
+  [#1007](https://github.com/yesodweb/wai/pull/1007)
 
 ## 3.4.1
 
