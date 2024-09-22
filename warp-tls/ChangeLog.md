@@ -3,6 +3,7 @@
 ## 3.4.7
 
 * Expose `attachConn` to use post-handshake TLS connection.
+  [#1007](https://github.com/yesodweb/wai/pull/1007)
 
 ## 3.4.6
 
