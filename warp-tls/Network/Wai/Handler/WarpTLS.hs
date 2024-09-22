@@ -386,6 +386,7 @@ httpOverTls TLSSettings{..} _set s bs0 params =
             $ sendAll sock bs
 
 -- | Get "Connection" and "Transport" for a TLS connection that is already did the handshake.
+-- @since 3.4.7
 attachConn :: SockAddr -> TLS.Context -> IO (Connection, Transport)
 attachConn mysa ctx = do
     h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
