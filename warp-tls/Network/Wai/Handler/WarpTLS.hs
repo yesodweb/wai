@@ -360,7 +360,8 @@ httpOverTls TLSSettings{..} _set s bs0 params =
         ctx <- TLS.contextNew (backend recvN) params
         TLS.contextHookSetLogging ctx tlsLogging
         TLS.handshake ctx
-        attachConn s ctx
+        mysa <- getSocketName s
+        attachConn mysa ctx
     wrappedRecvN recvN n = handleAny (const mempty) $ recvN n
     backend recvN =
         TLS.Backend
@@ -385,18 +386,17 @@ httpOverTls TLSSettings{..} _set s bs0 params =
             $ sendAll sock bs
 
 -- | Get "Connection" and "Transport" for a TLS connection that is already did the handshake.
-attachConn :: Socket -> TLS.Context -> IO (Connection, Transport)
-attachConn s ctx = do
+attachConn :: SockAddr -> TLS.Context -> IO (Connection, Transport)
+attachConn mysa ctx = do
     h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
     isH2 <- I.newIORef h2
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- I.newIORef writeBuffer
     -- Creating a cache for leftover input data.
     tls <- getTLSinfo ctx
-    mysa <- getSocketName s
-    return (conn writeBufferRef isH2 mysa, tls)
+    return (conn writeBufferRef isH2, tls)
   where
-    conn writeBufferRef isH2 mysa =
+    conn writeBufferRef isH2 =
         Connection
             { connSendMany = TLS.sendData ctx . L.fromChunks
             , connSendAll = sendall
