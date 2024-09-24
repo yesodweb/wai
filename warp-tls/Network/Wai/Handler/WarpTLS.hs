@@ -50,6 +50,9 @@ module Network.Wai.Handler.WarpTLS (
 
     -- * Exception
     WarpTLSException (..),
+
+    -- * Low-level
+    attachConn
 ) where
 
 import Control.Applicative ((<|>))
@@ -357,14 +360,9 @@ httpOverTls TLSSettings{..} _set s bs0 params =
         ctx <- TLS.contextNew (backend recvN) params
         TLS.contextHookSetLogging ctx tlsLogging
         TLS.handshake ctx
-        h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
-        isH2 <- I.newIORef h2
-        writeBuffer <- createWriteBuffer 16384
-        writeBufferRef <- I.newIORef writeBuffer
-        -- Creating a cache for leftover input data.
-        tls <- getTLSinfo ctx
         mysa <- getSocketName s
-        return (conn ctx writeBufferRef isH2 mysa, tls)
+        attachConn mysa ctx
+    wrappedRecvN recvN n = handleAny (const mempty) $ recvN n
     backend recvN =
         TLS.Backend
             { TLS.backendFlush = return ()
@@ -386,7 +384,20 @@ httpOverTls TLSSettings{..} _set s bs0 params =
             )
             throwIO
             $ sendAll sock bs
-    conn ctx writeBufferRef isH2 mysa =
+
+-- | Get "Connection" and "Transport" for a TLS connection that is already did the handshake.
+-- @since 3.4.7
+attachConn :: SockAddr -> TLS.Context -> IO (Connection, Transport)
+attachConn mysa ctx = do
+    h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
+    isH2 <- I.newIORef h2
+    writeBuffer <- createWriteBuffer 16384
+    writeBufferRef <- I.newIORef writeBuffer
+    -- Creating a cache for leftover input data.
+    tls <- getTLSinfo ctx
+    return (conn writeBufferRef isH2, tls)
+  where
+    conn writeBufferRef isH2 =
         Connection
             { connSendMany = TLS.sendData ctx . L.fromChunks
             , connSendAll = sendall
@@ -433,10 +444,6 @@ httpOverTls TLSSettings{..} _set s bs0 params =
                 (\e -> guard (e == ConnectionClosedByPeer) >> return e)
                 (const (return ()))
                 (TLS.bye ctx)
-
-    wrappedRecvN recvN n = handleAny handler $ recvN n
-    handler :: SomeException -> IO S.ByteString
-    handler _ = return ""
 
 getTLSinfo :: TLS.Context -> IO Transport
 getTLSinfo ctx = do

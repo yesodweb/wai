@@ -86,6 +86,7 @@ module Network.Wai.Handler.Warp.Internal (
     -- * Misc
     http2server,
     withII,
+    serveConnection,
     pReadMaker,
 ) where
 

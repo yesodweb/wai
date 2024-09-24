@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.4.2
+
+* serveConnection is re-exported from the Internal module.
+  [#1007](https://github.com/yesodweb/wai/pull/1007)
+
 ## 3.4.1
 
 * Using time-manager v0.1.0, and auto-update v0.2.0.
