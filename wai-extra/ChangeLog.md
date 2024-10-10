@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.16
+
+* Added instances `Foldable` and `Traversable` for `UrlMap'` [#992](https://github.com/yesodweb/wai/pull/992)
+
 ## 3.1.15
 
 * Added `validateHeadersMiddleware` for validating response headers set by the application [#990](https://github.com/yesodweb/wai/pull/990).
