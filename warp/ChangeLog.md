@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.4.3
+
+* Waiting untill the number of FDs desreases on EMFILE.
+  [#1009](https://github.com/yesodweb/wai/pull/1009)
+
 ## 3.4.2
 
 * serveConnection is re-exported from the Internal module.
