@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Network.Wai.Handler.Warp.Run where
 
@@ -13,7 +14,7 @@ import qualified Control.Exception
 import qualified Data.ByteString as S
 import Data.IORef (newIORef, readIORef)
 import Data.Streaming.Network (bindPortTCP)
-import Foreign.C.Error (Errno (..), eCONNABORTED)
+import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
 import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Network.Socket (
     SockAddr,
@@ -305,13 +306,16 @@ acceptConnection set getConnMaker app counter ii = do
         case ex of
             Right x -> return $ Just x
             Left e -> do
-                let eConnAborted = getErrno eCONNABORTED
-                    getErrno (Errno cInt) = cInt
-                if ioe_errno e == Just eConnAborted
-                    then acceptNewConnection
-                    else do
-                        settingsOnException set Nothing $ toException e
-                        return Nothing
+                let getErrno (Errno cInt) = cInt
+                    isErrno err = ioe_errno e == Just (getErrno err)
+                if | isErrno eCONNABORTED -> acceptNewConnection
+                   | isErrno eMFILE -> do
+                       settingsOnException set Nothing $ toException e
+                       waitForDecreased counter
+                       acceptNewConnection
+                   | otherwise -> do
+                       settingsOnException set Nothing $ toException e
+                       return Nothing
 
 -- Fork a new worker thread for this connection maker, and ask for a
 -- function to unmask (i.e., allow async exceptions to be thrown).
