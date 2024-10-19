@@ -23,6 +23,7 @@ nix:
     - fcgi
     - zlib
 extra-deps:
+  - http-semantics-0.2.0
   - http3-0.0.16
   - network-udp-0.0.0
   - quic-0.2.1
