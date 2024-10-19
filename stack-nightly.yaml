@@ -23,9 +23,7 @@ nix:
     - fcgi
     - zlib
 extra-deps:
-  - cgi-3001.5.0.1
-  - http3-0.0.16
-  - multipart-0.2.1
+  - http3-0.0.18
   - network-udp-0.0.0
-  - quic-0.2.1
+  - quic-0.2.2
   - sockaddr-0.0.1
