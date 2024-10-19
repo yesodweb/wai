@@ -70,7 +70,6 @@ spec = do
     describe "headerLines" $ do
         let parseHeaderLine chunks = do
                 src <- mkSourceFunc chunks >>= mkSource
-
                 x <- headerLines defaultMaxTotalHeaderLength FirstRequest src
                 x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
 
@@ -96,7 +95,6 @@ spec = do
         it "can (not) handle an illegal case (1)" $ do
             let chunks = ["\nStatus:", "\n 200", "\nContent-Type: text/plain", "\r\n\r\n"]
             src <- mkSourceFunc chunks >>= mkSource
-
             x <- headerLines defaultMaxTotalHeaderLength FirstRequest src
             x `shouldBe` []
             y <- headerLines defaultMaxTotalHeaderLength FirstRequest src
@@ -108,13 +106,11 @@ spec = do
         -- Length is 39, this shouldn't fail
         it "doesn't throw on correct length" $ do
             src <- mkSourceFunc testLengthHeaders >>= mkSource
-
             x <- headerLines testLength FirstRequest src
             x `shouldBe` ["Status: 200", "Content-Type: text/plain"]
         -- Length is still 39, this should fail
         it "throws error on correct length too long" $ do
             src <- mkSourceFunc testLengthHeaders >>= mkSource
-
             headerLines (testLength - 1) FirstRequest src `shouldThrow` (== OverLargeHeader)
   where
     blankSafe = headerLinesList ["f", "oo\n", "bar\nbaz\n\r\n"]
