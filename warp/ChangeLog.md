@@ -1,11 +1,28 @@
 # ChangeLog for warp
 
+## 3.4.3
+
+* Waiting untill the number of FDs desreases on EMFILE.
+  [#1009](https://github.com/yesodweb/wai/pull/1009)
+
+## 3.4.2
+
+* serveConnection is re-exported from the Internal module.
+  [#1007](https://github.com/yesodweb/wai/pull/1007)
+
+## 3.4.1
+
+* Using time-manager v0.1.0, and auto-update v0.2.0.
+  [#986](https://github.com/yesodweb/wai/pull/986)
+
 ## 3.4.0
 
 * Reworked request lines (`CRLF`) parsing: [#968](https://github.com/yesodweb/wai/pulls)
     * We do not accept multiline headers anymore.
       ([`RFC 7230`](https://www.rfc-editor.org/rfc/rfc7230#section-3.2.4) deprecated it 10 years ago)
     * Reworked request lines (`CRLF`) parsing to not unnecessarily copy bytestrings.
+* Using http2 v5.1.0.
+* `fourmolu` is used as an official formatter.
 
 ## 3.3.31
 

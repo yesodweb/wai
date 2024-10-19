@@ -115,7 +115,7 @@ http1server
     -> Source
     -> IO ()
 http1server settings ii conn transport app addr th istatus src =
-    loop True `UnliftIO.catchAny` handler
+    loop FirstRequest `UnliftIO.catchAny` handler
   where
     handler e
         -- See comment below referencing
@@ -154,18 +154,22 @@ http1server settings ii conn transport app addr th istatus src =
                 `UnliftIO.catchAny` \e -> do
                     settingsOnException settings (Just req) e
                     -- Don't throw the error again to prevent calling settingsOnException twice.
-                    return False
+                    return CloseConnection
 
         -- When doing a keep-alive connection, the other side may just
         -- close the connection. We don't want to treat that as an
-        -- exceptional situation, so we pass in False to http1 (which
-        -- in turn passes in False to recvRequest), indicating that
+        -- exceptional situation, so we pass in SubsequentRequest to http1 (which
+        -- in turn passes in SubsequentRequest to recvRequest), indicating that
         -- this is not the first request. If, when trying to read the
         -- request headers, no data is available, recvRequest will
         -- throw a NoKeepAliveRequest exception, which we catch here
         -- and ignore. See: https://github.com/yesodweb/wai/issues/618
 
-        when keepAlive $ loop False
+        case keepAlive of
+          ReuseConnection -> loop SubsequentRequest
+          CloseConnection -> return ()
+
+data ReuseConnection = ReuseConnection | CloseConnection
 
 processRequest
     :: Settings
@@ -179,7 +183,7 @@ processRequest
     -> Maybe (IORef Int)
     -> IndexedHeader
     -> IO ByteString
-    -> IO Bool
+    -> IO ReuseConnection
 processRequest settings ii conn app th istatus src req mremainingRef idxhdr nextBodyFlush = do
     -- Let the application run for as long as it wants
     T.pause th
@@ -226,7 +230,7 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
             Nothing -> do
                 flushEntireBody nextBodyFlush
                 T.resume th
-                return True
+                return ReuseConnection
             Just maxToRead -> do
                 let tryKeepAlive = do
                         -- flush the rest of the request body
@@ -234,16 +238,16 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
                         if isComplete
                             then do
                                 T.resume th
-                                return True
-                            else return False
+                                return ReuseConnection
+                            else return CloseConnection
                 case mremainingRef of
                     Just ref -> do
                         remaining <- readIORef ref
                         if remaining <= maxToRead
                             then tryKeepAlive
-                            else return False
+                            else return CloseConnection
                     Nothing -> tryKeepAlive
-        else return False
+        else return CloseConnection
 
 sendErrorResponse
     :: Settings

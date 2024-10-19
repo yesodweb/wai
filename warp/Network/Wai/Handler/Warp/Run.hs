@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Network.Wai.Handler.Warp.Run where
 
@@ -13,7 +14,7 @@ import qualified Control.Exception
 import qualified Data.ByteString as S
 import Data.IORef (newIORef, readIORef)
 import Data.Streaming.Network (bindPortTCP)
-import Foreign.C.Error (Errno (..), eCONNABORTED)
+import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
 import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Network.Socket (
     SockAddr,
@@ -305,13 +306,16 @@ acceptConnection set getConnMaker app counter ii = do
         case ex of
             Right x -> return $ Just x
             Left e -> do
-                let eConnAborted = getErrno eCONNABORTED
-                    getErrno (Errno cInt) = cInt
-                if ioe_errno e == Just eConnAborted
-                    then acceptNewConnection
-                    else do
-                        settingsOnException set Nothing $ toException e
-                        return Nothing
+                let getErrno (Errno cInt) = cInt
+                    isErrno err = ioe_errno e == Just (getErrno err)
+                if | isErrno eCONNABORTED -> acceptNewConnection
+                   | isErrno eMFILE -> do
+                       settingsOnException set Nothing $ toException e
+                       waitForDecreased counter
+                       acceptNewConnection
+                   | otherwise -> do
+                       settingsOnException set Nothing $ toException e
+                       return Nothing
 
 -- Fork a new worker thread for this connection maker, and ask for a
 -- function to unmask (i.e., allow async exceptions to be thrown).
@@ -386,8 +390,8 @@ serveConnection conn ii th origAddr transport settings app = do
         if isHTTP2 transport
             then return (True, "")
             else do
-                bs0 <- connRecv conn
-                if S.length bs0 >= 4 && "PRI " `S.isPrefixOf` bs0
+                bs0 <- recv4 ""
+                if "PRI " `S.isPrefixOf` bs0
                     then return (True, bs0)
                     else return (False, bs0)
     if settingsHTTP2Enabled settings && h2
@@ -395,6 +399,18 @@ serveConnection conn ii th origAddr transport settings app = do
             http2 settings ii conn transport app origAddr th bs
         else do
             http1 settings ii conn transport app origAddr th bs
+  where
+    recv4 bs0 = do
+        bs1 <- connRecv conn
+        if S.null bs1 then
+            return bs0
+          else do
+            -- In the case where bs0 is "", (<>) is called unnecessarily.
+            -- But we adopt this logic for simplicity.
+            let bs2 = bs0 <> bs1
+            if S.length bs2 >= 4
+                 then return bs2
+                 else recv4 bs2
 
 -- | Set flag FileCloseOnExec flag on a socket (on Unix)
 --

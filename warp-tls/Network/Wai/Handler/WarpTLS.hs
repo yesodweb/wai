@@ -50,6 +50,9 @@ module Network.Wai.Handler.WarpTLS (
 
     -- * Exception
     WarpTLSException (..),
+
+    -- * Low-level
+    attachConn
 ) where
 
 import Control.Applicative ((<|>))
@@ -95,6 +98,8 @@ import UnliftIO.Exception (
     try,
  )
 import qualified UnliftIO.Exception as E
+import UnliftIO.Concurrent (newEmptyMVar, putMVar, takeMVar, forkIOWithUnmask)
+import UnliftIO.Timeout (timeout)
 
 ----------------------------------------------------------------
 
@@ -318,8 +323,18 @@ mkConn
     -> Socket
     -> params
     -> IO (Connection, Transport)
-mkConn tlsset set s params = (safeRecv s 4096 >>= switch) `onException` close s
+mkConn tlsset set s params = do
+    var <- newEmptyMVar
+    _ <- forkIOWithUnmask $ \umask -> do
+        let tm = settingsTimeout set * 1000000
+        mct <- umask (timeout tm recvFirstBS)
+        putMVar var mct
+    mbs <- takeMVar var
+    case mbs of
+      Nothing -> throwIO IncompleteHeaders
+      Just bs -> switch bs
   where
+    recvFirstBS = safeRecv s 4096 `onException` close s
     switch firstBS
         | S.null firstBS = close s >> throwIO ClientClosedConnectionPrematurely
         | S.head firstBS == 0x16 = httpOverTls tlsset set s firstBS params
@@ -335,22 +350,19 @@ httpOverTls
     -> S.ByteString
     -> params
     -> IO (Connection, Transport)
-httpOverTls TLSSettings{..} _set s bs0 params = do
-    pool <- newBufferPool 2048 16384
-    rawRecvN <- makeRecvN bs0 $ receive s pool
-    let recvN = wrappedRecvN rawRecvN
-    ctx <- TLS.contextNew (backend recvN) params
-    TLS.contextHookSetLogging ctx tlsLogging
-    TLS.handshake ctx
-    h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
-    isH2 <- I.newIORef h2
-    writeBuffer <- createWriteBuffer 16384
-    writeBufferRef <- I.newIORef writeBuffer
-    -- Creating a cache for leftover input data.
-    tls <- getTLSinfo ctx
-    mysa <- getSocketName s
-    return (conn ctx writeBufferRef isH2 mysa, tls)
+httpOverTls TLSSettings{..} _set s bs0 params =
+    makeConn `onException` close s
   where
+    makeConn = do
+        pool <- newBufferPool 2048 16384
+        rawRecvN <- makeRecvN bs0 $ receive s pool
+        let recvN = wrappedRecvN rawRecvN
+        ctx <- TLS.contextNew (backend recvN) params
+        TLS.contextHookSetLogging ctx tlsLogging
+        TLS.handshake ctx
+        mysa <- getSocketName s
+        attachConn mysa ctx
+    wrappedRecvN recvN n = handleAny (const mempty) $ recvN n
     backend recvN =
         TLS.Backend
             { TLS.backendFlush = return ()
@@ -372,7 +384,20 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
             )
             throwIO
             $ sendAll sock bs
-    conn ctx writeBufferRef isH2 mysa =
+
+-- | Get "Connection" and "Transport" for a TLS connection that is already did the handshake.
+-- @since 3.4.7
+attachConn :: SockAddr -> TLS.Context -> IO (Connection, Transport)
+attachConn mysa ctx = do
+    h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
+    isH2 <- I.newIORef h2
+    writeBuffer <- createWriteBuffer 16384
+    writeBufferRef <- I.newIORef writeBuffer
+    -- Creating a cache for leftover input data.
+    tls <- getTLSinfo ctx
+    return (conn writeBufferRef isH2, tls)
+  where
+    conn writeBufferRef isH2 =
         Connection
             { connSendMany = TLS.sendData ctx . L.fromChunks
             , connSendAll = sendall
@@ -420,18 +445,14 @@ httpOverTls TLSSettings{..} _set s bs0 params = do
                 (const (return ()))
                 (TLS.bye ctx)
 
-    wrappedRecvN recvN n = handleAny handler $ recvN n
-    handler :: SomeException -> IO S.ByteString
-    handler _ = return ""
-
 getTLSinfo :: TLS.Context -> IO Transport
 getTLSinfo ctx = do
     proto <- TLS.getNegotiatedProtocol ctx
     minfo <- TLS.contextGetInformation ctx
     case minfo of
         Nothing -> return TCP
-        Just TLS.Information{..} -> do
-            let (major, minor) = case infoVersion of
+        Just info -> do
+            let (major, minor) = case TLS.infoVersion info of
                     TLS.SSL2 -> (2, 0)
                     TLS.SSL3 -> (3, 0)
                     TLS.TLS10 -> (3, 1)
@@ -444,7 +465,7 @@ getTLSinfo ctx = do
                     { tlsMajorVersion = major
                     , tlsMinorVersion = minor
                     , tlsNegotiatedProtocol = proto
-                    , tlsChiperID = TLS.cipherID infoCipher
+                    , tlsChiperID = TLS.cipherID $ TLS.infoCipher info
                     , tlsClientCertificate = clientCert
                     }
 

@@ -20,7 +20,6 @@ Library
   Other-modules:     Network.Socket.BufferPool.Buffer
                      Network.Socket.BufferPool.Recv
                      Network.Socket.BufferPool.Types
-                     Network.Socket.BufferPool.Windows
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
   Ghc-Options:       -Wall
@@ -33,7 +32,6 @@ Test-Suite spec
                      Network.Socket.BufferPool.Buffer
                      Network.Socket.BufferPool.Recv
                      Network.Socket.BufferPool.Types
-                     Network.Socket.BufferPool.Windows
   Hs-Source-Dirs:    test, .
   Type:              exitcode-stdio-1.0
   Build-Depends:     base                      >= 4.12       && < 5

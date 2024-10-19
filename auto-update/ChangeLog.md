@@ -1,5 +1,17 @@
 # ChangeLog for auto-update
 
+## 0.2.1
+
+* Labeling threads.
+
+## 0.2.0
+
+* Creating Reaper.Internal to export Reaper constructor.
+* Hiding Reaper constructor.
+* Add `reaperModify` to the `Reaper` API, allowing workload modification outside
+  of the main `reaperAction` loop.
+  [#985](https://github.com/yesodweb/wai/pull/985)
+
 ## 0.1.6
 
 * Add control of activation on leading vs. trailing edges for Control.Debounce

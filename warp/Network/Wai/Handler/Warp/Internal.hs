@@ -75,6 +75,7 @@ module Network.Wai.Handler.Warp.Internal (
 
     -- * Request and response
     Source,
+    FirstRequest (..),
     recvRequest,
     sendResponse,
 
@@ -85,6 +86,7 @@ module Network.Wai.Handler.Warp.Internal (
     -- * Misc
     http2server,
     withII,
+    serveConnection,
     pReadMaker,
 ) where
 

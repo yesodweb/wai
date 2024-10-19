@@ -8,8 +8,7 @@ packages:
   - ./wai-app-static
   - ./wai-conduit
   - ./wai-extra
-  # Needs 'multipart' to accept 'bytestring < 0.13'
-  # - ./wai-frontend-monadcgi
+  - ./wai-frontend-monadcgi
   - ./wai-http2-extra
   - ./wai-websockets
   - ./warp
@@ -24,8 +23,9 @@ nix:
     - fcgi
     - zlib
 extra-deps:
-  - crypto-token-0.1.0
-  - http3-0.0.7
+  - cgi-3001.5.0.1
+  - http3-0.0.16
+  - multipart-0.2.1
   - network-udp-0.0.0
-  - quic-0.1.15
+  - quic-0.2.1
   - sockaddr-0.0.1

@@ -233,12 +233,14 @@ cacheControl maxage =
         MaxAgeSeconds i -> (:) ("Cache-Control", maxAgeValue i)
         MaxAgeForever -> (:) ("Cache-Control", maxAgeValue oneYear)
         NoStore -> (:) ("Cache-Control", "no-store")
+        NoCache -> (:) ("Cache-Control", "no-cache")
     headerExpires =
         case maxage of
             NoMaxAge -> id
             MaxAgeSeconds _ -> id -- FIXME
             MaxAgeForever -> (:) ("Expires", "Thu, 31 Dec 2037 23:55:55 GMT")
             NoStore -> id
+            NoCache -> id
 
 -- | Turn a @StaticSettings@ into a WAI application.
 staticApp :: StaticSettings -> W.Application

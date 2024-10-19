@@ -30,6 +30,11 @@ data CertSettings
         ![I.IORef S.ByteString]
         !(I.IORef S.ByteString)
 
+instance Show CertSettings where
+    show (CertFromFile a b c) = "CertFromFile " ++ show a ++ " " ++ show b ++ " " ++ show c
+    show (CertFromMemory a b c) = "CertFromMemory " ++ show a ++ " " ++ show b ++ " " ++ show c
+    show (CertFromRef _ _ _) = "CertFromRef"
+
 ----------------------------------------------------------------
 
 -- | An action when a plain HTTP comes to HTTP over TLS/SSL port.
@@ -47,7 +52,7 @@ data TLSSettings = TLSSettings
     -- loaded from?
     --
     -- >>> certSettings defaultTlsSettings
-    -- tlsSettings "certificate.pem" "key.pem"
+    -- CertFromFile "certificate.pem" [] "key.pem"
     --
     -- @since 3.3.0
     , onInsecure :: OnInsecure

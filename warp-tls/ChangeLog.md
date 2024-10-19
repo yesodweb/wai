@@ -1,5 +1,23 @@
 # ChangeLog
 
+## 3.4.7
+
+* Expose `attachConn` to use post-handshake TLS connection.
+  [#1007](https://github.com/yesodweb/wai/pull/1007)
+
+## 3.4.6
+
+* Preparing for tls v2.1
+
+## 3.4.5
+
+* Making mkConn of WarpTLS interruptible
+  [#984](https://github.com/yesodweb/wai/pull/984)
+
+## 3.4.4
+
+* Allow warp v3.4.
+
 ## 3.4.3
 
 * Install shutdown handlers passed via `Settings` to `run...` functions

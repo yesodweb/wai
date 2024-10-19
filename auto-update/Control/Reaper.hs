@@ -27,7 +27,12 @@ module Control.Reaper (
     reaperEmpty,
 
     -- * Type
-    Reaper (..),
+    Reaper,
+    reaperAdd,
+    reaperRead,
+    reaperModify,
+    reaperStop,
+    reaperKill,
 
     -- * Creation
     mkReaper,
@@ -39,7 +44,9 @@ module Control.Reaper (
 import Control.AutoUpdate.Util (atomicModifyIORef')
 import Control.Concurrent (ThreadId, forkIO, killThread, threadDelay)
 import Control.Exception (mask_)
+import Control.Reaper.Internal
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import GHC.Conc.Sync (labelThread)
 
 -- | Settings for creating a reaper. This type has two parameters:
 -- @workload@ gives the entire workload, whereas @item@ gives an
@@ -103,19 +110,6 @@ defaultReaperSettings =
         , reaperEmpty = []
         }
 
--- | A data structure to hold reaper APIs.
-data Reaper workload item = Reaper
-    { reaperAdd :: item -> IO ()
-    -- ^ Adding an item to the workload
-    , reaperRead :: IO workload
-    -- ^ Reading workload.
-    , reaperStop :: IO workload
-    -- ^ Stopping the reaper thread if exists.
-    --   The current workload is returned.
-    , reaperKill :: IO ()
-    -- ^ Killing the reaper thread immediately if exists.
-    }
-
 -- | State of reaper.
 data State workload
     = -- | No reaper thread
@@ -136,6 +130,7 @@ mkReaper settings@ReaperSettings{..} = do
         Reaper
             { reaperAdd = add settings stateRef tidRef
             , reaperRead = readRef stateRef
+            , reaperModify = modifyRef stateRef
             , reaperStop = stop stateRef
             , reaperKill = kill tidRef
             }
@@ -145,6 +140,13 @@ mkReaper settings@ReaperSettings{..} = do
         case mx of
             NoReaper -> return reaperEmpty
             Workload wl -> return wl
+    modifyRef stateRef modifier = atomicModifyIORef' stateRef $ \mx ->
+        case mx of
+            NoReaper ->
+                (NoReaper, reaperEmpty)
+            Workload wl ->
+                let !wl' = modifier wl
+                 in (Workload wl', wl')
     stop stateRef = atomicModifyIORef' stateRef $ \mx ->
         case mx of
             NoReaper -> (NoReaper, reaperEmpty)
@@ -180,6 +182,7 @@ spawn
     -> IO ()
 spawn settings stateRef tidRef = do
     tid <- forkIO $ reaper settings stateRef tidRef
+    labelThread tid "Reaper"
     writeIORef tidRef $ Just tid
 
 reaper

@@ -19,7 +19,7 @@ import qualified Network.HTTP.Types as H
 import UnliftIO.Exception (impureThrow, throwIO)
 import Prelude hiding (lines)
 
-import Network.Wai.Handler.Warp.Request (headerLines)
+import Network.Wai.Handler.Warp.Request (FirstRequest (..), headerLines)
 import Network.Wai.Handler.Warp.Types
 
 #if MIN_VERSION_gauge(0, 2, 0)
@@ -61,7 +61,7 @@ main = do
             ]
         ]
   where
-    testIt req = producer req >>= headerLines 800 False
+    testIt req = producer req >>= headerLines 800 FirstRequest
 
 ----------------------------------------------------------------
 
