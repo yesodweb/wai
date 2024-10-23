@@ -1,5 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module System.TimeManager (
     -- ** Types
@@ -29,11 +29,11 @@ module System.TimeManager (
 ) where
 
 import Control.Concurrent (myThreadId)
+import qualified Control.Exception as E
 import Control.Reaper
 import Data.IORef (IORef)
 import qualified Data.IORef as I
 import Data.Typeable (Typeable)
-import qualified UnliftIO.Exception as E
 
 ----------------------------------------------------------------
 
@@ -144,7 +144,7 @@ cancel (Handle mgr _ stateRef) = do
         | stateRef == stateRef' =
             hs
         | otherwise =
-            let !hs'= filt hs
+            let !hs' = filt hs
              in h : hs'
 
 -- | Setting the state to paused.

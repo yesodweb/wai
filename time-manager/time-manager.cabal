@@ -16,7 +16,6 @@ Extra-Source-Files:  ChangeLog.md
 Library
   Build-Depends:     base                      >= 4.12       && < 5
                    , auto-update               >= 0.2        && < 0.3
-                   , unliftio
   Default-Language:  Haskell2010
   Exposed-modules:   System.TimeManager
   Ghc-Options:       -Wall
