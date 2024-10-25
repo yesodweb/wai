@@ -25,6 +25,7 @@ module Control.Reaper (
     reaperCons,
     reaperNull,
     reaperEmpty,
+    reaperThreadName,
 
     -- * Type
     Reaper,
@@ -94,6 +95,7 @@ data ReaperSettings workload item = ReaperSettings
     -- Default: empty list.
     --
     -- @since 0.1.1
+    , reaperThreadName :: String
     }
 
 -- | Default @ReaperSettings@ value, biased towards having a list of work
@@ -108,6 +110,7 @@ defaultReaperSettings =
         , reaperCons = (:)
         , reaperNull = null
         , reaperEmpty = []
+        , reaperThreadName = "Reaper"
         }
 
 -- | State of reaper.
@@ -182,7 +185,7 @@ spawn
     -> IO ()
 spawn settings stateRef tidRef = do
     tid <- forkIO $ reaper settings stateRef tidRef
-    labelThread tid "Reaper"
+    labelThread tid $ reaperThreadName settings
     writeIORef tidRef $ Just tid
 
 reaper

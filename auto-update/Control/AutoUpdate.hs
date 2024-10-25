@@ -38,6 +38,7 @@ module Control.AutoUpdate (
     updateAction,
     updateFreq,
     updateSpawnThreshold,
+    updateThreadName,
 
     -- * Creation
     mkAutoUpdate,
@@ -76,6 +77,7 @@ defaultUpdateSettings =
         { updateFreq = 1000000
         , updateSpawnThreshold = 3
         , updateAction = return ()
+        , updateThreadName = "AutoUpdate"
         }
 
 -- | Settings to control how values are updated.
@@ -112,6 +114,7 @@ data UpdateSettings a = UpdateSettings
     -- Default: does nothing.
     --
     -- @since 0.1.0
+    , updateThreadName :: String
     }
 
 -- | Generate an action which will either read from an automatically
@@ -201,7 +204,7 @@ mkAutoUpdateHelper us updateActionModify = do
 
         -- Kick off the loop, with the initial responseVar0 variable.
         loop responseVar0 Nothing
-    labelThread tid "AutoUpdate"
+    labelThread tid $ updateThreadName us
     return $ do
         mval <- readIORef currRef
         case mval of

@@ -52,6 +52,7 @@ data DebounceSettings = DebounceSettings
     -- Default: 'trailingEdge'.
     --
     -- @since 0.1.6
+    , debounceThreadName :: String
     }
 
 -- | Setting to control whether the action happens at the leading and/or trailing
@@ -85,7 +86,7 @@ trailingEdge = Trailing
 
 mkDebounceInternal
     :: MVar () -> (Int -> IO ()) -> DebounceSettings -> IO (IO ())
-mkDebounceInternal baton delayFn (DebounceSettings freq action edge) = do
+mkDebounceInternal baton delayFn (DebounceSettings freq action edge name) = do
     tid <- mask_ $ forkIO $ forever $ do
         takeMVar baton
         case edge of
@@ -97,7 +98,7 @@ mkDebounceInternal baton delayFn (DebounceSettings freq action edge) = do
                 -- Empty the baton of any other activations during the interval
                 void $ tryTakeMVar baton
                 ignoreExc action
-    labelThread tid "Debounce"
+    labelThread tid name
     return $ void $ tryPutMVar baton ()
 
 ignoreExc :: IO () -> IO ()

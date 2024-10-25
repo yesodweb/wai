@@ -31,6 +31,7 @@ module Control.Debounce (
     DI.debounceFreq,
     DI.debounceAction,
     DI.debounceEdge,
+    DI.debounceThreadName,
     DI.leadingEdge,
     DI.trailingEdge,
 
@@ -50,6 +51,7 @@ defaultDebounceSettings =
         { DI.debounceFreq = 1000000
         , DI.debounceAction = return ()
         , DI.debounceEdge = DI.leadingEdge
+        , DI.debounceThreadName = "Debounce"
         }
 
 -- | Generate an action which will trigger the debounced action to be performed.
