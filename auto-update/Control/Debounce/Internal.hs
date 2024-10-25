@@ -97,7 +97,7 @@ mkDebounceInternal baton delayFn (DebounceSettings freq action edge) = do
                 -- Empty the baton of any other activations during the interval
                 void $ tryTakeMVar baton
                 ignoreExc action
-    labelThread tid "Denounce"
+    labelThread tid "Debounce"
     return $ void $ tryPutMVar baton ()
 
 ignoreExc :: IO () -> IO ()
