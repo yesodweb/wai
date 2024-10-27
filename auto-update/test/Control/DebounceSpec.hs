@@ -23,7 +23,10 @@ import Control.Monad (void)
 import Control.Monad.Catch
 import Control.Retry (recovering, constantDelay, limitRetries)
 import Data.IORef (IORef, readIORef, newIORef, modifyIORef)
+import Data.Word (Word64)
+import GHC.Clock (getMonotonicTime)
 import Test.Hspec (Spec, describe, it, shouldReturn, hspec)
+import Test.HUnit (assertBool)
 import Test.HUnit.Lang (HUnitFailure (HUnitFailure))
 
 spec :: Spec
@@ -142,18 +145,29 @@ spec = describe "mkDebounce" $ do
         it "works for multiple events" $ do
             (ref, debounced, _baton, _returnFromWait) <- getDebounce' True trailingDelayEdge
 
+            start <- getMonotonicTime
+
+            debounced
+            readIORef ref `shouldReturn` 0
+            -- Asserts at end check that this timing gets added to the cooldown time
+            threadDelay 500_000
+
+            readIORef ref `shouldReturn` 0
             debounced
             readIORef ref `shouldReturn` 0
             threadDelay 500_000
-            readIORef ref `shouldReturn` 0
-            debounced
-            readIORef ref `shouldReturn` 0
-            threadDelay 500_000
+
             readIORef ref `shouldReturn` 0
             threadDelay 250_000
+
             readIORef ref `shouldReturn` 0
 
             waitUntil 1 $ readIORef ref `shouldReturn` 1
+            end <- getMonotonicTime
+            assertBool "Took less than 1.5 sec" $
+                end - start > 1.5
+            assertBool "Took more than 1.6 sec" $
+                end - start < 1.6
 
 -- | Make a controllable delay function
 getWaitAction :: IO (p -> IO (), IO ())
@@ -184,7 +198,7 @@ getDebounce' useThreadDelay edge = do
             baton
             waitAction
             defaultDebounceSettings
-                { debounceFreq = 1_000_000 -- used in 'TrailingDelay'
+                { debounceFreq = 1_000_000 -- !!! used in 'TrailingDelay' test
                 , debounceAction = action
                 , debounceEdge = edge
                 }
