@@ -12,7 +12,7 @@ module Network.Wai.Handler.WarpTLS.Internal (
 
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import Data.Default.Class (def)
+import Data.Default (def)
 import qualified Data.IORef as I
 import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra as TLSExtra

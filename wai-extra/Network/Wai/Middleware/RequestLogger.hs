@@ -38,7 +38,7 @@ import qualified Data.ByteString.Builder as B (Builder, byteString)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as LBS
-import Data.Default.Class (Default (def))
+import Data.Default (Default (def))
 import Data.IORef
 import Data.Maybe (fromMaybe, isJust, mapMaybe)
 #if __GLASGOW_HASKELL__ < 804
