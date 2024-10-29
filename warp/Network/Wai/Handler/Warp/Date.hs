@@ -5,7 +5,12 @@ module Network.Wai.Handler.Warp.Date (
     GMTDate,
 ) where
 
-import Control.AutoUpdate (defaultUpdateSettings, mkAutoUpdate, updateAction)
+import Control.AutoUpdate (
+    defaultUpdateSettings,
+    mkAutoUpdate,
+    updateAction,
+    updateThreadName,
+ )
 import Data.ByteString
 import Network.HTTP.Date
 
