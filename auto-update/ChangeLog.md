@@ -1,5 +1,11 @@
 # ChangeLog for auto-update
 
+## 0.2.2
+
+* NewAPI: updateThreadName, reaperThreadName, debounceThreadName:
+  Names can be given via this field to threads
+  for GHC.Conc.Sync.listThreads.
+
 ## 0.2.1
 
 * Labeling threads.
