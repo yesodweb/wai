@@ -1,5 +1,9 @@
 # Changelog for wai-extra
 
+## 3.1.16
+
+* Substituted `data-default-class` for `data-default` [#1010](https://github.com/yesodweb/wai/pull/1010)
+
 ## 3.1.15
 
 * Added `validateHeadersMiddleware` for validating response headers set by the application [#990](https://github.com/yesodweb/wai/pull/990).

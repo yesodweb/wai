@@ -51,7 +51,7 @@ import qualified Data.ByteString.Builder.Extra as Blaze (flush)
 import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
-import Data.Default.Class (Default (..))
+import Data.Default (Default (..))
 import Data.Function (fix)
 import Data.Maybe (isJust)
 import qualified Data.Set as Set

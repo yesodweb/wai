@@ -1,5 +1,9 @@
 # ChangeLog
 
+## 3.4.8
+
+* Substituted `data-default-class` for `data-default` [#1010](https://github.com/yesodweb/wai/pull/1010)
+
 ## 3.4.7
 
 * Expose `attachConn` to use post-handshake TLS connection.

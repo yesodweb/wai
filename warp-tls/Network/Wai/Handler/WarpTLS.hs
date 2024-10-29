@@ -59,7 +59,7 @@ import Control.Applicative ((<|>))
 import Control.Monad (guard, void)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import Data.Default.Class (def)
+import Data.Default (def)
 import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, safeRecv)
 import Data.Typeable (Typeable)

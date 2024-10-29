@@ -1,5 +1,5 @@
 Name:                wai-extra
-Version:             3.1.15
+Version:             3.1.16
 Synopsis:            Provides some basic WAI handlers and middleware.
 description:
   Provides basic WAI handler and middleware functionality:
@@ -110,7 +110,7 @@ Library
                    , case-insensitive          >= 0.2
                    , containers
                    , cookie
-                   , data-default-class
+                   , data-default
                    , directory                 >= 1.2.7.0
                    , fast-logger               >= 2.4.5
                    , http-types                >= 0.7
