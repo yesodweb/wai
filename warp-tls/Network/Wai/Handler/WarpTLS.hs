@@ -322,12 +322,8 @@ mkConn
     -> params
     -> IO (Connection, Transport)
 mkConn tlsset set s params = do
-    var <- newEmptyMVar
-    _ <- forkIOWithUnmask $ \umask -> do
-        let tm = settingsTimeout set * 1000000
-        mct <- umask (timeout tm recvFirstBS)
-        putMVar var mct
-    mbs <- takeMVar var
+    let tm = settingsTimeout set * 1000000
+    mbs <- timeout tm recvFirstBS
     case mbs of
       Nothing -> throwIO IncompleteHeaders
       Just bs -> switch bs
