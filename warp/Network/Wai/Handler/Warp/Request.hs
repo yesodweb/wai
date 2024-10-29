@@ -27,7 +27,7 @@ import Data.Word8 (_cr, _lf)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
-import UnliftIO (Exception, throwIO)
+import Control.Exception (Exception, throwIO)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai

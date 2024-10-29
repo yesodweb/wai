@@ -14,6 +14,7 @@ module Network.Wai.Handler.Warp.Response (
     addAltSvc,
 ) where
 
+import qualified Control.Exception as E
 import Data.Array ((!))
 import qualified Data.ByteString as S
 import Data.ByteString.Builder (Builder, byteString)
@@ -38,7 +39,6 @@ import Network.Wai
 import Network.Wai.Internal
 import qualified Paths_warp
 import qualified System.TimeManager as T
-import qualified UnliftIO
 
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
@@ -315,9 +315,9 @@ sendRsp conn ii th ver s0 hs0 rspidxhdr maxRspBufSize method (RspFile path (Just
 -- Simple WAI applications.
 -- Status is ignored
 sendRsp conn ii th ver _ hs0 rspidxhdr maxRspBufSize method (RspFile path Nothing reqidxhdr hook) = do
-    efinfo <- UnliftIO.tryIO $ getFileInfo ii path
+    efinfo <- E.try $ getFileInfo ii path
     case efinfo of
-        Left (_ex :: UnliftIO.IOException) ->
+        Left (_ex :: E.IOException) ->
 #ifdef WARP_DEBUG
             print _ex >>
 #endif

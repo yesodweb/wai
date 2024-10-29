@@ -9,6 +9,7 @@ module Network.Wai.Handler.Warp.HTTP2 (
     http2server,
 ) where
 
+import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.IORef (readIORef)
 import qualified Data.IORef as I
@@ -20,7 +21,6 @@ import Network.Socket.BufferPool
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (..))
 import qualified System.TimeManager as T
-import qualified UnliftIO
 
 import Network.Wai.Handler.Warp.HTTP2.File
 import Network.Wai.Handler.Warp.HTTP2.PushPromise
@@ -93,7 +93,7 @@ http2server label settings ii transport addr app h2req0 aux0 response = do
     labelThread tid (label ++ " http2server " ++ show addr)
     req <- toWAIRequest h2req0 aux0
     ref <- I.newIORef Nothing
-    eResponseReceived <- UnliftIO.tryAny $ app req $ \rsp -> do
+    eResponseReceived <- E.try $ app req $ \rsp -> do
         (h2rsp, st, hasBody) <- fromResponse settings ii req rsp
         pps <- if hasBody then fromPushPromises ii req else return []
         I.writeIORef ref $ Just (h2rsp, pps, st)
@@ -105,7 +105,12 @@ http2server label settings ii transport addr app h2req0 aux0 response = do
             let msiz = fromIntegral <$> H2.responseBodySize h2rsp
             logResponse req st msiz
             mapM_ (logPushPromise req) pps
-        Left e -> do
+        Left e
+          -- killed by the local worker manager
+          | Just E.ThreadKilled  <- E.fromException e -> return ()
+          -- killed by the local timeout manager
+          | Just T.TimeoutThread <- E.fromException e -> return ()
+          | otherwise -> do
             S.settingsOnException settings (Just req) e
             let ersp = S.settingsOnExceptionResponse settings e
                 st = responseStatus ersp
@@ -135,7 +140,7 @@ http2server label settings ii transport addr app h2req0 aux0 response = do
 wrappedRecvN
     :: T.Handle -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
 wrappedRecvN th slowlorisSize readN bufsize = do
-    bs <- UnliftIO.handleAny handler $ readN bufsize
+    bs <- E.handle handler $ readN bufsize
     -- TODO: think about the slowloris protection in HTTP2: current code
     -- might open a slow-loris attack vector. Rather than timing we should
     -- consider limiting the per-client connections assuming that in HTTP2
@@ -146,7 +151,7 @@ wrappedRecvN th slowlorisSize readN bufsize = do
         T.tickle th
     return bs
   where
-    handler :: UnliftIO.SomeException -> IO ByteString
+    handler :: E.SomeException -> IO ByteString
     handler _ = return ""
 
 -- connClose must not be called here since Run:fork calls it

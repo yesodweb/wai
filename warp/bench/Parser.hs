@@ -16,7 +16,7 @@ import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
 import qualified Network.HTTP.Types as H
-import UnliftIO.Exception (impureThrow, throwIO)
+import Control.Exception (impureThrow, throwIO)
 import Prelude hiding (lines)
 
 import Network.Wai.Handler.Warp.Request (FirstRequest (..), headerLines)

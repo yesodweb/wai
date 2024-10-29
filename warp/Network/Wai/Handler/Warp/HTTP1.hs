@@ -9,6 +9,7 @@ module Network.Wai.Handler.Warp.HTTP1 (
 ) where
 
 import qualified Control.Concurrent as Conc (yield)
+import Control.Exception (SomeException, catch, fromException, throwIO, try)
 import qualified Data.ByteString as BS
 import Data.Char (chr)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
@@ -17,8 +18,6 @@ import Network.Socket (SockAddr (SockAddrInet, SockAddrInet6))
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
 import qualified System.TimeManager as T
-import UnliftIO (SomeException, fromException, throwIO)
-import qualified UnliftIO
 import "iproute" Data.IP (toHostAddress, toHostAddress6)
 
 import Network.Wai.Handler.Warp.Header
@@ -115,7 +114,7 @@ http1server
     -> Source
     -> IO ()
 http1server settings ii conn transport app addr th istatus src =
-    loop FirstRequest `UnliftIO.catchAny` handler
+    loop FirstRequest `catch` handler
   where
     handler e
         -- See comment below referencing
@@ -151,7 +150,7 @@ http1server settings ii conn transport app addr th istatus src =
                 mremainingRef
                 idxhdr
                 nextBodyFlush
-                `UnliftIO.catchAny` \e -> do
+                `catch` \e -> do
                     settingsOnException settings (Just req) e
                     -- Don't throw the error again to prevent calling settingsOnException twice.
                     return CloseConnection
@@ -166,8 +165,8 @@ http1server settings ii conn transport app addr th istatus src =
         -- and ignore. See: https://github.com/yesodweb/wai/issues/618
 
         case keepAlive of
-          ReuseConnection -> loop SubsequentRequest
-          CloseConnection -> return ()
+            ReuseConnection -> loop SubsequentRequest
+            CloseConnection -> return ()
 
 data ReuseConnection = ReuseConnection | CloseConnection
 
@@ -192,7 +191,7 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
     -- creating the request, we need to make sure that we don't get
     -- an async exception before calling the ResponseSource.
     keepAliveRef <- newIORef $ error "keepAliveRef not filled"
-    r <- UnliftIO.tryAny $ app req $ \res -> do
+    r <- try $ app req $ \res -> do
         T.resume th
         -- FIXME consider forcing evaluation of the res here to
         -- send more meaningful error messages to the user.
@@ -226,27 +225,27 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
         then -- If there is an unknown or large amount of data to still be read
         -- from the request body, simple drop this connection instead of
         -- reading it all in to satisfy a keep-alive request.
-        case settingsMaximumBodyFlush settings of
-            Nothing -> do
-                flushEntireBody nextBodyFlush
-                T.resume th
-                return ReuseConnection
-            Just maxToRead -> do
-                let tryKeepAlive = do
-                        -- flush the rest of the request body
-                        isComplete <- flushBody nextBodyFlush maxToRead
-                        if isComplete
-                            then do
-                                T.resume th
-                                return ReuseConnection
-                            else return CloseConnection
-                case mremainingRef of
-                    Just ref -> do
-                        remaining <- readIORef ref
-                        if remaining <= maxToRead
-                            then tryKeepAlive
-                            else return CloseConnection
-                    Nothing -> tryKeepAlive
+            case settingsMaximumBodyFlush settings of
+                Nothing -> do
+                    flushEntireBody nextBodyFlush
+                    T.resume th
+                    return ReuseConnection
+                Just maxToRead -> do
+                    let tryKeepAlive = do
+                            -- flush the rest of the request body
+                            isComplete <- flushBody nextBodyFlush maxToRead
+                            if isComplete
+                                then do
+                                    T.resume th
+                                    return ReuseConnection
+                                else return CloseConnection
+                    case mremainingRef of
+                        Just ref -> do
+                            remaining <- readIORef ref
+                            if remaining <= maxToRead
+                                then tryKeepAlive
+                                else return CloseConnection
+                        Nothing -> tryKeepAlive
         else return CloseConnection
 
 sendErrorResponse

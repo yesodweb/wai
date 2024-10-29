@@ -26,7 +26,7 @@ import System.Posix.IO (
     openFd,
     setFdOption,
  )
-import UnliftIO.Exception (bracket)
+import Control.Exception (bracket)
 #endif
 import System.Posix.Types (Fd)
 

@@ -9,6 +9,7 @@
 
 module Network.Wai.Handler.Warp.Settings where
 
+import Control.Exception (SomeException, fromException)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as C8
 import Data.Streaming.Network (HostPreference)
@@ -25,7 +26,6 @@ import qualified Paths_warp
 import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
 import System.TimeManager
-import UnliftIO (SomeException, fromException)
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types

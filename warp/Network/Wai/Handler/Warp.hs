@@ -141,7 +141,7 @@ module Network.Wai.Handler.Warp (
 
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Vault.Lazy as Vault
-import UnliftIO.Exception (SomeException, throwIO)
+import Control.Exception (SomeException, throwIO)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif

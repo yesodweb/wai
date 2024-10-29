@@ -13,7 +13,7 @@ import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, minusPtr, nullPtr, plusPtr)
 import Foreign.Storable (peek)
 import qualified Network.HTTP.Types as H
-import UnliftIO (throwIO)
+import Control.Exception (throwIO)
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
