@@ -112,6 +112,7 @@ initialize duration = mkReaper settings
             , reaperCons = \(path, v) -> M.insert path v
             , reaperNull = M.isEmpty
             , reaperEmpty = M.empty
+            , reaperThreadName = "File info cacher (Reaper)"
             }
 
 override :: Cache -> IO (Cache -> Cache)

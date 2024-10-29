@@ -120,6 +120,7 @@ initialize duration = MutableFdCache <$> mkReaper settings
             , reaperCons = uncurry insert
             , reaperNull = isEmpty
             , reaperEmpty = empty
+            , reaperThreadName = "Fd cacher (Reaper) "
             }
 
 clean :: FdCache -> IO (FdCache -> FdCache)

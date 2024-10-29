@@ -29,6 +29,7 @@ initialize =
     mkAutoUpdate
         defaultUpdateSettings
             { updateAction = formatHTTPDate <$> getCurrentHTTPDate
+            , updateThreadName = "Date cacher (AutoUpdate)"
             }
 
 #ifdef WINDOWS
