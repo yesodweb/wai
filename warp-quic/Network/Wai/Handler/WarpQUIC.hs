@@ -22,6 +22,11 @@ runQUICSocket quicsettings settings sock app =
     withII settings $ \ii ->
         Q.runWithSockets [sock] quicsettings $ quicApp settings app ii
 
+runQUICSockets :: QUICSettings -> Settings -> [Socket] -> Application -> IO ()
+runQUICSockets quicsettings settings ss app =
+    withII settings $ \ii ->
+        Q.runWithSockets ss quicsettings $ quicApp settings app ii
+
 -- | Running warp with HTTP/3 on QUIC.
 runQUIC :: QUICSettings -> Settings -> Application -> IO ()
 runQUIC quicsettings settings app =
