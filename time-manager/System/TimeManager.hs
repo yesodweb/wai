@@ -61,7 +61,7 @@ initialize timeout =
         defaultReaperSettings
             { reaperAction = mkListAction prune
             , reaperDelay = timeout
-            , reaperThreadName = "TimeManager (Reaper)"
+            , reaperThreadName = "WAI timeout manager (Reaper)"
             }
   where
     prune m@(Handle _ actionRef stateRef) = do
