@@ -59,4 +59,7 @@ quicApp settings app ii conn = do
             let runX
                     | "h3" `BS.isPrefixOf` appProto = H3.run
                     | otherwise = HQ.run
-            runX conn conf $ http2server settings ii transport addr app
+                label
+                    | "h3" `BS.isPrefixOf` appProto = "Warp HTTP/3"
+                    | otherwise = "Warp HQ"
+            runX conn conf $ http2server label settings ii transport addr app

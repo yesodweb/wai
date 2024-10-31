@@ -12,6 +12,7 @@ module Network.Wai.Handler.Warp.HTTP2 (
 import qualified Data.ByteString as BS
 import Data.IORef (readIORef)
 import qualified Data.IORef as I
+import GHC.Conc.Sync (labelThread, myThreadId)
 import qualified Network.HTTP2.Frame as H2
 import qualified Network.HTTP2.Server as H2
 import Network.Socket (SockAddr)
@@ -69,7 +70,7 @@ http2 settings ii conn transport app peersa th bs = do
     checkTLS
     setConnHTTP2 conn True
     H2.run H2.defaultServerConfig conf $
-        http2server settings ii transport peersa app
+        http2server "Warp HTTP/2" settings ii transport peersa app
   where
     checkTLS = case transport of
         TCP -> return () -- direct
@@ -80,13 +81,16 @@ http2 settings ii conn transport app peersa th bs = do
 --
 -- Since 3.3.11
 http2server
-    :: S.Settings
+    :: String
+    -> S.Settings
     -> InternalInfo
     -> Transport
     -> SockAddr
     -> Application
     -> H2.Server
-http2server settings ii transport addr app h2req0 aux0 response = do
+http2server label settings ii transport addr app h2req0 aux0 response = do
+    tid <- myThreadId
+    labelThread tid (label ++ " http2server " ++ show addr)
     req <- toWAIRequest h2req0 aux0
     ref <- I.newIORef Nothing
     eResponseReceived <- UnliftIO.tryAny $ app req $ \rsp -> do
