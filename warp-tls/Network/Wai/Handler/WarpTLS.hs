@@ -56,7 +56,6 @@ module Network.Wai.Handler.WarpTLS (
 ) where
 
 import Control.Applicative ((<|>))
-import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, forkIOWithUnmask)
 import Control.Exception (
     Exception,
     IOException,
