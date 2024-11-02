@@ -23,6 +23,7 @@ nix:
   - fcgi
   - zlib
 extra-deps:
+  - data-default-0.8
   - crypto-token-0.1.1
   - crypton-1.0.0
   - crypton-x509-1.7.6
