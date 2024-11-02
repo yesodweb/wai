@@ -26,6 +26,7 @@ extra-deps:
   - crypton-x509-1.7.6
   - crypton-x509-store-1.6.9
   - crypton-x509-validation-1.6.12
+  - data-default-0.8
   - http-semantics-0.2.0
   - http2-5.3.1
   - network-byte-order-0.1.7
