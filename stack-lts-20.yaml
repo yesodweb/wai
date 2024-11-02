@@ -24,13 +24,12 @@ nix:
   - zlib
 extra-deps:
   - cgi-3001.5.0.1
-  - crypto-token-0.1.1
+  - crypto-token-0.1.2
   - crypton-0.34
   - crypton-x509-1.7.6
   - crypton-x509-store-1.6.9
   - crypton-x509-system-1.6.7
   - crypton-x509-validation-1.6.12
-  - data-default-0.8.0.0
   - fast-logger-3.2.2
   - http-semantics-0.2.0
   - http2-5.3.1
@@ -40,8 +39,8 @@ extra-deps:
   - network-byte-order-0.1.7
   - network-control-0.1.0
   - network-udp-0.0.0
-  - quic-0.2.1
+  - quic-0.2.3
   - sockaddr-0.0.1
-  - tls-2.0.6
-  - tls-session-manager-0.0.5
+  - tls-2.1.3
+  - tls-session-manager-0.0.7
   - unix-time-0.4.12
