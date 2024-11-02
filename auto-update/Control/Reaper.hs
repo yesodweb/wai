@@ -96,6 +96,11 @@ data ReaperSettings workload item = ReaperSettings
     --
     -- @since 0.1.1
     , reaperThreadName :: String
+    -- ^ Label of the thread spawned by the reaper.
+    --
+    -- Default: @"Reaper"@.
+    --
+    -- @since 0.2.2
     }
 
 -- | Default @ReaperSettings@ value, biased towards having a list of work

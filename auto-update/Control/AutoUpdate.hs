@@ -115,6 +115,11 @@ data UpdateSettings a = UpdateSettings
     --
     -- @since 0.1.0
     , updateThreadName :: String
+    -- ^ Label of the thread being forked.
+    --
+    -- Default: @"AutoUpdate"@
+    --
+    -- @since 0.2.2
     }
 
 -- | Generate an action which will either read from an automatically
