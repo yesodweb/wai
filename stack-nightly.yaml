@@ -23,8 +23,8 @@ nix:
     - fcgi
     - zlib
 extra-deps:
-  - data-default-0.8.0.0
   - http3-0.0.18
   - network-udp-0.0.0
-  - quic-0.2.2
+  - quic-0.2.3
   - sockaddr-0.0.1
+  - tls-2.1.3
