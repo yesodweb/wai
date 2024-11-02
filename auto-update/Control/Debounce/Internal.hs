@@ -58,6 +58,11 @@ data DebounceSettings = DebounceSettings
     --
     -- @since 0.1.6
     , debounceThreadName :: String
+    -- ^ Label of the thread spawned when debouncing.
+    --
+    -- Default: @"Debounce"@.
+    --
+    -- @since 0.2.2
     }
 
 -- | Setting to control whether the action happens at the leading and/or trailing
