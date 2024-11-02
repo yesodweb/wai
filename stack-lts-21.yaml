@@ -23,13 +23,13 @@ nix:
   - fcgi
   - zlib
 extra-deps:
-  - data-default-0.8
   - crypto-token-0.1.1
   - crypton-1.0.0
   - crypton-x509-1.7.6
   - crypton-x509-store-1.6.9
   - crypton-x509-system-1.6.7
   - crypton-x509-validation-1.6.12
+  - data-default-0.8.0.0
   - http-semantics-0.2.0
   - http2-5.3.1
   - http3-0.0.16
