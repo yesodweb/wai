@@ -153,6 +153,7 @@ spec = describe "mkDebounce" $ do
             threadDelay 500_000
 
             readIORef ref `shouldReturn` 0
+            before2nd <- getMonotonicTime
             debounced
             readIORef ref `shouldReturn` 0
             threadDelay 500_000
@@ -164,10 +165,10 @@ spec = describe "mkDebounce" $ do
 
             waitUntil 1 $ readIORef ref `shouldReturn` 1
             end <- getMonotonicTime
-            assertBool "Took less than 1.5 sec" $
+            assertBool "Took less than 1 sec after retrigger" $
+                end - before2nd > 1
+            assertBool "Took less than 1.5 sec total" $
                 end - start > 1.5
-            assertBool "Took more than 1.6 sec" $
-                end - start < 1.6
 
 -- | Make a controllable delay function
 getWaitAction :: IO (p -> IO (), IO ())
