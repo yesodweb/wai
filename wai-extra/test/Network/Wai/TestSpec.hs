@@ -108,7 +108,7 @@ spec = do
                                     ( "Set-Cookie"
                                     , toByteString $
                                         Cookie.renderSetCookie $
-                                            Cookie.def
+                                            Cookie.defaultSetCookie
                                                 { Cookie.setCookieName = TE.encodeUtf8 name
                                                 , Cookie.setCookieValue = TE.encodeUtf8 val
                                                 }
@@ -123,7 +123,7 @@ spec = do
                                     ( "Set-Cookie"
                                     , toByteString $
                                         Cookie.renderSetCookie $
-                                            Cookie.def
+                                            Cookie.defaultSetCookie
                                                 { Cookie.setCookieName =
                                                     TE.encodeUtf8 name
                                                 , Cookie.setCookieExpires =
@@ -200,7 +200,7 @@ spec = do
         it "sends a cookie set with setClientCookie to server" $ do
             sresp <- flip runSession cookieApp $ do
                 setClientCookie
-                    ( Cookie.def
+                    ( Cookie.defaultSetCookie
                         { Cookie.setCookieName = "cookie_name"
                         , Cookie.setCookieValue = "cookie_value"
                         }
@@ -212,13 +212,13 @@ spec = do
         it "sends a cookie updated with setClientCookie to server" $ do
             sresp <- flip runSession cookieApp $ do
                 setClientCookie
-                    ( Cookie.def
+                    ( Cookie.defaultSetCookie
                         { Cookie.setCookieName = "cookie_name"
                         , Cookie.setCookieValue = "cookie_value"
                         }
                     )
                 setClientCookie
-                    ( Cookie.def
+                    ( Cookie.defaultSetCookie
                         { Cookie.setCookieName = "cookie_name"
                         , Cookie.setCookieValue = "cookie_value2"
                         }
@@ -230,7 +230,7 @@ spec = do
         it "does not send a cookie deleted with deleteClientCookie to server" $ do
             sresp <- flip runSession cookieApp $ do
                 setClientCookie
-                    ( Cookie.def
+                    ( Cookie.defaultSetCookie
                         { Cookie.setCookieName = "cookie_name"
                         , Cookie.setCookieValue = "cookie_value"
                         }

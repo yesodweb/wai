@@ -30,4 +30,4 @@ app request = return $ case pathInfo request of
     _ -> ResponseFile status404 [] "../LICENSE" Nothing
 
 main :: IO ()
-main = run 3000 $ gzip def $ jsonp app
+main = run 3000 $ gzip defaultGzipSettings $ jsonp app
