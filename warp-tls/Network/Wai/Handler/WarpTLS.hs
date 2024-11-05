@@ -350,7 +350,7 @@ httpOverTls
     -> S.ByteString
     -> params
     -> IO (Connection, Transport)
-httpOverTls TLSSettings{..} _set s bs0 params =
+httpOverTls TLSSettings{..} set s bs0 params =
     makeConn `onException` close s
   where
     makeConn = do
@@ -359,9 +359,14 @@ httpOverTls TLSSettings{..} _set s bs0 params =
         let recvN = wrappedRecvN rawRecvN
         ctx <- TLS.contextNew (backend recvN) params
         TLS.contextHookSetLogging ctx tlsLogging
-        TLS.handshake ctx
-        mysa <- getSocketName s
-        attachConn mysa ctx
+        let tm = settingsTimeout set * 1000000
+        mconn <- timeout tm $ do
+            TLS.handshake ctx
+            mysa <- getSocketName s
+            attachConn mysa ctx
+        case mconn of
+          Nothing -> throwIO IncompleteHeaders
+          Just conn -> return conn
     wrappedRecvN recvN n = handleAny (const mempty) $ recvN n
     backend recvN =
         TLS.Backend
