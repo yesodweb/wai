@@ -1,5 +1,9 @@
 # ChangeLog
 
+## 3.4.9
+
+* Using `timeout` for `handshake` to prevent thread leaks.
+
 ## 3.4.8
 
 * Substituted `data-default-class` for `data-default` [#1010](https://github.com/yesodweb/wai/pull/1010)
