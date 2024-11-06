@@ -21,12 +21,9 @@ jobs:
           - "--resolver lts-21 --stack-yaml stack-lts-21.yaml"
           - "--resolver lts-20 --stack-yaml stack-lts-20.yaml"
           - "--resolver lts-19 --stack-yaml stack-lts-19.yaml"
-          - "--resolver lts-18 --stack-yaml stack-lts-18.yaml"
         exclude:
           - os: "macos-latest"
             args: "--resolver lts-19 --stack-yaml stack-lts-19.yaml"
-          - os: "macos-latest"
-            args: "--resolver lts-18 --stack-yaml stack-lts-18.yaml"
 
     steps:
       - name: Clone project
@@ -34,7 +31,7 @@ jobs:
 
       # Not sure how to have GHC not setup twice
       # Something with settings "ghc-version"?
-      # ["9.8", "9.6", "9.4", "9.2", "9.0", "8.10"]
+      # ["9.8", "9.6", "9.4", "9.2", "9.0"]
       - uses: haskell-actions/setup@v2
         name: Setup Haskell Stack
         with:
