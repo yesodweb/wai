@@ -12,7 +12,7 @@ packages:
 - ./wai-http2-extra
 - ./wai-websockets
 - ./warp
-# - ./warp-quic
+- ./warp-quic
 - ./warp-tls
 flags:
   wai-extra:
@@ -28,12 +28,18 @@ extra-deps:
   - crypton-1.0.1
   - crypton-x509-1.7.7
   - crypton-x509-store-1.6.9
+  - crypton-x509-system-1.6.7
   - crypton-x509-validation-1.6.12
+  - fast-logger-3.2.5
   - http-semantics-0.2.1
   - http2-5.3.4
+  - http3-0.0.18
   - memory-0.18.0
+  - network-3.1.4.0
   - network-byte-order-0.1.7
   - network-control-0.1.3
+  - quic-0.2.4
+  - sockaddr-0.0.1
   - tls-2.1.3
   - tls-session-manager-0.0.7
   - unix-time-0.4.16

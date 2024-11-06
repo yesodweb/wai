@@ -44,7 +44,7 @@ import Network.Wai.Middleware.Autohead (autohead)
 import Network.Wai.Middleware.Gzip (
     GzipFiles (..),
     GzipSettings (..),
-    def,
+    defaultGzipSettings,
     defaultCheckMime,
     gzip,
  )
@@ -197,7 +197,7 @@ gzipApp = gzipApp' id
 
 gzipApp' :: (Response -> Response) -> Application
 gzipApp' changeRes =
-    gzip def $ \_ f ->
+    gzip defaultGzipSettings $ \_ f ->
         f . changeRes $
             responseLBS
                 status200
@@ -325,19 +325,19 @@ caseGzip2 =
 caseGzipFiles :: Assertion
 caseGzipFiles = do
     -- Default GzipSettings ignore compressing files
-    withSession (gzipFileApp def) $ do
+    withSession (gzipFileApp defaultGzipSettings) $ do
         _ <- doesNotEncodeGzipJSON [acceptGzip]
         _ <- doesNotEncodeGzipJSON []
         pure ()
 
     -- Just compresses the file
-    withSession (gzipFileApp def{gzipFiles = GzipCompress}) $ do
+    withSession (gzipFileApp defaultGzipSettings{gzipFiles = GzipCompress}) $ do
         _ <- doesEncodeGzipJSON [acceptGzip]
         _ <- doesNotEncodeGzipJSON []
         pure ()
 
     -- Checks for a "filename.gz" file in the same folder
-    withSession (gzipFileApp def{gzipFiles = GzipPreCompressed GzipIgnore}) $ do
+    withSession (gzipFileApp defaultGzipSettings{gzipFiles = GzipPreCompressed GzipIgnore}) $ do
         sres <-
             request
                 defaultRequest
@@ -354,7 +354,8 @@ caseGzipFiles = do
 #endif
             sres
 
-        doesNotEncodeGzipJSON [] >> pure ()
+        _ <- doesNotEncodeGzipJSON []
+        pure ()
 
     -- If no "filename.gz" file is in the same folder, just ignore
     withSession (noPreCompressApp $ GzipPreCompressed GzipIgnore) $ do
@@ -375,7 +376,7 @@ caseGzipFiles = do
                 assertBool s $ length fs == n
         checkTempDir 0 "temp directory should be empty"
         -- Respond with "test/json" file
-        withSession (gzipFileApp def{gzipFiles = GzipCacheFolder path}) $ do
+        withSession (gzipFileApp defaultGzipSettings{gzipFiles = GzipCacheFolder path}) $ do
             _ <- doesEncodeGzipJSON [acceptGzip]
             liftIO $ checkTempDir 1 "should have one file"
             _ <- doesEncodeGzipJSON [acceptGzip]
@@ -393,13 +394,13 @@ caseGzipFiles = do
             liftIO $ checkTempDir 2 "again should not have done anything"
 
         -- try "test/json" again, just to make sure it isn't a weird Session bug
-        withSession (gzipFileApp def{gzipFiles = GzipCacheFolder path}) $ do
+        withSession (gzipFileApp defaultGzipSettings{gzipFiles = GzipCacheFolder path}) $ do
             _ <- doesEncodeGzipJSON [acceptGzip]
             liftIO $ checkTempDir 2 "just to make sure it isn't a fluke"
   where
     noPreCompressApp set =
         gzipFileApp'
-            def{gzipFiles = set}
+            defaultGzipSettings{gzipFiles = set}
             $ const
             $ responseFile
                 status200
@@ -620,7 +621,7 @@ caseDebugRequestBody = do
         iactual <- I.newIORef mempty
         middleware <-
             mkRequestLogger
-                def
+                defaultRequestLoggerSettings
                     { destination = Callback $ \strs -> I.modifyIORef iactual (`mappend` strs)
                     , outputFormat = Detailed False
                     }
@@ -755,7 +756,7 @@ caseModifyPostParamsInLogs = do
         iactual <- I.newIORef mempty
         middleware <-
             mkRequestLogger
-                def
+                defaultRequestLoggerSettings
                     { destination = Callback $ \strs -> I.modifyIORef iactual (`mappend` strs)
                     , outputFormat = format
                     }
@@ -795,7 +796,7 @@ caseFilterRequestsInLogs = do
         iactual <- I.newIORef mempty
         middleware <-
             mkRequestLogger
-                def
+                defaultRequestLoggerSettings
                     { destination = Callback $ \strs -> I.modifyIORef iactual (`mappend` strs)
                     , outputFormat = format
                     }

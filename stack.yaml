@@ -1,4 +1,4 @@
-resolver: lts-22.39
+resolver: lts-22.40
 packages:
 - ./auto-update
 - ./mime-types
@@ -29,7 +29,7 @@ extra-deps:
   - http3-0.0.16
   - network-control-0.1.0
   - network-udp-0.0.0
-  - quic-0.2.3
+  - quic-0.2.4
   - sockaddr-0.0.1
   - tls-2.1.3
   - tls-session-manager-0.0.7

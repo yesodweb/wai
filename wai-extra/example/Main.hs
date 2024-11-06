@@ -16,7 +16,7 @@ import Network.Wai.EventSource (
  )
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.AddHeaders (addHeaders)
-import Network.Wai.Middleware.Gzip (def, gzip)
+import Network.Wai.Middleware.Gzip (defaultGzipSettings, gzip)
 
 app :: Chan ServerEvent -> Application
 app chan req respond =
@@ -67,7 +67,7 @@ main :: IO ()
 main = do
     chan <- newChan
     _ <- forkIO . eventChan $ chan
-    run 8080 (gzip def $ headers $ app chan)
+    run 8080 (gzip defaultGzipSettings $ headers $ app chan)
   where
     -- headers required for SSE to work through nginx
     -- not required if using warp directly

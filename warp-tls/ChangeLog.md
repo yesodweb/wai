@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.4.10
+
+* Removed `data-default` dependency entirely. Does now require `>= tls-2.1.3`.
+  [#1011](https://github.com/yesodweb/wai/pull/1011)
+
 ## 3.4.9
 
 * Using `timeout` for `handshake` to prevent thread leaks.

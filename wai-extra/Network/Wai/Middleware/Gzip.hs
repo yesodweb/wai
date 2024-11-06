@@ -51,7 +51,7 @@ import qualified Data.ByteString.Builder.Extra as Blaze (flush)
 import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
-import Data.Default (Default (..))
+import qualified Data.Default as Default (Default (..))
 import Data.Function (fix)
 import Data.Maybe (isJust)
 import qualified Data.Set as Set
@@ -119,12 +119,12 @@ import Network.Wai.Util (splitCommas, trimWS)
 
 -- $settings
 --
--- If you would like to use the default settings, using just 'def' is enough.
+-- If you would like to use the default settings, use 'defaultGzipSettings'.
 -- The default settings don't compress file responses, only builder and stream
 -- responses, and only if the response passes the MIME and length checks. (cf.
 -- 'defaultCheckMime' and 'gzipSizeThreshold')
 --
--- To customize your own settings, use the 'def' method and set the
+-- To customize your own settings, use 'defaultGzipSettings' and set the
 -- fields you would like to change as follows:
 --
 -- @
@@ -196,14 +196,22 @@ data GzipFiles
 
 -- $miscellaneous
 --
--- 'def' is re-exported for convenience sake, and 'defaultCheckMime'
--- is exported in case anyone wants to use it in defining their own
--- 'gzipCheckMime' function.
+-- 'defaultCheckMime' is exported in case anyone wants to use it in
+-- defining their own 'gzipCheckMime' function.
+-- 'def' has been re-exported for convenience sake, but its use is now
+-- heavily discouraged. Please use the explicit 'defaultGzipSettings'.
 
--- | Use default MIME settings; /do not/ compress files; skip
--- compression on data smaller than 860 bytes.
-instance Default GzipSettings where
+-- | DO NOT USE THIS INSTANCE!
+-- Please use 'defaultGzipSettings'.
+--
+-- This instance will be removed in a future major version.
+instance Default.Default GzipSettings where
     def = defaultGzipSettings
+
+-- | Deprecated synonym for the 'defaultGzipSettings'.
+def :: GzipSettings
+def = defaultGzipSettings
+{-# Deprecated def "Please use 'defaultGzipSettings'. 'def' and the Default instance will be removed in a future major update." #-}
 
 -- | Default settings for the 'gzip' middleware.
 --

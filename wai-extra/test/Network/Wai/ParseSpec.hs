@@ -138,40 +138,40 @@ caseParseRequestBody = do
 
     it "exceeding number of files" $ do
         SRequest req4 _bod4 <- toRequest'' ctype3 content3
-        (parseRequestBodyEx (setMaxRequestNumFiles 0 def) lbsBackEnd req4)
+        parseRequestBodyEx (setMaxRequestNumFiles 0 def) lbsBackEnd req4
             `shouldThrow` anyException
 
     it "exceeding parameter length" $ do
         SRequest req4 _bod4 <- toRequest'' ctype3 content3
-        (parseRequestBodyEx (setMaxRequestKeyLength 2 def) lbsBackEnd req4)
+        parseRequestBodyEx (setMaxRequestKeyLength 2 def) lbsBackEnd req4
             `shouldThrow` anyException
 
     it "exceeding file size" $ do
         SRequest req4 _bod4 <- toRequest'' ctype3 content3
-        (parseRequestBodyEx (setMaxRequestFileSize 2 def) lbsBackEnd req4)
+        parseRequestBodyEx (setMaxRequestFileSize 2 def) lbsBackEnd req4
             `shouldThrow` (== PayloadTooLarge)
 
     it "exceeding total file size" $ do
         SRequest req4 _bod4 <- toRequest'' ctype3 content3
-        (parseRequestBodyEx (setMaxRequestFilesSize 20 def) lbsBackEnd req4)
+        parseRequestBodyEx (setMaxRequestFilesSize 20 def) lbsBackEnd req4
             `shouldThrow` (== PayloadTooLarge)
         SRequest req5 _bod5 <- toRequest'' ctype3 content5
-        (parseRequestBodyEx (setMaxRequestFilesSize 20 def) lbsBackEnd req5)
+        parseRequestBodyEx (setMaxRequestFilesSize 20 def) lbsBackEnd req5
             `shouldThrow` (== PayloadTooLarge)
 
     it "exceeding max parm value size" $ do
         SRequest req4 _bod4 <- toRequest'' ctype2 content2
-        (parseRequestBodyEx (setMaxRequestParmsSize 10 def) lbsBackEnd req4)
+        parseRequestBodyEx (setMaxRequestParmsSize 10 def) lbsBackEnd req4
             `shouldThrow` (== PayloadTooLarge)
 
     it "exceeding max header lines" $ do
         SRequest req4 _bod4 <- toRequest'' ctype2 content2
-        (parseRequestBodyEx (setMaxHeaderLines 1 def) lbsBackEnd req4)
+        parseRequestBodyEx (setMaxHeaderLines 1 def) lbsBackEnd req4
             `shouldThrow` anyException
 
     it "exceeding header line size" $ do
         SRequest req4 _bod4 <- toRequest'' ctype3 content4
-        (parseRequestBodyEx (setMaxHeaderLineLength 8190 def) lbsBackEnd req4)
+        parseRequestBodyEx (setMaxHeaderLineLength 8190 def) lbsBackEnd req4
             `shouldThrow` (== RequestHeaderFieldsTooLarge)
 
     it "Testing parseRequestBodyEx with application/x-www-form-urlencoded" $ do
@@ -195,7 +195,7 @@ caseParseRequestBody = do
                 "thisisalongparameterkey=andthisbeanevenlongerparametervaluehelloworldhowareyou"
         let ctype = "application/x-www-form-urlencoded"
         SRequest req _bod <- toRequest'' ctype content
-        (parseRequestBodyEx (setMaxRequestParmsSize 10 def) lbsBackEnd req)
+        parseRequestBodyEx (setMaxRequestParmsSize 10 def) lbsBackEnd req
             `shouldThrow` anyException
   where
     content2 =

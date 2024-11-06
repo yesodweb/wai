@@ -59,7 +59,6 @@ import Control.Applicative ((<|>))
 import Control.Monad (guard, void)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import Data.Default (def)
 import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, safeRecv)
 import Data.Typeable (Typeable)
@@ -259,7 +258,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock =
   where
     get = getter tlsset set sock params
     params =
-        def -- TLS.ServerParams
+        TLS.defaultParamsServer
             { TLS.serverWantClientCert = tlsWantClientCert
             , TLS.serverCACertificates = []
             , TLS.serverDHEParams = tlsServerDHEParams
@@ -278,12 +277,12 @@ runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock =
                     <|> (if settingsHTTP2Enabled set then Just alpn else Nothing)
             }
     shared =
-        def
+        TLS.defaultShared
             { TLS.sharedCredentials = credentials
             , TLS.sharedSessionManager = mgr
             }
     supported =
-        def -- TLS.Supported
+        TLS.defaultSupported
             { TLS.supportedVersions = tlsAllowedVersions
             , TLS.supportedCiphers = tlsCiphers
             , TLS.supportedCompressions = [TLS.nullCompression]
