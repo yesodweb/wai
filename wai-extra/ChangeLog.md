@@ -1,5 +1,13 @@
 # Changelog for wai-extra
 
+## 3.1.17
+
+* Started deprecation of `data-default` [#1011](https://github.com/yesodweb/wai/pull/1011)
+  * All `Default` instances have comments that these will be removed in a future major version.
+  * `def` exported from `Network.Wai.Middleware.Gzip` now has a deprecation warning
+  * All uses of `def` have been replaced with explicit `default{TYPE_NAME}` values.
+* Some additional documentation
+
 ## 3.1.16
 
 * Substituted `data-default-class` for `data-default` [#1010](https://github.com/yesodweb/wai/pull/1010)
