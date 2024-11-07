@@ -1,5 +1,9 @@
 # ChangeLog for warp
 
+## 3.4.4
+
+* Removing `unliftio`.
+
 ## 3.4.3
 
 * Waiting untill the number of FDs desreases on EMFILE.
