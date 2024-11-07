@@ -23,8 +23,8 @@ import Network.Wai.Handler.Warp
 import System.IO.Unsafe (unsafePerformIO)
 import System.Timeout (timeout)
 import Test.Hspec
-import UnliftIO.Exception (IOException, bracket, onException, try)
-import qualified UnliftIO.Exception as E
+import Control.Exception (IOException, bracket, onException, try)
+import qualified Control.Exception as E
 
 import HTTP
 

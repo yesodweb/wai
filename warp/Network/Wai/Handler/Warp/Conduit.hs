@@ -2,10 +2,10 @@
 
 module Network.Wai.Handler.Warp.Conduit where
 
+import Control.Exception (assert, throwIO)
 import qualified Data.ByteString as S
 import qualified Data.IORef as I
 import Data.Word8 (_0, _9, _A, _F, _a, _cr, _f, _lf)
-import UnliftIO (assert, throwIO)
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types

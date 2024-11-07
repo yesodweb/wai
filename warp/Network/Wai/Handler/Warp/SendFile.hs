@@ -19,13 +19,13 @@ import Foreign.ForeignPtr (newForeignPtr_)
 import Foreign.Ptr (plusPtr)
 import qualified System.IO as IO
 #else
+import qualified Control.Exception as E
 import Foreign.C.Error (throwErrno)
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
 import Network.Sendfile
 import Network.Wai.Handler.Warp.FdCache (openFile, closeFile)
 import System.Posix.Types
-import qualified UnliftIO
 #endif
 
 import Network.Wai.Handler.Warp.Buffer
@@ -118,7 +118,7 @@ readSendFile buf siz send fid off0 len0 hook headers = do
 #else
 readSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 readSendFile buf siz send fid off0 len0 hook headers =
-    UnliftIO.bracket setup teardown $ \fd -> do
+    E.bracket setup teardown $ \fd -> do
         hn <- packHeader buf siz send hook headers 0
         let room = siz - hn
             buf' = buf `plusPtr` hn

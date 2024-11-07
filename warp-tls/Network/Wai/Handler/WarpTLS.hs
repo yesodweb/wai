@@ -56,6 +56,19 @@ module Network.Wai.Handler.WarpTLS (
 ) where
 
 import Control.Applicative ((<|>))
+import Control.Exception (
+    Exception,
+    IOException,
+    SomeException (..),
+    bracket,
+    finally,
+    fromException,
+    handle,
+    handleJust,
+    onException,
+    throwIO,
+    try,
+ )
 import Control.Monad (guard, void)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -73,6 +86,7 @@ import Network.Socket (
 #endif
     withSocketsDo,
  )
+import qualified Control.Exception as E
 import Network.Socket.BufferPool
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
@@ -82,23 +96,7 @@ import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal
 import Network.Wai.Handler.WarpTLS.Internal
 import System.IO.Error (ioeGetErrorType, isEOFError)
-import UnliftIO.Exception (
-    Exception,
-    IOException,
-    SomeException (..),
-    bracket,
-    finally,
-    fromException,
-    handle,
-    handleAny,
-    handleJust,
-    onException,
-    throwIO,
-    try,
- )
-import qualified UnliftIO.Exception as E
-import UnliftIO.Concurrent (newEmptyMVar, putMVar, takeMVar, forkIOWithUnmask)
-import UnliftIO.Timeout (timeout)
+import System.Timeout (timeout)
 
 ----------------------------------------------------------------
 
@@ -323,12 +321,8 @@ mkConn
     -> params
     -> IO (Connection, Transport)
 mkConn tlsset set s params = do
-    var <- newEmptyMVar
-    _ <- forkIOWithUnmask $ \umask -> do
-        let tm = settingsTimeout set * 1000000
-        mct <- umask (timeout tm recvFirstBS)
-        putMVar var mct
-    mbs <- takeMVar var
+    let tm = settingsTimeout set * 1000000
+    mbs <- timeout tm recvFirstBS
     case mbs of
       Nothing -> throwIO IncompleteHeaders
       Just bs -> switch bs
@@ -366,7 +360,7 @@ httpOverTls TLSSettings{..} set s bs0 params =
         case mconn of
           Nothing -> throwIO IncompleteHeaders
           Just conn -> return conn
-    wrappedRecvN recvN n = handleAny (const mempty) $ recvN n
+    wrappedRecvN recvN n = handle (\(SomeException _) -> mempty) $ recvN n
     backend recvN =
         TLS.Backend
             { TLS.backendFlush = return ()

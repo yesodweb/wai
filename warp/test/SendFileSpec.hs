@@ -13,7 +13,7 @@ import System.Exit
 import qualified System.IO as IO
 import System.Process (system)
 import Test.Hspec
-import UnliftIO.Exception
+import Control.Exception
 
 main :: IO ()
 main = hspec spec
