@@ -52,6 +52,14 @@ instance Alternative UrlMap' where
     empty = UrlMap' empty
     (UrlMap' xs) <|> (UrlMap' ys) = UrlMap' (xs <|> ys)
 
+-- | @since 3.1.18
+instance Foldable UrlMap' where
+    foldr f z (UrlMap' xs) = foldr (f . snd) z xs
+
+-- | @since 3.1.18
+instance Traversable UrlMap' where
+    traverse f (UrlMap' xs) = UrlMap' <$> traverse (traverse f) xs
+
 type UrlMap = UrlMap' Application
 
 -- | Mount an application under a given path. The ToApplication typeclass gives
