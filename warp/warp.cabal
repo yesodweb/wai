@@ -295,7 +295,7 @@ benchmark parser
         bytestring,
         case-insensitive,
         containers,
-        gauge,
+        criterion,
         ghc-prim,
         hashable,
         http-date,

@@ -1,10 +1,10 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
+import Control.Exception (throw, throwIO)
 import Control.Monad
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as B (pack, unpack)
@@ -16,17 +16,12 @@ import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
 import qualified Network.HTTP.Types as H
-import Control.Exception (impureThrow, throwIO)
 import Prelude hiding (lines)
 
 import Network.Wai.Handler.Warp.Request (FirstRequest (..), headerLines)
 import Network.Wai.Handler.Warp.Types
 
-#if MIN_VERSION_gauge(0, 2, 0)
-import Gauge
-#else
-import Gauge.Main
-#endif
+import Criterion.Main
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -86,15 +81,15 @@ parseRequestLine3 requestLine = ret
   where
     (!method, !rest) = S.break (== _space) requestLine
     (!pathQuery, !httpVer')
-        | rest == "" = impureThrow badmsg
+        | rest == "" = throw badmsg
         | otherwise = S.break (== _space) (S.drop 1 rest)
     (!path, !query) = S.break (== _question) pathQuery
     !httpVer = S.drop 1 httpVer'
     (!http, !ver)
-        | httpVer == "" = impureThrow badmsg
+        | httpVer == "" = throw badmsg
         | otherwise = S.break (== _slash) httpVer
     !hv
-        | http /= "HTTP" = impureThrow NonHttp
+        | http /= "HTTP" = throw NonHttp
         | ver == "/1.1" = H.http11
         | otherwise = H.http10
     !ret = (method, path, query, hv)
