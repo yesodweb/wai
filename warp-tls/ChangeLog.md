@@ -1,5 +1,9 @@
 # ChangeLog
 
+## 3.4.11
+
+* Removing `unliftio`.
+
 ## 3.4.10
 
 * Removed `data-default` dependency entirely. Does now require `>= tls-2.1.3`.
