@@ -1,5 +1,9 @@
 # ChangeLog for time-manager
 
+## 0.1.1
+
+* Removing `unliftio`.
+
 ## 0.1.0
 
 * [#986](https://github.com/yesodweb/wai/pull/986)
