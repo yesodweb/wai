@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               warp-quic
-version:            0.0.1
+version:            0.0.2
 license:            BSD3
 license-file:       LICENSE
 maintainer:         Kazu Yamamoto <kazu@iij.ad.jp>
@@ -24,7 +24,7 @@ library
         quic >=0.2 && <0.3,
         tls >=1.7,
         wai,
-        warp >=3.3.15
+        warp >=3.4.4
 
     if impl(ghc >=8)
         default-extensions: Strict StrictData
