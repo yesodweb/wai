@@ -81,7 +81,7 @@ socketConnection _ s = do
                             else settingsGracefulCloseTimeout1 set
                 if tm == 0
                     then close s
-                    else gracefulClose s tm `E.catch` \(E.SomeException _) -> return ()
+                    else gracefulClose s tm `E.catch` throughAsync (return ())
 #else
             , connClose = close s
 #endif
@@ -179,7 +179,7 @@ runSettingsSocket set@Settings{settingsAccept = accept'} socket app = do
         (s, sa) <- accept' socket
         setSocketCloseOnExec s
         -- NoDelay causes an error for AF_UNIX.
-        setSocketOption s NoDelay 1 `E.catch` \(E.SomeException _) -> return ()
+        setSocketOption s NoDelay 1 `E.catch` throughAsync (return ())
         conn <- socketConnection set s
         return (conn, sa)
 

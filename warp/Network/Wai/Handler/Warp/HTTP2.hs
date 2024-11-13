@@ -152,7 +152,7 @@ wrappedRecvN th slowlorisSize readN bufsize = do
     return bs
   where
     handler :: E.SomeException -> IO ByteString
-    handler _ = return ""
+    handler = throughAsync (return "")
 
 -- connClose must not be called here since Run:fork calls it
 goaway :: Connection -> H2.ErrorCodeId -> ByteString -> IO ()
