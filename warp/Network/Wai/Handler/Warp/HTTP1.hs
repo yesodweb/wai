@@ -122,6 +122,7 @@ http1server settings ii conn transport app addr th istatus src =
         | Just NoKeepAliveRequest <- fromException e = return ()
         -- No valid request
         | Just (BadFirstLine _) <- fromException e = return ()
+        | isAsyncException e = throwIO e
         | otherwise = do
             _ <-
                 sendErrorResponse
