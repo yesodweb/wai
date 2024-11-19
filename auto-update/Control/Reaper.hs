@@ -207,8 +207,12 @@ reaper settings@ReaperSettings{..} stateRef tidRef = do
     !merge <- reaperAction wl
     -- Merging the left jobs and new jobs.
     -- If there is no jobs, this thread finishes.
-    next <- atomicModifyIORef' stateRef (check merge)
-    next
+    cont <- atomicModifyIORef' stateRef (check merge)
+    if cont
+        then
+            reaper settings stateRef tidRef
+        else
+            writeIORef tidRef Nothing
   where
     swapWithEmpty NoReaper = error "Control.Reaper.reaper: unexpected NoReaper (1)"
     swapWithEmpty (Workload wl) = (Workload reaperEmpty, wl)
@@ -216,9 +220,9 @@ reaper settings@ReaperSettings{..} stateRef tidRef = do
     check _ NoReaper = error "Control.Reaper.reaper: unexpected NoReaper (2)"
     check merge (Workload wl)
         -- If there is no job, reaper is terminated.
-        | reaperNull wl' = (NoReaper, writeIORef tidRef Nothing)
+        | reaperNull wl' = (NoReaper, False)
         -- If there are jobs, carry them out.
-        | otherwise = (Workload wl', reaper settings stateRef tidRef)
+        | otherwise = (Workload wl', True)
       where
         wl' = merge wl
 

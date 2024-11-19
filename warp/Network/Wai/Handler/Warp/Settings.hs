@@ -9,7 +9,7 @@
 
 module Network.Wai.Handler.Warp.Settings where
 
-import Control.Exception (SomeException, fromException)
+import Control.Exception (SomeException(..), fromException, throw)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as C8
 import Data.Streaming.Network (HostPreference)
@@ -17,7 +17,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Version (showVersion)
 import GHC.IO (IO (IO), unsafeUnmask)
-import GHC.IO.Exception (AsyncException (ThreadKilled), IOErrorType (..))
+import GHC.IO.Exception (IOErrorType (..))
 import GHC.Prim (fork#)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr, Socket, accept)
@@ -228,12 +228,11 @@ defaultSettings =
 -- Since 2.1.3
 defaultShouldDisplayException :: SomeException -> Bool
 defaultShouldDisplayException se
-    | Just ThreadKilled <- fromException se = False
     | Just (_ :: InvalidRequest) <- fromException se = False
     | Just (ioeGetErrorType -> et) <- fromException se
     , et == ResourceVanished || et == InvalidArgument =
         False
-    | Just TimeoutThread <- fromException se = False
+    | isAsyncException se = False
     | otherwise = True
 
 -- | Printing an exception to standard error
@@ -255,6 +254,7 @@ defaultOnException _ e =
 -- Since 3.2.27
 defaultOnExceptionResponse :: SomeException -> Response
 defaultOnExceptionResponse e
+    | isAsyncException e = throw e
     | Just PayloadTooLarge <- fromException e =
         responseLBS
             H.status413

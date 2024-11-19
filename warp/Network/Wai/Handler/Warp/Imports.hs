@@ -10,9 +10,12 @@ module Network.Wai.Handler.Warp.Imports (
     module Data.Word,
     module Data.Maybe,
     module Numeric,
+    throughAsync,
+    isAsyncException,
 ) where
 
 import Control.Applicative
+import Control.Exception
 import Control.Monad
 import Data.Bits
 import Data.ByteString.Internal (ByteString (..))
@@ -23,3 +26,14 @@ import Data.Monoid
 import Data.Ord
 import Data.Word
 import Numeric
+
+isAsyncException :: Exception e => e -> Bool
+isAsyncException e =
+    case fromException (toException e) of
+        Just (SomeAsyncException _) -> True
+        Nothing -> False
+
+throughAsync :: IO a -> SomeException -> IO a
+throughAsync action (SomeException e)
+    | isAsyncException e = throwIO e
+    | otherwise = action

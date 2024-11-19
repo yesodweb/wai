@@ -28,12 +28,13 @@ module System.TimeManager (
     TimeoutThread (..),
 ) where
 
-import Control.Concurrent (myThreadId)
+import Control.Concurrent (myThreadId, mkWeakThreadId)
 import qualified Control.Exception as E
 import Control.Reaper
 import Data.IORef (IORef)
 import qualified Data.IORef as I
 import Data.Typeable (Typeable)
+import GHC.Weak (deRefWeak)
 
 ----------------------------------------------------------------
 
@@ -107,14 +108,14 @@ register mgr !onTimeout = do
 -- | Registering a timeout action of killing this thread.
 registerKillThread :: Manager -> TimeoutAction -> IO Handle
 registerKillThread m onTimeout = do
-    -- If we hold ThreadId, the stack and data of the thread is leaked.
-    -- If we hold Weak ThreadId, the stack is released. However, its
-    -- data is still leaked probably because of a bug of GHC.
-    -- So, let's just use ThreadId and release ThreadId by
-    -- overriding the timeout action by "cancel".
     tid <- myThreadId
+    wtid <- mkWeakThreadId tid
     -- First run the timeout action in case the child thread is masked.
-    register m $ onTimeout `E.finally` E.throwTo tid TimeoutThread
+    register m $ onTimeout `E.finally` do
+        mtid <- deRefWeak wtid
+        case mtid of
+          Nothing -> return ()
+          Just tid' -> E.throwTo tid' TimeoutThread
 
 data TimeoutThread = TimeoutThread
     deriving (Typeable)

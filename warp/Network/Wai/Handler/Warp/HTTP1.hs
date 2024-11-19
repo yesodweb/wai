@@ -122,6 +122,7 @@ http1server settings ii conn transport app addr th istatus src =
         | Just NoKeepAliveRequest <- fromException e = return ()
         -- No valid request
         | Just (BadFirstLine _) <- fromException e = return ()
+        | isAsyncException e = throwIO e
         | otherwise = do
             _ <-
                 sendErrorResponse
@@ -204,6 +205,7 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
         Right ResponseReceived -> return ()
         Left (e :: SomeException)
             | Just (ExceptionInsideResponseBody e') <- fromException e -> throwIO e'
+            | isAsyncException e -> throwIO e
             | otherwise -> do
                 keepAlive <- sendErrorResponse settings ii conn th istatus req e
                 settingsOnException settings (Just req) e

@@ -335,6 +335,17 @@ mkConn tlsset set s params = do
 
 ----------------------------------------------------------------
 
+isAsyncException :: Exception e => e -> Bool
+isAsyncException e =
+    case E.fromException (E.toException e) of
+        Just (E.SomeAsyncException _) -> True
+        Nothing -> False
+
+throughAsync :: IO a -> SomeException -> IO a
+throughAsync action (SomeException e)
+  | isAsyncException e = E.throwIO e
+  | otherwise          = action
+
 httpOverTls
     :: TLS.TLSParams params
     => TLSSettings
@@ -360,13 +371,13 @@ httpOverTls TLSSettings{..} set s bs0 params =
         case mconn of
           Nothing -> throwIO IncompleteHeaders
           Just conn -> return conn
-    wrappedRecvN recvN n = handle (\(SomeException _) -> mempty) $ recvN n
+    wrappedRecvN recvN n = handle (throughAsync (return "")) $ recvN n
     backend recvN =
         TLS.Backend
             { TLS.backendFlush = return ()
 #if MIN_VERSION_network(3,1,1)
             , TLS.backendClose =
-                gracefulClose s 5000 `E.catch` \(SomeException _) -> return ()
+                gracefulClose s 5000 `E.catch` throughAsync (return ())
 #else
             , TLS.backendClose = close s
 #endif
