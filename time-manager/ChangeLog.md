@@ -1,5 +1,10 @@
 # ChangeLog for time-manager
 
+## 0.1.2
+
+* Holding `Weak ThreadId` to prevent thread leak again
+  [#1013](https://github.com/yesodweb/wai/pull/1013)
+
 ## 0.1.1
 
 * Removing `unliftio`.
