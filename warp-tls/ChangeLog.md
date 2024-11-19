@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.4.12
+
+* Rethrowing asynchronous exceptions
+  [#1013](https://github.com/yesodweb/wai/pull/1013)
+
 ## 3.4.11
 
 * Removing `unliftio`.
