@@ -1,5 +1,11 @@
 # ChangeLog for warp
 
+## 3.4.5
+
+* Rethrowing asynchronous exceptions and preventing callsing
+  `connClose` twice.
+  [#1013](https://github.com/yesodweb/wai/pull/1013)
+
 ## 3.4.4
 
 * Removing `unliftio`.
