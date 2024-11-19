@@ -1,5 +1,9 @@
 # ChangeLog for auto-update
 
+## 0.2.4
+
+* Simple refactoring.
+
 ## 0.2.3
 
 * [#996](https://github.com/yesodweb/wai/pull/996):
