@@ -14,15 +14,19 @@ module System.TimeManager (
     withManager,
     withManager',
 
-    -- ** Registration
-    register,
-    registerKillThread,
-    cancel,
+    -- ** Registering a timeout action
+    withHandle,
+    withHandleKillThread,
 
     -- ** Control
     tickle,
     pause,
     resume,
+
+    -- ** Low level
+    register,
+    registerKillThread,
+    cancel,
 
     -- ** Exceptions
     TimeoutThread (..),
@@ -93,6 +97,22 @@ ignoreAll _ = return ()
 -- | Killing timeout manager immediately without firing onTimeout.
 killManager :: Manager -> IO ()
 killManager = reaperKill
+
+----------------------------------------------------------------
+
+-- | Registering a timeout action and unregister its handle
+--   when the body action is finished.
+withHandle :: Manager -> TimeoutAction -> (Handle -> IO a) -> IO a
+withHandle mgr onTimeout action =
+    E.bracket (register mgr onTimeout) cancel action
+
+-- | Registering a timeout action of killing this thread and
+--   unregister its handle when the body action is killed or finished.
+withHandleKillThread :: Manager -> TimeoutAction -> (Handle -> IO ()) -> IO ()
+withHandleKillThread mgr onTimeout action =
+    E.handle handler $ E.bracket (registerKillThread mgr onTimeout) cancel action
+  where
+    handler TimeoutThread = return ()
 
 ----------------------------------------------------------------
 
