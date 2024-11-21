@@ -106,10 +106,6 @@ http2server label settings ii transport addr app h2req0 aux0 response = do
             logResponse req st msiz
             mapM_ (logPushPromise req) pps
         Left e
-          -- killed by the local worker manager
-          | Just E.ThreadKilled  <- E.fromException e -> return ()
-          -- killed by the local timeout manager
-          | Just T.TimeoutThread <- E.fromException e -> return ()
           | isAsyncException e -> E.throwIO e
           | otherwise -> do
             S.settingsOnException settings (Just req) e

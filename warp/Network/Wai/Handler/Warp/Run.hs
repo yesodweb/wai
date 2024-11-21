@@ -355,7 +355,7 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask -> do
 
     -- We need to register a timeout handler for this thread, and
     -- cancel that handler as soon as we exit.
-    serve unmask (conn, transport) = E.bracket register cancel $ \th -> do
+    serve unmask (conn, transport) = T.withHandleKillThread (timeoutManager ii) (return ()) $ \th -> do
         -- We now have fully registered a connection close handler in
         -- the case of all exceptions, so it is safe to once again
         -- allow async exceptions.
@@ -368,9 +368,6 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask -> do
                 -- Actually serve this connection.  bracket with closeConn
                 -- above ensures the connection is closed.
                 when goingon $ serveConnection conn ii th addr transport set app
-      where
-        register = T.registerKillThread (timeoutManager ii) (return ())
-        cancel = T.cancel
 
     onOpen adr = increase counter >> settingsOnOpen set adr
     onClose adr _ = decrease counter >> settingsOnClose set adr
