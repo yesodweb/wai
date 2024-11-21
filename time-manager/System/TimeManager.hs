@@ -28,7 +28,7 @@ module System.TimeManager (
     TimeoutThread (..),
 ) where
 
-import Control.Concurrent (myThreadId, mkWeakThreadId)
+import Control.Concurrent (mkWeakThreadId, myThreadId)
 import qualified Control.Exception as E
 import Control.Reaper
 import Data.IORef (IORef)
@@ -106,19 +106,26 @@ register mgr !onTimeout = do
     return h
 
 -- | Registering a timeout action of killing this thread.
+--   'TimeoutThread' is thrown to the thread which called this
+--   function on timeout. Catch 'TimeoutThread' if you don't
+--   want to leak the asynchronous exception to GHC RTS.
 registerKillThread :: Manager -> TimeoutAction -> IO Handle
 registerKillThread m onTimeout = do
     tid <- myThreadId
     wtid <- mkWeakThreadId tid
     -- First run the timeout action in case the child thread is masked.
-    register m $ onTimeout `E.finally` do
-        mtid <- deRefWeak wtid
-        case mtid of
-          Nothing -> return ()
-          Just tid' -> E.throwTo tid' TimeoutThread
+    register m $
+        onTimeout `E.finally` do
+            mtid <- deRefWeak wtid
+            case mtid of
+                Nothing -> return ()
+                Just tid' -> E.throwTo tid' TimeoutThread
 
+-- | The asynchronous exception thrown if a thread is registered via
+-- 'registerKillThread'.
 data TimeoutThread = TimeoutThread
     deriving (Typeable)
+
 instance E.Exception TimeoutThread where
     toException = E.asyncExceptionToException
     fromException = E.asyncExceptionFromException
