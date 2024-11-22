@@ -14,15 +14,19 @@ module System.TimeManager (
     withManager,
     withManager',
 
-    -- ** Registration
-    register,
-    registerKillThread,
+    -- ** Registering a timeout action
+    withHandle,
+    withHandleKillThread,
 
     -- ** Control
     tickle,
-    cancel,
     pause,
     resume,
+
+    -- ** Low level
+    register,
+    registerKillThread,
+    cancel,
 
     -- ** Exceptions
     TimeoutThread (..),
@@ -96,6 +100,22 @@ killManager = reaperKill
 
 ----------------------------------------------------------------
 
+-- | Registering a timeout action and unregister its handle
+--   when the body action is finished.
+withHandle :: Manager -> TimeoutAction -> (Handle -> IO a) -> IO a
+withHandle mgr onTimeout action =
+    E.bracket (register mgr onTimeout) cancel action
+
+-- | Registering a timeout action of killing this thread and
+--   unregister its handle when the body action is killed or finished.
+withHandleKillThread :: Manager -> TimeoutAction -> (Handle -> IO ()) -> IO ()
+withHandleKillThread mgr onTimeout action =
+    E.handle handler $ E.bracket (registerKillThread mgr onTimeout) cancel action
+  where
+    handler TimeoutThread = return ()
+
+----------------------------------------------------------------
+
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
 register mgr !onTimeout = do
@@ -104,6 +124,34 @@ register mgr !onTimeout = do
     let h = Handle mgr actionRef stateRef
     reaperAdd mgr h
     return h
+
+-- | Removing the 'Handle' from the 'Manager' immediately.
+cancel :: Handle -> IO ()
+cancel (Handle mgr _ stateRef) = do
+    _ <- reaperModify mgr filt
+    return ()
+  where
+    -- It's very important that this function forces the whole workload so we
+    -- don't retain old handles, otherwise disasterous leaks occur.
+    filt [] = []
+    filt (h@(Handle _ _ stateRef') : hs)
+        | stateRef == stateRef' = hs
+        | otherwise =
+            let !hs' = filt hs
+             in h : hs'
+
+----------------------------------------------------------------
+
+-- | The asynchronous exception thrown if a thread is registered via
+-- 'registerKillThread'.
+data TimeoutThread = TimeoutThread
+    deriving (Typeable)
+
+instance E.Exception TimeoutThread where
+    toException = E.asyncExceptionToException
+    fromException = E.asyncExceptionFromException
+instance Show TimeoutThread where
+    show TimeoutThread = "Thread killed by timeout manager"
 
 -- | Registering a timeout action of killing this thread.
 --   'TimeoutThread' is thrown to the thread which called this
@@ -121,39 +169,12 @@ registerKillThread m onTimeout = do
                 Nothing -> return ()
                 Just tid' -> E.throwTo tid' TimeoutThread
 
--- | The asynchronous exception thrown if a thread is registered via
--- 'registerKillThread'.
-data TimeoutThread = TimeoutThread
-    deriving (Typeable)
-
-instance E.Exception TimeoutThread where
-    toException = E.asyncExceptionToException
-    fromException = E.asyncExceptionFromException
-instance Show TimeoutThread where
-    show TimeoutThread = "Thread killed by timeout manager"
-
 ----------------------------------------------------------------
 
 -- | Setting the state to active.
 --   'Manager' turns active to inactive repeatedly.
 tickle :: Handle -> IO ()
 tickle (Handle _ _ stateRef) = I.writeIORef stateRef Active
-
--- | Removing the 'Handle' from the 'Manager' immediately.
-cancel :: Handle -> IO ()
-cancel (Handle mgr _ stateRef) = do
-    _ <- reaperModify mgr filt
-    return ()
-  where
-    -- It's very important that this function forces the whole workload so we
-    -- don't retain old handles, otherwise disasterous leaks occur.
-    filt [] = []
-    filt (h@(Handle _ _ stateRef') : hs)
-        | stateRef == stateRef' =
-            hs
-        | otherwise =
-            let !hs' = filt hs
-             in h : hs'
 
 -- | Setting the state to paused.
 --   'Manager' does not change the value.

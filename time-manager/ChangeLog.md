@@ -1,5 +1,9 @@
 # ChangeLog for time-manager
 
+## 0.1.3
+
+* Providing `withHandle` and `withHandleKillThread`.
+
 ## 0.1.2
 
 * Holding `Weak ThreadId` to prevent thread leak again
