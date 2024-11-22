@@ -1,5 +1,9 @@
 # ChangeLog for warp
 
+## 3.4.6
+
+* Using `withHandle` of time-manager.
+
 ## 3.4.5
 
 * Rethrowing asynchronous exceptions and preventing callsing
