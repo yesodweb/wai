@@ -74,7 +74,7 @@ initialize timeout =
         case state of
             Inactive -> do
                 onTimeout <- I.readIORef actionRef
-                onTimeout `E.catch` ignoreAll
+                onTimeout `E.catch` ignoreSync
                 return Nothing
             _ -> return $ Just m
 
@@ -89,10 +89,7 @@ stopManager mgr = E.mask_ (reaperStop mgr >>= mapM_ fire)
   where
     fire (Handle _ actionRef _) = do
         onTimeout <- I.readIORef actionRef
-        onTimeout `E.catch` ignoreAll
-
-ignoreAll :: E.SomeException -> IO ()
-ignoreAll _ = return ()
+        onTimeout `E.catch` ignoreSync
 
 -- | Killing timeout manager immediately without firing onTimeout.
 killManager :: Manager -> IO ()
@@ -213,3 +210,16 @@ withManager' timeout f =
         (initialize timeout)
         killManager
         f
+
+----------------------------------------------------------------
+
+isAsyncException :: E.Exception e => e -> Bool
+isAsyncException e =
+    case E.fromException (E.toException e) of
+        Just (E.SomeAsyncException _) -> True
+        Nothing -> False
+
+ignoreSync :: E.SomeException -> IO ()
+ignoreSync se
+    | isAsyncException se = E.throwIO se
+    | otherwise = return ()
