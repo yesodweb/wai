@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module System.TimeManager (
     -- ** Types
@@ -49,7 +50,11 @@ type Manager = Reaper [Handle] Handle
 type TimeoutAction = IO ()
 
 -- | A handle used by 'Manager'
-data Handle = Handle Manager !(IORef TimeoutAction) !(IORef State)
+data Handle = Handle
+    { handleManager :: Manager
+    , handleActionRef :: IORef TimeoutAction
+    , handleStateRef :: IORef State
+    }
 
 data State
     = Active -- Manager turns it to Inactive.
@@ -64,16 +69,18 @@ initialize :: Int -> IO Manager
 initialize timeout =
     mkReaper
         defaultReaperSettings
-            { reaperAction = mkListAction prune
+            { -- Data.Set cannot be used since 'partition' cannot be used
+              -- with 'readIORef`. So, let's just use a list.
+              reaperAction = mkListAction prune
             , reaperDelay = timeout
             , reaperThreadName = "WAI timeout manager (Reaper)"
             }
   where
-    prune m@(Handle _ actionRef stateRef) = do
-        state <- I.atomicModifyIORef' stateRef (\x -> (inactivate x, x))
+    prune m@Handle{..} = do
+        state <- I.atomicModifyIORef' handleStateRef (\x -> (inactivate x, x))
         case state of
             Inactive -> do
-                onTimeout <- I.readIORef actionRef
+                onTimeout <- I.readIORef handleActionRef
                 onTimeout `E.catch` ignoreSync
                 return Nothing
             _ -> return $ Just m
@@ -87,8 +94,8 @@ initialize timeout =
 stopManager :: Manager -> IO ()
 stopManager mgr = E.mask_ (reaperStop mgr >>= mapM_ fire)
   where
-    fire (Handle _ actionRef _) = do
-        onTimeout <- I.readIORef actionRef
+    fire Handle{..} = do
+        onTimeout <- I.readIORef handleActionRef
         onTimeout `E.catch` ignoreSync
 
 -- | Killing timeout manager immediately without firing onTimeout.
@@ -118,21 +125,26 @@ register :: Manager -> TimeoutAction -> IO Handle
 register mgr !onTimeout = do
     actionRef <- I.newIORef onTimeout
     stateRef <- I.newIORef Active
-    let h = Handle mgr actionRef stateRef
+    let h =
+            Handle
+                { handleManager = mgr
+                , handleActionRef = actionRef
+                , handleStateRef = stateRef
+                }
     reaperAdd mgr h
     return h
 
 -- | Removing the 'Handle' from the 'Manager' immediately.
 cancel :: Handle -> IO ()
-cancel (Handle mgr _ stateRef) = do
-    _ <- reaperModify mgr filt
+cancel Handle{..} = do
+    _ <- reaperModify handleManager filt
     return ()
   where
     -- It's very important that this function forces the whole workload so we
     -- don't retain old handles, otherwise disasterous leaks occur.
     filt [] = []
-    filt (h@(Handle _ _ stateRef') : hs)
-        | stateRef == stateRef' = hs
+    filt (h@(Handle _ _ ref) : hs)
+        | handleStateRef == ref = hs
         | otherwise =
             let !hs' = filt hs
              in h : hs'
@@ -171,12 +183,12 @@ registerKillThread m onTimeout = do
 -- | Setting the state to active.
 --   'Manager' turns active to inactive repeatedly.
 tickle :: Handle -> IO ()
-tickle (Handle _ _ stateRef) = I.writeIORef stateRef Active
+tickle Handle{..} = I.writeIORef handleStateRef Active
 
 -- | Setting the state to paused.
 --   'Manager' does not change the value.
 pause :: Handle -> IO ()
-pause (Handle _ _ stateRef) = I.writeIORef stateRef Paused
+pause Handle{..} = I.writeIORef handleStateRef Paused
 
 -- | Setting the paused state to active.
 --   This is an alias to 'tickle'.
