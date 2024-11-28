@@ -29,9 +29,10 @@ import qualified Control.Exception as E
 import Control.Monad (unless, void)
 import Data.Foldable (forM_)
 import Data.IORef
-import Data.IntMap.Strict (IntMap)
-import qualified Data.IntMap.Strict as Map
-import GHC.Conc.Sync (labelThread)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import Data.Word (Word64)
+import GHC.Conc.Sync (fromThreadId, labelThread)
 import System.Mem.Weak (Weak, deRefWeak)
 import qualified System.TimeManager as T
 
@@ -40,7 +41,8 @@ import qualified System.TimeManager as T
 -- | Manager to manage the thread and the timer.
 data ThreadManager = ThreadManager T.Manager (TVar ManagedThreads)
 
-type ManagedThreads = IntMap ManagedThread
+type Key = Word64
+type ManagedThreads = Map Key ManagedThread
 
 ----------------------------------------------------------------
 
@@ -132,7 +134,7 @@ forkManagedTimeoutFinally mgr label io final = E.mask $ \restore ->
         label
         (\th -> E.try (restore $ io th) >>= \(_ :: Either E.SomeException ()) -> final)
 
-setup :: TVar (IntMap ManagedThread) -> IO (Int, Weak ThreadId, IORef Bool)
+setup :: TVar (Map Key ManagedThread) -> IO (Key, Weak ThreadId, IORef Bool)
 setup var = do
     (wtid, n) <- myWeakThradId
     ref <- newIORef False
@@ -151,8 +153,8 @@ lockAndKill wtid ref e = do
             Just tid -> E.throwTo tid e
 
 clear
-    :: TVar (IntMap ManagedThread)
-    -> (Map.Key, Weak ThreadId, IORef Bool)
+    :: TVar (Map Key ManagedThread)
+    -> (Key, Weak ThreadId, IORef Bool)
     -> IO ()
 clear var (n, _, _) = atomically $ modifyTVar' var $ Map.delete n
 
@@ -166,11 +168,11 @@ waitUntilAllGone (ThreadManager _timmgr var) = atomically $ do
 
 ----------------------------------------------------------------
 
-myWeakThradId :: IO (Weak ThreadId, Int)
+myWeakThradId :: IO (Weak ThreadId, Key)
 myWeakThradId = do
     tid <- myThreadId
     wtid <- mkWeakThreadId tid
-    let n = read (drop 9 $ show tid) -- drop "ThreadId "
+    let n = fromThreadId tid
     return (wtid, n)
 
 labelMe :: String -> IO ()
