@@ -1,5 +1,5 @@
 Name:                time-manager
-Version:             0.1.3
+Version:             0.1.4
 Synopsis:            Scalable timer
 License:             MIT
 License-file:        LICENSE
@@ -16,6 +16,9 @@ Extra-Source-Files:  ChangeLog.md
 Library
   Build-Depends:     base                      >= 4.12       && < 5
                    , auto-update               >= 0.2        && < 0.3
+                   , containers
+                   , stm
   Default-Language:  Haskell2010
   Exposed-modules:   System.TimeManager
+  Exposed-modules:   System.ThreadManager
   Ghc-Options:       -Wall
