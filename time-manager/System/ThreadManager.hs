@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -32,7 +33,10 @@ import Data.IORef
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Word (Word64)
-import GHC.Conc.Sync (fromThreadId, labelThread)
+import GHC.Conc.Sync (labelThread)
+#if __GLASGOW_HASKELL__ >= 908
+import GHC.Conc.Sync (fromThreadId)
+#endif
 import System.Mem.Weak (Weak, deRefWeak)
 import qualified System.TimeManager as T
 
@@ -182,3 +186,8 @@ labelMe l = do
 
 withHandle :: ThreadManager -> T.TimeoutAction -> (T.Handle -> IO a) -> IO a
 withHandle (ThreadManager timmgr _) = T.withHandle timmgr
+
+#if __GLASGOW_HASKELL__ < 908
+fromThreadId :: ThreadId -> Word64
+fromThreadId tid = read (drop 9 $ show tid)
+#endif
