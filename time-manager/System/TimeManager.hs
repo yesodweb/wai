@@ -39,7 +39,7 @@ import Control.Reaper
 import Data.IORef (IORef)
 import qualified Data.IORef as I
 import Data.Typeable (Typeable)
-import GHC.Weak (deRefWeak)
+import System.Mem.Weak (deRefWeak)
 
 ----------------------------------------------------------------
 
