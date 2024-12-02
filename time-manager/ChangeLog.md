@@ -1,5 +1,9 @@
 # ChangeLog for time-manager
 
+## 0.1.4
+
+* Providing System.ThreadManager.
+
 ## 0.1.3
 
 * Providing `withHandle` and `withHandleKillThread`.

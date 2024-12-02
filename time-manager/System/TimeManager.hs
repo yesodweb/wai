@@ -19,7 +19,7 @@ module System.TimeManager (
     withHandle,
     withHandleKillThread,
 
-    -- ** Control
+    -- ** Control timeout
     tickle,
     pause,
     resume,
@@ -49,7 +49,7 @@ type Manager = Reaper [Handle] Handle
 -- | An action to be performed on timeout.
 type TimeoutAction = IO ()
 
--- | A handle used by 'Manager'
+-- | A handle used by a timeout manager.
 data Handle = Handle
     { handleManager :: Manager
     , handleActionRef :: IORef TimeoutAction
@@ -106,6 +106,7 @@ killManager = reaperKill
 
 -- | Registering a timeout action and unregister its handle
 --   when the body action is finished.
+--   'Nothing' is returned on timeout.
 withHandle :: Manager -> TimeoutAction -> (Handle -> IO a) -> IO (Maybe a)
 withHandle mgr onTimeout action =
     E.handle ignore $ E.bracket (register mgr onTimeout) cancel $ \th ->

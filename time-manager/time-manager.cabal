@@ -10,7 +10,9 @@ Category:            System
 Build-Type:          Simple
 Cabal-Version:       >=1.10
 Stability:           Stable
-Description:         Scalable timer functions provided by a timer manager.
+Description:         Scalable timer functions provided by a timer manager
+                     and thread management functions to prevent thread
+                     leak by a thread manager.
 Extra-Source-Files:  ChangeLog.md
 
 Library

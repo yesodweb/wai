@@ -2,20 +2,25 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | A thread manager.
---   The manager has responsibility to kill worker threads.
+-- | A thread manager including a time manager.
+--   The manager has responsibility to kill managed threads.
 module System.ThreadManager (
     ThreadManager,
-    T.Manager,
     newThreadManager,
     stopAfter,
+
+    -- * Fork
     forkManaged,
     forkManagedFinally,
     forkManagedUnmask,
     forkManagedTimeout,
     forkManagedTimeoutFinally,
-    KilledByThreadManager (..),
+
+    -- * Synchronization
     waitUntilAllGone,
+
+    -- * Re-exports
+    T.Manager,
     withHandle,
     T.Handle,
     T.tickle,
@@ -67,6 +72,7 @@ newThreadManager timmgr = ThreadManager timmgr <$> newTVarIO Map.empty
 
 ----------------------------------------------------------------
 
+-- | An exception used internally to kill a managed thread.
 data KilledByThreadManager = KilledByThreadManager (Maybe SomeException)
     deriving (Show)
 
@@ -98,12 +104,18 @@ stopAfter (ThreadManager _timmgr var) action cleanup = do
 
 ----------------------------------------------------------------
 
--- | Fork managed thread
+-- | Fork a managed thread.
 --
 -- This guarantees that the thread ID is added to the manager's queue before
 -- the thread starts, and is removed again when the thread terminates
 -- (normally or abnormally).
-forkManaged :: ThreadManager -> String -> IO () -> IO ()
+forkManaged
+    :: ThreadManager
+    -> String
+    -- ^ Thread name
+    -> IO ()
+    -- ^ Action
+    -> IO ()
 forkManaged mgr label io =
     forkManagedUnmask mgr label $ \unmask -> unmask io
 
@@ -132,6 +144,8 @@ forkManagedFinally mgr label io final = E.mask $ \restore ->
         label
         (E.try (restore io) >>= \(_ :: Either E.SomeException ()) -> final)
 
+-- | Fork a managed thread with a handle created by a timeout manager
+-- and with a cleanup function.
 forkManagedTimeoutFinally
     :: ThreadManager -> String -> (T.Handle -> IO ()) -> IO () -> IO ()
 forkManagedTimeoutFinally mgr label io final = E.mask $ \restore ->
@@ -167,6 +181,7 @@ clear var (n, _, _) = atomically $ modifyTVar' var $ Map.delete n
 ignore :: KilledByThreadManager -> IO ()
 ignore (KilledByThreadManager _) = return ()
 
+-- | Wait until all managed thread are finished.
 waitUntilAllGone :: ThreadManager -> IO ()
 waitUntilAllGone (ThreadManager _timmgr var) = atomically $ do
     m <- readTVar var
