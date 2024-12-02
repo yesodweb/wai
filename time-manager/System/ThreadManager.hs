@@ -115,14 +115,16 @@ forkManagedUnmask (ThreadManager _timmgr var) label io =
         labelMe label
         E.bracket (setup var) (clear var) $ \_ -> io unmask
 
+-- | Fork a managed thread with a handle created by a timeout manager.
 forkManagedTimeout :: ThreadManager -> String -> (T.Handle -> IO ()) -> IO ()
 forkManagedTimeout (ThreadManager timmgr var) label io =
     void $ forkIO $ E.handle ignore $ do
         labelMe label
         E.bracket (setup var) (clear var) $ \(_n, wtid, ref) ->
             -- 'TimeoutThread' is ignored by 'withHandle'.
-            T.withHandle timmgr (lockAndKill wtid ref T.TimeoutThread) io
+            void $ T.withHandle timmgr (lockAndKill wtid ref T.TimeoutThread) io
 
+-- | Fork a managed thread with a cleanup function.
 forkManagedFinally :: ThreadManager -> String -> IO () -> IO () -> IO ()
 forkManagedFinally mgr label io final = E.mask $ \restore ->
     forkManaged
@@ -184,7 +186,8 @@ labelMe l = do
     tid <- myThreadId
     labelThread tid l
 
-withHandle :: ThreadManager -> T.TimeoutAction -> (T.Handle -> IO a) -> IO a
+withHandle
+    :: ThreadManager -> T.TimeoutAction -> (T.Handle -> IO a) -> IO (Maybe a)
 withHandle (ThreadManager timmgr _) = T.withHandle timmgr
 
 #if __GLASGOW_HASKELL__ < 908

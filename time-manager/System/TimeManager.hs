@@ -106,17 +106,20 @@ killManager = reaperKill
 
 -- | Registering a timeout action and unregister its handle
 --   when the body action is finished.
-withHandle :: Manager -> TimeoutAction -> (Handle -> IO a) -> IO a
+withHandle :: Manager -> TimeoutAction -> (Handle -> IO a) -> IO (Maybe a)
 withHandle mgr onTimeout action =
-    E.bracket (register mgr onTimeout) cancel action
+    E.handle ignore $ E.bracket (register mgr onTimeout) cancel $ \th ->
+        Just <$> action th
+  where
+    ignore TimeoutThread = return Nothing
 
 -- | Registering a timeout action of killing this thread and
 --   unregister its handle when the body action is killed or finished.
 withHandleKillThread :: Manager -> TimeoutAction -> (Handle -> IO ()) -> IO ()
 withHandleKillThread mgr onTimeout action =
-    E.handle handler $ E.bracket (registerKillThread mgr onTimeout) cancel action
+    E.handle ignore $ E.bracket (registerKillThread mgr onTimeout) cancel action
   where
-    handler TimeoutThread = return ()
+    ignore TimeoutThread = return ()
 
 ----------------------------------------------------------------
 
