@@ -1,5 +1,9 @@
 # ChangeLog for warp
 
+## 3.4.7
+
+* Using time-manager >= 0.2.
+
 ## 3.4.6
 
 * Using `withHandle` of time-manager.

@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               warp
-version:            3.4.6
+version:            3.4.7
 license:            MIT
 license-file:       LICENSE
 maintainer:         michael@snoyman.com
