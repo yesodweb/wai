@@ -1,8 +1,10 @@
 # ChangeLog for time-manager
 
-## 0.1.4
+## 0.2.0
 
-* Providing System.ThreadManager.
+* Providing `System.ThreadManager`.
+* `withHandle` catches `TimeoutThread` internally.
+  It returns `Nothing` on timeout.
 
 ## 0.1.3
 
