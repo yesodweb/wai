@@ -25,9 +25,10 @@ nix:
 extra-deps:
   - crypto-token-0.1.2
   - http-semantics-0.3.0
-  - http3-0.0.19
+  - http2-5.3.9
+  - http3-0.0.22
   - network-udp-0.0.0
-  - quic-0.2.4
-  - tls-2.1.4
+  - quic-0.2.7
+  - tls-2.1.5
   - tls-session-manager-0.0.7
   - sockaddr-0.0.1
