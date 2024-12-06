@@ -1,5 +1,10 @@
 # ChangeLog for time-manager
 
+## 0.2.1
+
+* Export KilledByThreadManager exception
+  [#1016](https://github.com/yesodweb/wai/pull/1016)
+
 ## 0.2.0
 
 * Providing `System.ThreadManager`.
