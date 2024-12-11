@@ -35,16 +35,18 @@ module System.TimeManager (
 
 import Control.Concurrent (mkWeakThreadId, myThreadId)
 import qualified Control.Exception as E
+import Control.Monad (void)
 import Control.Reaper
 import Data.IORef (IORef)
 import qualified Data.IORef as I
 import Data.Typeable (Typeable)
+import System.IO.Unsafe
 import System.Mem.Weak (deRefWeak)
 
 ----------------------------------------------------------------
 
 -- | A timeout manager
-type Manager = Reaper [Handle] Handle
+data Manager = Manager (Reaper [Handle] Handle) | NoManager
 
 -- | An action to be performed on timeout.
 type TimeoutAction = IO ()
@@ -56,6 +58,20 @@ data Handle = Handle
     , handleStateRef :: IORef State
     }
 
+emptyAction :: IORef TimeoutAction
+emptyAction = unsafePerformIO $ I.newIORef (return ())
+
+emptyState :: IORef State
+emptyState = unsafePerformIO $ I.newIORef Inactive
+
+emptyHandle :: Handle
+emptyHandle =
+    Handle
+        { handleManager = NoManager
+        , handleActionRef = emptyAction
+        , handleStateRef = emptyState
+        }
+
 data State
     = Active -- Manager turns it to Inactive.
     | Inactive -- Manager removes it with timeout action.
@@ -66,15 +82,18 @@ data State
 -- | Creating timeout manager which works every N micro seconds
 --   where N is the first argument.
 initialize :: Int -> IO Manager
+initialize timeout
+    | timeout <= 0 = return NoManager
 initialize timeout =
-    mkReaper
-        defaultReaperSettings
-            { -- Data.Set cannot be used since 'partition' cannot be used
-              -- with 'readIORef`. So, let's just use a list.
-              reaperAction = mkListAction prune
-            , reaperDelay = timeout
-            , reaperThreadName = "WAI timeout manager (Reaper)"
-            }
+    Manager
+        <$> mkReaper
+            defaultReaperSettings
+                { -- Data.Set cannot be used since 'partition' cannot be used
+                  -- with 'readIORef`. So, let's just use a list.
+                  reaperAction = mkListAction prune
+                , reaperDelay = timeout
+                , reaperThreadName = "WAI timeout manager (Reaper)"
+                }
   where
     prune m@Handle{..} = do
         state <- I.atomicModifyIORef' handleStateRef (\x -> (inactivate x, x))
@@ -92,7 +111,8 @@ initialize timeout =
 
 -- | Stopping timeout manager with onTimeout fired.
 stopManager :: Manager -> IO ()
-stopManager mgr = E.mask_ (reaperStop mgr >>= mapM_ fire)
+stopManager NoManager = return ()
+stopManager (Manager mgr) = E.mask_ (reaperStop mgr >>= mapM_ fire)
   where
     fire Handle{..} = do
         onTimeout <- I.readIORef handleActionRef
@@ -100,7 +120,8 @@ stopManager mgr = E.mask_ (reaperStop mgr >>= mapM_ fire)
 
 -- | Killing timeout manager immediately without firing onTimeout.
 killManager :: Manager -> IO ()
-killManager = reaperKill
+killManager NoManager = return ()
+killManager (Manager mgr) = reaperKill mgr
 
 ----------------------------------------------------------------
 
@@ -126,12 +147,13 @@ withHandleKillThread mgr onTimeout action =
 
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
-register mgr !onTimeout = do
+register NoManager _ = return emptyHandle
+register m@(Manager mgr) !onTimeout = do
     actionRef <- I.newIORef onTimeout
     stateRef <- I.newIORef Active
     let h =
             Handle
-                { handleManager = mgr
+                { handleManager = m
                 , handleActionRef = actionRef
                 , handleStateRef = stateRef
                 }
@@ -140,9 +162,9 @@ register mgr !onTimeout = do
 
 -- | Removing the 'Handle' from the 'Manager' immediately.
 cancel :: Handle -> IO ()
-cancel Handle{..} = do
-    _ <- reaperModify handleManager filt
-    return ()
+cancel Handle{..} = case handleManager of
+    NoManager -> return ()
+    Manager mgr -> void $ reaperModify mgr filt
   where
     -- It's very important that this function forces the whole workload so we
     -- don't retain old handles, otherwise disasterous leaks occur.
