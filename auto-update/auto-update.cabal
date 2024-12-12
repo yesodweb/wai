@@ -20,7 +20,6 @@ library
                        Control.Debounce.Internal
                        Control.Reaper
                        Control.Reaper.Internal
-  other-modules:       Control.AutoUpdate.Util
   build-depends:       base >= 4.12 && < 5
   default-language:    Haskell2010
   if impl(ghc >= 8)

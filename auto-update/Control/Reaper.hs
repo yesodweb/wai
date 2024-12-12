@@ -42,11 +42,10 @@ module Control.Reaper (
     mkListAction,
 ) where
 
-import Control.AutoUpdate.Util (atomicModifyIORef')
 import Control.Concurrent (ThreadId, forkIO, killThread, threadDelay)
 import Control.Exception (mask_)
 import Control.Reaper.Internal
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
 import GHC.Conc.Sync (labelThread)
 
 -- | Settings for creating a reaper. This type has two parameters:
