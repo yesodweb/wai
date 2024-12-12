@@ -16,11 +16,13 @@ cabal-version:       >=1.10
 library
   ghc-options:         -Wall
   exposed-modules:     Control.AutoUpdate
+                       Control.AutoUpdate.Internal
                        Control.Debounce
                        Control.Debounce.Internal
                        Control.Reaper
                        Control.Reaper.Internal
-  build-depends:       base >= 4.12 && < 5
+  build-depends:       base >= 4.12 && < 5,
+                       stm
   default-language:    Haskell2010
   if impl(ghc >= 8)
       default-extensions:  Strict StrictData
