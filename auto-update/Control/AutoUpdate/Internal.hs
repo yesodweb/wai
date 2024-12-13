@@ -84,7 +84,7 @@ mkAutoUpdate = mkAutoUpdateThings $ \g _ _ -> g
 --
 -- @since 0.1.4
 mkAutoUpdateWithModify :: UpdateSettings a -> (a -> IO a) -> IO (IO a)
-mkAutoUpdateWithModify us f = undefined
+mkAutoUpdateWithModify us f = mkAutoUpdateThingsWithModify (\g _ _ -> g) us f
 
 -- $setup
 -- >>> :set -XNumericUnderscores
