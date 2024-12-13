@@ -76,7 +76,7 @@ data UpdateSettings a = UpdateSettings
 --
 -- @since 0.1.0
 mkAutoUpdate :: UpdateSettings a -> IO (IO a)
-mkAutoUpdate settings = fst <$> mkClosableAutoUpdate settings
+mkAutoUpdate = mkAutoUpdateThings $ \g _ _ -> g
 
 -- $setup
 -- >>> :set -XNumericUnderscores
