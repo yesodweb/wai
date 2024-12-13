@@ -119,7 +119,7 @@ mkAutoUpdateThings mk settings = do
 {- FOURMOLU_DISABLE -}
 data UpdateState a =
     UpdateState
-    { usUpdateAction_   :: IO a
+    { usUpdateAction_   :: a -> IO a
     , usLastResult_     :: IORef a
     , usIntervalMicro_  :: Int
     , usTimeHasCome_    :: TVar Bool
@@ -136,7 +136,7 @@ mkDeleteTimeout thc micro = do
 openUpdateState :: UpdateSettings a -> IO (UpdateState a)
 openUpdateState UpdateSettings{..} = do
     thc <- newTVarIO False
-    UpdateState updateAction
+    UpdateState (const updateAction)
         <$> (newIORef =<< updateAction)
         <*> pure updateFreq
         <*> pure thc
@@ -158,6 +158,6 @@ onceOnTimeHasCome UpdateState{..} action = do
 getUpdateResult :: UpdateState a -> IO a
 getUpdateResult us@UpdateState{..} = do
     onceOnTimeHasCome us $ do
-        writeIORef usLastResult_ =<< usUpdateAction_
+        writeIORef usLastResult_ =<< usUpdateAction_ =<< readIORef usLastResult_
         writeIORef usDeleteTimeout_ =<< mkDeleteTimeout usTimeHasCome_ usIntervalMicro_
     readIORef usLastResult_
