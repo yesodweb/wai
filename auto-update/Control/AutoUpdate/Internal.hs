@@ -78,6 +78,14 @@ data UpdateSettings a = UpdateSettings
 mkAutoUpdate :: UpdateSettings a -> IO (IO a)
 mkAutoUpdate = mkAutoUpdateThings $ \g _ _ -> g
 
+-- | Generate an action which will either read from an automatically
+-- updated value, or run the update action in the current thread if
+-- the first time or the provided modify action after that.
+--
+-- @since 0.1.4
+mkAutoUpdateWithModify :: UpdateSettings a -> (a -> IO a) -> IO (IO a)
+mkAutoUpdateWithModify us f = undefined
+
 -- $setup
 -- >>> :set -XNumericUnderscores
 -- >>> import Control.Concurrent
@@ -153,11 +161,3 @@ getUpdateResult us@UpdateState{..} = do
         writeIORef usLastResult_ =<< usUpdateAction_
         writeIORef usDeleteTimeout_ =<< mkDeleteTimeout usTimeHasCome_ usIntervalMicro_
     readIORef usLastResult_
-
--- | Generate an action which will either read from an automatically
--- updated value, or run the update action in the current thread if
--- the first time or the provided modify action after that.
---
--- @since 0.1.4
-mkAutoUpdateWithModify :: UpdateSettings a -> (a -> IO a) -> IO (IO a)
-mkAutoUpdateWithModify us f = undefined
