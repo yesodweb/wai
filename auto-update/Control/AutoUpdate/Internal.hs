@@ -110,8 +110,13 @@ mkClosableAutoUpdate' = mkAutoUpdateThings (,,)
 
 mkAutoUpdateThings
     :: (IO a -> IO () -> UpdateState a -> b) -> UpdateSettings a -> IO b
-mkAutoUpdateThings mk settings = do
-    us <- openUpdateState settings
+mkAutoUpdateThings mk settings@UpdateSettings{..} =
+    mkAutoUpdateThingsWithModify mk settings (const updateAction)
+
+mkAutoUpdateThingsWithModify
+    :: (IO a -> IO () -> UpdateState a -> b) -> UpdateSettings a -> (a -> IO a) -> IO b
+mkAutoUpdateThingsWithModify mk settings update1 = do
+    us <- openUpdateState settings update1
     pure $ mk (getUpdateResult us) (closeUpdateState us) us
 
 --------------------------------------------------------------------------------
@@ -133,10 +138,10 @@ mkDeleteTimeout thc micro = do
     key <- registerTimeout mgr micro (atomically $ writeTVar thc True)
     pure $ unregisterTimeout mgr key
 
-openUpdateState :: UpdateSettings a -> IO (UpdateState a)
-openUpdateState UpdateSettings{..} = do
+openUpdateState :: UpdateSettings a -> (a -> IO a) -> IO (UpdateState a)
+openUpdateState UpdateSettings{..} update1 = do
     thc <- newTVarIO False
-    UpdateState (const updateAction)
+    UpdateState update1
         <$> (newIORef =<< updateAction)
         <*> pure updateFreq
         <*> pure thc
