@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | In a multithreaded environment, sharing results of actions can dramatically improve performance.
 -- For example, web servers need to return the current time with each HTTP response.
 -- For a high-volume server, it's much faster for a dedicated thread to run every
@@ -43,6 +45,9 @@ module Control.AutoUpdate (
 )
 where
 
--- GHC packages
-
-import Control.AutoUpdate.Internal
+#ifdef mingw32_HOST_OS
+import Control.AutoUpdate.Thread
+#else
+import Control.AutoUpdate.Event
+#endif
+import Control.AutoUpdate.Types

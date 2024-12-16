@@ -1,10 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Control.AutoUpdate.Internal (
-    -- * Debugging
-    mkClosableAutoUpdate,
-    mkClosableAutoUpdate',
-    UpdateState (..),
+module Control.AutoUpdate.Event (
+    -- * Creation
+    mkAutoUpdate,
+    mkAutoUpdateWithModify,
 )
 where
 
@@ -13,29 +12,23 @@ import Control.Monad
 import Data.IORef
 import GHC.Event (getSystemTimerManager, registerTimeout, unregisterTimeout)
 
+import Control.AutoUpdate.Internal
 import Control.AutoUpdate.Types
 
--- $setup
--- >>> :set -XNumericUnderscores
--- >>> import Control.Concurrent
+-- | Generate an action which will either read from an automatically
+-- updated value, or run the update action in the current thread.
+--
+-- @since 0.1.0
+mkAutoUpdate :: UpdateSettings a -> IO (IO a)
+mkAutoUpdate = mkAutoUpdateThings $ \g _ _ -> g
 
--- |
--- >>> iref <- newIORef (0 :: Int)
--- >>> action = modifyIORef iref (+ 1) >> readIORef iref
--- >>> (getValue, closeState) <- mkClosableAutoUpdate $ defaultUpdateSettings { updateFreq = 200_000, updateAction = action }
--- >>> getValue
--- 1
--- >>> threadDelay 100_000 >> getValue
--- 1
--- >>> threadDelay 200_000 >> getValue
--- 2
--- >>> closeState
-mkClosableAutoUpdate :: UpdateSettings a -> IO (IO a, IO ())
-mkClosableAutoUpdate = mkAutoUpdateThings $ \g c _ -> (g, c)
-
--- | provide `UpdateState` for debugging
-mkClosableAutoUpdate' :: UpdateSettings a -> IO (IO a, IO (), UpdateState a)
-mkClosableAutoUpdate' = mkAutoUpdateThings (,,)
+-- | Generate an action which will either read from an automatically
+-- updated value, or run the update action in the current thread if
+-- the first time or the provided modify action after that.
+--
+-- @since 0.1.4
+mkAutoUpdateWithModify :: UpdateSettings a -> (a -> IO a) -> IO (IO a)
+mkAutoUpdateWithModify us f = mkAutoUpdateThingsWithModify (\g _ _ -> g) us f
 
 mkAutoUpdateThings
     :: (IO a -> IO () -> UpdateState a -> b) -> UpdateSettings a -> IO b
@@ -49,17 +42,6 @@ mkAutoUpdateThingsWithModify mk settings update1 = do
     pure $ mk (getUpdateResult us) (closeUpdateState us) us
 
 --------------------------------------------------------------------------------
-
-{- FOURMOLU_DISABLE -}
-data UpdateState a =
-    UpdateState
-    { usUpdateAction_   :: a -> IO a
-    , usLastResult_     :: IORef a
-    , usIntervalMicro_  :: Int
-    , usTimeHasCome_    :: TVar Bool
-    , usDeleteTimeout_  :: IORef (IO ())
-    }
-{- FOURMOLU_ENABLE -}
 
 mkDeleteTimeout :: TVar Bool -> Int -> IO (IO ())
 mkDeleteTimeout thc micro = do

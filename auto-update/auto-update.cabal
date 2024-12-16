@@ -16,11 +16,16 @@ cabal-version:       >=1.10
 library
   ghc-options:         -Wall
   exposed-modules:     Control.AutoUpdate
-                       Control.AutoUpdate.Internal
                        Control.Debounce
                        Control.Debounce.Internal
                        Control.Reaper
                        Control.Reaper.Internal
+  other-modules:       Control.AutoUpdate.Types
+  if os(windows)
+    other-modules:     Control.AutoUpdate.Thread
+  else
+    exposed-modules:   Control.AutoUpdate.Internal
+    other-modules:     Control.AutoUpdate.Event
   build-depends:       base >= 4.12 && < 5,
                        stm
   default-language:    Haskell2010
