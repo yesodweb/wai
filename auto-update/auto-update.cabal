@@ -20,8 +20,14 @@ library
                        Control.Debounce.Internal
                        Control.Reaper
                        Control.Reaper.Internal
-  other-modules:       Control.AutoUpdate.Util
-  build-depends:       base >= 4.12 && < 5
+  other-modules:       Control.AutoUpdate.Types
+  if os(windows)
+    other-modules:     Control.AutoUpdate.Thread
+  else
+    exposed-modules:   Control.AutoUpdate.Internal
+    other-modules:     Control.AutoUpdate.Event
+  build-depends:       base >= 4.12 && < 5,
+                       stm
   default-language:    Haskell2010
   if impl(ghc >= 8)
       default-extensions:  Strict StrictData
