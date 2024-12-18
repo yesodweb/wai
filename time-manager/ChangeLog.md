@@ -1,5 +1,11 @@
 # ChangeLog for time-manager
 
+## 0.2.2
+
+* `initialize` with non positive integer creates a time manager
+  which does not maintain timeout.
+  [#1017](https://github.com/yesodweb/wai/pull/1017)
+
 ## 0.2.1
 
 * Export KilledByThreadManager exception
