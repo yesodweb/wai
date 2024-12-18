@@ -1,5 +1,10 @@
 # ChangeLog for auto-update
 
+## 0.2.5
+
+* Thread less autoupdate
+  [#1018](https://github.com/yesodweb/wai/pull/1018)
+
 ## 0.2.4
 
 * Simple refactoring.
