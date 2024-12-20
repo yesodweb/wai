@@ -45,9 +45,26 @@ module Control.AutoUpdate (
 )
 where
 
+import Control.AutoUpdate.Types
 #ifdef mingw32_HOST_OS
 import Control.AutoUpdate.Thread
 #else
-import Control.AutoUpdate.Event
+import qualified Control.AutoUpdate.Event as Event
+import qualified Control.AutoUpdate.Thread as Thread
+
+import GHC.Event
+
+mkAutoUpdate :: UpdateSettings a -> IO (IO a)
+mkAutoUpdate settings = do
+    mmgr <- getSystemEventManager
+    case mmgr of
+      Nothing -> Thread.mkAutoUpdate settings
+      Just _m -> Event.mkAutoUpdate settings
+
+mkAutoUpdateWithModify :: UpdateSettings a -> (a -> IO a) -> IO (IO a)
+mkAutoUpdateWithModify settings f = do
+    mmgr <- getSystemEventManager
+    case mmgr of
+      Nothing -> Thread.mkAutoUpdateWithModify settings f
+      Just _m -> Event.mkAutoUpdateWithModify settings f
 #endif
-import Control.AutoUpdate.Types

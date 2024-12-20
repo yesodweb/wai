@@ -21,9 +21,8 @@ library
                        Control.Reaper
                        Control.Reaper.Internal
   other-modules:       Control.AutoUpdate.Types
-  if os(windows)
-    other-modules:     Control.AutoUpdate.Thread
-  else
+                       Control.AutoUpdate.Thread
+  if !os(windows)
     exposed-modules:   Control.AutoUpdate.Internal
     other-modules:     Control.AutoUpdate.Event
   build-depends:       base >= 4.12 && < 5,
