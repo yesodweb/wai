@@ -1,5 +1,10 @@
 # ChangeLog for auto-update
 
+## 0.2.6
+
+* Using the thread version of AutoUpdate for non-threaded RTS.
+  [#1020](https://github.com/yesodweb/wai/pull/1020)
+
 ## 0.2.5
 
 * Thread less autoupdate
