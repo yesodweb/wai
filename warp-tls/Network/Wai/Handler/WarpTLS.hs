@@ -193,6 +193,8 @@ tlsSettingsRef cert key =
         { certSettings = CertFromRef cert [] key
         }
 
+{-# DEPRECATED tlsSettingsRef "Will be removed in the next major release" #-}
+
 -- | A smart constructor for 'TLSSettings', but uses references to in-memory
 -- representations of the certificate and key based on 'defaultTlsSettings'.
 --
@@ -209,6 +211,8 @@ tlsSettingsChainRef cert chainCerts key =
     defaultTlsSettings
         { certSettings = CertFromRef cert chainCerts key
         }
+
+{-# DEPRECATED tlsSettingsChainRef "Will be removed in the next major release" #-}
 
 ----------------------------------------------------------------
 
