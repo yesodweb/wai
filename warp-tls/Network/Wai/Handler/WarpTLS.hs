@@ -193,7 +193,7 @@ tlsSettingsRef cert key =
         { certSettings = CertFromRef cert [] key
         }
 
-{-# DEPRECATED tlsSettingsRef "Will be removed in the next major release" #-}
+{-# DEPRECATED tlsSettingsRef "This function was added to allow Warp to serve new certificates without restarting, but it has always behaved the same as 'tlsSettingsMemory'. It will be removed in the next major release. To retain existing behavior, swich to 'tlsSettingsMemory'. To dynamically update credentials, see 'tlsSettingsSni'." #-}
 
 -- | A smart constructor for 'TLSSettings', but uses references to in-memory
 -- representations of the certificate and key based on 'defaultTlsSettings'.
@@ -212,7 +212,7 @@ tlsSettingsChainRef cert chainCerts key =
         { certSettings = CertFromRef cert chainCerts key
         }
 
-{-# DEPRECATED tlsSettingsChainRef "Will be removed in the next major release" #-}
+{-# DEPRECATED tlsSettingsChainRef "This function was added to allow Warp to serve new certificates without restarting, but it has always behaved the same as 'tlsSettingsChainMemory'. It will be removed in the next major release. To retain existing behavior, swich to 'tlsSettingsChainMemory'. To dynamically update credentials, see 'tlsSettingsSni'." #-}
 
 ----------------------------------------------------------------
 
