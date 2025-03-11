@@ -1,5 +1,12 @@
 # ChangeLog
 
+## 3.4.13
+
+* Introduced new smart constructor `tlsSettingsSni` to make it more convenient
+  to dynamically change certificates. Deprecates `tlsSettingsRef` and
+  `tlsSettingsChainRef`.
+  [#1025](https://github.com/yesodweb/wai/pull/1025)
+
 ## 3.4.12
 
 * Rethrowing asynchronous exceptions

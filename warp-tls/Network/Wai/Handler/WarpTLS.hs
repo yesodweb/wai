@@ -169,6 +169,8 @@ tlsSettingsChainMemory cert chainCerts key =
 -- depending on the hostname but also to retrieve dynamically updated
 -- credentials from an IORef. Credentials can be loaded from PEM-encoded chain
 -- and key files using 'TLS.credentialLoadX509'.
+--
+-- @since 3.4.13
 tlsSettingsSni :: (Maybe TLS.HostName -> IO TLS.Credentials) -> TLSSettings
 tlsSettingsSni onServerNameIndicationHook =
   defaultTlsSettings
