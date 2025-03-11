@@ -35,6 +35,9 @@ module Network.Wai.Handler.WarpTLS (
     tlsSettingsChainRef,
     CertSettings,
 
+    -- ** Dynamically retrieved
+    tlsSettingsSni,
+
     -- * Accessors
     tlsCredentials,
     tlsLogging,
@@ -160,6 +163,20 @@ tlsSettingsChainMemory cert chainCerts key =
     defaultTlsSettings
         { certSettings = CertFromMemory cert chainCerts key
         }
+
+-- | Smart constructor for TLS settings that obtains its credentials during
+-- Server Name Indication. Can be used to return different credentials
+-- depending on the hostname but also to retrieve dynamically updated
+-- credentials from an IORef. Credentials can be loaded from PEM-encoded chain
+-- and key files using 'TLS.credentialLoadX509'.
+tlsSettingsSni :: (Maybe TLS.HostName -> IO TLS.Credentials) -> IO TLSSettings
+tlsSettingsSni onServerNameIndicationHook = do
+  pure defaultTlsSettings
+    { tlsCredentials = Just (TLS.Credentials [])
+    , tlsServerHooks = (tlsServerHooks defaultTlsSettings)
+      { TLS.onServerNameIndication =  onServerNameIndicationHook
+      }
+    }
 
 -- | A smart constructor for 'TLSSettings', but uses references to in-memory
 -- representations of the certificate and key based on 'defaultTlsSettings'.
