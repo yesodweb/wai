@@ -35,6 +35,9 @@ module Network.Wai.Handler.WarpTLS (
     tlsSettingsChainRef,
     CertSettings,
 
+    -- ** Dynamically retrieved
+    tlsSettingsSni,
+
     -- * Accessors
     tlsCredentials,
     tlsLogging,
@@ -161,6 +164,22 @@ tlsSettingsChainMemory cert chainCerts key =
         { certSettings = CertFromMemory cert chainCerts key
         }
 
+-- | Smart constructor for TLS settings that obtains its credentials during
+-- Server Name Indication. Can be used to return different credentials
+-- depending on the hostname but also to retrieve dynamically updated
+-- credentials from an IORef. Credentials can be loaded from PEM-encoded chain
+-- and key files using 'TLS.credentialLoadX509'.
+--
+-- @since 3.4.13
+tlsSettingsSni :: (Maybe TLS.HostName -> IO TLS.Credentials) -> TLSSettings
+tlsSettingsSni onServerNameIndicationHook =
+  defaultTlsSettings
+    { tlsCredentials = Just (TLS.Credentials [])
+    , tlsServerHooks = (tlsServerHooks defaultTlsSettings)
+      { TLS.onServerNameIndication =  onServerNameIndicationHook
+      }
+    }
+
 -- | A smart constructor for 'TLSSettings', but uses references to in-memory
 -- representations of the certificate and key based on 'defaultTlsSettings'.
 --
@@ -175,6 +194,8 @@ tlsSettingsRef cert key =
     defaultTlsSettings
         { certSettings = CertFromRef cert [] key
         }
+
+{-# DEPRECATED tlsSettingsRef "This function was added to allow Warp to serve new certificates without restarting, but it has always behaved the same as 'tlsSettingsMemory'. It will be removed in the next major release. To retain existing behavior, swich to 'tlsSettingsMemory'. To dynamically update credentials, see 'tlsSettingsSni'." #-}
 
 -- | A smart constructor for 'TLSSettings', but uses references to in-memory
 -- representations of the certificate and key based on 'defaultTlsSettings'.
@@ -192,6 +213,8 @@ tlsSettingsChainRef cert chainCerts key =
     defaultTlsSettings
         { certSettings = CertFromRef cert chainCerts key
         }
+
+{-# DEPRECATED tlsSettingsChainRef "This function was added to allow Warp to serve new certificates without restarting, but it has always behaved the same as 'tlsSettingsChainMemory'. It will be removed in the next major release. To retain existing behavior, swich to 'tlsSettingsChainMemory'. To dynamically update credentials, see 'tlsSettingsSni'." #-}
 
 ----------------------------------------------------------------
 
