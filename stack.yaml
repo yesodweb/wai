@@ -1,0 +1,29 @@
+resolver: lts-23.18
+packages:
+- ./auto-update
+- ./mime-types
+- ./recv
+- ./time-manager
+- ./wai
+- ./wai-app-static
+- ./wai-conduit
+- ./wai-extra
+- ./wai-frontend-monadcgi
+- ./wai-http2-extra
+- ./wai-websockets
+- ./warp
+- ./warp-quic
+- ./warp-tls
+flags:
+  wai-extra:
+    build-example: true
+nix:
+  enable: false
+  packages:
+  - fcgi
+  - zlib
+extra-deps:
+  - http3-0.0.22
+  - quic-0.2.7
+  - sockaddr-0.0.1
+  - tls-2.1.5
