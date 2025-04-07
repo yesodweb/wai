@@ -17,7 +17,8 @@ jobs:
         stack: ["latest"]
         args:
           - "--resolver nightly --stack-yaml stack-nightly.yaml"
-          - "--resolver lts-22"
+          - "--resolver lts-23"
+          - "--resolver lts-22 --stack-yaml stack-lts-22.yaml"
           - "--resolver lts-21 --stack-yaml stack-lts-21.yaml"
           - "--resolver lts-20 --stack-yaml stack-lts-20.yaml"
           - "--resolver lts-19 --stack-yaml stack-lts-19.yaml"
