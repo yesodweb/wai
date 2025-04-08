@@ -182,7 +182,7 @@ mkDebounceInternal baton delayFn (DebounceSettings freq action edge name) =
     --   7) success -> repeat action, failed -> put baton back
     leadingDebounce trigger = do
         -- 1)
-        putMVar trigger ()
+        void $ tryPutMVar trigger ()
         -- 2)
         success <- tryTakeMVar baton
         case success of
