@@ -173,18 +173,21 @@ mkDebounceInternal baton delayFn (DebounceSettings freq action edge name) =
   where
     -- LEADING
     --
-    --   1) try take baton to start
-    --   2) succes -> empty trigger & start worker, failed -> fill trigger
-    --   3) worker do action
-    --   4) delay
-    --   5) try take trigger
-    --   6) success -> repeat action, failed -> put baton back
+    --   1) fill trigger
+    --   2) try take baton to start
+    --   3) succes -> empty trigger & start worker, failed -> do nothing
+    --   4) worker do action
+    --   5) delay
+    --   6) try take trigger
+    --   7) success -> repeat action, failed -> put baton back
     leadingDebounce trigger = do
         -- 1)
+        putMVar trigger ()
+        -- 2)
         success <- tryTakeMVar baton
         case success of
-            -- 2)
-            Nothing -> void $ tryPutMVar trigger ()
+            -- 3)
+            Nothing -> pure ()
             Just () -> do
                 void $ tryTakeMVar trigger
                 forkAndLabel loop
