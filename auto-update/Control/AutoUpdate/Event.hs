@@ -65,7 +65,7 @@ mkAutoUpdateThingsWithModify mk settings update1 = do
 --------------------------------------------------------------------------------
 
 -- $setup
--- >>> :set -XNumericUnderscores
+-- >>> :seti -XNumericUnderscores
 -- >>> import Control.Concurrent
 
 -- |
