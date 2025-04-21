@@ -64,7 +64,9 @@ tryRecvN init0 siz0 recv
         bs <- recv
         let len = BS.length bs
         if len == 0
-            then return ("", "")
+            then do
+                let cs = concatN (siz0 - left) $ build []
+                return (cs, "")
             else
                 if len >= left
                     then do
@@ -77,7 +79,12 @@ tryRecvN init0 siz0 recv
                         go build' left'
 
 concatN :: Int -> [ByteString] -> ByteString
-concatN total bss0 = unsafeCreate total $ \ptr -> goCopy bss0 ptr
+-- Just because it's logical
+concatN _ [] = ""
+-- To avoid a copy if there's only one ByteString
+concatN _ [bs] = bs
+concatN total bss0 =
+    unsafeCreate total $ \ptr -> goCopy bss0 ptr
   where
     goCopy [] _ = return ()
     goCopy (bs : bss) ptr = do
