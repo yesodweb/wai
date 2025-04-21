@@ -30,6 +30,14 @@ receive sock pool = withBufferPool pool $ \ptr size -> recvBuf sock ptr size
 --   When N is less than equal to 4096, the buffer pool is used.
 --   Otherwise, a new buffer is allocated.
 --   In this case, the global lock is taken.
+--
+-- >>> :seti -XOverloadedStrings
+-- >>> tryRecvN "a" 3 =<< _iorefRecv ["bcd"]
+-- ("abc","d")
+-- >>> tryRecvN "a" 3 =<< _iorefRecv ["bc"]
+-- ("abc","")
+-- >>> tryRecvN "a" 3 =<< _iorefRecv ["b"]
+-- ("ab","")
 makeRecvN :: ByteString -> Recv -> IO RecvN
 makeRecvN bs0 recv = do
     ref <- newIORef bs0
@@ -75,3 +83,18 @@ concatN total bss0 = unsafeCreate total $ \ptr -> goCopy bss0 ptr
     goCopy (bs : bss) ptr = do
         ptr' <- copy ptr bs
         goCopy bss ptr'
+
+_iorefRecv :: [ByteString] -> IO (IO ByteString)
+_iorefRecv ini = do
+    ref <- newIORef ini
+    return $ recv ref
+  where
+    recv ref = do
+        xxs <- readIORef ref
+        case xxs of
+            [] -> do
+                writeIORef ref $ error "closed"
+                return ""
+            x : xs -> do
+                writeIORef ref xs
+                return x
