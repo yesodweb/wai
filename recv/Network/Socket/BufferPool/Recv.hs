@@ -91,6 +91,7 @@ concatN total bss0 =
         ptr' <- copy ptr bs
         goCopy bss ptr'
 
+-- | doctest only. Elements in the argument must not be empty.
 _iorefRecv :: [ByteString] -> IO (IO ByteString)
 _iorefRecv ini = do
     ref <- newIORef ini
