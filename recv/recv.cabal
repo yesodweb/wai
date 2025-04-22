@@ -1,43 +1,51 @@
-Name:                recv
-Version:             0.1.0
-Synopsis:            Efficient network recv
-License:             BSD3
-License-file:        LICENSE
-Author:              Kazu Yamamoto
-Maintainer:          kazu@iij.ad.jp
-Homepage:            http://github.com/yesodweb/wai
-Category:            Network
-Build-Type:          Simple
-Cabal-Version:       >= 1.10
-Stability:           Stable
-description:         Network recv based on buffer pools
+cabal-version:      >=1.10
+name:               recv
+version:            0.1.1
+license:            BSD3
+license-file:       LICENSE
+maintainer:         kazu@iij.ad.jp
+author:             Kazu Yamamoto
+stability:          Stable
+homepage:           http://github.com/yesodweb/wai
+synopsis:           Efficient network recv
+description:        Network recv based on buffer pools
+category:           Network
+build-type:         Simple
+extra-source-files: ChangeLog.md
 
-Library
-  Build-Depends:     base                      >= 4.12       && < 5
-                   , bytestring                >= 0.9.1.4
-                   , network                   >= 3.1.0
-  Exposed-modules:   Network.Socket.BufferPool
-  Other-modules:     Network.Socket.BufferPool.Buffer
-                     Network.Socket.BufferPool.Recv
-                     Network.Socket.BufferPool.Types
-  if impl(ghc >= 8)
-      Default-Extensions:  Strict StrictData
-  Ghc-Options:       -Wall
-  Default-Language:  Haskell2010
+library
+    exposed-modules:  Network.Socket.BufferPool
+    other-modules:
+        Network.Socket.BufferPool.Buffer
+        Network.Socket.BufferPool.Recv
+        Network.Socket.BufferPool.Types
 
-Test-Suite spec
-  Main-Is:           Spec.hs
-  Other-modules:     BufferPoolSpec
-                     Network.Socket.BufferPool
-                     Network.Socket.BufferPool.Buffer
-                     Network.Socket.BufferPool.Recv
-                     Network.Socket.BufferPool.Types
-  Hs-Source-Dirs:    test, .
-  Type:              exitcode-stdio-1.0
-  Build-Depends:     base                      >= 4.12       && < 5
-                   , bytestring                >= 0.9.1.4
-                   , network                   >= 3.1.0
-                   , hspec
-  Ghc-Options:       -Wall
-  Default-Language:  Haskell2010
-  Build-Tool-Depends: hspec-discover:hspec-discover
+    default-language: Haskell2010
+    ghc-options:      -Wall
+    build-depends:
+        base >=4.12 && <5,
+        bytestring >=0.9.1.4,
+        network >=3.1.0
+
+    if impl(ghc >=8)
+        default-extensions: Strict StrictData
+
+test-suite spec
+    type:               exitcode-stdio-1.0
+    main-is:            Spec.hs
+    build-tool-depends: hspec-discover:hspec-discover
+    hs-source-dirs:     test .
+    other-modules:
+        BufferPoolSpec
+        Network.Socket.BufferPool
+        Network.Socket.BufferPool.Buffer
+        Network.Socket.BufferPool.Recv
+        Network.Socket.BufferPool.Types
+
+    default-language:   Haskell2010
+    ghc-options:        -Wall
+    build-depends:
+        base >=4.12 && <5,
+        bytestring >=0.9.1.4,
+        network >=3.1.0,
+        hspec

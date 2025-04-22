@@ -30,6 +30,14 @@ receive sock pool = withBufferPool pool $ \ptr size -> recvBuf sock ptr size
 --   When N is less than equal to 4096, the buffer pool is used.
 --   Otherwise, a new buffer is allocated.
 --   In this case, the global lock is taken.
+--
+-- >>> :seti -XOverloadedStrings
+-- >>> tryRecvN "a" 3 =<< _iorefRecv ["bcd"]
+-- ("abc","d")
+-- >>> tryRecvN "a" 3 =<< _iorefRecv ["bc"]
+-- ("abc","")
+-- >>> tryRecvN "a" 3 =<< _iorefRecv ["b"]
+-- ("ab","")
 makeRecvN :: ByteString -> Recv -> IO RecvN
 makeRecvN bs0 recv = do
     ref <- newIORef bs0
@@ -56,7 +64,9 @@ tryRecvN init0 siz0 recv
         bs <- recv
         let len = BS.length bs
         if len == 0
-            then return ("", "")
+            then do
+                let cs = concatN (siz0 - left) $ build []
+                return (cs, "")
             else
                 if len >= left
                     then do
@@ -69,9 +79,30 @@ tryRecvN init0 siz0 recv
                         go build' left'
 
 concatN :: Int -> [ByteString] -> ByteString
-concatN total bss0 = unsafeCreate total $ \ptr -> goCopy bss0 ptr
+-- Just because it's logical
+concatN _ [] = ""
+-- To avoid a copy if there's only one ByteString
+concatN _ [bs] = bs
+concatN total bss0 =
+    unsafeCreate total $ \ptr -> goCopy bss0 ptr
   where
     goCopy [] _ = return ()
     goCopy (bs : bss) ptr = do
         ptr' <- copy ptr bs
         goCopy bss ptr'
+
+-- | doctest only. Elements in the argument must not be empty.
+_iorefRecv :: [ByteString] -> IO (IO ByteString)
+_iorefRecv ini = do
+    ref <- newIORef ini
+    return $ recv ref
+  where
+    recv ref = do
+        xxs <- readIORef ref
+        case xxs of
+            [] -> do
+                writeIORef ref $ error "closed"
+                return ""
+            x : xs -> do
+                writeIORef ref xs
+                return x
