@@ -40,7 +40,7 @@ instance Show CertSettings where
 data OnInsecure
     = DenyInsecure L.ByteString
     | AllowInsecure
-    | DenyInsecureWithAction (S.ByteString -> IO (L.ByteString, L.ByteString))
+    | DenyInsecureWithAction (S.ByteString -> IO (S.ByteString, L.ByteString))
     -- ^ Ability to run an IO action generating a header and a
     -- body response, consuming the insecure request sent.
     --
