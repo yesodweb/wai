@@ -41,8 +41,8 @@ data OnInsecure
     = DenyInsecure L.ByteString
     | AllowInsecure
     | DenyInsecureWithAction (S.ByteString -> IO (S.ByteString, L.ByteString))
-    -- ^ Ability to run an IO action generating a header and a
-    -- body response, consuming the insecure request sent.
+    -- ^ Ability to run an IO action generating a strict header and a
+    -- lazy body response, consuming the insecure request sent.
     --
     -- @since 3.4.14
 
