@@ -41,6 +41,10 @@ data OnInsecure
     = DenyInsecure L.ByteString
     | AllowInsecure
     | DenyInsecureWithAction (IO (L.ByteString, L.ByteString))
+    -- ^ Ability to run an IO action generating a header and a
+    -- body response on an insecure connection.
+    --
+    -- @since 3.4.14
 
 instance Show OnInsecure where
     show (DenyInsecure lbs) = "DenyInsecure " ++ show lbs
