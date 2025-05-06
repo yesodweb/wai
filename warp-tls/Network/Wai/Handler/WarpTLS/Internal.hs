@@ -40,7 +40,12 @@ instance Show CertSettings where
 data OnInsecure
     = DenyInsecure L.ByteString
     | AllowInsecure
-    deriving (Show)
+    | DenyInsecureWithAction (IO (L.ByteString, L.ByteString))
+
+instance Show OnInsecure where
+    show (DenyInsecure lbs) = "DenyInsecure " ++ show lbs
+    show AllowInsecure = "AllowInsecure"
+    show (DenyInsecureWithAction _) = "DenyInsecureWithAction " ++ "<IO Action>"
 
 ----------------------------------------------------------------
 
