@@ -544,7 +544,7 @@ plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
         (responseHeader, responseBody) <- responseAction
         
         sendAll s responseHeader
-        mapM_ (sendAll s) $ L.toChunks responseLBS
+        mapM_ (sendAll s) $ L.toChunks responseBody
         
         close s
         throwIO InsecureConnectionDenied
