@@ -49,7 +49,7 @@ data OnInsecure
 instance Show OnInsecure where
     show (DenyInsecure lbs) = "DenyInsecure " ++ show lbs
     show AllowInsecure = "AllowInsecure"
-    show (DenyInsecureWithAction _) = "DenyInsecureWithAction " ++ "<IO Action>"
+    show (DenyInsecureWithAction _) = "DenyInsecureWithAction <IO Action>"
 
 ----------------------------------------------------------------
 
