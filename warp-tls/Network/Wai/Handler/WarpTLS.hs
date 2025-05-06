@@ -539,9 +539,9 @@ plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
         throwIO InsecureConnectionDenied
     DenyInsecureWithAction responseAction -> do
         -- This branch allows any IO action in response to an
-        -- unexpected HTTP request, returning a header and a
-        -- lazy bytestring for sending.
-        (responseHeader, responseBody) <- responseAction
+        -- unexpected HTTP request, consuming it, and returning a header
+        -- and a lazy bytestring for sending.
+        (responseHeader, responseBody) <- responseAction bs0
         
         sendAll s responseHeader
         mapM_ (sendAll s) $ L.toChunks responseBody
