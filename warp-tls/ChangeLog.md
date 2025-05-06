@@ -1,5 +1,10 @@
 # ChangeLog
 
+* Introduced additional constructor `DenyInsecureWithAction` for `OnInsecure`,
+  allowing the insertion of a custom function to consume the request bytestring,
+  returning a strict header bytestring and a lazy body bytestring for the given request.
+  [#1032](https://github.com/yesodweb/wai/pull/1032)
+
 ## 3.4.13
 
 * Introduced new smart constructor `tlsSettingsSni` to make it more convenient
