@@ -506,6 +506,8 @@ tryIO = try
 
 ----------------------------------------------------------------
 
+-- test
+
 plainHTTP
     :: TLSSettings -> Settings -> Socket -> S.ByteString -> IO (Connection, Transport)
 plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
