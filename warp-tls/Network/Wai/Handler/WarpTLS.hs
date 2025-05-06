@@ -506,8 +506,6 @@ tryIO = try
 
 ----------------------------------------------------------------
 
--- test
-
 plainHTTP
     :: TLSSettings -> Settings -> Socket -> S.ByteString -> IO (Connection, Transport)
 plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
@@ -537,6 +535,17 @@ plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
             \\r\nConnection: Upgrade\
             \\r\nContent-Type: text/plain\r\n\r\n"
         mapM_ (sendAll s) $ L.toChunks lbs
+        close s
+        throwIO InsecureConnectionDenied
+    DenyInsecureWithAction responseAction -> do
+        -- This branch allows any IO action in response to an
+        -- unexpected HTTP request, returning a header and a
+        -- lazy bytestring for sending.
+        (responseHeader, responseBody) <- responseAction
+        
+        sendAll s responseHeader
+        mapM_ (sendAll s) $ L.toChunks responseLBS
+        
         close s
         throwIO InsecureConnectionDenied
 
