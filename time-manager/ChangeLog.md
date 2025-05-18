@@ -1,5 +1,9 @@
 # ChangeLog for time-manager
 
+## 0.2.3
+
+* Exporting defaultManager.
+
 ## 0.2.2
 
 * `initialize` with non positive integer creates a time manager
