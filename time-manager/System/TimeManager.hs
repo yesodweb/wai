@@ -5,6 +5,7 @@
 module System.TimeManager (
     -- ** Types
     Manager,
+    defaultManager,
     TimeoutAction,
     Handle,
 
@@ -47,6 +48,10 @@ import System.Mem.Weak (deRefWeak)
 
 -- | A timeout manager
 data Manager = Manager (Reaper [Handle] Handle) | NoManager
+
+-- | No manager.
+defaultManager :: Manager
+defaultManager = NoManager
 
 -- | An action to be performed on timeout.
 type TimeoutAction = IO ()
