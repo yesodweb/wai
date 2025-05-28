@@ -233,19 +233,19 @@ withII :: Settings -> (InternalInfo -> IO a) -> IO a
 withII set action =
     withTimeoutManager $ \tm ->
         D.withDateCache $ \dc ->
-            F.withFdCache fdCacheDurationInSeconds $ \fdc ->
-                I.withFileInfoCache fdFileInfoDurationInSeconds $ \fic -> do
+            F.withFdCache fdCacheDurationInMicroseconds $ \fdc ->
+                I.withFileInfoCache fdFileInfoDurationInMicroseconds $ \fic -> do
                     let ii = InternalInfo tm dc fdc fic
                     action ii
   where
-    !fdCacheDurationInSeconds = settingsFdCacheDuration set * 1000000
-    !fdFileInfoDurationInSeconds = settingsFileInfoCacheDuration set * 1000000
-    !timeoutInSeconds = settingsTimeout set * 1000000
+    !fdCacheDurationInMicroseconds = settingsFdCacheDuration set * 1000000
+    !fdFileInfoDurationInMicroseconds = settingsFileInfoCacheDuration set * 1000000
+    !timeoutInMicroseconds = settingsTimeout set * 1000000
     withTimeoutManager f = case settingsManager set of
         Just tm -> f tm
         Nothing ->
             E.bracket
-                (T.initialize timeoutInSeconds)
+                (T.initialize timeoutInMicroseconds)
                 T.stopManager
                 f
 
