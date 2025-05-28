@@ -41,7 +41,7 @@ getFdNothing _ = return (Nothing, return ())
 ----------------------------------------------------------------
 
 -- | Creating 'MutableFdCache' and executing the action in the second
---   argument. The first argument is a cache duration in second.
+--   argument. The first argument is a cache duration in microseconds.
 withFdCache :: Int -> ((FilePath -> IO (Maybe Fd, Refresh)) -> IO a) -> IO a
 #ifdef WINDOWS
 withFdCache _ action = action getFdNothing
@@ -109,7 +109,7 @@ look mfc path = MM.lookup path <$> fdCache mfc
 
 ----------------------------------------------------------------
 
--- The first argument is a cache duration in second.
+-- The first argument is a cache duration in microseconds.
 initialize :: Int -> IO MutableFdCache
 initialize duration = MutableFdCache <$> mkReaper settings
   where
