@@ -9,7 +9,6 @@ import Control.Concurrent.MVar
 import Control.Concurrent
 import qualified Control.Exception
 
-import Network.Wai.Handler.Warp.Imports
 import GHC.Conc (labelThread)
 
 -- | Allow main socket listening thread to be interrupted on Windows platform
