@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.4.8
+
+* Label the internal hack thread on Windows used to make socket
+  listening interruptible.
+
 ## 3.4.7
 
 * Using time-manager >= 0.2.
