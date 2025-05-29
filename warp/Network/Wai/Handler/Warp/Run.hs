@@ -51,9 +51,6 @@ import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
-#if WINDOWS
-import Network.Wai.Handler.Warp.Windows
-#endif
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
 socketConnection :: Settings -> Socket -> IO Connection
