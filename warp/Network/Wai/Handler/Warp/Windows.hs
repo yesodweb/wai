@@ -9,7 +9,7 @@ import Control.Concurrent.MVar
 import Control.Concurrent
 import qualified Control.Exception
 
-import Network.Wai.Handler.Warp.Imports
+import GHC.Conc (labelThread)
 
 -- | Allow main socket listening thread to be interrupted on Windows platform
 --
@@ -18,7 +18,8 @@ windowsThreadBlockHack :: IO a -> IO a
 windowsThreadBlockHack act = do
     var <- newEmptyMVar :: IO (MVar (Either Control.Exception.SomeException a))
     -- Catch and rethrow even async exceptions, so don't bother with UnliftIO
-    void . forkIO $ Control.Exception.try act >>= putMVar var
+    threadId <- forkIO $ Control.Exception.try act >>= putMVar var
+    labelThread threadId "Windows Thread Block Hack (warp)"
     res <- takeMVar var
     case res of
       Left  e -> Control.Exception.throwIO e
