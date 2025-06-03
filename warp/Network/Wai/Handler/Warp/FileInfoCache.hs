@@ -90,7 +90,7 @@ negative reaper path = do
 
 -- | Creating a file information cache
 --   and executing the action in the second argument.
---   The first argument is a cache duration in second.
+--   The first argument is a cache duration in microseconds.
 withFileInfoCache
     :: Int
     -> ((FilePath -> IO FileInfo) -> IO a)
