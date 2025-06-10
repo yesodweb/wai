@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               warp-quic
-version:            0.0.2
+version:            0.0.3
 license:            BSD3
 license-file:       LICENSE
 maintainer:         Kazu Yamamoto <kazu@iij.ad.jp>

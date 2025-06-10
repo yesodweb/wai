@@ -1,5 +1,9 @@
 # Revision history for warp-quic
 
+## 0.0.3
+
+* Using http3 v0.1.
+
 ## 0.0.2
 
 * Labeling threads.
