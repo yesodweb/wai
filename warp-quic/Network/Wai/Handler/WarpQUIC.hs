@@ -52,7 +52,11 @@ quicApp settings app ii conn = do
                 }
         pread = pReadMaker ii
         timmgr = timeoutManager ii
-        conf = H3.Config H3.defaultHooks pread timmgr
+        conf =
+            H3.defaultConfig
+                { H3.confPositionReadMaker = pread
+                , H3.confTimeoutManager = timmgr
+                }
     case malpn of
         Nothing -> return ()
         Just appProto -> do
