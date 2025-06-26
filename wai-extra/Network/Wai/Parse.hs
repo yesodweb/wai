@@ -576,7 +576,7 @@ parsePiecesEx o sink bound rbody add =
             let x = do
                     cd <- lookup contDisp ls'
                     let ct = lookup contType ls'
-                    let attrs = parseAttrs cd
+                    let attrs = parseContentDispositionAttrs cd
                     name <- lookup "name" attrs
                     return (ct, name, lookup "filename" attrs)
             case x of
@@ -796,17 +796,35 @@ sinkTillBound bound iter seed0 src max' = do
     b <- final
     return (b, seed)
 
-parseAttrs :: S.ByteString -> [(S.ByteString, S.ByteString)]
-parseAttrs = map go . S.split _semicolon
-  where
-    tw = S.dropWhile (== _space)
-    dq s =
-        if S.length s > 2 && S.head s == _quotedbl && S.last s == _quotedbl
-            then S.tail $ S.init s
-            else s
-    go s =
-        let (x, y) = breakDiscard _equal s
-         in (tw x, dq $ tw y)
+parseContentDispositionAttrs :: S.ByteString -> [(S.ByteString, S.ByteString)]
+parseContentDispositionAttrs = parseTokenValues
+ where
+    nonTokenChars = [_semicolon, _equal]
+    dropSpace = S.dropWhile (== _space)
+    parseTokenValues input | S.null input = []
+    parseTokenValues input =
+        let (token, rest) = parseToken $ dropSpace input
+         in case S.uncons rest of
+            Just (c, rest')
+                | c == _equal -> 
+                    let (value, rest'') = parseValue $ dropSpace rest'
+                     in (token, value) : parseTokenValues (S.drop 1 rest'')
+                | otherwise -> (token, S.empty) : parseTokenValues rest'
+            Nothing -> (token, S.empty) : parseTokenValues S.empty
+    parseToken = S.break (`elem` nonTokenChars)
+    parseValue input =
+        case S.uncons $ dropSpace input of
+            Just (c, rest) | c == _quotedbl -> parseQuotedString [] rest
+            _ -> S.break (`elem` nonTokenChars) $ dropSpace input
+    parseQuotedString acc input =
+        let (prefix, rest) = S.break (`elem` [_quotedbl, _backslash]) input
+         in case S.uncons rest of
+            Just (c, rest')
+                | c == _quotedbl -> (S.concat $ reverse (prefix:acc), rest')
+                | c == _backslash ->
+                    let (slashed, postSlash) = S.splitAt 1 rest'
+                     in parseQuotedString (slashed:prefix:acc) postSlash
+            _ -> (prefix, rest)
 
 killCRLF :: S.ByteString -> S.ByteString
 killCRLF bs
