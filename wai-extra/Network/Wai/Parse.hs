@@ -807,7 +807,7 @@ parseContentDispositionAttrs = parseTokenValues
          in case S.uncons rest of
             Just (c, rest')
                 | c == _equal -> 
-                    let (value, rest'') = parseValue $ dropSpace rest'
+                    let (value, rest'') = parseValue rest'
                      in (token, value) : parseTokenValues (S.drop 1 rest'')
                 | otherwise -> (token, S.empty) : parseTokenValues rest'
             Nothing -> (token, S.empty) : parseTokenValues S.empty
