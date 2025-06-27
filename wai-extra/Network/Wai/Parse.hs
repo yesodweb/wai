@@ -824,7 +824,7 @@ parseContentDispositionAttrs = parseTokenValues
                 | c == _backslash ->
                     let (slashed, postSlash) = S.splitAt 1 rest'
                      in parseQuotedString (slashed:prefix:acc) postSlash
-            _ -> (prefix, rest)
+            _ -> (S.concat $ reverse (prefix:acc), rest)
 
 killCRLF :: S.ByteString -> S.ByteString
 killCRLF bs

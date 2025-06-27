@@ -202,6 +202,11 @@ caseParseRequestBody = do
         let expected = ([], [("yaml", FileInfo "semi; colon;" "application/octet-stream" "Photo blog using Hack.\n")])
         body <- parseRequestBodyEx def lbsBackEnd req
         body `shouldBe` expected
+    it "parsing filename with semi-colon" $ do
+        SRequest req _bod <- toRequest'' ctype3 content7
+        let expected = ([], [("yaml", FileInfo "this will be dropped, !only this will be returned" "application/octet-stream" "Photo blog using Hack.\n")])
+        body <- parseRequestBodyEx def lbsBackEnd req
+        body `shouldBe` expected
   where
     content2 =
         "--AaB03x\n"
@@ -250,6 +255,12 @@ caseParseRequestBody = do
     content6 =
         "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
             <> "Content-Disposition: form-data; name=\"yaml\"; filename=\"semi; colon;\"\r\n"
+            <> "Content-Type: application/octet-stream\r\n\r\n"
+            <> "Photo blog using Hack.\n\r\n"
+            <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
+    content7 =
+        "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
+            <> "Content-Disposition: form-data; name=\"yaml\"; filename=\"this will be dropped, \\!only this will be returned\r\n"
             <> "Content-Type: application/octet-stream\r\n\r\n"
             <> "Photo blog using Hack.\n\r\n"
             <> "------WebKitFormBoundaryB1pWXPZ6lNr8RiLh\r\n"
