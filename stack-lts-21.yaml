@@ -45,5 +45,5 @@ extra-deps:
   - unix-time-0.4.16
   - uuid-types-1.0.6
   - websockets-0.13.0.0
-  - zlib-0.7.1.0
+  - zlib-0.7.0.0
 allow-newer: true

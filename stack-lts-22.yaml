@@ -41,4 +41,4 @@ extra-deps:
   - tls-session-manager-0.0.7
   - uuid-types-1.0.6
   - websockets-0.13.0.0
-  - zlib-0.7.1.0
+  - zlib-0.7.0.0
