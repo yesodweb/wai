@@ -36,7 +36,7 @@ import Data.Maybe (fromMaybe)
 import Data.Typeable (Typeable)
 import qualified Data.Vault.Lazy as V
 import Network.Wai (Middleware, Request, vault)
-import System.Environment (getEnvironment)
+import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
 
 import Network.Wai.Request (guessApproot)
@@ -75,8 +75,8 @@ envFallback = envFallbackNamed "APPROOT"
 -- Since 3.0.7
 envFallbackNamed :: String -> IO Middleware
 envFallbackNamed name = do
-    env <- getEnvironment
-    pure $ case lookup name env of
+    approot <- lookupEnv name
+    pure $ case approot of
         Just s -> hardcoded $ S8.pack s
         Nothing -> fromRequest
 
