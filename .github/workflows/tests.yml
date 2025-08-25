@@ -52,7 +52,7 @@ jobs:
             EXTRA=""
             BENCH="--bench"
             STACKYAML="stack.yaml"
-            case "{{ matrix.resolver }}" in
+            case "${{ matrix.resolver }}" in
               "nightly")
                 STACKYAML="stack-nightly.yaml" ;;
               "lts-22")
