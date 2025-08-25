@@ -36,14 +36,22 @@ jobs:
           stack-version: ${{ matrix.stack }}
           enable-stack: true
 
-# Getting weird OS X errors...
-      - name: Cache dependencies
+      # We need separate caching steps, because of path names
+      - name: Cache dependencies (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
         uses: actions/cache@v4
-        with:
-          path: ~/.stack
+        with: &cache-key
+          path: "%APPDIR%\\stack"
           key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles('stack.yaml') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.resolver }}-
+
+      - name: Cache dependencies (Linux / MacOS)
+        if: ${{ matrix.os != 'windows-latest' }}
+        uses: actions/cache@v4
+        with:
+          path: "~/.stack"
+          <<: *cache-key
 
       - name: Build and run tests
         shell: bash
