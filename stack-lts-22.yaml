@@ -23,6 +23,7 @@ nix:
   - fcgi
   - zlib
 extra-deps:
+  - crypton-1.0.4
   - crypto-token-0.1.2
   - crypton-x509-store-1.6.11
   - crypton-x509-validation-1.6.13
@@ -39,4 +40,6 @@ extra-deps:
   - sockaddr-0.0.1
   - tls-2.1.11
   - tls-session-manager-0.0.7
+  - uuid-types-1.0.6
   - websockets-0.13.0.0
+  - zlib-0.7.1.0

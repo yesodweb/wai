@@ -24,7 +24,7 @@ nix:
   - zlib
 extra-deps:
   - crypto-token-0.1.2
-  - crypton-1.0.1
+  - crypton-1.0.4
   - crypton-x509-1.7.7
   - crypton-x509-store-1.6.11
   - crypton-x509-system-1.6.7
@@ -42,4 +42,6 @@ extra-deps:
   - tls-2.1.11
   - tls-session-manager-0.0.7
   - unix-time-0.4.16
+  - uuid-types-1.0.6
   - websockets-0.13.0.0
+  - zlib-0.7.1.0
