@@ -35,6 +35,7 @@ extra-deps:
   - http-semantics-0.3.0
   - http2-5.3.9
   - http3-0.1.1
+  - mwc-random-0.15.2.0
   - network-3.2.7.0
   - network-control-0.1.7
   - os-string-2.0.8
