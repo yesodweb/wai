@@ -63,6 +63,7 @@ jobs:
                 STACKYAML="stack-lts-20.yaml" ;;
               *)
                 ;;
+            esac
             if [[ ${{ matrix.os }} = "windows-latest" ]]; then
               EXTRA="--no-run-tests"
             elif [[ ${{ matrix.os }} = "macos-latest" ]]; then
