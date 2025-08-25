@@ -32,6 +32,7 @@ extra-deps:
   - crypton-x509-validation-1.6.13
   - ech-config-0.0.1
   - fast-logger-3.2.5
+  - hashable-1.5.0.0
   - hpke-0.0.0
   - http-semantics-0.3.0
   - http2-5.3.9

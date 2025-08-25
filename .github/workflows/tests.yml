@@ -15,13 +15,13 @@ jobs:
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         stack: ["latest"]
-        args:
-          - "--resolver nightly --stack-yaml stack-nightly.yaml"
-          - "--resolver lts-24"
-          - "--resolver lts-23"
-          - "--resolver lts-22 --stack-yaml stack-lts-22.yaml"
-          - "--resolver lts-21 --stack-yaml stack-lts-21.yaml"
-          - "--resolver lts-20 --stack-yaml stack-lts-20.yaml"
+        resolver:
+          - "nightly"
+          - "lts-24"
+          - "lts-23"
+          - "lts-22"
+          - "lts-21"
+          - "lts-20"
 
     steps:
       - name: Clone project
@@ -51,11 +51,21 @@ jobs:
             set -ex
             EXTRA=""
             BENCH="--bench"
-            if [[ ${{ matrix.os }} = "windows-latest" ]]
-            then
+            STACKYAML="stack.yaml"
+            case "{{ matrix.resolver }}" in
+              "nightly")
+                STACKYAML="stack-nightly.yaml" ;;
+              "lts-22")
+                STACKYAML="stack-lts-22.yaml" ;;
+              "lts-21")
+                STACKYAML="stack-lts-21.yaml" ;;
+              "lts-20")
+                STACKYAML="stack-lts-20.yaml" ;;
+              *)
+                ;;
+            if [[ ${{ matrix.os }} = "windows-latest" ]]; then
               EXTRA="--no-run-tests"
-            elif [[ ${{ matrix.os }} = "macos-latest" ]]
-            then
+            elif [[ ${{ matrix.os }} = "macos-latest" ]]; then
               BENCH=""
             fi
-            stack test --no-terminal ${{ matrix.args }} --haddock --no-haddock-deps $BENCH --no-run-benchmarks $EXTRA
+            stack test --no-terminal --resolver ${{ matrix.resolver }} --haddock --no-haddock-deps $BENCH --no-run-benchmarks $EXTRA --stack-yaml $STACKYAML
