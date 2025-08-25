@@ -17,14 +17,11 @@ jobs:
         stack: ["latest"]
         args:
           - "--resolver nightly --stack-yaml stack-nightly.yaml"
+          - "--resolver lts-24"
           - "--resolver lts-23"
           - "--resolver lts-22 --stack-yaml stack-lts-22.yaml"
           - "--resolver lts-21 --stack-yaml stack-lts-21.yaml"
           - "--resolver lts-20 --stack-yaml stack-lts-20.yaml"
-          - "--resolver lts-19 --stack-yaml stack-lts-19.yaml"
-        exclude:
-          - os: "macos-latest"
-            args: "--resolver lts-19 --stack-yaml stack-lts-19.yaml"
 
     steps:
       - name: Clone project
@@ -32,7 +29,7 @@ jobs:
 
       # Not sure how to have GHC not setup twice
       # Something with settings "ghc-version"?
-      # ["9.8", "9.6", "9.4", "9.2", "9.0"]
+      # ["9.10", "9.8", "9.6", "9.4", "9.2"]
       - uses: haskell-actions/setup@v2
         name: Setup Haskell Stack
         with:
@@ -40,13 +37,13 @@ jobs:
           enable-stack: true
 
 # Getting weird OS X errors...
-#      - name: Cache dependencies
-#        uses: actions/cache@v1
-#        with:
-#          path: ~/.stack
-#          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles('stack.yaml') }}
-#          restore-keys: |
-#            ${{ runner.os }}-${{ matrix.resolver }}-
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.stack
+          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles('stack.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.resolver }}-
 
       - name: Build and run tests
         shell: bash
