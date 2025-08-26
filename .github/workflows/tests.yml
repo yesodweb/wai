@@ -10,6 +10,11 @@ jobs:
   stack:
     name: Stack
     runs-on: ${{ matrix.os }}
+    env:
+      STACK_PATH_GLOBAL_WINDOWS: "C:\\sr"
+      STACK_PATH_GLOBAL_UNIX: "~/.stack"
+      STACK_PATH_LOCAL: ".stack-work"
+
     strategy:
       fail-fast: false
       matrix:
@@ -61,7 +66,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            C:\sr
+            ${{ env.STACK_PATH_GLOBAL_WINDOWS }}
           key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.resolver }}-
@@ -71,7 +76,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.stack
+            ${{ env.STACK_PATH_GLOBAL_UNIX }}
           key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.resolver }}-
@@ -81,7 +86,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            .stack-work
+            ${{ env.STACK_PATH_LOCAL }}
           key: stack-work-${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}-${{ hashFiles('**/*.hs') }}
           restore-keys: |
             stack-work-${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}-
