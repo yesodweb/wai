@@ -77,4 +77,6 @@ jobs:
             elif [[ ${{ matrix.os }} = "macos-latest" ]]; then
               BENCH=""
             fi
+            # To find out where "stack root" is on Windows
+            stack path --stack-root
             stack test --no-terminal --resolver ${{ matrix.resolver }} --haddock --no-haddock-deps $BENCH --no-run-benchmarks $EXTRA --stack-yaml $STACKYAML
