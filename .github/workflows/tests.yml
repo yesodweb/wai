@@ -55,23 +55,17 @@ jobs:
       - name: Clone project
         uses: actions/checkout@v4
 
-      # Not sure how to have GHC not setup twice
-      # Something with settings "ghc-version"?
-      # ["9.10", "9.8", "9.6", "9.4", "9.2"]
-      - uses: haskell-actions/setup@v2
-        name: Setup Haskell Stack
-        with:
-          ghc-version: "${{ env.GHC_VERSION }}"
-          stack-version: "${{ matrix.stack }}"
-          enable-stack: true
-
-      # We need separate caching steps, because of path names
+      # We need separate caching steps, because of path names (Windows vs. other)
       - name: Cache dependencies (Windows)
         if: ${{ matrix.os == 'windows-latest' }}
         uses: actions/cache@v4
         with:
-          path: "%APPDIR%\\stack"
-          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles('stack.yaml') }}
+          path: |
+            "C:\sr"
+            "%APPDATA%\stack"
+            "%LOCALAPPDATA%\Programs\stack"
+            "C:\ghcup"
+          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.resolver }}-
 
@@ -79,10 +73,20 @@ jobs:
         if: ${{ matrix.os != 'windows-latest' }}
         uses: actions/cache@v4
         with:
-          path: "~/.stack"
-          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles('stack.yaml') }}
+          path: |
+            "~/.stack"
+            ".stack-work"
+            "~/.ghcup"
+          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.resolver }}-
+
+      - uses: haskell-actions/setup@v2
+        name: Setup Haskell Stack
+        with:
+          ghc-version: "${{ env.GHC_VERSION }}"
+          stack-version: "${{ matrix.stack }}"
+          enable-stack: true
 
       - name: Build and run tests
         shell: bash
@@ -96,8 +100,6 @@ jobs:
             BENCH=""
             fi
 
-            # To find out where "stack root" is on Windows
-            stack path --stack-root
             stack test \
               --system-ghc \
               --no-terminal \
