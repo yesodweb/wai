@@ -61,7 +61,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            "C:\sr"
+            C:\sr
           key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.resolver }}-
@@ -71,7 +71,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            "~/.stack"
+            ~/.stack
           key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.resolver }}-
@@ -80,7 +80,8 @@ jobs:
       - name: Cache local files
         uses: actions/cache@v4
         with:
-          path: .stack-work
+          path: |
+            .stack-work
           key: stack-work-${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}-${{ hashFiles('**/*.hs') }}
           restore-keys: |
             stack-work-${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}-
