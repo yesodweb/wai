@@ -62,9 +62,6 @@ jobs:
         with:
           path: |
             "C:\sr"
-            "%APPDATA%\stack"
-            "%LOCALAPPDATA%\Programs\stack"
-            "C:\ghcup"
           key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.resolver }}-
@@ -75,11 +72,19 @@ jobs:
         with:
           path: |
             "~/.stack"
-            ".stack-work"
-            "~/.ghcup"
           key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.resolver }}-
+
+      # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
+      - name: Cache local files
+        uses: actions/cache@v4
+        with:
+          path: .stack-work
+          key: stack-work-${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}-${{ hashFiles('**/*.hs') }}
+          restore-keys: |
+            stack-work-${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}-
+            stack-work-${{ runner.os }}-${{ matrix.resolver }}-
 
       - uses: haskell-actions/setup@v2
         name: Setup Haskell Stack
