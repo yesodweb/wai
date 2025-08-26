@@ -26,26 +26,29 @@ jobs:
     steps:
       - name: "Set ENV vars per LTS"
         id: env-vars
+        shell: bash
         run: |
           STACKYAML="stack.yaml"
           GHC_VERSION="9.12"
-          RESOLVER="${{ matrix.resolver }}"
-          if [[ $RESOLVER == 'nightly' ]]; then
-              STACKYAML="stack-nightly.yaml"
-          elif [[ $RESOLVER == 'lts-24' ]]; then
-              GHC_VERSION="9.10"
-          elif [[ $RESOLVER == 'lts-23' ]]; then
-              GHC_VERSION="9.8"
-          elif [[ $RESOLVER == 'lts-22' ]]; then
+          case "${{ matrix.resolver }}" in
+            "nightly")
+              STACKYAML="stack-nightly.yaml" ;;
+            "lts-24")
+              GHC_VERSION="9.10" ;;
+            "lts-23")
+              GHC_VERSION="9.8" ;;
+            "lts-22")
               GHC_VERSION="9.6"
-              STACKYAML="stack-lts-22.yaml"
-          elif [[ $RESOLVER == 'lts-21' ]]; then
+              STACKYAML="stack-lts-22.yaml" ;;
+            "lts-21")
               GHC_VERSION="9.4"
-              STACKYAML="stack-lts-21.yaml"
-          elif [[ $RESOLVER == 'lts-20' ]]; then
+              STACKYAML="stack-lts-21.yaml" ;;
+            "lts-20")
               GHC_VERSION="9.2"
-              STACKYAML="stack-lts-20.yaml"
-          fi
+              STACKYAML="stack-lts-20.yaml" ;;
+            *)
+              ;;
+          esac
           echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
 
@@ -58,7 +61,7 @@ jobs:
       - uses: haskell-actions/setup@v2
         name: Setup Haskell Stack
         with:
-          ghc-version: "$GHC_VERSION"
+          ghc-version: "${{ env.GHC_VERSION }}"
           stack-version: "${{ matrix.stack }}"
           enable-stack: true
 
@@ -102,4 +105,4 @@ jobs:
               --haddock --no-haddock-deps \
               $BENCH --no-run-benchmarks \
               $EXTRA \
-              --stack-yaml $STACKYAML
+              --stack-yaml ${{ env.STACKYAML }}
