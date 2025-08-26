@@ -17,6 +17,8 @@ packages:
 flags:
   wai-extra:
     build-example: true
+  zlib:
+    bundled-c-zlib: true
 nix:
   enable: false
   packages:
@@ -48,3 +50,4 @@ extra-deps:
   - uuid-types-1.0.6
   - websockets-0.13.0.0
   - zlib-0.7.1.0
+  - zlib-clib-1.3.1

@@ -16,14 +16,41 @@ jobs:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         stack: ["latest"]
         resolver:
-          - "nightly"
-          - "lts-24"
-          - "lts-23"
-          - "lts-22"
-          - "lts-21"
-          - "lts-20"
+          - "nightly" # 9.12
+          - "lts-24"  # 9.10
+          - "lts-23"  # 9.8
+          - "lts-22"  # 9.6
+          - "lts-21"  # 9.4
+          - "lts-20"  # 9.2
 
     steps:
+      - name: "Set ENV vars per LTS"
+        id: env-vars
+        run: |
+          STACKYAML="stack.yaml"
+          GHC_VERSION="9.12"
+          case "${{ matrix.resolver }}" in
+            "nightly")
+              STACKYAML="stack-nightly.yaml" ;;
+            "lts-24")
+              GHC_VERSION="9.10" ;;
+            "lts-23")
+              GHC_VERSION="9.8" ;;
+            "lts-22")
+              GHC_VERSION="9.6"
+              STACKYAML="stack-lts-22.yaml" ;;
+            "lts-21")
+              GHC_VERSION="9.4"
+              STACKYAML="stack-lts-21.yaml" ;;
+            "lts-20")
+              GHC_VERSION="9.2"
+              STACKYAML="stack-lts-20.yaml" ;;
+            *)
+              ;;
+          esac
+          echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
+          echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
+
       - name: Clone project
         uses: actions/checkout@v4
 
@@ -33,7 +60,8 @@ jobs:
       - uses: haskell-actions/setup@v2
         name: Setup Haskell Stack
         with:
-          stack-version: ${{ matrix.stack }}
+          ghc-version: "${{ steps.env-vars.outputs.GHC_VERSION }}"
+          stack-version: "${{ matrix.stack }}"
           enable-stack: true
 
       # We need separate caching steps, because of path names
@@ -61,24 +89,21 @@ jobs:
             set -ex
             EXTRA=""
             BENCH="--bench"
-            STACKYAML="stack.yaml"
-            case "${{ matrix.resolver }}" in
-              "nightly")
-                STACKYAML="stack-nightly.yaml" ;;
-              "lts-22")
-                STACKYAML="stack-lts-22.yaml" ;;
-              "lts-21")
-                STACKYAML="stack-lts-21.yaml" ;;
-              "lts-20")
-                STACKYAML="stack-lts-20.yaml" ;;
-              *)
-                ;;
-            esac
             if [[ ${{ matrix.os }} = "windows-latest" ]]; then
-              EXTRA="--no-run-tests"
+            EXTRA="--no-run-tests"
             elif [[ ${{ matrix.os }} = "macos-latest" ]]; then
-              BENCH=""
+            BENCH=""
             fi
+
             # To find out where "stack root" is on Windows
             stack path --stack-root
-            stack test --no-terminal --resolver ${{ matrix.resolver }} --haddock --no-haddock-deps $BENCH --no-run-benchmarks $EXTRA --stack-yaml $STACKYAML
+
+            STACKYAML="${{ steps.env-vars.outputs.STACKYAML }}"
+            stack test \
+              --system-ghc \
+              --no-terminal \
+              --resolver ${{ matrix.resolver }} \
+              --haddock --no-haddock-deps \
+              $BENCH --no-run-benchmarks \
+              $EXTRA \
+              --stack-yaml $STACKYAML
