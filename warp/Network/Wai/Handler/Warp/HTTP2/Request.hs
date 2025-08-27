@@ -85,13 +85,13 @@ toRequest' ii settings addr ref (reqths, reqvt) bodylen body th transport =
             Nothing -> case mAuth of
                 Just auth -> (tokenHost, auth) : reqths
                 _ -> reqths
-    !mPath = getHeaderValue tokenPath reqvt -- SHOULD
-    !colonMethod = fromJust $ getHeaderValue tokenMethod reqvt -- MUST
-    !mAuth = getHeaderValue tokenAuthority reqvt -- SHOULD
-    !mHost = getHeaderValue tokenHost reqvt
-    !mRange = getHeaderValue tokenRange reqvt
-    !mReferer = getHeaderValue tokenReferer reqvt
-    !mUserAgent = getHeaderValue tokenUserAgent reqvt
+    !mPath = getFieldValue tokenPath reqvt -- SHOULD
+    !colonMethod = fromJust $ getFieldValue tokenMethod reqvt -- MUST
+    !mAuth = getFieldValue tokenAuthority reqvt -- SHOULD
+    !mHost = getFieldValue tokenHost reqvt
+    !mRange = getFieldValue tokenRange reqvt
+    !mReferer = getFieldValue tokenReferer reqvt
+    !mUserAgent = getFieldValue tokenUserAgent reqvt
     -- CONNECT request will have ":path" omitted, use ":authority" as unparsed
     -- path instead so that it will have consistent behavior compare to HTTP 1.0
     (unparsedPath, query) = C8.break (== '?') $ fromJust (mPath <|> mAuth)
