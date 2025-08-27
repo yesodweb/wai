@@ -19,10 +19,10 @@ library
     build-depends:
         base >=4.13 && <5,
         bytestring,
-        http3 >=0.1 && <0.2,
+        http3 <0.2,
         network,
-        quic >=0.2 && <0.3,
-        tls >=1.7,
+        quic >=0.2.3 && <0.3,
+        tls >=0.8 && < 3,
         wai,
         warp >=3.4.4
 

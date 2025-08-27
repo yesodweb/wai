@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | WAI handler for HTTP/3 based on QUIC.
@@ -52,11 +53,15 @@ quicApp settings app ii conn = do
                 }
         pread = pReadMaker ii
         timmgr = timeoutManager ii
+#if !MIN_VERSION_http3(0,1,0)
+        conf = H3.Config H3.defaultHooks pread timmgr
+#else
         conf =
             H3.defaultConfig
                 { H3.confPositionReadMaker = pread
                 , H3.confTimeoutManager = timmgr
                 }
+#endif
     case malpn of
         Nothing -> return ()
         Just appProto -> do
