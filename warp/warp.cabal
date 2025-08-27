@@ -78,7 +78,7 @@ library
         Network.Wai.Handler.Warp.Types
         Network.Wai.Handler.Warp.Windows
         Network.Wai.Handler.Warp.WithApplication
-        Paths_warp
+        PackageInfo_warp
 
     default-language: Haskell2010
     ghc-options:      -Wall
@@ -208,7 +208,7 @@ test-suite spec
         Network.Wai.Handler.Warp.Types
         Network.Wai.Handler.Warp.Windows
         Network.Wai.Handler.Warp.WithApplication
-        Paths_warp
+        PackageInfo_warp
 
     default-language:   Haskell2010
     ghc-options:        -Wall -threaded
@@ -285,7 +285,7 @@ benchmark parser
         Network.Wai.Handler.Warp.RequestHeader
         Network.Wai.Handler.Warp.Settings
         Network.Wai.Handler.Warp.Types
-        Paths_warp
+        PackageInfo_warp
 
     default-language: Haskell2010
     build-depends:
