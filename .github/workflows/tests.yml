@@ -10,43 +10,94 @@ jobs:
   stack:
     name: Stack
     runs-on: ${{ matrix.os }}
+    env:
+      STACK_PATH_GLOBAL_WINDOWS: "C:\\sr"
+      STACK_PATH_GLOBAL_UNIX: "~/.stack"
+      STACK_PATH_LOCAL: ".stack-work"
+
     strategy:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         stack: ["latest"]
-        args:
-          - "--resolver nightly --stack-yaml stack-nightly.yaml"
-          - "--resolver lts-23"
-          - "--resolver lts-22 --stack-yaml stack-lts-22.yaml"
-          - "--resolver lts-21 --stack-yaml stack-lts-21.yaml"
-          - "--resolver lts-20 --stack-yaml stack-lts-20.yaml"
-          - "--resolver lts-19 --stack-yaml stack-lts-19.yaml"
-        exclude:
-          - os: "macos-latest"
-            args: "--resolver lts-19 --stack-yaml stack-lts-19.yaml"
+        resolver:
+          - "nightly" # 9.12
+          - "lts-24"  # 9.10
+          - "lts-23"  # 9.8
+          - "lts-22"  # 9.6
+          - "lts-21"  # 9.4
+          - "lts-20"  # 9.2
 
     steps:
+      - name: "Set ENV vars per LTS"
+        id: env-vars
+        shell: bash
+        run: |
+          STACKYAML="stack.yaml"
+          GHC_VERSION="9.12"
+          case "${{ matrix.resolver }}" in
+            "nightly")
+              STACKYAML="stack-nightly.yaml" ;;
+            "lts-24")
+              GHC_VERSION="9.10" ;;
+            "lts-23")
+              GHC_VERSION="9.8" ;;
+            "lts-22")
+              GHC_VERSION="9.6"
+              STACKYAML="stack-lts-22.yaml" ;;
+            "lts-21")
+              GHC_VERSION="9.4"
+              STACKYAML="stack-lts-21.yaml" ;;
+            "lts-20")
+              GHC_VERSION="9.2"
+              STACKYAML="stack-lts-20.yaml" ;;
+            *)
+              ;;
+          esac
+          echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
+          echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
+
       - name: Clone project
         uses: actions/checkout@v4
 
-      # Not sure how to have GHC not setup twice
-      # Something with settings "ghc-version"?
-      # ["9.8", "9.6", "9.4", "9.2", "9.0"]
+      # We need separate caching steps, because of path names (Windows vs. other)
+      - name: Cache dependencies (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.STACK_PATH_GLOBAL_WINDOWS }}
+          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.resolver }}-
+
+      - name: Cache dependencies (Linux / MacOS)
+        if: ${{ matrix.os != 'windows-latest' }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.STACK_PATH_GLOBAL_UNIX }}
+          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.resolver }}-
+
+      # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
+      - name: Cache local files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.STACK_PATH_LOCAL }}
+          key: stack-work-${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}-${{ hashFiles('**/*.hs') }}
+          restore-keys: |
+            stack-work-${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}-
+            stack-work-${{ runner.os }}-${{ matrix.resolver }}-
+
       - uses: haskell-actions/setup@v2
         name: Setup Haskell Stack
         with:
-          stack-version: ${{ matrix.stack }}
+          ghc-version: "${{ env.GHC_VERSION }}"
+          stack-version: "${{ matrix.stack }}"
           enable-stack: true
-
-# Getting weird OS X errors...
-#      - name: Cache dependencies
-#        uses: actions/cache@v1
-#        with:
-#          path: ~/.stack
-#          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles('stack.yaml') }}
-#          restore-keys: |
-#            ${{ runner.os }}-${{ matrix.resolver }}-
 
       - name: Build and run tests
         shell: bash
@@ -54,11 +105,17 @@ jobs:
             set -ex
             EXTRA=""
             BENCH="--bench"
-            if [[ ${{ matrix.os }} = "windows-latest" ]]
-            then
-              EXTRA="--no-run-tests"
-            elif [[ ${{ matrix.os }} = "macos-latest" ]]
-            then
-              BENCH=""
+            if [[ ${{ matrix.os }} = "windows-latest" ]]; then
+            EXTRA="--no-run-tests"
+            elif [[ ${{ matrix.os }} = "macos-latest" ]]; then
+            BENCH=""
             fi
-            stack test --no-terminal ${{ matrix.args }} --haddock --no-haddock-deps $BENCH --no-run-benchmarks $EXTRA
+
+            stack test \
+              --system-ghc \
+              --no-terminal \
+              --resolver ${{ matrix.resolver }} \
+              --haddock --no-haddock-deps \
+              $BENCH --no-run-benchmarks \
+              $EXTRA \
+              --stack-yaml ${{ env.STACKYAML }}
