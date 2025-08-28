@@ -22,7 +22,7 @@ import GHC.Prim (fork#)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr, Socket, accept)
 import Network.Wai
-import qualified Paths_warp
+import qualified PackageInfo_warp
 import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
 import System.TimeManager
@@ -206,7 +206,7 @@ defaultSettings =
         , settingsAccept = defaultAccept
         , settingsNoParsePath = False
         , settingsInstallShutdownHandler = const $ return ()
-        , settingsServerName = C8.pack $ "Warp/" ++ showVersion Paths_warp.version
+        , settingsServerName = C8.pack $ "Warp/" ++ showVersion PackageInfo_warp.version
         , settingsMaximumBodyFlush = Just 8192
         , settingsProxyProtocol = ProxyProtocolNone
         , settingsSlowlorisSize = 2048

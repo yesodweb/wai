@@ -152,7 +152,7 @@ wrappedRecvN th slowlorisSize readN bufsize = do
     handler = throughAsync (return "")
 
 -- connClose must not be called here since Run:fork calls it
-goaway :: Connection -> H2.ErrorCodeId -> ByteString -> IO ()
+goaway :: Connection -> H2.ErrorCode -> ByteString -> IO ()
 goaway Connection{..} etype debugmsg = connSendAll bytestream
   where
     einfo = H2.encodeInfo id 0
