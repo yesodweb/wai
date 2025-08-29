@@ -15,14 +15,12 @@ import qualified Data.ByteString.Char8 as C8
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import Data.Version (showVersion)
 import GHC.IO (IO (IO), unsafeUnmask)
 import GHC.IO.Exception (IOErrorType (..))
 import GHC.Prim (fork#)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr, Socket, accept)
 import Network.Wai
-import qualified Paths_warp
 import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
 import System.TimeManager
@@ -31,6 +29,11 @@ import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
 #if WINDOWS
 import Network.Wai.Handler.Warp.Windows (windowsThreadBlockHack)
+#endif
+
+#ifdef INCLUDE_WARP_VERSION
+import Data.Version (showVersion)
+import qualified Paths_warp
 #endif
 
 -- | Various Warp server settings. This is purposely kept as an abstract data
@@ -206,7 +209,12 @@ defaultSettings =
         , settingsAccept = defaultAccept
         , settingsNoParsePath = False
         , settingsInstallShutdownHandler = const $ return ()
-        , settingsServerName = C8.pack $ "Warp/" ++ showVersion Paths_warp.version
+        , settingsServerName = C8.pack $ "Warp/" ++
+#ifdef INCLUDE_WARP_VERSION
+            showVersion Paths_warp.version
+#else
+            "unknown"
+#endif
         , settingsMaximumBodyFlush = Just 8192
         , settingsProxyProtocol = ProxyProtocolNone
         , settingsSlowlorisSize = 2048

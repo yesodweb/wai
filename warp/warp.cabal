@@ -34,6 +34,13 @@ flag network-bytestring
 flag allow-sendfilefd
     description: Allow use of sendfileFd (not available on GNU/kFreeBSD)
 
+flag include-warp-version
+    description:
+        Exposes the version in Network.Wai.Handler.Warp.warpVersion.
+        This can cause a large runtime dependency closure due to depending on
+        files shipped with GHC itself.
+    manual:      True
+
 flag warp-debug
     description: print debug output. not suitable for production
     default:     False
@@ -78,7 +85,9 @@ library
         Network.Wai.Handler.Warp.Types
         Network.Wai.Handler.Warp.Windows
         Network.Wai.Handler.Warp.WithApplication
-        Paths_warp
+
+    if flag(include-warp-version)
+        other-modules: Paths_warp
 
     default-language: Haskell2010
     ghc-options:      -Wall
@@ -139,6 +148,9 @@ library
 
     if impl(ghc >=8)
         default-extensions: Strict StrictData
+
+    if flag(include-warp-version)
+        cpp-options: -DINCLUDE_WARP_VERSION
 
 test-suite doctest
     type:             exitcode-stdio-1.0
@@ -208,7 +220,9 @@ test-suite spec
         Network.Wai.Handler.Warp.Types
         Network.Wai.Handler.Warp.Windows
         Network.Wai.Handler.Warp.WithApplication
-        Paths_warp
+
+    if flag(include-warp-version)
+        other-modules: Paths_warp
 
     default-language:   Haskell2010
     ghc-options:        -Wall -threaded
@@ -285,7 +299,9 @@ benchmark parser
         Network.Wai.Handler.Warp.RequestHeader
         Network.Wai.Handler.Warp.Settings
         Network.Wai.Handler.Warp.Types
-        Paths_warp
+
+    if flag(include-warp-version)
+        other-modules: Paths_warp
 
     default-language: Haskell2010
     build-depends:

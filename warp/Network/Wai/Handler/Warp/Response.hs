@@ -31,13 +31,11 @@ import Data.Streaming.ByteString.Builder (
     newByteStringBuilderRecv,
     reuseBufferStrategy,
  )
-import Data.Version (showVersion)
 import Data.Word8 (_cr, _lf, _space, _tab)
 import qualified Network.HTTP.Types as H
 import qualified Network.HTTP.Types.Header as H
 import Network.Wai
 import Network.Wai.Internal
-import qualified Paths_warp
 import qualified System.TimeManager as T
 
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
@@ -49,6 +47,11 @@ import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.ResponseHeader
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
+
+#ifdef INCLUDE_WARP_VERSION
+import Data.Version (showVersion)
+import qualified Paths_warp
+#endif
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -481,7 +484,12 @@ addDate getdate rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
 
 -- | The version of Warp.
 warpVersion :: String
-warpVersion = showVersion Paths_warp.version
+warpVersion =
+#ifdef INCLUDE_WARP_VERSION
+  showVersion Paths_warp.version
+#else
+  "unknown"
+#endif
 
 {-# INLINE addServer #-}
 addServer
