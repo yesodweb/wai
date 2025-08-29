@@ -7,6 +7,7 @@
 module Network.Wai.Handler.Warp.Response (
     sendResponse,
     sanitizeHeaderValue, -- for testing
+    --  Provided here for backwards compatibility.
     warpVersion,
     hasBody,
     replaceHeader,
@@ -47,11 +48,6 @@ import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.ResponseHeader
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
-
-#ifdef INCLUDE_WARP_VERSION
-import Data.Version (showVersion)
-import qualified Paths_warp
-#endif
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -481,15 +477,6 @@ addDate getdate rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
     Just _ -> return hdrs
 
 ----------------------------------------------------------------
-
--- | The version of Warp.
-warpVersion :: String
-warpVersion =
-#ifdef INCLUDE_WARP_VERSION
-  showVersion Paths_warp.version
-#else
-  "unknown"
-#endif
 
 {-# INLINE addServer #-}
 addServer

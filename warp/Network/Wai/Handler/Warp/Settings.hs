@@ -209,12 +209,7 @@ defaultSettings =
         , settingsAccept = defaultAccept
         , settingsNoParsePath = False
         , settingsInstallShutdownHandler = const $ return ()
-        , settingsServerName = C8.pack $ "Warp/" ++
-#ifdef INCLUDE_WARP_VERSION
-            showVersion Paths_warp.version
-#else
-            "unknown"
-#endif
+        , settingsServerName = C8.pack $ "Warp/" ++ warpVersion
         , settingsMaximumBodyFlush = Just 8192
         , settingsProxyProtocol = ProxyProtocolNone
         , settingsSlowlorisSize = 2048
@@ -325,4 +320,13 @@ defaultAccept =
     windowsThreadBlockHack . accept
 #else
     accept
+#endif
+
+-- | The version of Warp.
+warpVersion :: String
+warpVersion =
+#ifdef INCLUDE_WARP_VERSION
+  showVersion Paths_warp.version
+#else
+  "unknown"
 #endif
