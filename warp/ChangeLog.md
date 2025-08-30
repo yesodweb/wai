@@ -1,5 +1,9 @@
 # ChangeLog for warp
 
+## 3.4.9
+
+* New flag `include-warp-version` can be disabled to remove dependency on `Paths_warp`.
+
 ## 3.4.8
 
 * Label the internal hack thread on Windows used to make socket
