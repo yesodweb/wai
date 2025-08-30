@@ -3,6 +3,7 @@
 ## 3.4.9
 
 * New flag `include-warp-version` can be disabled to remove dependency on `Paths_warp`.
+  [#1044](https://github.com/yesodweb/wai/pull/1044)
 
 ## 3.4.8
 
