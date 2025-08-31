@@ -39,6 +39,7 @@ flag include-warp-version
         Exposes the version in Network.Wai.Handler.Warp.warpVersion.
         This can cause a large runtime dependency closure due to depending on
         files shipped with GHC itself.
+    default:     True
     manual:      True
 
 flag warp-debug
