@@ -159,7 +159,6 @@ import Network.Wai.Handler.Warp.HTTP2.Request (
 import Network.Wai.Handler.Warp.HTTP2.Types
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Request
-import Network.Wai.Handler.Warp.Response (warpVersion)
 import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types hiding (getFileInfo)
