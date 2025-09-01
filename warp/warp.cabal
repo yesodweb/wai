@@ -37,8 +37,10 @@ flag allow-sendfilefd
 flag include-warp-version
     description:
         Exposes the version in Network.Wai.Handler.Warp.warpVersion.
-        This can cause a large runtime dependency closure due to depending on
-        files shipped with GHC itself.
+        This adds a dependency on Paths_warp so application binaries may
+        reference subpaths of GHC. For nix users this may result in binaries
+        with a large transitive runtime dependency closure that includes GHC
+        itself.
     default:     True
     manual:      True
 
