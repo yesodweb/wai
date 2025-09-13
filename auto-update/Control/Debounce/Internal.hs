@@ -116,7 +116,7 @@ leadingEdge = Leading
 -- >  .......    .......
 -- > X          X
 --
--- @since 0.1.6
+-- @since 0.2.3
 leadingMuteEdge :: DebounceEdge
 leadingMuteEdge = LeadingMute
 
@@ -158,7 +158,7 @@ trailingEdge = Trailing
 --         X                   X
 -- @
 --
--- @since 0.1.6
+-- @since 0.2.3
 trailingDelayEdge :: DebounceEdge
 trailingDelayEdge = TrailingDelay
 
@@ -242,16 +242,16 @@ mkDebounceInternal baton delayFn (DebounceSettings freq action edge name) =
                     ignoreExc action
                     -- 5)
                     putMVar baton ()
-        -- TRAILING DELAY
-        --
-        --   1) get current time -> /now/
-        --   2) try take baton to start
-        --   3) success -> set time var to /now/ & start worker, failed -> update time var to /now/
-        --   4) worker waits minimum delay
-        --   5) check diff of time var with /now/
-        --   6) less -> wait the difference, same/more -> do action
-        --   7) after action, recheck if there was any trigger
-        --   8) put baton back
+    -- TRAILING DELAY
+    --
+    --   1) get current time -> /now/
+    --   2) try take baton to start
+    --   3) success -> set time var to /now/ & start worker, failed -> update time var to /now/
+    --   4) worker waits minimum delay
+    --   5) check diff of time var with /now/
+    --   6) less -> wait the difference, same/more -> do action
+    --   7) after action, recheck if there was any trigger
+    --   8) put baton back
     trailingDelayDebounce timeTVar = do
         -- 1)
         now <- getMonotonicTimeNSec
