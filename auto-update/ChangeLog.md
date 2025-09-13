@@ -1,5 +1,10 @@
 # ChangeLog for auto-update
 
+## 0.2.6.1
+
+* Fixed documentation of when `leadingMuteEdge` and `trailingDelayEdge` were
+  introduced in `Control.Debounce`.
+
 ## 0.2.6
 
 * Using the thread version of AutoUpdate for non-threaded RTS.
