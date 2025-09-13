@@ -98,7 +98,7 @@ library
         base >=4.12 && <5,
         array,
         auto-update >=0.2.2 && <0.3,
-        async,
+        async >= 2,
         bsb-http-chunked <0.1,
         bytestring >=0.9.1.4,
         case-insensitive >=0.2,
