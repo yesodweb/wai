@@ -1,13 +1,10 @@
 # Changelog for wai-extra
 
-## 3.1.19
+## 3.1.18
 
 * Fixed handling of quoted strings and semicolons in `parseRequestBodyEx` [#1038](https://github.com/yesodweb/wai/pull/1038).
   In particular, multipart form data containing filenames with semicolons and `\` escaped characters
   are now parsed correctly.
-
-## 3.1.18
-
 * Added instances `Foldable` and `Traversable` for `UrlMap'` [#992](https://github.com/yesodweb/wai/pull/992)
 
 ## 3.1.17
