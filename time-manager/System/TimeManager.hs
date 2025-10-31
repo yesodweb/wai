@@ -37,53 +37,34 @@ module System.TimeManager (
 
 import Control.Concurrent (mkWeakThreadId, myThreadId)
 import qualified Control.Exception as E
-import Control.Monad (void)
-import Control.Reaper
 import Data.IORef (IORef)
 import qualified Data.IORef as I
 import Data.Typeable (Typeable)
-import System.IO.Unsafe
 import System.Mem.Weak (deRefWeak)
+
+import GHC.Event
 
 ----------------------------------------------------------------
 
 -- | A timeout manager
-data Manager = Manager (Reaper [Handle] Handle) | NoManager
+data Manager = NoManager | Manager Int
 
--- | No manager.
 defaultManager :: Manager
 defaultManager = NoManager
+
+----------------------------------------------------------------
 
 -- | An action to be performed on timeout.
 type TimeoutAction = IO ()
 
+----------------------------------------------------------------
+
 -- | A handle used by a timeout manager.
 data Handle = Handle
-    { handleManager :: Manager
-    , handleActionRef :: IORef TimeoutAction
-    , handleStateRef :: IORef State
+    { handleTimeout :: Int
+    , handleAction :: TimeoutAction
+    , handleKeyRef :: IORef TimeoutKey
     }
-
-{-# NOINLINE emptyAction #-}
-emptyAction :: IORef TimeoutAction
-emptyAction = unsafePerformIO $ I.newIORef (return ())
-
-{-# NOINLINE emptyState #-}
-emptyState :: IORef State
-emptyState = unsafePerformIO $ I.newIORef Inactive
-
-emptyHandle :: Handle
-emptyHandle =
-    Handle
-        { handleManager = NoManager
-        , handleActionRef = emptyAction
-        , handleStateRef = emptyState
-        }
-
-data State
-    = Active -- Manager turns it to Inactive.
-    | Inactive -- Manager removes it with timeout action.
-    | Paused -- Manager does not change it.
 
 ----------------------------------------------------------------
 
@@ -91,45 +72,18 @@ data State
 --   where N is the first argument.
 initialize :: Int -> IO Manager
 initialize timeout
-    | timeout <= 0 = return NoManager
-initialize timeout =
-    Manager
-        <$> mkReaper
-            defaultReaperSettings
-                { -- Data.Set cannot be used since 'partition' cannot be used
-                  -- with 'readIORef`. So, let's just use a list.
-                  reaperAction = mkListAction prune
-                , reaperDelay = timeout
-                , reaperThreadName = "WAI timeout manager (Reaper)"
-                }
-  where
-    prune m@Handle{..} = do
-        state <- I.atomicModifyIORef' handleStateRef (\x -> (inactivate x, x))
-        case state of
-            Inactive -> do
-                onTimeout <- I.readIORef handleActionRef
-                onTimeout `E.catch` ignoreSync
-                return Nothing
-            _ -> return $ Just m
-
-    inactivate Active = Inactive
-    inactivate x = x
+    | timeout <= 0 = error "initialize"
+initialize timeout = return $ Manager timeout
 
 ----------------------------------------------------------------
 
--- | Stopping timeout manager with onTimeout fired.
+-- | Obsoleted.
 stopManager :: Manager -> IO ()
-stopManager NoManager = return ()
-stopManager (Manager mgr) = E.mask_ (reaperStop mgr >>= mapM_ fire)
-  where
-    fire Handle{..} = do
-        onTimeout <- I.readIORef handleActionRef
-        onTimeout `E.catch` ignoreSync
+stopManager _ = return ()
 
--- | Killing timeout manager immediately without firing onTimeout.
+-- | Obsoleted.
 killManager :: Manager -> IO ()
-killManager NoManager = return ()
-killManager (Manager mgr) = reaperKill mgr
+killManager _ = return ()
 
 ----------------------------------------------------------------
 
@@ -137,7 +91,8 @@ killManager (Manager mgr) = reaperKill mgr
 --   when the body action is finished.
 --   'Nothing' is returned on timeout.
 withHandle :: Manager -> TimeoutAction -> (Handle -> IO a) -> IO (Maybe a)
-withHandle mgr onTimeout action =
+withHandle NoManager _ _ = error "withHandle: NoManager"
+withHandle mgr onTimeout action = do
     E.handle ignore $ E.bracket (register mgr onTimeout) cancel $ \th ->
         Just <$> action th
   where
@@ -146,6 +101,7 @@ withHandle mgr onTimeout action =
 -- | Registering a timeout action of killing this thread and
 --   unregister its handle when the body action is killed or finished.
 withHandleKillThread :: Manager -> TimeoutAction -> (Handle -> IO ()) -> IO ()
+withHandleKillThread NoManager _ _ = error "withHandleKillThread: NoManager"
 withHandleKillThread mgr onTimeout action =
     E.handle ignore $ E.bracket (registerKillThread mgr onTimeout) cancel action
   where
@@ -155,33 +111,45 @@ withHandleKillThread mgr onTimeout action =
 
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
-register NoManager _ = return emptyHandle
-register m@(Manager mgr) !onTimeout = do
-    actionRef <- I.newIORef onTimeout
-    stateRef <- I.newIORef Active
+register NoManager _ = error "register: NoManager"
+register (Manager timeout) onTimeout = do
+    mgr <- getSystemTimerManager
+    key <- registerTimeout mgr timeout onTimeout
+    keyref <- I.newIORef key
     let h =
             Handle
-                { handleManager = m
-                , handleActionRef = actionRef
-                , handleStateRef = stateRef
+                { handleTimeout = timeout
+                , handleAction = onTimeout
+                , handleKeyRef = keyref
                 }
-    reaperAdd mgr h
     return h
 
--- | Removing the 'Handle' from the 'Manager' immediately.
+-- | Unregistering the timeout.
 cancel :: Handle -> IO ()
-cancel Handle{..} = case handleManager of
-    NoManager -> return ()
-    Manager mgr -> void $ reaperModify mgr filt
-  where
-    -- It's very important that this function forces the whole workload so we
-    -- don't retain old handles, otherwise disasterous leaks occur.
-    filt [] = []
-    filt (h@(Handle _ _ ref) : hs)
-        | handleStateRef == ref = hs
-        | otherwise =
-            let !hs' = filt hs
-             in h : hs'
+cancel Handle{..} = do
+    mgr <- getSystemTimerManager
+    key <- I.readIORef handleKeyRef
+    unregisterTimeout mgr key
+
+-- | Extending the timeout.
+tickle :: Handle -> IO ()
+tickle Handle{..} = do
+    mgr <- getSystemTimerManager
+    key <- I.readIORef handleKeyRef
+    updateTimeout mgr key handleTimeout
+
+-- | This is identical to 'cancel'.
+--   To resume timeout with the same 'Handle', 'resume' MUST be called.
+--   Don't call 'tickle' for resumption.
+pause :: Handle -> IO ()
+pause = cancel
+
+-- | Resuming the timeout.
+resume :: Handle -> IO ()
+resume Handle{..} = do
+    mgr <- getSystemTimerManager
+    key <- registerTimeout mgr handleTimeout handleAction
+    I.writeIORef handleKeyRef key
 
 ----------------------------------------------------------------
 
@@ -193,6 +161,7 @@ data TimeoutThread = TimeoutThread
 instance E.Exception TimeoutThread where
     toException = E.asyncExceptionToException
     fromException = E.asyncExceptionFromException
+
 instance Show TimeoutThread where
     show TimeoutThread = "Thread killed by timeout manager"
 
@@ -210,29 +179,12 @@ registerKillThread m onTimeout = do
             mtid <- deRefWeak wtid
             case mtid of
                 Nothing -> return ()
+                -- FIXME: forkIO to prevent blocking TimerManger
                 Just tid' -> E.throwTo tid' TimeoutThread
 
 ----------------------------------------------------------------
 
--- | Setting the state to active.
---   'Manager' turns active to inactive repeatedly.
-tickle :: Handle -> IO ()
-tickle Handle{..} = I.writeIORef handleStateRef Active
-
--- | Setting the state to paused.
---   'Manager' does not change the value.
-pause :: Handle -> IO ()
-pause Handle{..} = I.writeIORef handleStateRef Paused
-
--- | Setting the paused state to active.
---   This is an alias to 'tickle'.
-resume :: Handle -> IO ()
-resume = tickle
-
-----------------------------------------------------------------
-
 -- | Call the inner function with a timeout manager.
---   'stopManager' is used after that.
 withManager
     :: Int
     -- ^ timeout in microseconds
@@ -245,7 +197,7 @@ withManager timeout f =
         f
 
 -- | Call the inner function with a timeout manager.
---   'killManager' is used after that.
+--   This is identical to 'withManager'.
 withManager'
     :: Int
     -- ^ timeout in microseconds
@@ -256,16 +208,3 @@ withManager' timeout f =
         (initialize timeout)
         killManager
         f
-
-----------------------------------------------------------------
-
-isAsyncException :: E.Exception e => e -> Bool
-isAsyncException e =
-    case E.fromException (E.toException e) of
-        Just (E.SomeAsyncException _) -> True
-        Nothing -> False
-
-ignoreSync :: E.SomeException -> IO ()
-ignoreSync se
-    | isAsyncException se = E.throwIO se
-    | otherwise = return ()
