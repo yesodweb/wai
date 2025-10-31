@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -42,7 +43,11 @@ import qualified Data.IORef as I
 import Data.Typeable (Typeable)
 import System.Mem.Weak (deRefWeak)
 
-import GHC.Event
+#if defined(mingw32_HOST_OS)
+import qualified GHC.Event.Windows as EV
+#else
+import qualified GHC.Event as EV
+#endif
 
 ----------------------------------------------------------------
 
@@ -63,7 +68,7 @@ type TimeoutAction = IO ()
 data Handle = Handle
     { handleTimeout :: Int
     , handleAction :: TimeoutAction
-    , handleKeyRef :: IORef TimeoutKey
+    , handleKeyRef :: IORef EV.TimeoutKey
     }
 
 ----------------------------------------------------------------
@@ -113,8 +118,8 @@ withHandleKillThread mgr onTimeout action =
 register :: Manager -> TimeoutAction -> IO Handle
 register NoManager _ = error "register: NoManager"
 register (Manager timeout) onTimeout = do
-    mgr <- getSystemTimerManager
-    key <- registerTimeout mgr timeout onTimeout
+    mgr <- getTimerManager
+    key <- EV.registerTimeout mgr timeout onTimeout
     keyref <- I.newIORef key
     let h =
             Handle
@@ -127,16 +132,20 @@ register (Manager timeout) onTimeout = do
 -- | Unregistering the timeout.
 cancel :: Handle -> IO ()
 cancel Handle{..} = do
-    mgr <- getSystemTimerManager
+    mgr <- getTimerManager
     key <- I.readIORef handleKeyRef
-    unregisterTimeout mgr key
+    EV.unregisterTimeout mgr key
 
 -- | Extending the timeout.
 tickle :: Handle -> IO ()
 tickle Handle{..} = do
-    mgr <- getSystemTimerManager
+    mgr <- getTimerManager
     key <- I.readIORef handleKeyRef
-    updateTimeout mgr key handleTimeout
+#if defined(mingw32_HOST_OS)
+    EV.updateTimeout mgr key $ fromIntegral (handleTimeout `div` 1000000)
+#else
+    EV.updateTimeout mgr key handleTimeout
+#endif
 
 -- | This is identical to 'cancel'.
 --   To resume timeout with the same 'Handle', 'resume' MUST be called.
@@ -147,8 +156,8 @@ pause = cancel
 -- | Resuming the timeout.
 resume :: Handle -> IO ()
 resume Handle{..} = do
-    mgr <- getSystemTimerManager
-    key <- registerTimeout mgr handleTimeout handleAction
+    mgr <- getTimerManager
+    key <- EV.registerTimeout mgr handleTimeout handleAction
     I.writeIORef handleKeyRef key
 
 ----------------------------------------------------------------
@@ -208,3 +217,11 @@ withManager' timeout f =
         (initialize timeout)
         killManager
         f
+
+#if defined(mingw32_HOST_OS)
+getTimerManager :: IO EV.Manager
+getTimerManager = EV.getSystemManager
+#else
+getTimerManager :: IO EV.TimerManager
+getTimerManager = EV.getSystemTimerManager
+#endif
