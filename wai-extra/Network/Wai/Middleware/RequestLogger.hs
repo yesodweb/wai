@@ -11,13 +11,16 @@ module Network.Wai.Middleware.RequestLogger (
 
     -- * Create more versions
     mkRequestLogger,
+
     -- ** Settings type
     RequestLoggerSettings,
     defaultRequestLoggerSettings,
+
     -- *** Settings fields
     outputFormat,
     autoFlush,
     destination,
+
     -- ** More settings
     OutputFormat (..),
     ApacheSettings,
@@ -232,7 +235,6 @@ data Destination
     = Handle Handle
     | Logger LoggerSet
     | Callback Callback
-
 
 -- | When using a callback as a destination.
 --

@@ -199,12 +199,31 @@ caseParseRequestBody = do
             `shouldThrow` anyException
     it "parsing filename with semi-colon" $ do
         SRequest req _bod <- toRequest'' ctype3 content6
-        let expected = ([], [("yaml", FileInfo "semi; colon;" "application/octet-stream" "Photo blog using Hack.\n")])
+        let expected =
+                ( []
+                ,
+                    [
+                        ( "yaml"
+                        , FileInfo "semi; colon;" "application/octet-stream" "Photo blog using Hack.\n"
+                        )
+                    ]
+                )
         body <- parseRequestBodyEx def lbsBackEnd req
         body `shouldBe` expected
     it "parsing filename with semi-colon" $ do
         SRequest req _bod <- toRequest'' ctype3 content7
-        let expected = ([], [("yaml", FileInfo "this will be dropped, !only this will be returned" "application/octet-stream" "Photo blog using Hack.\n")])
+        let expected =
+                ( []
+                ,
+                    [
+                        ( "yaml"
+                        , FileInfo
+                            "this will be dropped, !only this will be returned"
+                            "application/octet-stream"
+                            "Photo blog using Hack.\n"
+                        )
+                    ]
+                )
         body <- parseRequestBodyEx def lbsBackEnd req
         body `shouldBe` expected
   where

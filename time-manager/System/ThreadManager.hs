@@ -8,7 +8,7 @@ module System.ThreadManager (
     ThreadManager,
     newThreadManager,
     stopAfter,
-    KilledByThreadManager(..),
+    KilledByThreadManager (..),
 
     -- * Fork
     forkManaged,

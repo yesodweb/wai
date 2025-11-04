@@ -4,6 +4,7 @@ module Network.Wai.Handler.Warp.RequestHeader (
     parseHeaderLines,
 ) where
 
+import Control.Exception (throwIO)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C8 (unpack)
 import Data.ByteString.Internal (memchr)
@@ -13,7 +14,6 @@ import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, minusPtr, nullPtr, plusPtr)
 import Foreign.Storable (peek)
 import qualified Network.HTTP.Types as H
-import Control.Exception (throwIO)
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types

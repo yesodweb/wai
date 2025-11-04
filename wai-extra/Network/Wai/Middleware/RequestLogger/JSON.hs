@@ -42,7 +42,8 @@ formatAsJSON date req status responseSize duration reqBody response =
                         , "size" .= responseSize
                         , "body"
                             .= if statusCode status >= 400
-                                then Just . decodeUtf8With lenientDecode . toStrict . BB.toLazyByteString $ response
+                                then
+                                    Just . decodeUtf8With lenientDecode . toStrict . BB.toLazyByteString $ response
                                 else Nothing
                         ]
                 , "time" .= decodeUtf8With lenientDecode date

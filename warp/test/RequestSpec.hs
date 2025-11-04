@@ -103,7 +103,7 @@ spec = do
         let testLengthHeaders = ["Sta", "tus: 200\r", "\n", "Content-Type: ", "text/plain\r\n\r\n"]
             headerLength = getSum $ foldMap (Sum . S.length) testLengthHeaders
             testLength = headerLength - 2 -- Because the second CRLF at the end isn't counted
-        -- Length is 39, this shouldn't fail
+            -- Length is 39, this shouldn't fail
         it "doesn't throw on correct length" $ do
             src <- mkSourceFunc testLengthHeaders >>= mkSource
             x <- headerLines testLength FirstRequest src

@@ -1,33 +1,34 @@
 {-# LANGUAGE NumericUnderscores #-}
+
 module Control.DebounceSpec (main, spec) where
 
 import Control.Concurrent (
     MVar,
     newEmptyMVar,
-    takeMVar,
-    putMVar,
     newMVar,
+    putMVar,
+    takeMVar,
     threadDelay,
     tryReadMVar,
  )
 import Control.Debounce (
-    DebounceSettings(..),
+    DebounceSettings (..),
+    defaultDebounceSettings,
     leadingEdge,
     leadingMuteEdge,
-    trailingEdge,
     trailingDelayEdge,
-    defaultDebounceSettings,
+    trailingEdge,
  )
 import qualified Control.Debounce.Internal as DI
 import Control.Monad (void)
 import Control.Monad.Catch
-import Control.Retry (recovering, constantDelay, limitRetries)
-import Data.IORef (IORef, readIORef, newIORef, modifyIORef)
+import Control.Retry (constantDelay, limitRetries, recovering)
+import Data.IORef (IORef, modifyIORef, newIORef, readIORef)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTime)
-import Test.Hspec (Spec, describe, it, shouldReturn, hspec)
 import Test.HUnit (assertBool)
 import Test.HUnit.Lang (HUnitFailure (HUnitFailure))
+import Test.Hspec (Spec, describe, hspec, it, shouldReturn)
 
 spec :: Spec
 spec = describe "mkDebounce" $ do

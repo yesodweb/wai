@@ -6,6 +6,8 @@ module RunSpec (main, spec, withApp, MySocket, msWrite, msRead, withMySocket) wh
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import Control.Concurrent.STM
+import Control.Exception (IOException, bracket, onException, try)
+import qualified Control.Exception as E
 import Control.Monad (forM_, replicateM_, unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
@@ -23,8 +25,6 @@ import Network.Wai.Handler.Warp
 import System.IO.Unsafe (unsafePerformIO)
 import System.Timeout (timeout)
 import Test.Hspec
-import Control.Exception (IOException, bracket, onException, try)
-import qualified Control.Exception as E
 
 import HTTP
 

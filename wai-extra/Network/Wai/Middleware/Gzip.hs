@@ -211,7 +211,10 @@ instance Default.Default GzipSettings where
 -- | Deprecated synonym for the 'defaultGzipSettings'.
 def :: GzipSettings
 def = defaultGzipSettings
-{-# Deprecated def "Please use 'defaultGzipSettings'. 'def' and the Default instance will be removed in a future major update." #-}
+{-# DEPRECATED
+    def
+    "Please use 'defaultGzipSettings'. 'def' and the Default instance will be removed in a future major update."
+    #-}
 
 -- | Default settings for the 'gzip' middleware.
 --
