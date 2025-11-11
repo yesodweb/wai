@@ -66,6 +66,9 @@ http2 settings ii conn transport app peersa th bs = do
                 , confMySockAddr = connMySockAddr conn
                 , confPeerSockAddr = peersa
 #endif
+#if MIN_VERSION_http2(5,3,11)
+                , confReadNTimeout = True
+#endif
                 }
     checkTLS
     setConnHTTP2 conn True
