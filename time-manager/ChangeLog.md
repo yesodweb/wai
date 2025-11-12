@@ -1,5 +1,10 @@
 # ChangeLog for time-manager
 
+## 0.3.0
+
+* Using GHC.Event.TimerManager as backend
+  [#1046][https://github.com/yesodweb/wai/pull/1046]
+
 ## 0.2.3
 
 * Exporting defaultManager.
