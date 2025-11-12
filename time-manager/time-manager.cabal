@@ -17,6 +17,10 @@ category:           System
 build-type:         Simple
 extra-source-files: ChangeLog.md
 
+flag old-manager
+    description: Using the old time manager
+    default:     False
+
 library
     exposed-modules:
         System.TimeManager
@@ -29,3 +33,6 @@ library
         auto-update >=0.2 && <0.3,
         containers,
         stm
+
+    if (flag(old-manager))
+        cpp-options: -DUSE_OLD_MANAGER
