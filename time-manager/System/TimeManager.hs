@@ -86,7 +86,7 @@ data State
 
 ----------------------------------------------------------------
 
--- | Creating timeout manager which works every N micro seconds
+-- | Creating timeout manager which works every N microseconds
 --   where N is the first argument.
 initialize :: Int -> IO Manager
 initialize timeout
