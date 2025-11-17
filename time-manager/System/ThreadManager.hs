@@ -19,6 +19,7 @@ module System.ThreadManager (
 
     -- * Synchronization
     waitUntilAllGone,
+    isAllGone,
 
     -- * Re-exports
     T.Manager,
@@ -187,6 +188,11 @@ waitUntilAllGone :: ThreadManager -> IO ()
 waitUntilAllGone (ThreadManager _timmgr var) = atomically $ do
     m <- readTVar var
     check (Map.size m == 0)
+
+isAllGone :: ThreadManager -> STM Bool
+isAllGone (ThreadManager _timmgr var) = do
+    m <- readTVar var
+    return (Map.size m == 0)
 
 ----------------------------------------------------------------
 
