@@ -2,6 +2,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StrictData #-}
 
 module System.TimeManager (
     -- ** Types
@@ -40,7 +41,6 @@ import Control.Concurrent (mkWeakThreadId, myThreadId)
 import qualified Control.Exception as E
 import Data.IORef (IORef)
 import qualified Data.IORef as I
-import Data.Typeable (Typeable)
 import System.Mem.Weak (deRefWeak)
 
 #if defined(mingw32_HOST_OS)
@@ -52,10 +52,14 @@ import qualified GHC.Event as EV
 ----------------------------------------------------------------
 
 -- | A timeout manager
-data Manager = NoManager | Manager Int
+data Manager = Manager Int
 
 defaultManager :: Manager
-defaultManager = NoManager
+defaultManager = Manager 0
+
+isNoManager :: Manager -> Bool
+isNoManager (Manager 0) = True
+isNoManager _ = False
 
 ----------------------------------------------------------------
 
@@ -68,8 +72,19 @@ type TimeoutAction = IO ()
 data Handle = Handle
     { handleTimeout :: Int
     , handleAction :: TimeoutAction
-    , handleKeyRef :: IORef EV.TimeoutKey
+    , handleKeyRef :: ~(IORef EV.TimeoutKey)
     }
+
+emptyHandle :: Handle
+emptyHandle =
+    Handle
+        { handleTimeout = 0
+        , handleAction = return ()
+        , handleKeyRef = undefined
+        }
+
+isEmptyHandle :: Handle -> Bool
+isEmptyHandle Handle{..} = handleTimeout == 0
 
 ----------------------------------------------------------------
 
@@ -77,8 +92,8 @@ data Handle = Handle
 --   where N is the first argument.
 initialize :: Int -> IO Manager
 initialize timeout
-    | timeout <= 0 = error "initialize"
-initialize timeout = return $ Manager timeout
+    | timeout <= 0 = return defaultManager
+    | otherwise = return $ Manager timeout
 
 ----------------------------------------------------------------
 
@@ -96,19 +111,21 @@ killManager _ = return ()
 --   when the body action is finished.
 --   'Nothing' is returned on timeout.
 withHandle :: Manager -> TimeoutAction -> (Handle -> IO a) -> IO (Maybe a)
-withHandle NoManager _ _ = error "withHandle: NoManager"
-withHandle mgr onTimeout action = do
-    E.handle ignore $ E.bracket (register mgr onTimeout) cancel $ \th ->
-        Just <$> action th
+withHandle mgr onTimeout action
+    | isNoManager mgr = Just <$> action emptyHandle
+    | otherwise = do
+        E.handle ignore $ E.bracket (register mgr onTimeout) cancel $ \th ->
+            Just <$> action th
   where
     ignore TimeoutThread = return Nothing
 
 -- | Registering a timeout action of killing this thread and
 --   unregister its handle when the body action is killed or finished.
 withHandleKillThread :: Manager -> TimeoutAction -> (Handle -> IO ()) -> IO ()
-withHandleKillThread NoManager _ _ = error "withHandleKillThread: NoManager"
-withHandleKillThread mgr onTimeout action =
-    E.handle ignore $ E.bracket (registerKillThread mgr onTimeout) cancel action
+withHandleKillThread mgr onTimeout action
+    | isNoManager mgr = action emptyHandle
+    | otherwise =
+        E.handle ignore $ E.bracket (registerKillThread mgr onTimeout) cancel action
   where
     ignore TimeoutThread = return ()
 
@@ -116,21 +133,23 @@ withHandleKillThread mgr onTimeout action =
 
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
-register NoManager _ = error "register: NoManager"
-register (Manager timeout) onTimeout = do
-    mgr <- getTimerManager
-    key <- EV.registerTimeout mgr timeout onTimeout
-    keyref <- I.newIORef key
-    let h =
-            Handle
-                { handleTimeout = timeout
-                , handleAction = onTimeout
-                , handleKeyRef = keyref
-                }
-    return h
+register mgr@(Manager timeout) onTimeout
+    | isNoManager mgr = return emptyHandle
+    | otherwise = do
+        sysmgr <- getTimerManager
+        key <- EV.registerTimeout sysmgr timeout onTimeout
+        keyref <- I.newIORef key
+        let h =
+                Handle
+                    { handleTimeout = timeout
+                    , handleAction = onTimeout
+                    , handleKeyRef = keyref
+                    }
+        return h
 
 -- | Unregistering the timeout.
 cancel :: Handle -> IO ()
+cancel hd | isEmptyHandle hd = return ()
 cancel Handle{..} = do
     mgr <- getTimerManager
     key <- I.readIORef handleKeyRef
@@ -138,6 +157,7 @@ cancel Handle{..} = do
 
 -- | Extending the timeout.
 tickle :: Handle -> IO ()
+tickle h | isEmptyHandle h = return ()
 tickle Handle{..} = do
     mgr <- getTimerManager
     key <- I.readIORef handleKeyRef
@@ -155,6 +175,7 @@ pause = cancel
 
 -- | Resuming the timeout.
 resume :: Handle -> IO ()
+resume h | isEmptyHandle h = return ()
 resume Handle{..} = do
     mgr <- getTimerManager
     key <- EV.registerTimeout mgr handleTimeout handleAction
@@ -165,7 +186,6 @@ resume Handle{..} = do
 -- | The asynchronous exception thrown if a thread is registered via
 -- 'registerKillThread'.
 data TimeoutThread = TimeoutThread
-    deriving (Typeable)
 
 instance E.Exception TimeoutThread where
     toException = E.asyncExceptionToException
@@ -199,11 +219,7 @@ withManager
     -- ^ timeout in microseconds
     -> (Manager -> IO a)
     -> IO a
-withManager timeout f =
-    E.bracket
-        (initialize timeout)
-        stopManager
-        f
+withManager timeout f = initialize timeout >>= f
 
 -- | Call the inner function with a timeout manager.
 --   This is identical to 'withManager'.
@@ -212,11 +228,7 @@ withManager'
     -- ^ timeout in microseconds
     -> (Manager -> IO a)
     -> IO a
-withManager' timeout f =
-    E.bracket
-        (initialize timeout)
-        killManager
-        f
+withManager' timeout f = initialize timeout >>= f
 
 #if defined(mingw32_HOST_OS)
 getTimerManager :: IO EV.Manager

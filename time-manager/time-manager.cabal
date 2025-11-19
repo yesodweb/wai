@@ -22,8 +22,9 @@ library
         System.TimeManager
         System.ThreadManager
 
-    default-language: Haskell2010
-    ghc-options:      -Wall
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
     build-depends:
         base >=4.12 && <5,
         auto-update >=0.2 && <0.3,
