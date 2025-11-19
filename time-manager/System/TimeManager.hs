@@ -8,6 +8,7 @@ module System.TimeManager (
     defaultManager,
     TimeoutAction,
     Handle,
+    emptyHandle,
 
     -- ** Manager
     initialize,
