@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               time-manager
-version:            0.2.4
+version:            0.3.0
 license:            MIT
 license-file:       LICENSE
 maintainer:         kazu@iij.ad.jp
