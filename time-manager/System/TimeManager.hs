@@ -63,9 +63,11 @@ data Handle = Handle
     , handleStateRef :: IORef State
     }
 
+{-# NOINLINE emptyAction #-}
 emptyAction :: IORef TimeoutAction
 emptyAction = unsafePerformIO $ I.newIORef (return ())
 
+{-# NOINLINE emptyState #-}
 emptyState :: IORef State
 emptyState = unsafePerformIO $ I.newIORef Inactive
 
