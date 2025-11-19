@@ -1,5 +1,10 @@
 # ChangeLog for time-manager
 
+## 0.2.4
+
+* Providing `isAllGone`.
+* Providing emptyHandle.
+
 ## 0.2.3
 
 * Exporting defaultManager.
