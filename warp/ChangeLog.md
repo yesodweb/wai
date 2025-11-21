@@ -1,5 +1,9 @@
 # ChangeLog for warp
 
+## 3.4.10
+
+* Using newest dependencies
+
 ## 3.4.9
 
 * New flag `include-warp-version` can be disabled to remove dependency on `Paths_warp`.
