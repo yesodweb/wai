@@ -99,11 +99,13 @@ initialize = pure . Manager . max 0
 --   Is now equivalent to @pure ()@.
 stopManager :: Manager -> IO ()
 stopManager _ = return ()
+{-# DEPRECATED stopManager "This function does nothing since version 0.3.0" #-}
 
 -- | Obsoleted since version 0.3.0
 --   Is now equivalent to @pure ()@.
 killManager :: Manager -> IO ()
 killManager _ = return ()
+{-# DEPRECATED killManager "This function does nothing since version 0.3.0" #-}
 
 ----------------------------------------------------------------
 
@@ -229,6 +231,7 @@ withManager'
     -> (Manager -> IO a)
     -> IO a
 withManager' timeout f = initialize timeout >>= f
+{-# DEPRECATED withManager' "This function is the same as 'withManager' since version 0.3.0" #-}
 
 #if defined(mingw32_HOST_OS)
 getTimerManager :: IO EV.Manager
