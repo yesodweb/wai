@@ -27,6 +27,5 @@ library
     ghc-options:        -Wall
     build-depends:
         base >=4.12 && <5,
-        auto-update >=0.2 && <0.3,
         containers,
         stm

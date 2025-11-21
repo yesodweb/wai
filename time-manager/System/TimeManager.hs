@@ -52,7 +52,7 @@ import qualified GHC.Event as EV
 ----------------------------------------------------------------
 
 -- | A timeout manager
-data Manager = Manager Int
+newtype Manager = Manager Int
 
 defaultManager :: Manager
 defaultManager = Manager 0
@@ -80,7 +80,7 @@ emptyHandle =
     Handle
         { handleTimeout = 0
         , handleAction = return ()
-        , handleKeyRef = undefined
+        , handleKeyRef = error "time-manager: Handle.handleKeyRef not set"
         }
 
 isEmptyHandle :: Handle -> Bool
@@ -91,17 +91,17 @@ isEmptyHandle Handle{..} = handleTimeout == 0
 -- | Creating timeout manager which works every N microseconds
 --   where N is the first argument.
 initialize :: Int -> IO Manager
-initialize timeout
-    | timeout <= 0 = return defaultManager
-    | otherwise = return $ Manager timeout
+initialize = pure . Manager . max 0
 
 ----------------------------------------------------------------
 
--- | Obsoleted.
+-- | Obsoleted since version 0.3.0
+--   Is now equivalent to @pure ()@.
 stopManager :: Manager -> IO ()
 stopManager _ = return ()
 
--- | Obsoleted.
+-- | Obsoleted since version 0.3.0
+--   Is now equivalent to @pure ()@.
 killManager :: Manager -> IO ()
 killManager _ = return ()
 
