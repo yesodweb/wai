@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -55,20 +54,16 @@ http2 settings ii conn transport app peersa th bs = do
     let recvN = wrappedRecvN th (S.settingsSlowlorisSize settings) rawRecvN
         sendBS x = connSendAll conn x >> T.tickle th
         conf =
-            H2.Config
-                { confWriteBuffer = bufBuffer writeBuffer
-                , confBufferSize = bufSize writeBuffer
-                , confSendAll = sendBS
-                , confReadN = recvN
-                , confPositionReadMaker = pReadMaker ii
-                , confTimeoutManager = timeoutManager ii
-#if MIN_VERSION_http2(4,2,0)
-                , confMySockAddr = connMySockAddr conn
-                , confPeerSockAddr = peersa
-#endif
-#if MIN_VERSION_http2(5,3,11)
-                , confReadNTimeout = True
-#endif
+            H2.defaultConfig
+                { H2.confWriteBuffer = bufBuffer writeBuffer
+                , H2.confBufferSize = bufSize writeBuffer
+                , H2.confSendAll = sendBS
+                , H2.confReadN = recvN
+                , H2.confPositionReadMaker = pReadMaker ii
+                , H2.confTimeoutManager = timeoutManager ii
+                , H2.confMySockAddr = connMySockAddr conn
+                , H2.confPeerSockAddr = peersa
+                , H2.confReadNTimeout = True
                 }
     checkTLS
     setConnHTTP2 conn True
@@ -109,15 +104,15 @@ http2server label settings ii transport addr app h2req0 aux0 response = do
             logResponse req st msiz
             mapM_ (logPushPromise req) pps
         Left e
-          | isAsyncException e -> E.throwIO e
-          | otherwise -> do
-            S.settingsOnException settings (Just req) e
-            let ersp = S.settingsOnExceptionResponse settings e
-                st = responseStatus ersp
-            (h2rsp', _, _) <- fromResponse settings ii req ersp
-            let msiz = fromIntegral <$> H2.responseBodySize h2rsp'
-            _ <- response h2rsp' []
-            logResponse req st msiz
+            | isAsyncException e -> E.throwIO e
+            | otherwise -> do
+                S.settingsOnException settings (Just req) e
+                let ersp = S.settingsOnExceptionResponse settings e
+                    st = responseStatus ersp
+                (h2rsp', _, _) <- fromResponse settings ii req ersp
+                let msiz = fromIntegral <$> H2.responseBodySize h2rsp'
+                _ <- response h2rsp' []
+                logResponse req st msiz
     return ()
   where
     toWAIRequest h2req aux = toRequest ii settings addr hdr bdylen bdy th transport
@@ -147,8 +142,8 @@ wrappedRecvN th slowlorisSize readN bufsize = do
     -- we should allow only few connections per host (real-world
     -- deployments with large NATs may be trickier).
     when
-        (BS.length bs > 0 && BS.length bs >= slowlorisSize || bufsize <= slowlorisSize) $
-        T.tickle th
+        (BS.length bs > 0 && BS.length bs >= slowlorisSize || bufsize <= slowlorisSize)
+        $ T.tickle th
     return bs
   where
     handler :: E.SomeException -> IO ByteString
