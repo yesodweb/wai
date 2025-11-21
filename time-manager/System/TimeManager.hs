@@ -110,15 +110,10 @@ killManager _ = return ()
 
 -- | Registering a timeout action and unregister its handle
 --   when the body action is finished.
---   'Nothing' is returned on timeout.
-withHandle :: Manager -> TimeoutAction -> (Handle -> IO a) -> IO (Maybe a)
+withHandle :: Manager -> TimeoutAction -> (Handle -> IO a) -> IO a
 withHandle mgr onTimeout action
-    | isNoManager mgr = Just <$> action emptyHandle
-    | otherwise = do
-        E.handle ignore $ E.bracket (register mgr onTimeout) cancel $ \th ->
-            Just <$> action th
-  where
-    ignore TimeoutThread = return Nothing
+    | isNoManager mgr = action emptyHandle
+    | otherwise = E.bracket (register mgr onTimeout) cancel action
 
 -- | Registering a timeout action of killing this thread and
 --   unregister its handle when the body action is killed or finished.
