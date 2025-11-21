@@ -88,8 +88,7 @@ isEmptyHandle Handle{..} = handleTimeout == 0
 
 ----------------------------------------------------------------
 
--- | Creating timeout manager which works every N microseconds
---   where N is the first argument.
+-- | Creating timeout manager with a timeout value.
 initialize :: Int -> IO Manager
 initialize = pure . Manager . max 0
 
