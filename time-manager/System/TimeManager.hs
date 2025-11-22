@@ -4,6 +4,10 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 
+-- | Timeout manager. Since v0.3.0, timeout manager is a wrapper of
+-- GHC System TimerManager.
+--
+-- Users of old version should check the current semantics.
 module System.TimeManager (
     -- ** Types
     Manager,
@@ -54,6 +58,7 @@ import qualified GHC.Event as EV
 -- | A timeout manager
 newtype Manager = Manager Int
 
+-- | A manager whose timeout value is 0 (no callbacks are fired).
 defaultManager :: Manager
 defaultManager = Manager 0
 
@@ -63,7 +68,7 @@ isNoManager _ = False
 
 ----------------------------------------------------------------
 
--- | An action to be performed on timeout.
+-- | An action (callback) to be performed on timeout.
 type TimeoutAction = IO ()
 
 ----------------------------------------------------------------
@@ -75,6 +80,7 @@ data Handle = Handle
     , handleKeyRef :: ~(IORef EV.TimeoutKey)
     }
 
+-- | Dummy 'Handle'.
 emptyHandle :: Handle
 emptyHandle =
     Handle
