@@ -230,7 +230,7 @@ withManager'
     -- ^ timeout in microseconds
     -> (Manager -> IO a)
     -> IO a
-withManager' timeout f = initialize timeout >>= f
+withManager' = withManager
 {-# DEPRECATED withManager' "This function is the same as 'withManager' since version 0.3.0" #-}
 
 #if defined(mingw32_HOST_OS)
