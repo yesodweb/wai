@@ -94,7 +94,10 @@ isEmptyHandle Handle{..} = handleTimeout == 0
 
 ----------------------------------------------------------------
 
--- | Creating timeout manager with a timeout value.
+-- | Creating timeout manager with a timeout value in microseconds.
+--
+--   Setting the timeout to zero or lower (<= 0) will produce a
+--   `defaultManager`.
 initialize :: Int -> IO Manager
 initialize = pure . Manager . max 0
 
