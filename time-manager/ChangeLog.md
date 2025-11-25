@@ -10,7 +10,7 @@
   So, this version hopefully scales better.
 * Deprecated functions: `stopManager`, `killManager` and `withManager'`.
 * `tickle` sets the specified timeout from now.
-* `pause` is now idential to `cancel`.
+* `pause` is now identical to `cancel`.
 * `resume` is now re-registration of timeout.
 * The signature of `withHandle` is changed.
 
