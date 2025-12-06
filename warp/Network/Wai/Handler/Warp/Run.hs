@@ -220,7 +220,7 @@ runSettingsConnectionMakerSecure
     :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
 runSettingsConnectionMakerSecure set getConnMaker app = do
     settingsBeforeMainLoop set
-    counter <- newCounter
+    let counter = settingsConnectionCounter set
     withII set $ acceptConnection set getConnMaker app counter
 
 -- | Running an action with internal info.

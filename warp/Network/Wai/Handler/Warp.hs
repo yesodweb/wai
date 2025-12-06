@@ -89,6 +89,7 @@ module Network.Wai.Handler.Warp (
     getGracefulShutdownTimeout,
     getGracefulCloseTimeout1,
     getGracefulCloseTimeout2,
+    getOpenConnectionCount,
 
     -- ** Exception handler
     defaultOnException,
@@ -150,6 +151,7 @@ import Network.Socket (SockAddr, Socket)
 import Network.Wai (Request, Response, vault)
 import System.TimeManager
 
+import Network.Wai.Handler.Warp.Counter (getCount)
 import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.HTTP2.Request (
     getHTTP2Data,
@@ -563,6 +565,12 @@ setGracefulCloseTimeout2 x y = y{settingsGracefulCloseTimeout2 = x}
 -- Since 3.3.5
 getGracefulCloseTimeout2 :: Settings -> Int
 getGracefulCloseTimeout2 = settingsGracefulCloseTimeout2
+
+-- | Get the number of currently open connections.
+--
+-- Since 3.4.11
+getOpenConnectionCount :: Settings -> IO Int
+getOpenConnectionCount = getCount . settingsConnectionCounter
 
 #ifdef MIN_VERSION_crypton_x509
 -- | Getting information of client certificate.
