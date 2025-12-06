@@ -4,6 +4,11 @@ module Network.Wai.Handler.Warp.Internal (
     -- * Settings
     Settings (..),
     ProxyProtocol (..),
+    makeSettingsAndCounter,
+
+    -- * Connection counter
+    Counter,
+    getCount,
 
     -- * Low level run functions
     runSettingsConnection,
@@ -94,6 +99,7 @@ import Network.Socket.BufferPool
 import System.TimeManager
 
 import Network.Wai.Handler.Warp.Buffer
+import Network.Wai.Handler.Warp.Counter (Counter, getCount)
 import Network.Wai.Handler.Warp.Date
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.FileInfoCache

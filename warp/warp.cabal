@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               warp
-version:            3.4.10
+version:            3.4.11
 license:            MIT
 license-file:       LICENSE
 maintainer:         michael@snoyman.com
@@ -290,6 +290,7 @@ benchmark parser
     hs-source-dirs:   bench .
     other-modules:
         Network.Wai.Handler.Warp.Conduit
+        Network.Wai.Handler.Warp.Counter
         Network.Wai.Handler.Warp.Date
         Network.Wai.Handler.Warp.FdCache
         Network.Wai.Handler.Warp.FileInfoCache
@@ -322,6 +323,7 @@ benchmark parser
         network,
         network,
         recv,
+        stm,
         streaming-commons,
         text,
         time-manager,

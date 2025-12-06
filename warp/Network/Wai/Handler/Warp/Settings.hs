@@ -25,6 +25,7 @@ import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
 import System.TimeManager
 
+import Network.Wai.Handler.Warp.Counter (Counter, newCounter)
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
 #if WINDOWS
@@ -178,6 +179,14 @@ data Settings = Settings
     -- Default: 1049_000_000 = 1 MiB.
     --
     -- Since 3.3.22
+    , settingsConnectionCounter :: Maybe Counter
+    -- ^ A counter for tracking open connections.
+    -- Use 'makeSettingsAndCounter' to create settings with a counter,
+    -- then use 'getCount' on the returned 'Counter' to read the current value.
+    --
+    -- Default: 'Nothing' (warp creates an internal counter)
+    --
+    -- Since 3.4.11
     }
 
 -- | Specify usage of the PROXY protocol.
@@ -222,7 +231,17 @@ defaultSettings =
         , settingsMaxTotalHeaderLength = 50 * 1024
         , settingsAltSvc = Nothing
         , settingsMaxBuilderResponseBufferSize = 1049000000
+        , settingsConnectionCounter = Nothing
         }
+
+-- | Create 'Settings' with a connection counter.
+-- Use 'getCount' on the returned 'Counter' to check open connections.
+--
+-- Since 3.4.11
+makeSettingsAndCounter :: IO (Counter, Settings)
+makeSettingsAndCounter = do
+    counter <- newCounter
+    pure (counter, defaultSettings{settingsConnectionCounter = Just counter})
 
 -- | Apply the logic provided by 'defaultOnException' to determine if an
 -- exception should be shown or not. The goal is to hide exceptions which occur
