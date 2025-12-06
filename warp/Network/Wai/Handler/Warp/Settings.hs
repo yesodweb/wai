@@ -25,6 +25,9 @@ import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
 import System.TimeManager
 
+import System.IO.Unsafe (unsafePerformIO)
+
+import Network.Wai.Handler.Warp.Counter (Counter, newCounter)
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
 #if WINDOWS
@@ -178,6 +181,10 @@ data Settings = Settings
     -- Default: 1049_000_000 = 1 MiB.
     --
     -- Since 3.3.22
+    , settingsConnectionCounter :: Counter
+    -- ^ Use 'getOpenConnectionCount' to read the current value.
+    --
+    -- Since 3.4.11
     }
 
 -- | Specify usage of the PROXY protocol.
@@ -191,6 +198,11 @@ data ProxyProtocol
 
 -- | The default settings for the Warp server. See the individual settings for
 -- the default value.
+--
+-- NOINLINE is necessary to ensure the 'unsafePerformIO' for the connection
+-- counter is shared across all uses of 'defaultSettings', preventing GHC
+-- optimizations from creating multiple counters.
+{-# NOINLINE defaultSettings #-}
 defaultSettings :: Settings
 defaultSettings =
     Settings
@@ -222,6 +234,7 @@ defaultSettings =
         , settingsMaxTotalHeaderLength = 50 * 1024
         , settingsAltSvc = Nothing
         , settingsMaxBuilderResponseBufferSize = 1049000000
+        , settingsConnectionCounter = unsafePerformIO newCounter
         }
 
 -- | Apply the logic provided by 'defaultOnException' to determine if an
