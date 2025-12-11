@@ -1,5 +1,13 @@
 # ChangeLog for warp
 
+## 3.4.11
+
+* Expose a way to access the open connection `Counter` with `makeSettingsAndCounter`,
+  and `getCount` to be able to monitor the current open connections.
+* Added getter function to get the open connection counter from the `Settings` with
+  `getOpenConnectionCounter`.
+  [#1050](https://github.com/yesodweb/wai/pull/1050)
+
 ## 3.4.10
 
 * Using newest dependencies

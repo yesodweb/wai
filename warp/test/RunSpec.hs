@@ -21,7 +21,7 @@ import Network.HTTP.Types
 import Network.Socket
 import Network.Socket.ByteString (sendAll)
 import Network.Wai hiding (responseHeaders)
-import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp hiding (Counter)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Timeout (timeout)
 import Test.Hspec
