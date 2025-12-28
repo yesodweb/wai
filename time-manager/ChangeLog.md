@@ -1,5 +1,19 @@
 # ChangeLog for time-manager
 
+## 0.3.0
+
+* New architecture. The backend is switched from the designated thread
+  to GHC's System TimerManager. From this version, this library is
+  just wrapper APIs of GHC's System TimerManager. Unlike v0.2 or
+  earlier, callbacks are executed at the exact time. System
+  TimerManager uses a PSQ (a tree) while v0.2 or earlier uses a list.
+  So, this version hopefully scales better.
+* Deprecated functions: `stopManager`, `killManager` and `withManager'`.
+* `tickle` sets the specified timeout from now.
+* `pause` is now identical to `cancel`.
+* `resume` is now re-registration of timeout.
+* The signature of `withHandle` is changed.
+
 ## 0.2.4
 
 * Providing `isAllGone`.
