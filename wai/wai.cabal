@@ -17,7 +17,8 @@ extra-source-files:  README.md ChangeLog.md
 
 Source-repository head
     type:            git
-    location:        git://github.com/yesodweb/wai.git
+    location:        https://github.com/yesodweb/wai.git
+    subdir:          wai
 
 Library
   default-language: Haskell2010

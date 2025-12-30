@@ -6,14 +6,14 @@ license-file:       LICENSE
 maintainer:         michael@snoyman.com
 author:             Michael Snoyman, Kazu Yamamoto, Matt Brown
 stability:          Stable
-homepage:           http://github.com/yesodweb/wai
+homepage:           https://github.com/yesodweb/wai
 synopsis:           A fast, light-weight web server for WAI applications.
 description:
     HTTP\/1.0, HTTP\/1.1 and HTTP\/2 are supported.
     For HTTP\/2,  Warp supports direct and ALPN (in TLS)
     but not upgrade.
     API docs and the README are available at
-    <http://www.stackage.org/package/warp>.
+    <https://www.stackage.org/package/warp>.
 
 category:           Web, Yesod
 build-type:         Simple
@@ -26,7 +26,8 @@ extra-source-files:
 
 source-repository head
     type:     git
-    location: git://github.com/yesodweb/wai.git
+    location: https://github.com/yesodweb/wai.git
+    subdir:   warp
 
 flag network-bytestring
     default: False
@@ -103,7 +104,6 @@ library
         bytestring >=0.9.1.4,
         case-insensitive >=0.2,
         containers,
-        ghc-prim,
         hashable,
         http-date,
         http-types >=0.12,
@@ -240,7 +240,6 @@ test-suite spec
         case-insensitive >=0.2,
         containers,
         directory,
-        ghc-prim,
         hashable,
         hspec >=1.3,
         http-client,
@@ -316,7 +315,6 @@ benchmark parser
         case-insensitive,
         containers,
         criterion,
-        ghc-prim,
         hashable,
         http-date,
         http-types,
