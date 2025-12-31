@@ -45,7 +45,3 @@ test-suite test
                   , bytestring
     other-modules:  Network.WaiSpec
     build-tool-depends: hspec-discover:hspec-discover
-
-source-repository head
-  type:     git
-  location: git://github.com/yesodweb/wai.git
