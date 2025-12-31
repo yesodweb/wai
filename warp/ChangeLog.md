@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.4.12
+
+* Respond with `Connection: close` header if connection is to be closed after a request.
+   [#958](https://github.com/yesodweb/wai/pull/958)
+
 ## 3.4.11
 
 * Expose a way to access the open connection `Counter` with `makeSettingsAndCounter`,

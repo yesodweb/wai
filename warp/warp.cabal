@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               warp
-version:            3.4.11
+version:            3.4.12
 license:            MIT
 license-file:       LICENSE
 maintainer:         michael@snoyman.com
@@ -179,6 +179,7 @@ test-suite spec
     hs-source-dirs:     test .
     other-modules:
         ConduitSpec
+        ConnectionSpec
         ExceptionSpec
         FdCacheSpec
         FileSpec
