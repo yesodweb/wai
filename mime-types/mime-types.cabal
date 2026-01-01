@@ -22,4 +22,5 @@ library
 
 source-repository head
   type:     git
-  location: git://github.com/yesodweb/wai.git
+  location: https://github.com/yesodweb/wai.git
+  subdir:   mime-types

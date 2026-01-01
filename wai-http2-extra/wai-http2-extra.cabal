@@ -45,4 +45,5 @@ Test-Suite doctest
 
 Source-Repository head
   Type:     git
-  Location: git://github.com/yesodweb/wai.git
+  Location: https://github.com/yesodweb/wai.git
+  Subdir:   wai-http2-extra

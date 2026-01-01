@@ -15,9 +15,9 @@ import qualified Data.ByteString.Char8 as C8
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import GHC.Exts (fork#)
 import GHC.IO (IO (IO), unsafeUnmask)
 import GHC.IO.Exception (IOErrorType (..))
-import GHC.Prim (fork#)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr, Socket, accept)
 import Network.Wai
