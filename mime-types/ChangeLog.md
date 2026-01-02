@@ -1,3 +1,7 @@
+## 0.1.2.1
+
+* Change type for JavaScript files to `text/javascript` [#1051](https://github.com/yesodweb/wai/pull/1051)
+
 ## 0.1.2.0
 
 * Added `defaultExtensionMap` to provide the inverse of `defaultMimeMap`.
