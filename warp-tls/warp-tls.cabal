@@ -22,7 +22,7 @@ Library
                    , bytestring                    >= 0.9
                    , wai                           >= 3.2      && < 3.3
                    , warp                          >= 3.3.29   && < 3.5
-                   , tls                           >= 2.1.3    && < 2.2
+                   , tls                           >= 2.1.3    && < 2.3
                    , network                       >= 2.2.1
                    , streaming-commons
                    , tls-session-manager           >= 0.0.4
