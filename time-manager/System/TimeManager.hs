@@ -41,8 +41,9 @@ module System.TimeManager (
     TimeoutThread (..),
 ) where
 
-import Control.Concurrent (mkWeakThreadId, myThreadId)
+import Control.Concurrent (forkIO, mkWeakThreadId, myThreadId)
 import qualified Control.Exception as E
+import Control.Monad (void)
 import Data.IORef (IORef)
 import qualified Data.IORef as I
 import System.Mem.Weak (deRefWeak)
@@ -223,8 +224,7 @@ registerKillThread m onTimeout = do
             mtid <- deRefWeak wtid
             case mtid of
                 Nothing -> pure ()
-                -- FIXME: forkIO to prevent blocking TimerManger
-                Just tid' -> E.throwTo tid' TimeoutThread
+                Just tid' -> void . forkIO $ E.throwTo tid' TimeoutThread
 
 ----------------------------------------------------------------
 
