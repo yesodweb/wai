@@ -78,7 +78,12 @@ data Handle = Handle
     { handleTimeout :: Int
     , handleAction :: TimeoutAction
     , handleKeyRef :: ~(IORef EV.TimeoutKey)
+    , handleState :: ~(IORef HandleState)
     }
+
+-- | Tracking the state of a handle, to be able to have 'resume'
+-- act like a 'register' or 'tickle'.
+data HandleState = Active | Stopped
 
 -- | Dummy 'Handle'.
 emptyHandle :: Handle
@@ -87,6 +92,7 @@ emptyHandle =
         { handleTimeout = 0
         , handleAction = pure ()
         , handleKeyRef = error "time-manager: Handle.handleKeyRef not set"
+        , handleState = error "time-manager: Handle.handleState not set"
         }
 
 isEmptyHandle :: Handle -> Bool
@@ -144,11 +150,13 @@ register mgr@(Manager timeout) onTimeout
         sysmgr <- getTimerManager
         key <- EV.registerTimeout sysmgr timeout onTimeout
         keyref <- I.newIORef key
+        state <- I.newIORef Active
         let h =
                 Handle
                     { handleTimeout = timeout
                     , handleAction = onTimeout
                     , handleKeyRef = keyref
+                    , handleState = state
                     }
         pure h
 
@@ -158,6 +166,7 @@ cancel h@Handle{..} = withNonEmptyHandle h $ do
     mgr <- getTimerManager
     key <- I.readIORef handleKeyRef
     EV.unregisterTimeout mgr key
+    I.atomicWriteIORef handleState Stopped
 
 -- | Extending the timeout.
 tickle :: Handle -> IO ()
@@ -179,9 +188,14 @@ pause = cancel
 -- | Resuming the timeout.
 resume :: Handle -> IO ()
 resume h@Handle{..} = withNonEmptyHandle h $ do
-    mgr <- getTimerManager
-    key <- EV.registerTimeout mgr handleTimeout handleAction
-    I.writeIORef handleKeyRef key
+    state <- I.readIORef handleState
+    case state of
+        Active -> tickle h
+        Stopped -> do
+            mgr <- getTimerManager
+            key <- EV.registerTimeout mgr handleTimeout handleAction
+            I.atomicWriteIORef handleKeyRef key
+            I.atomicWriteIORef handleState Active
 
 ----------------------------------------------------------------
 
