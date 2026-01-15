@@ -4,10 +4,17 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 
--- | Timeout manager. Since v0.3.0, timeout manager is a wrapper of
+-- | Timeout manager. Since @v0.3.0@, timeout manager is a wrapper of
 -- GHC System TimerManager.
 --
--- Users of old version should check the current semantics.
+-- Some caveats of using this package:
+--   * Only works for GHC
+--   * Only works with a threaded runtime
+--   * Users of older versions should check the current semantics.
+--   * Using 32-bit systems means the max timeout is @'maxBound' :: Int@
+--     (2147483647) microseconds, which is less than 36 minutes.
+--   * Using the same 'Handle' in different threads might cause issues
+--     in some edge cases.
 module System.TimeManager (
     -- ** Types
     Manager,
@@ -41,8 +48,9 @@ module System.TimeManager (
     TimeoutThread (..),
 ) where
 
-import Control.Concurrent (mkWeakThreadId, myThreadId)
+import Control.Concurrent (forkIO, mkWeakThreadId, myThreadId)
 import qualified Control.Exception as E
+import Control.Monad (void)
 import Data.IORef (IORef)
 import qualified Data.IORef as I
 import System.Mem.Weak (deRefWeak)
@@ -78,15 +86,21 @@ data Handle = Handle
     { handleTimeout :: Int
     , handleAction :: TimeoutAction
     , handleKeyRef :: ~(IORef EV.TimeoutKey)
+    , handleState :: ~(IORef HandleState)
     }
+
+-- | Tracking the state of a handle, to be able to have 'resume'
+-- act like a 'register' or 'tickle'.
+data HandleState = Active | Stopped
 
 -- | Dummy 'Handle'.
 emptyHandle :: Handle
 emptyHandle =
     Handle
         { handleTimeout = 0
-        , handleAction = return ()
+        , handleAction = pure ()
         , handleKeyRef = error "time-manager: Handle.handleKeyRef not set"
+        , handleState = error "time-manager: Handle.handleState not set"
         }
 
 isEmptyHandle :: Handle -> Bool
@@ -106,13 +120,13 @@ initialize = pure . Manager . max 0
 -- | Obsoleted since version 0.3.0
 --   Is now equivalent to @pure ()@.
 stopManager :: Manager -> IO ()
-stopManager _ = return ()
+stopManager _ = pure ()
 {-# DEPRECATED stopManager "This function does nothing since version 0.3.0" #-}
 
 -- | Obsoleted since version 0.3.0
 --   Is now equivalent to @pure ()@.
 killManager :: Manager -> IO ()
-killManager _ = return ()
+killManager _ = pure ()
 {-# DEPRECATED killManager "This function does nothing since version 0.3.0" #-}
 
 ----------------------------------------------------------------
@@ -132,38 +146,41 @@ withHandleKillThread mgr onTimeout action
     | otherwise =
         E.handle ignore $ E.bracket (registerKillThread mgr onTimeout) cancel action
   where
-    ignore TimeoutThread = return ()
+    ignore TimeoutThread = pure ()
 
 ----------------------------------------------------------------
 
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
 register mgr@(Manager timeout) onTimeout
-    | isNoManager mgr = return emptyHandle
+    | isNoManager mgr = pure emptyHandle
     | otherwise = do
         sysmgr <- getTimerManager
         key <- EV.registerTimeout sysmgr timeout onTimeout
         keyref <- I.newIORef key
+        state <- I.newIORef Active
         let h =
                 Handle
                     { handleTimeout = timeout
                     , handleAction = onTimeout
                     , handleKeyRef = keyref
+                    , handleState = state
                     }
-        return h
+        pure h
 
 -- | Unregistering the timeout.
 cancel :: Handle -> IO ()
-cancel hd | isEmptyHandle hd = return ()
-cancel Handle{..} = do
+cancel h@Handle{..} = withNonEmptyHandle h $ do
     mgr <- getTimerManager
     key <- I.readIORef handleKeyRef
     EV.unregisterTimeout mgr key
+    I.atomicWriteIORef handleState Stopped
 
 -- | Extending the timeout.
+--
+-- Careful: this does NOT reactivate an already paused 'Handle'!
 tickle :: Handle -> IO ()
-tickle h | isEmptyHandle h = return ()
-tickle Handle{..} = do
+tickle h@Handle{..} = withNonEmptyHandle h $ do
     mgr <- getTimerManager
     key <- I.readIORef handleKeyRef
 #if defined(mingw32_HOST_OS)
@@ -179,12 +196,18 @@ pause :: Handle -> IO ()
 pause = cancel
 
 -- | Resuming the timeout.
+--
+-- Works like 'tickle' if the 'Handle' wasn't 'pause'd or 'cancel'ed.
 resume :: Handle -> IO ()
-resume h | isEmptyHandle h = return ()
-resume Handle{..} = do
-    mgr <- getTimerManager
-    key <- EV.registerTimeout mgr handleTimeout handleAction
-    I.writeIORef handleKeyRef key
+resume h@Handle{..} = withNonEmptyHandle h $ do
+    state <- I.readIORef handleState
+    case state of
+        Active -> tickle h
+        Stopped -> do
+            mgr <- getTimerManager
+            key <- EV.registerTimeout mgr handleTimeout handleAction
+            I.atomicWriteIORef handleKeyRef key
+            I.atomicWriteIORef handleState Active
 
 ----------------------------------------------------------------
 
@@ -205,16 +228,14 @@ instance Show TimeoutThread where
 --   want to leak the asynchronous exception to GHC RTS.
 registerKillThread :: Manager -> TimeoutAction -> IO Handle
 registerKillThread m onTimeout = do
-    tid <- myThreadId
-    wtid <- mkWeakThreadId tid
+    wtid <- myThreadId >>= mkWeakThreadId
     -- First run the timeout action in case the child thread is masked.
     register m $
         onTimeout `E.finally` do
             mtid <- deRefWeak wtid
             case mtid of
-                Nothing -> return ()
-                -- FIXME: forkIO to prevent blocking TimerManger
-                Just tid' -> E.throwTo tid' TimeoutThread
+                Nothing -> pure ()
+                Just tid' -> void . forkIO $ E.throwTo tid' TimeoutThread
 
 ----------------------------------------------------------------
 
@@ -243,3 +264,7 @@ getTimerManager = EV.getSystemManager
 getTimerManager :: IO EV.TimerManager
 getTimerManager = EV.getSystemTimerManager
 #endif
+
+withNonEmptyHandle :: Handle -> IO () -> IO ()
+withNonEmptyHandle h act =
+    if isEmptyHandle h then pure () else act

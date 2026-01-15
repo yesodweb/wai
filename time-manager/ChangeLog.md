@@ -1,5 +1,16 @@
 # ChangeLog for time-manager
 
+## 0.3.1
+
+BUGFIXES:
+
+* `resume` now acts as a `tickle` if the `Handle` isn't paused.
+  This is the same behaviour as before version `0.3.0`.
+* `registerKillThread` now throws the `TimeoutThread` in a separate
+  thread, so as to not block the GHC's System TimerManager.
+  This does mean that `TimeoutThread` exceptions could technically
+  be thrown "out of order", but they will be more prompt.
+
 ## 0.3.0
 
 * New architecture. The backend is switched from the designated thread
