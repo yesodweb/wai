@@ -85,7 +85,7 @@ emptyHandle :: Handle
 emptyHandle =
     Handle
         { handleTimeout = 0
-        , handleAction = return ()
+        , handleAction = pure ()
         , handleKeyRef = error "time-manager: Handle.handleKeyRef not set"
         }
 
@@ -106,13 +106,13 @@ initialize = pure . Manager . max 0
 -- | Obsoleted since version 0.3.0
 --   Is now equivalent to @pure ()@.
 stopManager :: Manager -> IO ()
-stopManager _ = return ()
+stopManager _ = pure ()
 {-# DEPRECATED stopManager "This function does nothing since version 0.3.0" #-}
 
 -- | Obsoleted since version 0.3.0
 --   Is now equivalent to @pure ()@.
 killManager :: Manager -> IO ()
-killManager _ = return ()
+killManager _ = pure ()
 {-# DEPRECATED killManager "This function does nothing since version 0.3.0" #-}
 
 ----------------------------------------------------------------
@@ -132,14 +132,14 @@ withHandleKillThread mgr onTimeout action
     | otherwise =
         E.handle ignore $ E.bracket (registerKillThread mgr onTimeout) cancel action
   where
-    ignore TimeoutThread = return ()
+    ignore TimeoutThread = pure ()
 
 ----------------------------------------------------------------
 
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
 register mgr@(Manager timeout) onTimeout
-    | isNoManager mgr = return emptyHandle
+    | isNoManager mgr = pure emptyHandle
     | otherwise = do
         sysmgr <- getTimerManager
         key <- EV.registerTimeout sysmgr timeout onTimeout
@@ -150,7 +150,7 @@ register mgr@(Manager timeout) onTimeout
                     , handleAction = onTimeout
                     , handleKeyRef = keyref
                     }
-        return h
+        pure h
 
 -- | Unregistering the timeout.
 cancel :: Handle -> IO ()
@@ -205,14 +205,13 @@ instance Show TimeoutThread where
 --   want to leak the asynchronous exception to GHC RTS.
 registerKillThread :: Manager -> TimeoutAction -> IO Handle
 registerKillThread m onTimeout = do
-    tid <- myThreadId
-    wtid <- mkWeakThreadId tid
+    wtid <- myThreadId >>= mkWeakThreadId
     -- First run the timeout action in case the child thread is masked.
     register m $
         onTimeout `E.finally` do
             mtid <- deRefWeak wtid
             case mtid of
-                Nothing -> return ()
+                Nothing -> pure ()
                 -- FIXME: forkIO to prevent blocking TimerManger
                 Just tid' -> E.throwTo tid' TimeoutThread
 
