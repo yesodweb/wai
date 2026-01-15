@@ -4,10 +4,17 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 
--- | Timeout manager. Since v0.3.0, timeout manager is a wrapper of
+-- | Timeout manager. Since @v0.3.0@, timeout manager is a wrapper of
 -- GHC System TimerManager.
 --
--- Users of old version should check the current semantics.
+-- Some caveats of using this package:
+--   * Only works for GHC
+--   * Only works with a threaded runtime
+--   * Users of older versions should check the current semantics.
+--   * Using 32-bit systems means the max timeout is @'maxBound' :: Int@
+--     (2147483647) microseconds, which is less than 36 minutes.
+--   * Using the same 'Handle' in different threads might cause issues
+--     in some edge cases.
 module System.TimeManager (
     -- ** Types
     Manager,
@@ -170,6 +177,8 @@ cancel h@Handle{..} = withNonEmptyHandle h $ do
     I.atomicWriteIORef handleState Stopped
 
 -- | Extending the timeout.
+--
+-- Careful: this does NOT reactivate an already paused 'Handle'!
 tickle :: Handle -> IO ()
 tickle h@Handle{..} = withNonEmptyHandle h $ do
     mgr <- getTimerManager
@@ -187,6 +196,8 @@ pause :: Handle -> IO ()
 pause = cancel
 
 -- | Resuming the timeout.
+--
+-- Works like 'tickle' if the 'Handle' wasn't 'pause'd or 'cancel'ed.
 resume :: Handle -> IO ()
 resume h@Handle{..} = withNonEmptyHandle h $ do
     state <- I.readIORef handleState
