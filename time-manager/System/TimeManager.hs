@@ -154,16 +154,14 @@ register mgr@(Manager timeout) onTimeout
 
 -- | Unregistering the timeout.
 cancel :: Handle -> IO ()
-cancel hd | isEmptyHandle hd = return ()
-cancel Handle{..} = do
+cancel h@Handle{..} = withNonEmptyHandle h $ do
     mgr <- getTimerManager
     key <- I.readIORef handleKeyRef
     EV.unregisterTimeout mgr key
 
 -- | Extending the timeout.
 tickle :: Handle -> IO ()
-tickle h | isEmptyHandle h = return ()
-tickle Handle{..} = do
+tickle h@Handle{..} = withNonEmptyHandle h $ do
     mgr <- getTimerManager
     key <- I.readIORef handleKeyRef
 #if defined(mingw32_HOST_OS)
@@ -180,8 +178,7 @@ pause = cancel
 
 -- | Resuming the timeout.
 resume :: Handle -> IO ()
-resume h | isEmptyHandle h = return ()
-resume Handle{..} = do
+resume h@Handle{..} = withNonEmptyHandle h $ do
     mgr <- getTimerManager
     key <- EV.registerTimeout mgr handleTimeout handleAction
     I.writeIORef handleKeyRef key
@@ -242,3 +239,7 @@ getTimerManager = EV.getSystemManager
 getTimerManager :: IO EV.TimerManager
 getTimerManager = EV.getSystemTimerManager
 #endif
+
+withNonEmptyHandle :: Handle -> IO () -> IO ()
+withNonEmptyHandle h act =
+    if isEmptyHandle h then pure () else act
