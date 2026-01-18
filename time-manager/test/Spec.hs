@@ -21,15 +21,8 @@ import qualified GHC.Event as EV
 #endif
 
 main :: IO ()
-main = hspec $
+main = hspec $ do
     describe "TimeManager" $ do
-        it "empty check is correct" $
-            handleTimeout emptyHandle `shouldBe` 0
-
-        it "empty handle check is consistent" $ do
-            assertBool "emptyHandle not empty" $
-                isEmptyHandle emptyHandle
-
         it "defaultManager == no manager" $
             defaultManager `shouldSatisfy` isNoManager
 
@@ -37,6 +30,13 @@ main = hspec $
             let check = (`shouldBe` defaultManager)
             initialize (-10) >>= check
             withManager (-5) check
+
+        it "empty handle is correct" $
+            handleTimeout emptyHandle `shouldBe` 0
+
+        it "empty handle check is consistent" $ do
+            assertBool "emptyHandle not empty" $
+                isEmptyHandle emptyHandle
 
         it "gives emptyHandle when registering defaultManager" $ do
             hndl <- register defaultManager $ pure ()

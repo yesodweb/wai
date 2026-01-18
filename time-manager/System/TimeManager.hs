@@ -10,8 +10,8 @@
 --   * Users of older versions should check the current semantics.
 --   * Using 32-bit systems means the max timeout is @'maxBound' :: Int@
 --     (2147483647) microseconds, which is less than 36 minutes.
---   * Using the same 'Handle' in different threads might cause issues
---     in some edge cases.
+--   * Using the same 'Handle' in different threads might cause issues in some
+--     edge cases. (i.e. using cancel/pause in one thread, and resume in another)
 module System.TimeManager (
     -- ** Types
     Manager,
