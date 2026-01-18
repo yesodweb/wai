@@ -123,6 +123,12 @@ main = hspec $ do
         it "resume also works as tickle" $
             testResume resume
 
+        it "resume also works as tickle with pauses" $
+            testResume $ \hndl -> do
+                resume hndl
+                pause hndl
+                resume hndl
+
         it "old resume did NOT work as tickle" $
             throwsTimeoutThread $
                 testResume oldResume
