@@ -45,3 +45,11 @@ isEmptyHandle Handle{..} = handleTimeout == 0
 withNonEmptyHandle :: Handle -> IO () -> IO ()
 withNonEmptyHandle h act =
     if isEmptyHandle h then pure () else act
+
+#if defined(mingw32_HOST_OS)
+getTimerManager :: IO EV.Manager
+getTimerManager = EV.getSystemManager
+#else
+getTimerManager :: IO EV.TimerManager
+getTimerManager = EV.getSystemTimerManager
+#endif

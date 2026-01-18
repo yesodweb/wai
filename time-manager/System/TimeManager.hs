@@ -226,11 +226,3 @@ withManager'
     -> IO a
 withManager' = withManager
 {-# DEPRECATED withManager' "This function is the same as 'withManager' since version 0.3.0" #-}
-
-#if defined(mingw32_HOST_OS)
-getTimerManager :: IO EV.Manager
-getTimerManager = EV.getSystemManager
-#else
-getTimerManager :: IO EV.TimerManager
-getTimerManager = EV.getSystemTimerManager
-#endif

@@ -1,14 +1,24 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Main where
 
 import Control.Concurrent (threadDelay)
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Control.Monad (forM_, void)
+import Data.IORef as I (IORef, newIORef, readIORef, writeIORef)
 import System.TimeManager
 import System.TimeManager.Internal
 import Test.HUnit (assertBool)
 import Test.Hspec
+
+#if defined(mingw32_HOST_OS)
+import qualified GHC.Event.Windows as EV
+#else
+import qualified GHC.Event as EV
+#endif
 
 main :: IO ()
 main = hspec $
@@ -90,3 +100,11 @@ throwsTimeoutThread t = t `shouldThrow` (const True :: TimeoutThread -> Bool)
 
 deriving instance Eq Manager
 deriving instance Show Manager
+
+-- copied from time-manager-0.3.0 to check it actually is broken
+oldResume :: Handle -> IO ()
+oldResume h | isEmptyHandle h = return ()
+oldResume Handle{..} = do
+    mgr <- getTimerManager
+    key <- EV.registerTimeout mgr handleTimeout handleAction
+    I.writeIORef handleKeyRef key
