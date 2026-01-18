@@ -1,8 +1,5 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StrictData #-}
 
 -- | Timeout manager. Since @v0.3.0@, timeout manager is a wrapper of
 -- GHC System TimerManager.
@@ -13,8 +10,8 @@
 --   * Users of older versions should check the current semantics.
 --   * Using 32-bit systems means the max timeout is @'maxBound' :: Int@
 --     (2147483647) microseconds, which is less than 36 minutes.
---   * Using the same 'Handle' in different threads might cause issues
---     in some edge cases.
+--   * Using the same 'Handle' in different threads might cause issues in some
+--     edge cases. (i.e. using cancel/pause in one thread, and resume in another)
 module System.TimeManager (
     -- ** Types
     Manager,
@@ -51,9 +48,9 @@ module System.TimeManager (
 import Control.Concurrent (forkIO, mkWeakThreadId, myThreadId)
 import qualified Control.Exception as E
 import Control.Monad (void)
-import Data.IORef (IORef)
 import qualified Data.IORef as I
 import System.Mem.Weak (deRefWeak)
+import System.TimeManager.Internal
 
 #if defined(mingw32_HOST_OS)
 import qualified GHC.Event.Windows as EV
@@ -63,35 +60,11 @@ import qualified GHC.Event as EV
 
 ----------------------------------------------------------------
 
--- | A timeout manager
-newtype Manager = Manager Int
-
 -- | A manager whose timeout value is 0 (no callbacks are fired).
 defaultManager :: Manager
 defaultManager = Manager 0
 
-isNoManager :: Manager -> Bool
-isNoManager (Manager 0) = True
-isNoManager _ = False
-
 ----------------------------------------------------------------
-
--- | An action (callback) to be performed on timeout.
-type TimeoutAction = IO ()
-
-----------------------------------------------------------------
-
--- | A handle used by a timeout manager.
-data Handle = Handle
-    { handleTimeout :: Int
-    , handleAction :: TimeoutAction
-    , handleKeyRef :: ~(IORef EV.TimeoutKey)
-    , handleState :: ~(IORef HandleState)
-    }
-
--- | Tracking the state of a handle, to be able to have 'resume'
--- act like a 'register' or 'tickle'.
-data HandleState = Active | Stopped
 
 -- | Dummy 'Handle'.
 emptyHandle :: Handle
@@ -102,9 +75,6 @@ emptyHandle =
         , handleKeyRef = error "time-manager: Handle.handleKeyRef not set"
         , handleState = error "time-manager: Handle.handleState not set"
         }
-
-isEmptyHandle :: Handle -> Bool
-isEmptyHandle Handle{..} = handleTimeout == 0
 
 ----------------------------------------------------------------
 
@@ -256,15 +226,3 @@ withManager'
     -> IO a
 withManager' = withManager
 {-# DEPRECATED withManager' "This function is the same as 'withManager' since version 0.3.0" #-}
-
-#if defined(mingw32_HOST_OS)
-getTimerManager :: IO EV.Manager
-getTimerManager = EV.getSystemManager
-#else
-getTimerManager :: IO EV.TimerManager
-getTimerManager = EV.getSystemTimerManager
-#endif
-
-withNonEmptyHandle :: Handle -> IO () -> IO ()
-withNonEmptyHandle h act =
-    if isEmptyHandle h then pure () else act

@@ -10,6 +10,8 @@ cradle:
 
     - path: "./time-manager/System"
       component: "time-manager:lib"
+    - path: "./time-manager/test"
+      component: "time-manager:test:spec"
 
     - path: "./wai/Network"
       component: "wai:lib"
