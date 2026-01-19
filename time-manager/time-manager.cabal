@@ -21,6 +21,8 @@ library
     exposed-modules:
         System.TimeManager
         System.ThreadManager
+    other-modules:
+        System.TimeManager.Internal
 
     default-language:   Haskell2010
     default-extensions: Strict StrictData
@@ -29,3 +31,17 @@ library
         base >=4.12 && <5,
         containers,
         stm
+
+test-suite spec
+    type:             exitcode-stdio-1.0
+    main-is:          test/Spec.hs
+    other-modules:
+        System.TimeManager,
+        System.TimeManager.Internal
+    build-depends:    base
+    default-language: Haskell2010
+    ghc-options:      -Wall -threaded
+    build-depends:
+        base,
+        hspec,
+        HUnit
