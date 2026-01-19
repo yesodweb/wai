@@ -42,6 +42,6 @@ test-suite spec
     default-language: Haskell2010
     ghc-options:      -Wall -threaded
     build-depends:
-        base,
+        base >=4.12 && <5,
         hspec,
         HUnit
