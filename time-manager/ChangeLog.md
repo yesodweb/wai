@@ -1,5 +1,9 @@
 # ChangeLog for time-manager
 
+## 0.3.1.1
+
+* Added `README.md` file and improved documentation of modules and functions.
+
 ## 0.3.1
 
 BUGFIXES:
