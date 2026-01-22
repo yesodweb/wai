@@ -16,6 +16,7 @@ description:
 category:           System
 build-type:         Simple
 extra-source-files: ChangeLog.md
+                    README.md
 
 library
     exposed-modules:
