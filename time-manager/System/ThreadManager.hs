@@ -36,7 +36,7 @@ import Control.Exception (Exception (..), SomeException (..))
 import qualified Control.Exception as E
 import Control.Monad (unless, void)
 import Data.Foldable (forM_)
-import Data.IORef
+import Data.IORef (IORef, atomicModifyIORef', newIORef)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Word (Word64)
@@ -140,26 +140,30 @@ forkManagedTimeout (ThreadManager timmgr var) label io =
     ex = KilledByThreadManager Nothing
 
 -- | Fork a managed thread with a cleanup function.
-forkManagedFinally :: ThreadManager -> String -> IO () -> IO () -> IO ()
-forkManagedFinally mgr label io final = E.mask $ \restore ->
-    forkManaged
-        mgr
-        label
-        (E.try (restore io) >>= \(_ :: Either E.SomeException ()) -> final)
+forkManagedFinally
+    :: ThreadManager
+    -> String
+    -- ^ Thread name
+    -> IO ()
+    -- ^ Action
+    -> IO ()
+    -- ^ Cleanup function
+    -> IO ()
+forkManagedFinally mgr label io final =
+    forkManagedUnmask mgr label $ \restore ->
+        E.try (restore io) >>= \(_ :: Either E.SomeException ()) -> final
 
 -- | Fork a managed thread with a handle created by a timeout manager
 -- and with a cleanup function.
 forkManagedTimeoutFinally
     :: ThreadManager -> String -> (T.Handle -> IO ()) -> IO () -> IO ()
 forkManagedTimeoutFinally mgr label io final = E.mask $ \restore ->
-    forkManagedTimeout
-        mgr
-        label
-        (\th -> E.try (restore $ io th) >>= \(_ :: Either E.SomeException ()) -> final)
+    forkManagedTimeout mgr label $ \th ->
+        E.try (restore $ io th) >>= \(_ :: Either E.SomeException ()) -> final
 
 setup :: TVar (Map Key ManagedThread) -> IO (Key, Weak ThreadId, IORef Bool)
 setup var = do
-    (wtid, n) <- myWeakThradId
+    (wtid, n) <- myWeakThreadId
     ref <- newIORef False
     let ent = ManagedThread wtid ref
     -- asking to throw KilledByThreadManager to me
@@ -186,19 +190,18 @@ ignore (KilledByThreadManager _) = return ()
 
 -- | Wait until all managed thread are finished.
 waitUntilAllGone :: ThreadManager -> IO ()
-waitUntilAllGone (ThreadManager _timmgr var) = atomically $ do
-    m <- readTVar var
-    check (Map.size m == 0)
+waitUntilAllGone tm =
+    atomically $
+        isAllGone tm >>= check
 
 isAllGone :: ThreadManager -> STM Bool
-isAllGone (ThreadManager _timmgr var) = do
-    m <- readTVar var
-    return (Map.size m == 0)
+isAllGone (ThreadManager _timmgr var) =
+    Map.null <$> readTVar var
 
 ----------------------------------------------------------------
 
-myWeakThradId :: IO (Weak ThreadId, Key)
-myWeakThradId = do
+myWeakThreadId :: IO (Weak ThreadId, Key)
+myWeakThreadId = do
     tid <- myThreadId
     wtid <- mkWeakThreadId tid
     let n = fromThreadId tid
