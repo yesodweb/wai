@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               time-manager
-version:            0.3.1
+version:            0.3.1.1
 license:            MIT
 license-file:       LICENSE
 maintainer:         kazu@iij.ad.jp
@@ -16,6 +16,7 @@ description:
 category:           System
 build-type:         Simple
 extra-source-files: ChangeLog.md
+                    README.md
 
 library
     exposed-modules:

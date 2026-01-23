@@ -5,6 +5,7 @@
 -- GHC System TimerManager.
 --
 -- Some caveats of using this package:
+--
 --   * Only works for GHC
 --   * Only works with a threaded runtime
 --   * Users of older versions should check the current semantics.
