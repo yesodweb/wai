@@ -1,3 +1,7 @@
+## 0.1.2.2
+
+* Add IANA registered `image/avif` type for `.avif` images. [#1059](https://github.com/yesodweb/wai/pull/1059)
+
 ## 0.1.2.1
 
 * Change type for JavaScript files to `text/javascript` [#1051](https://github.com/yesodweb/wai/pull/1051)
