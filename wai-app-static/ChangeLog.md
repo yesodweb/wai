@@ -1,5 +1,10 @@
 # wai-app-static changelog
 
+## 3.1.9.1
+
+* Backported a patch to not need `crypton` as a dependency.
+  Instead, just depend on `base64-bytestring` and `cryptohash-md5`.
+
 ## 3.1.9
 
 * Added `NoCache` constructor to `MaxAge` [#977](https://github.com/yesodweb/wai/pull/977)
