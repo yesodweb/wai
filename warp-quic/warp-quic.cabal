@@ -21,7 +21,7 @@ library
         bytestring,
         http3 <0.2,
         network,
-        quic >=0.2 && <0.3,
+        quic >=0.2 && <0.4,
         tls >=0.8 && < 3,
         wai,
         warp >=3.4.4
