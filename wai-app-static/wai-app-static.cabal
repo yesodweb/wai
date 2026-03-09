@@ -54,8 +54,8 @@ library
                    , optparse-applicative      >= 0.7
                    , warp                      >= 3.0.11   && < 3.5
     if flag(crypton)
-      build-depends: crypton                   >= 0.6
-                   , memory                    >= 0.7
+      build-depends: crypton                   >= 1.1.0    && < 1.2
+                   , ram                       >= 0.21
     else
       build-depends: base64-bytestring         >= 0.1
                    , cryptohash-md5            >= 0.11.101
