@@ -1,5 +1,9 @@
 # wai-app-static changelog
 
+## 3.2.0
+
+* Using "ram" instead of "memory".
+
 ## 3.1.9
 
 * Added `NoCache` constructor to `MaxAge` [#977](https://github.com/yesodweb/wai/pull/977)
