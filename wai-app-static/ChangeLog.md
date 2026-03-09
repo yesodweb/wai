@@ -1,5 +1,9 @@
 # wai-app-static changelog
 
+## 3.2.1
+
+* Removing the dependency to "crypton".
+
 ## 3.2.0
 
 * Using "ram" instead of "memory".
