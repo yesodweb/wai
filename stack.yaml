@@ -24,11 +24,12 @@ nix:
   - zlib
 extra-deps:
   - ech-config-0.0.1
-  - hpke-0.0.0
+  - hpke-0.1.0
   - http-semantics-0.4.0
   - http2-5.4.0
-  - http3-0.1.2
-  - quic-0.2.21
+  - http3-0.1.3
+  - quic-0.3.0
+  - ram-0.21.1
   - random-1.3.1
   - sockaddr-0.0.1
-  - tls-2.1.11
+  - tls-2.3.0
