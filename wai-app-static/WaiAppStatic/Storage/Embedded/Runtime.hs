@@ -17,13 +17,8 @@ import Data.Ord
 import qualified Data.Text as T
 import qualified Network.Wai as W
 import WaiAppStatic.Types
-#ifdef MIN_VERSION_crypton
-import Crypto.Hash (hash, MD5, Digest)
-import Data.ByteArray.Encoding
-#else
 import Crypto.Hash.MD5 (hash)
 import Data.ByteString.Base64 (encode)
-#endif
 import System.FilePath (isPathSeparator)
 import WaiAppStatic.Storage.Filesystem (defaultFileServerSettings)
 
@@ -62,7 +57,7 @@ toEntry (name, EEFile bs) =
             { fileGetSize = fromIntegral $ S.length bs
             , fileToResponse = \s h -> W.responseBuilder s h $ byteString bs
             , fileName = name
-            , fileGetHash = return $ Just $ runHash bs
+            , fileGetHash = return $ Just $ encode $ hash bs
             , fileGetModified = Nothing
             }
 
@@ -100,13 +95,6 @@ bsToFile name bs =
         { fileGetSize = fromIntegral $ S.length bs
         , fileToResponse = \s h -> W.responseBuilder s h $ byteString bs
         , fileName = name
-        , fileGetHash = return $ Just $ runHash bs
+        , fileGetHash = return $ Just $ encode $ hash bs
         , fileGetModified = Nothing
         }
-
-runHash :: ByteString -> ByteString
-#ifdef MIN_VERSION_crypton
-runHash = convertToBase Base64 . (hash :: S.ByteString -> Digest MD5)
-#else
-runHash = encode . hash
-#endif

@@ -37,13 +37,8 @@ import System.PosixCompat.Files (
 import Util
 import WaiAppStatic.Listing
 import WaiAppStatic.Types
-#ifdef MIN_VERSION_crypton
-import Data.ByteArray.Encoding
-import Crypto.Hash (hashlazy, MD5, Digest)
-#else
 import Data.ByteString.Base64 (encode)
 import Crypto.Hash.MD5 (hashlazy)
-#endif
 import qualified Data.ByteString.Lazy as BL (hGetContents)
 import qualified Data.Text as T
 
@@ -157,13 +152,8 @@ webAppLookup hashFunc prefix pieces =
 hashFile :: FilePath -> IO ByteString
 hashFile fp = withBinaryFile fp ReadMode $ \h -> do
     f <- BL.hGetContents h
-#ifdef MIN_VERSION_crypton
-    let !hash = hashlazy f :: Digest MD5
-    return $ convertToBase Base64 hash
-#else
     let !hash = hashlazy f
     return . encode $ hash
-#endif
 
 hashFileIfExists :: ETagLookup
 hashFileIfExists fp = do
