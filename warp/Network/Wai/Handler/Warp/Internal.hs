@@ -14,6 +14,13 @@ module Network.Wai.Handler.Warp.Internal (
     runSettingsConnection,
     runSettingsConnectionMaker,
     runSettingsConnectionMakerSecure,
+    -- TODO naming and order tidy-up
+    ShutdownManager,
+    ShutdownState,
+    newShutdownManger,
+    newShutdownState,
+    handleShutdown,
+    ensureGracefulShutdown,
     Transport (..),
 
     -- * Connection

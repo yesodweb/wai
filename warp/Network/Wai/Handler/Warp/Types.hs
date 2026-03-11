@@ -20,6 +20,7 @@ import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.Imports
+import Control.Concurrent.STM (TVar, readTVarIO)
 
 ----------------------------------------------------------------
 
@@ -105,6 +106,9 @@ data WriteBuffer = WriteBuffer
 
 type RecvBuf = Buffer -> BufSize -> IO Bool
 
+newtype ShutdownManager = ShutdownManager (TVar Bool)
+data ShutdownState = ShutdownState ShutdownManager (IORef Bool)
+
 -- | Data type to manipulate IO actions for connections.
 --   This is used to abstract IO actions for plain HTTP and HTTP over TLS.
 data Connection = Connection
@@ -130,7 +134,12 @@ data Connection = Connection
     , connHTTP2 :: IORef Bool
     -- ^ Is this connection HTTP/2?
     , connMySockAddr :: SockAddr
+    , connShutdownState :: ShutdownState
+    -- ^ Is keep-alive still enabled for this connection?
     }
+
+connShuttingDown :: Connection -> IO Bool
+connShuttingDown Connection{connShutdownState=(ShutdownState (ShutdownManager shuttingDown) _)} = readTVarIO shuttingDown
 
 getConnHTTP2 :: Connection -> IO Bool
 getConnHTTP2 = readIORef . connHTTP2

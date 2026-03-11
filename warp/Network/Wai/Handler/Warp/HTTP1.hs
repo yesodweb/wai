@@ -120,6 +120,10 @@ http1server settings ii conn transport app addr th istatus src =
         -- See comment below referencing
         -- https://github.com/yesodweb/wai/issues/618
         | Just NoKeepAliveRequest <- fromException e = return ()
+        | Just ConnectionClosedByPeer <- fromException e = do
+            -- do not throw if we are closing
+            shuttingDown <- connShuttingDown conn
+            unless shuttingDown $ throwIO e
         -- No valid request
         | Just (BadFirstLine _) <- fromException e = return ()
         | isAsyncException e = throwIO e

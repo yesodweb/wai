@@ -24,6 +24,7 @@ Library
                    , warp                          >= 3.3.29   && < 3.5
                    , tls                           >= 2.1.3    && < 2.4
                    , network                       >= 2.2.1
+                   , stm                           >= 2.3
                    , streaming-commons
                    , tls-session-manager           >= 0.0.4
                    , recv                          >= 0.1.0   && < 0.2.0
