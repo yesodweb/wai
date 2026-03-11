@@ -11,7 +11,7 @@ module Network.Wai.Handler.Warp.Run where
 import Control.Arrow (first)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
-import Data.IORef (newIORef, readIORef)
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
 import GHC.Conc.Sync (labelThread, myThreadId)
@@ -21,12 +21,12 @@ import Network.Socket (
     Socket,
     SocketOption (..),
     close,
-#if !WINDOWS
+
     fdSocket,
-#endif
+
     getSocketName,
     setSocketOption,
-    withSocketsDo,
+    withSocketsDo, waitReadSocketSTM,
  )
 #if MIN_VERSION_network(3,1,1)
 import Network.Socket (gracefulClose)
@@ -51,19 +51,34 @@ import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
+import Control.Concurrent.STM (orElse, atomically, TVar, newTVarIO, writeTVar, check, readTVar, readTVarIO)
+import Data.Functor (($>))
+import Control.Exception (bracket_)
+
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
-socketConnection :: Settings -> Socket -> IO Connection
+socketConnection :: Settings -> Socket -> TVar Bool -> IO Bool -> IO Connection
 #if MIN_VERSION_network(3,1,1)
-socketConnection set s = do
+socketConnection set s shuttingDown isInProgress = do
 #else
-socketConnection _ s = do
+socketConnection _ s shuttingDown isInProgress = do
 #endif
     bufferPool <- newBufferPool 2048 16384
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
+    waitForSocketRead <- waitReadSocketSTM s
+    let receive' sock pool = E.handle handler $ do
+            inProgress <- isInProgress
+            if inProgress then
+                receive sock pool
+            else
+                join $ atomically $
+                    -- TODO write in a more direct style as per maintainer prefs
+                    ((check =<< readTVar shuttingDown) $> mempty)
+                    `orElse`
+                    (waitForSocketRead $> receive sock pool)
     return
         Connection
             { connSendMany = Sock.sendMany s
@@ -87,15 +102,13 @@ socketConnection _ s = do
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
+            , connKeepAlive = not <$> readTVarIO shuttingDown
             }
   where
-    receive' sock pool = E.handle handler $ receive sock pool
-      where
-        handler :: E.IOException -> IO ByteString
-        handler e
-            | ioeGetErrorType e == InvalidArgument = return ""
-            | otherwise = E.throwIO e
-
+    handler :: E.IOException -> IO ByteString
+    handler e
+        | ioeGetErrorType e == InvalidArgument = return ""
+        | otherwise = E.throwIO e
     sendfile writeBufferRef fid offset len hook headers = do
         writeBuffer <- readIORef writeBufferRef
         sendFile
@@ -170,17 +183,19 @@ runSettings set app =
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket set@Settings{settingsAccept = accept'} socket app = do
     settingsInstallShutdownHandler set closeListenSocket
-    runSettingsConnection set getConn app
-  where
-    getConn = do
-        (s, sa) <- accept' socket
-        setSocketCloseOnExec s
-        -- NoDelay causes an error for AF_UNIX.
-        setSocketOption s NoDelay 1 `E.catch` throughAsync (return ())
-        conn <- socketConnection set s
-        return (conn, sa)
-
-    closeListenSocket = close socket
+    shuttingDown <- newTVarIO False
+    inProgress <- newIORef False
+    let app' req = bracket_ (writeIORef inProgress True) (writeIORef inProgress False) . app req
+        getConn = do
+            (s, sa) <- accept' socket
+            setSocketCloseOnExec s
+            -- NoDelay causes an error for AF_UNIX.
+            setSocketOption s NoDelay 1 `E.catch` throughAsync (return ())
+            conn <- socketConnection set s shuttingDown (readIORef inProgress)
+            return (conn, sa)
+    runSettingsConnection set shuttingDown getConn app'
+    where
+        closeListenSocket = close socket
 
 -- | The connection setup action would be expensive. A good example
 -- is initialization of TLS.
@@ -192,19 +207,19 @@ runSettingsSocket set@Settings{settingsAccept = accept'} socket app = do
 --
 -- Since 1.3.5
 runSettingsConnection
-    :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
-runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
+    :: Settings -> TVar Bool -> IO (Connection, SockAddr) -> Application -> IO ()
+runSettingsConnection set shuttingDown = runSettingsConnectionMaker set shuttingDown . getConnMaker
   where
-    getConnMaker = do
+    getConnMaker getConn = do
         (conn, sa) <- getConn
         return (return conn, sa)
 
 -- | This modifies the connection maker so that it returns 'TCP' for 'Transport'
 -- (i.e. plain HTTP) then calls 'runSettingsConnectionMakerSecure'.
 runSettingsConnectionMaker
-    :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
-runSettingsConnectionMaker x y =
-    runSettingsConnectionMakerSecure x (toTCP <$> y)
+    :: Settings -> TVar Bool -> IO (IO Connection, SockAddr) -> Application -> IO ()
+runSettingsConnectionMaker x shuttingDown y =
+    runSettingsConnectionMakerSecure x shuttingDown (toTCP <$> y)
   where
     toTCP = first ((,TCP) <$>)
 
@@ -217,13 +232,13 @@ runSettingsConnectionMaker x y =
 --
 -- Since 2.1.4
 runSettingsConnectionMakerSecure
-    :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
-runSettingsConnectionMakerSecure set getConnMaker app = do
+    :: Settings -> TVar Bool -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
+runSettingsConnectionMakerSecure set shuttingDown getConnMaker app = do
     settingsBeforeMainLoop set
     counter <- case settingsConnectionCounter set of
         Just c -> pure c
         Nothing -> newCounter
-    withII set $ acceptConnection set getConnMaker app counter
+    withII set $ acceptConnection set shuttingDown getConnMaker app counter
 
 -- | Running an action with internal info.
 --
@@ -263,18 +278,20 @@ withII set action =
 -- Our approach is explained in the comments below.
 acceptConnection
     :: Settings
+    -> TVar Bool
     -> IO (IO (Connection, Transport), SockAddr)
     -> Application
     -> Counter
     -> InternalInfo
     -> IO ()
-acceptConnection set getConnMaker app counter ii = do
+acceptConnection set shuttingDown getConnMaker app counter ii = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
     --
-    -- acceptLoop can be broken by closing the listening socket.
+    -- acceptLoop can be broken by closing the shuttingDown socket.
     void $ E.mask_ acceptLoop
+    void $ atomically $ writeTVar shuttingDown True
     -- In some cases, we want to stop Warp here without graceful shutdown.
     -- So, async exceptions are allowed here.
     -- That's why `finally` is not used.

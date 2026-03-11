@@ -130,6 +130,8 @@ data Connection = Connection
     , connHTTP2 :: IORef Bool
     -- ^ Is this connection HTTP/2?
     , connMySockAddr :: SockAddr
+    , connKeepAlive :: IO Bool
+    -- ^ Is keep-alive still enabled for this connection?
     }
 
 getConnHTTP2 :: Connection -> IO Bool
