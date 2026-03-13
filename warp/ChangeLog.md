@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.4.12.1
+
+* Fix: [#853] Graceful shutdown not working with keep-alive.
+    [#1064] (https://github.com/yesodweb/wai/pull/1064)
+
 ## 3.4.12
 
 * Respond with `Connection: close` header if connection is to be closed after a request.
