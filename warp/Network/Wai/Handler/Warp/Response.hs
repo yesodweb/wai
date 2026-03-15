@@ -120,6 +120,31 @@ sendResponse
     -> IO Bool
     -- ^ Returing True if the connection is persistent.
 sendResponse settings conn ii th req reqidxhdr src response = do
+    -- handle graceful shutdown
+    shouldKeepAlive <- connKeepAlive conn
+    let
+        (isPersistReq, isChunked0) = infoFromRequest req reqidxhdr
+        isPersist = shouldKeepAlive && isPersistReq
+        isChunked = not isHead && isChunked0
+        (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist, isChunked)
+        rsp = case response of
+            ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr (T.tickle th)
+            ResponseBuilder _ _ b
+                | isHead -> RspNoBody
+                | otherwise -> RspBuilder b needsChunked
+            ResponseStream _ _ fb
+                | isHead -> RspNoBody
+                | otherwise -> RspStream fb needsChunked
+            ResponseRaw raw _ -> RspRaw raw src
+        -- Make sure we don't hang on to 'response' (avoid space leak)
+        !ret = case response of
+            ResponseFile{} -> isPersist
+            ResponseBuilder{} -> isKeepAlive
+            ResponseStream{} -> isKeepAlive
+            ResponseRaw{} -> False
+        addConnection hs = if (hasBody s && not ret) || (not (hasBody s) && not isPersist)
+                        then (H.hConnection, "close") : hs
+                        else hs
     hs <- addConnection . addAltSvc settings <$> addServerAndDate hs0
     if hasBody s
         then do
@@ -148,31 +173,10 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     s = responseStatus response
     hs0 = sanitizeHeaders $ responseHeaders response
     rspidxhdr = indexResponseHeader hs0
-    addConnection hs = if (hasBody s && not ret) || (not (hasBody s) && not isPersist)
-                       then (H.hConnection, "close") : hs
-                       else hs
     getdate = getDate ii
     addServerAndDate = addDate getdate rspidxhdr . addServer defServer rspidxhdr
-    (isPersist, isChunked0) = infoFromRequest req reqidxhdr
-    isChunked = not isHead && isChunked0
-    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist, isChunked)
     method = requestMethod req
     isHead = method == H.methodHead
-    rsp = case response of
-        ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr (T.tickle th)
-        ResponseBuilder _ _ b
-            | isHead -> RspNoBody
-            | otherwise -> RspBuilder b needsChunked
-        ResponseStream _ _ fb
-            | isHead -> RspNoBody
-            | otherwise -> RspStream fb needsChunked
-        ResponseRaw raw _ -> RspRaw raw src
-    -- Make sure we don't hang on to 'response' (avoid space leak)
-    !ret = case response of
-        ResponseFile{} -> isPersist
-        ResponseBuilder{} -> isKeepAlive
-        ResponseStream{} -> isKeepAlive
-        ResponseRaw{} -> False
 
 ----------------------------------------------------------------
 
