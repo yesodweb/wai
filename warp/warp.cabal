@@ -258,6 +258,8 @@ test-suite spec
         time-manager,
         vault,
         wai >=3.2.2.1 && <3.3,
+        -- workaround: this should be unnecessary
+        warp,
         word8
 
     if flag(x509)
