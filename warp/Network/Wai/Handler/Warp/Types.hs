@@ -4,6 +4,7 @@
 
 module Network.Wai.Handler.Warp.Types where
 
+import Control.Concurrent.STM (TVar)
 import qualified Data.ByteString as S
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Typeable (Typeable)
@@ -130,6 +131,7 @@ data Connection = Connection
     , connHTTP2 :: IORef Bool
     -- ^ Is this connection HTTP/2?
     , connMySockAddr :: SockAddr
+    , connShuttingDown :: TVar Bool
     }
 
 getConnHTTP2 :: Connection -> IO Bool

@@ -9,6 +9,7 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
+import Control.Concurrent.STM (newTVarIO, TVar, atomically, writeTVar)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.IORef (newIORef, readIORef)
@@ -53,11 +54,11 @@ import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
-socketConnection :: Settings -> Socket -> IO Connection
+socketConnection :: Settings -> Socket -> TVar Bool -> IO Connection
 #if MIN_VERSION_network(3,1,1)
-socketConnection set s = do
+socketConnection set s shuttingDown = do
 #else
-socketConnection _ s = do
+socketConnection _ s shuttingDown = do
 #endif
     bufferPool <- newBufferPool 2048 16384
     writeBuffer <- createWriteBuffer 16384
@@ -87,6 +88,7 @@ socketConnection _ s = do
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
+            , connShuttingDown = shuttingDown
             }
   where
     receive' sock pool = E.handle handler $ receive sock pool
@@ -169,15 +171,16 @@ runSettings set app =
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket set@Settings{settingsAccept = accept'} socket app = do
+    shuttingDown <- newTVarIO False
     settingsInstallShutdownHandler set closeListenSocket
-    runSettingsConnection set getConn app
+    runSettingsConnection set (getConn shuttingDown) app shuttingDown
   where
-    getConn = do
+    getConn shuttingDown = do
         (s, sa) <- accept' socket
         setSocketCloseOnExec s
         -- NoDelay causes an error for AF_UNIX.
         setSocketOption s NoDelay 1 `E.catch` throughAsync (return ())
-        conn <- socketConnection set s
+        conn <- socketConnection set s shuttingDown
         return (conn, sa)
 
     closeListenSocket = close socket
@@ -192,7 +195,7 @@ runSettingsSocket set@Settings{settingsAccept = accept'} socket app = do
 --
 -- Since 1.3.5
 runSettingsConnection
-    :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
+    :: Settings -> IO (Connection, SockAddr) -> Application -> TVar Bool -> IO ()
 runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
   where
     getConnMaker = do
@@ -202,7 +205,7 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
 -- | This modifies the connection maker so that it returns 'TCP' for 'Transport'
 -- (i.e. plain HTTP) then calls 'runSettingsConnectionMakerSecure'.
 runSettingsConnectionMaker
-    :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
+    :: Settings -> IO (IO Connection, SockAddr) -> Application -> TVar Bool -> IO ()
 runSettingsConnectionMaker x y =
     runSettingsConnectionMakerSecure x (toTCP <$> y)
   where
@@ -217,13 +220,13 @@ runSettingsConnectionMaker x y =
 --
 -- Since 2.1.4
 runSettingsConnectionMakerSecure
-    :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
-runSettingsConnectionMakerSecure set getConnMaker app = do
+    :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> TVar Bool -> IO ()
+runSettingsConnectionMakerSecure set getConnMaker app shuttingDown = do
     settingsBeforeMainLoop set
     counter <- case settingsConnectionCounter set of
         Just c -> pure c
         Nothing -> newCounter
-    withII set $ acceptConnection set getConnMaker app counter
+    withII set $ acceptConnection set getConnMaker app counter shuttingDown
 
 -- | Running an action with internal info.
 --
@@ -266,9 +269,10 @@ acceptConnection
     -> IO (IO (Connection, Transport), SockAddr)
     -> Application
     -> Counter
+    -> TVar Bool
     -> InternalInfo
     -> IO ()
-acceptConnection set getConnMaker app counter ii = do
+acceptConnection set getConnMaker app counter shuttingDown ii = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
@@ -278,6 +282,7 @@ acceptConnection set getConnMaker app counter ii = do
     -- In some cases, we want to stop Warp here without graceful shutdown.
     -- So, async exceptions are allowed here.
     -- That's why `finally` is not used.
+    atomically $ writeTVar shuttingDown True
     gracefulShutdown set counter
   where
     acceptLoop = do
