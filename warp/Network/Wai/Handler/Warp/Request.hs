@@ -15,7 +15,7 @@ module Network.Wai.Handler.Warp.Request (
     NoKeepAliveRequest (..),
 ) where
 
-import qualified Control.Concurrent as Conc (yield)
+import qualified Control.Concurrent as Conc
 import Control.Concurrent.STM
 import Data.Array ((!))
 import qualified Data.ByteString as S
@@ -55,12 +55,13 @@ import Network.Wai.Handler.Warp.Settings (
 -- | first request on this connection?
 data FirstRequest = FirstRequest | SubsequentRequest
 
-recvRequest :: Settings -> Connection -> InternalInfo -> Timeout.Handle -> SockAddr -> Source -> Transport -> TBQueue (Either SomeException (Request, Maybe (I.IORef Int), IndexedHeader, IO ByteString)) -> IO ()
-recvRequest settings conn ii th addr src transport reqQ = loop FirstRequest
+recvRequest :: Settings -> Connection -> InternalInfo -> Timeout.Handle -> SockAddr -> Source -> Transport -> TBQueue (Either SomeException (Request, Maybe (I.IORef Int), IndexedHeader, IO ByteString)) -> Conc.MVar () -> IO ()
+recvRequest settings conn ii th addr src transport reqQ sync = loop FirstRequest
   where
     loop firstRequest = do
         ex <- try $ recvRequest' firstRequest settings conn ii th addr src transport
         atomically $ writeTBQueue reqQ ex
+        Conc.takeMVar sync
         loop SubsequentRequest
 
 

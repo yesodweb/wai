@@ -130,9 +130,10 @@ http1server
     -> IO ()
 http1server settings ii conn transport app addr th istatus src = do
     reqQ <- newTBQueueIO 10 -- fixme: hard coding
-    let reader = recvRequest settings conn ii th addr src transport reqQ
+    sync <- Conc.newEmptyMVar
+    let reader = recvRequest settings conn ii th addr src transport reqQ sync
     bracket (Conc.forkIO reader) Conc.killThread $ \_ ->
-        loop reqQ `catch` handler
+        loop reqQ sync `catch` handler
   where
     handler e
         -- See comment below referencing
@@ -153,7 +154,7 @@ http1server settings ii conn transport app addr th istatus src = do
                     e
             throwIO e
 
-    loop reqQ = do
+    loop reqQ sync = do
         ready <- atomically $ checkLoop (connShuttingDown conn) reqQ
         when ready $ do
             ex <- atomically $ readTBQueue reqQ
@@ -187,8 +188,9 @@ http1server settings ii conn transport app addr th istatus src = do
                     -- throw a NoKeepAliveRequest exception, which we catch here
                     -- and ignore. See: https://github.com/yesodweb/wai/issues/618
 
+                    Conc.putMVar sync ()
                     case keepAlive of
-                        ReuseConnection -> loop reqQ
+                        ReuseConnection -> loop reqQ sync
                         CloseConnection -> return ()
 
 data ReuseConnection = ReuseConnection | CloseConnection
