@@ -1,19 +1,24 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.Wai.Handler.Warp.Types where
 
-import Control.Concurrent.STM (TVar)
+import Control.Concurrent (MVar, newEmptyMVar)
+import Control.Concurrent.STM (TVar, newTVarIO)
+import qualified Control.Exception as E
+import Data.Array
 import qualified Data.ByteString as S
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import qualified Data.IORef as I
 import Data.Typeable (Typeable)
-import qualified Control.Exception as E
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
 import Network.Socket (SockAddr)
 import Network.Socket.BufferPool
+import Network.Wai
 import System.Posix.Types (Fd)
 import qualified System.TimeManager as T
 
@@ -131,8 +136,26 @@ data Connection = Connection
     , connHTTP2 :: IORef Bool
     -- ^ Is this connection HTTP/2?
     , connMySockAddr :: SockAddr
-    , connShuttingDown :: TVar Bool
+    , connH1Event :: H1Event
     }
+
+-- | Array for a set of HTTP headers.
+type IndexedHeader = Array Int (Maybe HeaderValue)
+
+type H1Request = (Request, Maybe (I.IORef Int), IndexedHeader, IO ByteString)
+
+data H1Event = H1Event {
+    h1evShuttingDown :: TVar Bool
+  , h1evRequest :: TVar (Maybe (Either E.SomeException H1Request))
+  , h1evSync :: MVar ()
+  }
+
+newH1Event :: IO H1Event
+newH1Event = do
+    h1evShuttingDown <- newTVarIO False
+    h1evRequest <- newTVarIO Nothing
+    h1evSync <- newEmptyMVar
+    return H1Event{..}
 
 getConnHTTP2 :: Connection -> IO Bool
 getConnHTTP2 = readIORef . connHTTP2

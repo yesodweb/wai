@@ -55,13 +55,14 @@ import Network.Wai.Handler.Warp.Settings (
 -- | first request on this connection?
 data FirstRequest = FirstRequest | SubsequentRequest
 
-recvRequest :: Settings -> Connection -> InternalInfo -> Timeout.Handle -> SockAddr -> Source -> Transport -> TBQueue (Either SomeException (Request, Maybe (I.IORef Int), IndexedHeader, IO ByteString)) -> Conc.MVar () -> IO ()
-recvRequest settings conn ii th addr src transport reqQ sync = loop FirstRequest
+recvRequest :: Settings -> Connection -> InternalInfo -> Timeout.Handle -> SockAddr -> Source -> Transport -> IO ()
+recvRequest settings conn ii th addr src transport = loop FirstRequest
   where
     loop firstRequest = do
         ex <- try $ recvRequest' firstRequest settings conn ii th addr src transport
-        atomically $ writeTBQueue reqQ ex
-        Conc.takeMVar sync
+        let h1ev = connH1Event conn
+        atomically $ writeTVar (h1evRequest h1ev) $ Just ex
+        Conc.takeMVar $ h1evSync h1ev
         loop SubsequentRequest
 
 

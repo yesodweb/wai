@@ -20,6 +20,7 @@ import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.PackInt
+import Network.Wai.Handler.Warp.Types (IndexedHeader)
 
 ----------------------------------------------------------------
 

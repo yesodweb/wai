@@ -13,11 +13,6 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
--- | Array for a set of HTTP headers.
-type IndexedHeader = Array Int (Maybe HeaderValue)
-
-----------------------------------------------------------------
-
 indexRequestHeader :: RequestHeaders -> IndexedHeader
 indexRequestHeader hdr = traverseHeader hdr requestMaxIndex requestKeyIndex
 
