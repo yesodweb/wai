@@ -119,7 +119,9 @@ checkLoop H1Event{..} = do
     mreq <- readTVar h1evRequest
     check (isShuttingDown || isJust mreq)
     writeTVar h1evRequest Nothing
-    return mreq
+    if isShuttingDown
+        then return Nothing
+        else return mreq
 
 http1server
     :: Settings
