@@ -15,7 +15,7 @@ module Network.Wai.Handler.Warp.Response (
     addAltSvc,
 ) where
 
-import Control.Concurrent.STM (atomically, readTVar)
+import Control.Concurrent.STM (readTVarIO)
 import qualified Control.Exception as E
 import Data.Array ((!))
 import qualified Data.ByteString as S
@@ -121,7 +121,7 @@ sendResponse
     -> IO Bool
     -- ^ Returing True if the connection is persistent.
 sendResponse settings conn ii th req reqidxhdr src response = do
-    isShuttingDown <- atomically $ readTVar $ h1evShuttingDown $ connH1Event conn
+    isShuttingDown <- readTVarIO $ h1evShuttingDown $ connH1Event conn
     hs <- addConnection isShuttingDown . addAltSvc settings <$> addServerAndDate hs0
     if hasBody s
         then do
