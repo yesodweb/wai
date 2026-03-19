@@ -190,10 +190,10 @@ http1server settings ii conn transport app addr th istatus src = do
                         -- request headers, no data is available, recvRequest will
                         -- throw a NoKeepAliveRequest exception, which we catch here
                         -- and ignore. See: https://github.com/yesodweb/wai/issues/618
-
-                        Conc.putMVar (h1evSync $ connH1Event conn) ()
                         case keepAlive of
-                            ReuseConnection -> loop
+                            ReuseConnection -> do
+                                Conc.putMVar (h1evSync $ connH1Event conn) ()
+                                loop
                             CloseConnection -> return ()
 
 data ReuseConnection = ReuseConnection | CloseConnection
