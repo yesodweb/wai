@@ -9,7 +9,6 @@ import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Exception (bracket)
 import Control.Monad (void)
-import Data.Functor ((<&>))
 import Network.HTTP.Client
 import Network.HTTP.Types
 import Network.Socket (close)
@@ -43,9 +42,9 @@ spec = describe "graceful shutdown" $
 
             client sendRequest = do
                 -- first request should return OK
-                sendRequest
-                    >>= (responseStatus <&> (`shouldBe` ok200))
-                        <> (lookup "Connection" . responseHeaders <&> (`shouldBe` Just "close"))
+                res <- sendRequest
+                responseStatus res `shouldBe` ok200
+                lookup hConnection (responseHeaders res) `shouldBe` Just "close"
                 -- wait with the second request
                 void $ readMVar allowSecondRequest
                 -- second request should end with connection refused
