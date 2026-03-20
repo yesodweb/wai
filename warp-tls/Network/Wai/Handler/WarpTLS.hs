@@ -427,9 +427,10 @@ attachConn mysa ctx = do
     writeBufferRef <- I.newIORef writeBuffer
     -- Creating a cache for leftover input data.
     tls <- getTLSinfo ctx
-    return (conn writeBufferRef isH2, tls)
+    connActiveApps <- newCounter
+    return (conn writeBufferRef isH2 connActiveApps, tls)
   where
-    conn writeBufferRef isH2 =
+    conn writeBufferRef isH2 connActiveApps' =
         Connection
             { connSendMany = TLS.sendData ctx . L.fromChunks
             , connSendAll = sendall
@@ -440,6 +441,7 @@ attachConn mysa ctx = do
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
+            , connActiveApps = connActiveApps'
             }
       where
         sendall = TLS.sendData ctx . L.fromChunks . return

@@ -64,6 +64,7 @@ socketConnection _ s = do
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
+    connActiveApps' <- newCounter
     return
         Connection
             { connSendMany = Sock.sendMany s
@@ -87,6 +88,7 @@ socketConnection _ s = do
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
+            , connActiveApps = connActiveApps'
             }
   where
     receive' sock pool = E.handle handler $ receive sock pool
@@ -366,10 +368,16 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask -> do
             $ \goingon ->
                 -- Actually serve this connection.  bracket with closeConn
                 -- above ensures the connection is closed.
-                when goingon $ serveConnection conn ii th addr transport set app
+                when goingon $ serveConnection conn ii th addr transport set (updateConnActiveApps conn)
 
     onOpen adr = increase counter >> settingsOnOpen set adr
     onClose adr _ = decrease counter >> settingsOnClose set adr
+
+    updateConnActiveApps conn req resp =
+        E.bracket_
+            (increase $ connActiveApps conn)
+            (decrease $ connActiveApps conn)
+            (app req resp)
 
 serveConnection
     :: Connection
