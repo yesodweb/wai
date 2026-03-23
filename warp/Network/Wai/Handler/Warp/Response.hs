@@ -120,7 +120,8 @@ sendResponse
     -> IO Bool
     -- ^ Returing True if the connection is persistent.
 sendResponse settings conn ii th req reqidxhdr src response = do
-    hs <- addConnection . addAltSvc settings <$> addServerAndDate hs0
+    isShuttingDown <- connShuttingDown conn
+    hs <- addConnection isShuttingDown . addAltSvc settings <$> addServerAndDate hs0
     if hasBody s
         then do
             -- The response to HEAD does not have body.
@@ -134,12 +135,12 @@ sendResponse settings conn ii th req reqidxhdr src response = do
                 Nothing -> return ()
                 Just realStatus -> logger req realStatus mlen
             T.tickle th
-            return ret
+            return (not isShuttingDown && ret)
         else do
             _ <- sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize method RspNoBody
             logger req s Nothing
             T.tickle th
-            return isPersist
+            return (not isShuttingDown && isPersist)
   where
     defServer = settingsServerName settings
     logger = settingsLogger settings
@@ -148,7 +149,7 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     s = responseStatus response
     hs0 = sanitizeHeaders $ responseHeaders response
     rspidxhdr = indexResponseHeader hs0
-    addConnection hs = if (hasBody s && not ret) || (not (hasBody s) && not isPersist)
+    addConnection isShuttingDown hs = if isShuttingDown || (hasBody s && not ret) || (not (hasBody s) && not isPersist)
                        then (H.hConnection, "close") : hs
                        else hs
     getdate = getDate ii
