@@ -220,10 +220,7 @@ runSettingsConnectionMakerSecure
     :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
 runSettingsConnectionMakerSecure set getConnMaker app = do
     settingsBeforeMainLoop set
-    counter <- case settingsConnectionCounter set of
-        Just c -> pure c
-        Nothing -> newCounter
-    withII set $ acceptConnection set getConnMaker app counter
+    withII set $ acceptConnection set getConnMaker app
 
 -- | Running an action with internal info.
 --
@@ -265,22 +262,24 @@ acceptConnection
     :: Settings
     -> IO (IO (Connection, Transport), SockAddr)
     -> Application
-    -> Counter
     -> InternalInfo
     -> IO ()
-acceptConnection set getConnMaker app counter ii = do
+acceptConnection set getConnMaker app ii = do
+    counter <- case settingsConnectionCounter set of
+        Just c -> pure c
+        Nothing -> newCounter
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
     --
     -- acceptLoop can be broken by closing the listening socket.
-    void $ E.mask_ acceptLoop
+    void $ E.mask_ $ acceptLoop counter
     -- In some cases, we want to stop Warp here without graceful shutdown.
     -- So, async exceptions are allowed here.
     -- That's why `finally` is not used.
     gracefulShutdown set counter
   where
-    acceptLoop = do
+    acceptLoop counter = do
         -- Allow async exceptions before receiving the next connection maker.
         E.allowInterrupt
 
@@ -291,25 +290,25 @@ acceptConnection set getConnMaker app counter ii = do
         -- expensive work should not be performed in the main event
         -- loop. An example of something expensive would be TLS
         -- negotiation.
-        mx <- acceptNewConnection
+        mx <- acceptNewConnection counter
         case mx of
             Nothing -> return ()
             Just (mkConn, addr) -> do
                 fork set mkConn addr app counter ii
-                acceptLoop
+                acceptLoop counter
 
-    acceptNewConnection = do
+    acceptNewConnection counter = do
         ex <- E.try getConnMaker
         case ex of
             Right x -> return $ Just x
             Left e -> do
                 let getErrno (Errno cInt) = cInt
                     isErrno err = ioe_errno e == Just (getErrno err)
-                if | isErrno eCONNABORTED -> acceptNewConnection
+                if | isErrno eCONNABORTED -> acceptNewConnection counter
                    | isErrno eMFILE -> do
                        settingsOnException set Nothing $ E.toException e
                        waitForDecreased counter
-                       acceptNewConnection
+                       acceptNewConnection counter
                    | otherwise -> do
                        settingsOnException set Nothing $ E.toException e
                        return Nothing
