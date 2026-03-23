@@ -265,7 +265,7 @@ acceptConnection
     -> InternalInfo
     -> IO ()
 acceptConnection set getConnMaker app ii = do
-    counter <- case settingsConnectionCounter set of
+    connCounter <- case settingsConnectionCounter set of
         Just c -> pure c
         Nothing -> newCounter
     -- First mask all exceptions in acceptLoop. This is necessary to
@@ -273,13 +273,13 @@ acceptConnection set getConnMaker app ii = do
     -- acceptNewConnection and the registering of connClose.
     --
     -- acceptLoop can be broken by closing the listening socket.
-    void $ E.mask_ $ acceptLoop counter
+    void $ E.mask_ $ acceptLoop connCounter
     -- In some cases, we want to stop Warp here without graceful shutdown.
     -- So, async exceptions are allowed here.
     -- That's why `finally` is not used.
-    gracefulShutdown set counter
+    gracefulShutdown set connCounter
   where
-    acceptLoop counter = do
+    acceptLoop connCounter = do
         -- Allow async exceptions before receiving the next connection maker.
         E.allowInterrupt
 
@@ -290,25 +290,25 @@ acceptConnection set getConnMaker app ii = do
         -- expensive work should not be performed in the main event
         -- loop. An example of something expensive would be TLS
         -- negotiation.
-        mx <- acceptNewConnection counter
+        mx <- acceptNewConnection connCounter
         case mx of
             Nothing -> return ()
             Just (mkConn, addr) -> do
-                fork set mkConn addr app counter ii
-                acceptLoop counter
+                fork set mkConn addr app connCounter ii
+                acceptLoop connCounter
 
-    acceptNewConnection counter = do
+    acceptNewConnection connCounter = do
         ex <- E.try getConnMaker
         case ex of
             Right x -> return $ Just x
             Left e -> do
                 let getErrno (Errno cInt) = cInt
                     isErrno err = ioe_errno e == Just (getErrno err)
-                if | isErrno eCONNABORTED -> acceptNewConnection counter
+                if | isErrno eCONNABORTED -> acceptNewConnection connCounter
                    | isErrno eMFILE -> do
                        settingsOnException set Nothing $ E.toException e
-                       waitForDecreased counter
-                       acceptNewConnection counter
+                       waitForDecreased connCounter
+                       acceptNewConnection connCounter
                    | otherwise -> do
                        settingsOnException set Nothing $ E.toException e
                        return Nothing
@@ -323,7 +323,7 @@ fork
     -> Counter
     -> InternalInfo
     -> IO ()
-fork set mkConn addr app counter ii = settingsFork set $ \unmask -> do
+fork set mkConn addr app connCounter ii = settingsFork set $ \unmask -> do
     tid <- myThreadId
     labelThread tid "Warp just forked"
     -- Call the user-supplied on exception code if any
@@ -367,8 +367,8 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask -> do
                 -- above ensures the connection is closed.
                 when goingon $ serveConnection conn ii th addr transport set app
 
-    onOpen adr = increase counter >> settingsOnOpen set adr
-    onClose adr _ = decrease counter >> settingsOnClose set adr
+    onOpen adr = increase connCounter >> settingsOnOpen set adr
+    onClose adr _ = decrease connCounter >> settingsOnClose set adr
 
 serveConnection
     :: Connection
