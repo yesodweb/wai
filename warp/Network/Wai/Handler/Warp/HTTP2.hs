@@ -42,7 +42,7 @@ http2
     -> ByteString
     -> IO ()
 http2 settings ii conn transport app peersa th bs = do
-    rawRecvN <- makeRecvN bs $ connRecv conn
+    rawRecvN <- makeRecvN bs $ connRecv conn `E.catch` \ShutdownInProgress -> mempty
     writeBuffer <- readIORef $ connWriteBuffer conn
     -- This thread becomes the sender in http2 library.
     -- In the case of event source, one request comes and one

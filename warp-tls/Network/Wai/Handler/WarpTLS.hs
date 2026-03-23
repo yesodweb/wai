@@ -100,6 +100,7 @@ import Network.Wai.Handler.Warp.Internal
 import Network.Wai.Handler.WarpTLS.Internal
 import System.IO.Error (ioeGetErrorType, isEOFError)
 import System.Timeout (timeout)
+import Control.Concurrent.STM (TVar, readTVarIO, readTVar)
 
 ----------------------------------------------------------------
 
@@ -330,11 +331,12 @@ getter
     -> Settings
     -> Socket
     -> params
+    -> TVar Bool
     -> IO (IO (Connection, Transport), SockAddr)
-getter tlsset set@Settings{settingsAccept = accept'} sock params = do
+getter tlsset set@Settings{settingsAccept = accept'} sock params shuttingDown = do
     (s, sa) <- accept' sock
     setSocketCloseOnExec s
-    return (mkConn tlsset set s params, sa)
+    return (mkConn tlsset set s params shuttingDown, sa)
 
 mkConn
     :: TLS.TLSParams params
@@ -342,8 +344,9 @@ mkConn
     -> Settings
     -> Socket
     -> params
+    -> TVar Bool
     -> IO (Connection, Transport)
-mkConn tlsset set s params = do
+mkConn tlsset set s params shuttingDown = do
     let tm = settingsTimeout set * 1000000
     mbs <- timeout tm recvFirstBS
     case mbs of
@@ -353,8 +356,8 @@ mkConn tlsset set s params = do
     recvFirstBS = safeRecv s 4096 `onException` close s
     switch firstBS
         | S.null firstBS = close s >> throwIO ClientClosedConnectionPrematurely
-        | S.head firstBS == 0x16 = httpOverTls tlsset set s firstBS params
-        | otherwise = plainHTTP tlsset set s firstBS
+        | S.head firstBS == 0x16 = httpOverTls tlsset set s firstBS params shuttingDown
+        | otherwise = plainHTTP tlsset set s firstBS shuttingDown
 
 ----------------------------------------------------------------
 
@@ -376,13 +379,15 @@ httpOverTls
     -> Socket
     -> S.ByteString
     -> params
+    -> TVar Bool
     -> IO (Connection, Transport)
-httpOverTls TLSSettings{..} set s bs0 params =
+httpOverTls TLSSettings{..} set s bs0 params shuttingDown = do
     makeConn `onException` close s
   where
     makeConn = do
+        activeApps <- newCounter
         pool <- newBufferPool 2048 16384
-        rawRecvN <- makeRecvN bs0 $ receive s pool
+        rawRecvN <- makeRecvN bs0 $ makeRecv s (readTVar shuttingDown) activeApps pool
         let recvN = wrappedRecvN rawRecvN
         ctx <- TLS.contextNew (backend recvN) params
         TLS.contextHookSetLogging ctx tlsLogging
@@ -390,7 +395,7 @@ httpOverTls TLSSettings{..} set s bs0 params =
         mconn <- timeout tm $ do
             TLS.handshake ctx
             mysa <- getSocketName s
-            attachConn mysa ctx
+            attachConn mysa ctx shuttingDown activeApps
         case mconn of
           Nothing -> throwIO IncompleteHeaders
           Just conn -> return conn
@@ -419,17 +424,17 @@ httpOverTls TLSSettings{..} set s bs0 params =
 
 -- | Get "Connection" and "Transport" for a TLS connection that is already did the handshake.
 -- @since 3.4.7
-attachConn :: SockAddr -> TLS.Context -> IO (Connection, Transport)
-attachConn mysa ctx = do
+attachConn :: SockAddr -> TLS.Context -> TVar Bool -> Counter -> IO (Connection, Transport)
+attachConn mysa ctx shuttingDown activeApps = do
     h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
     isH2 <- I.newIORef h2
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- I.newIORef writeBuffer
     -- Creating a cache for leftover input data.
     tls <- getTLSinfo ctx
-    return (conn writeBufferRef isH2, tls)
+    return (conn writeBufferRef isH2 activeApps, tls)
   where
-    conn writeBufferRef isH2 =
+    conn writeBufferRef isH2 connActiveApps' =
         Connection
             { connSendMany = TLS.sendData ctx . L.fromChunks
             , connSendAll = sendall
@@ -440,6 +445,8 @@ attachConn mysa ctx = do
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
+            , connActiveApps = connActiveApps'
+            , connShuttingDown = readTVarIO shuttingDown
             }
       where
         sendall = TLS.sendData ctx . L.fromChunks . return
@@ -507,10 +514,10 @@ tryIO = try
 ----------------------------------------------------------------
 
 plainHTTP
-    :: TLSSettings -> Settings -> Socket -> S.ByteString -> IO (Connection, Transport)
-plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
+    :: TLSSettings -> Settings -> Socket -> S.ByteString -> TVar Bool -> IO (Connection, Transport)
+plainHTTP TLSSettings{..} set s bs0 shuttingDown = case onInsecure of
     AllowInsecure -> do
-        conn' <- socketConnection set s
+        conn' <- socketConnection set s shuttingDown
         cachedRef <- I.newIORef bs0
         let conn'' =
                 conn'

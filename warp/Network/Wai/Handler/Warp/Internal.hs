@@ -9,11 +9,14 @@ module Network.Wai.Handler.Warp.Internal (
     -- * Connection counter
     Counter,
     getCount,
+    newCounter,
 
     -- * Low level run functions
     runSettingsConnection,
     runSettingsConnectionMaker,
     runSettingsConnectionMakerSecure,
+    -- TODO naming and order tidy-up
+    makeRecv,
     Transport (..),
 
     -- * Connection
@@ -99,7 +102,7 @@ import Network.Socket.BufferPool
 import System.TimeManager
 
 import Network.Wai.Handler.Warp.Buffer
-import Network.Wai.Handler.Warp.Counter (Counter, getCount)
+import Network.Wai.Handler.Warp.Counter (Counter, getCount, newCounter)
 import Network.Wai.Handler.Warp.Date
 import Network.Wai.Handler.Warp.FdCache
 import Network.Wai.Handler.Warp.FileInfoCache

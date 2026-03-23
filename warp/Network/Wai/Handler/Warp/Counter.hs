@@ -8,6 +8,7 @@ module Network.Wai.Handler.Warp.Counter (
     decrease,
     waitForDecreased,
     getCount,
+    getCountSTM
 ) where
 
 import Control.Concurrent.STM
@@ -36,6 +37,9 @@ increase (Counter var) = atomically $ modifyTVar' var $ \x -> x + 1
 
 decrease :: Counter -> IO ()
 decrease (Counter var) = atomically $ modifyTVar' var $ \x -> x - 1
+
+getCountSTM :: Counter -> STM Int
+getCountSTM (Counter var) = readTVar var
 
 -- | Get the current count of open connections.
 --

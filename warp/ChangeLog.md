@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.4.12.1
+
+* Graceful shutdown waited for all connections to close, resulting in potentially indefinite waiting on keep-alive connections. It now proactively closes connections after waiting for current request processing to be completed.
+  [#1064] (https://github.com/yesodweb/wai/pull/1064)
+
 ## 3.4.12
 
 * Respond with `Connection: close` header if connection is to be closed after a request.
