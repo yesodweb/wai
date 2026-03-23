@@ -132,6 +132,7 @@ data Connection = Connection
     -- ^ Is this connection HTTP/2?
     , connMySockAddr :: SockAddr
     , connShuttingDown :: TVar Bool
+    , connInProgress :: TVar Bool
     }
 
 getConnHTTP2 :: Connection -> IO Bool

@@ -9,7 +9,7 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
-import Control.Concurrent.STM (newTVarIO, TVar, atomically, writeTVar)
+import Control.Concurrent.STM (newTVarIO, TVar, atomically, readTVar, writeTVar, check)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.IORef (newIORef, readIORef)
@@ -28,6 +28,7 @@ import Network.Socket (
     getSocketName,
     setSocketOption,
     withSocketsDo,
+    waitReadSocketSTM
  )
 #if MIN_VERSION_network(3,1,1)
 import Network.Socket (gracefulClose)
@@ -53,6 +54,23 @@ import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
 
+makeRecv :: Socket -> BufferPool -> TVar Bool -> TVar Bool -> Recv
+makeRecv sock pool shuttingDown inProgress = do
+    sockWait <- waitReadSocketSTM sock
+    ok <- atomically $
+        -- when shutting down throw
+        (checkShutdown >> return False)
+        <|>
+        -- else wait for socket readiness and do non-blocking read
+        (sockWait >> return True)
+    if ok then recv else return ""
+  where
+    recv = receive sock pool
+    checkShutdown = do
+       isShuttingDown <- readTVar shuttingDown
+       appInactive <- not <$> readTVar inProgress
+       check (isShuttingDown && appInactive)
+
 -- | Creating 'Connection' for plain HTTP based on a given socket.
 socketConnection :: Settings -> Socket -> TVar Bool -> IO Connection
 #if MIN_VERSION_network(3,1,1)
@@ -65,6 +83,7 @@ socketConnection _ s shuttingDown = do
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
+    inProgress <- newTVarIO False
     return
         Connection
             { connSendMany = Sock.sendMany s
@@ -83,15 +102,16 @@ socketConnection _ s shuttingDown = do
 #else
             , connClose = close s
 #endif
-            , connRecv = receive' s bufferPool
+            , connRecv = receive' bufferPool inProgress
             , connRecvBuf = \_ _ -> return True -- obsoleted
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
             , connShuttingDown = shuttingDown
+            , connInProgress = inProgress
             }
   where
-    receive' sock pool = E.handle handler $ receive sock pool
+    receive' bufferPool inProgress = E.handle handler $ makeRecv s bufferPool shuttingDown inProgress
       where
         handler :: E.IOException -> IO ByteString
         handler e
@@ -395,13 +415,15 @@ serveConnection conn ii th origAddr transport settings app = do
                 if "PRI " `S.isPrefixOf` bs0
                     then return (True, bs0)
                     else return (False, bs0)
+    let inProgress = connInProgress conn
+        app' req rsp = E.bracket_ (atomically $ writeTVar inProgress True) (atomically $ writeTVar inProgress False) $ app req rsp
     if settingsHTTP2Enabled settings && h2
         then do
             labelThread tid ("Warp HTTP/2 " ++ show origAddr)
-            http2 settings ii conn transport app origAddr th bs
+            http2 settings ii conn transport app' origAddr th bs
         else do
             labelThread tid ("Warp HTTP/1.1 " ++ show origAddr)
-            http1 settings ii conn transport app origAddr th bs
+            http1 settings ii conn transport app' origAddr th bs
   where
     recv4 bs0 = do
         bs1 <- connRecv conn
