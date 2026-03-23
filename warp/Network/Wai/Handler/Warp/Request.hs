@@ -15,7 +15,8 @@ module Network.Wai.Handler.Warp.Request (
     NoKeepAliveRequest (..),
 ) where
 
-import qualified Control.Concurrent as Conc (yield)
+import qualified Control.Concurrent as Conc
+import Control.Concurrent.STM
 import Data.Array ((!))
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as SU
@@ -27,7 +28,7 @@ import Data.Word8 (_cr, _lf)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
-import Control.Exception (Exception, throwIO)
+import Control.Exception (Exception, throwIO, try, SomeException)
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
@@ -54,9 +55,20 @@ import Network.Wai.Handler.Warp.Settings (
 -- | first request on this connection?
 data FirstRequest = FirstRequest | SubsequentRequest
 
+recvRequest :: Settings -> Connection -> InternalInfo -> Timeout.Handle -> SockAddr -> Source -> Transport -> IO ()
+recvRequest settings conn ii th addr src transport = loop FirstRequest
+  where
+    loop firstRequest = do
+        ex <- try $ recvRequest' firstRequest settings conn ii th addr src transport
+        let h1ev = connH1Event conn
+        atomically $ writeTVar (h1evRequest h1ev) $ Just ex
+        Conc.takeMVar $ h1evSync h1ev
+        loop SubsequentRequest
+
+
 -- | Receiving a HTTP request from 'Connection' and parsing its header
 --   to create 'Request'.
-recvRequest
+recvRequest'
     :: FirstRequest
     -> Settings
     -> Connection
@@ -78,7 +90,7 @@ recvRequest
     -- how many bytes remain to be consumed, if known
     -- 'IndexedHeader' of HTTP request for internal use,
     -- Body producing action used for flushing the request body
-recvRequest firstRequest settings conn ii th addr src transport = do
+recvRequest' firstRequest settings conn ii th addr src transport = do
     hdrlines <- headerLines (settingsMaxTotalHeaderLength settings) firstRequest src
     (method, unparsedPath, path, query, httpversion, hdr) <-
         parseHeaderLines hdrlines

@@ -2,14 +2,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Network.Wai.Handler.Warp.HTTP1 (
     http1,
 ) where
 
-import qualified Control.Concurrent as Conc (yield)
-import Control.Exception (SomeException, catch, fromException, throwIO, try)
+import qualified Control.Concurrent as Conc
+import Control.Concurrent.STM
+import Control.Exception (
+    SomeException,
+    bracket,
+    catch,
+    fromException,
+    throwIO,
+    try,
+ )
 import qualified Data.ByteString as BS
 import Data.Char (chr)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
@@ -102,6 +111,18 @@ http1 settings ii conn transport app origAddr th bs0 = do
 
     decodeAscii = map (chr . fromEnum) . BS.unpack
 
+checkLoop
+    :: H1Event
+    -> STM (Maybe (Either SomeException H1Request))
+checkLoop H1Event{..} = do
+    isShuttingDown <- readTVar h1evShuttingDown
+    mreq <- readTVar h1evRequest
+    check (isShuttingDown || isJust mreq)
+    writeTVar h1evRequest Nothing
+    if isShuttingDown
+        then return Nothing
+        else return mreq
+
 http1server
     :: Settings
     -> InternalInfo
@@ -113,8 +134,10 @@ http1server
     -> IORef Bool
     -> Source
     -> IO ()
-http1server settings ii conn transport app addr th istatus src =
-    loop FirstRequest `catch` handler
+http1server settings ii conn transport app addr th istatus src = do
+    let reader = recvRequest settings conn ii th addr src transport
+    bracket (Conc.forkIO reader) Conc.killThread $ \_ ->
+        loop `catch` handler
   where
     handler e
         -- See comment below referencing
@@ -135,39 +158,45 @@ http1server settings ii conn transport app addr th istatus src =
                     e
             throwIO e
 
-    loop firstRequest = do
-        (req, mremainingRef, idxhdr, nextBodyFlush) <-
-            recvRequest firstRequest settings conn ii th addr src transport
-        keepAlive <-
-            processRequest
-                settings
-                ii
-                conn
-                app
-                th
-                istatus
-                src
-                req
-                mremainingRef
-                idxhdr
-                nextBodyFlush
-                `catch` \e -> do
-                    settingsOnException settings (Just req) e
-                    -- Don't throw the error again to prevent calling settingsOnException twice.
-                    return CloseConnection
+    loop = do
+        mreq <- atomically $ checkLoop $ connH1Event conn
+        case mreq of
+            Nothing -> return ()
+            Just ex -> do
+                case ex of
+                    Left e -> throwIO e
+                    Right (req, mremainingRef, idxhdr, nextBodyFlush) -> do
+                        keepAlive <-
+                            processRequest
+                                settings
+                                ii
+                                conn
+                                app
+                                th
+                                istatus
+                                src
+                                req
+                                mremainingRef
+                                idxhdr
+                                nextBodyFlush
+                                `catch` \e -> do
+                                    settingsOnException settings (Just req) e
+                                    -- Don't throw the error again to prevent calling settingsOnException twice.
+                                    return CloseConnection
 
-        -- When doing a keep-alive connection, the other side may just
-        -- close the connection. We don't want to treat that as an
-        -- exceptional situation, so we pass in SubsequentRequest to http1 (which
-        -- in turn passes in SubsequentRequest to recvRequest), indicating that
-        -- this is not the first request. If, when trying to read the
-        -- request headers, no data is available, recvRequest will
-        -- throw a NoKeepAliveRequest exception, which we catch here
-        -- and ignore. See: https://github.com/yesodweb/wai/issues/618
-
-        case keepAlive of
-            ReuseConnection -> loop SubsequentRequest
-            CloseConnection -> return ()
+                        -- When doing a keep-alive connection, the other side may just
+                        -- close the connection. We don't want to treat that as an
+                        -- exceptional situation, so we pass in SubsequentRequest to http1 (which
+                        -- in turn passes in SubsequentRequest to recvRequest), indicating that
+                        -- this is not the first request. If, when trying to read the
+                        -- request headers, no data is available, recvRequest will
+                        -- throw a NoKeepAliveRequest exception, which we catch here
+                        -- and ignore. See: https://github.com/yesodweb/wai/issues/618
+                        case keepAlive of
+                            ReuseConnection -> do
+                                Conc.putMVar (h1evSync $ connH1Event conn) ()
+                                loop
+                            CloseConnection -> return ()
 
 data ReuseConnection = ReuseConnection | CloseConnection
 
