@@ -268,18 +268,20 @@ acceptConnection set getConnMaker app ii = do
     connCounter <- case settingsConnectionCounter set of
         Just c -> pure c
         Nothing -> newCounter
+    appCounter <- newCounter
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
     --
     -- acceptLoop can be broken by closing the listening socket.
-    void $ E.mask_ $ acceptLoop connCounter
+    void $ E.mask_ $ acceptLoop connCounter appCounter
     -- In some cases, we want to stop Warp here without graceful shutdown.
     -- So, async exceptions are allowed here.
     -- That's why `finally` is not used.
-    gracefulShutdown set connCounter
+    gracefulShutdown set appCounter
   where
-    acceptLoop connCounter = do
+    app' appCounter req rsp = E.bracket_ (increase appCounter) (decrease appCounter) $ app req rsp
+    acceptLoop connCounter appCounter = do
         -- Allow async exceptions before receiving the next connection maker.
         E.allowInterrupt
 
@@ -294,8 +296,8 @@ acceptConnection set getConnMaker app ii = do
         case mx of
             Nothing -> return ()
             Just (mkConn, addr) -> do
-                fork set mkConn addr app connCounter ii
-                acceptLoop connCounter
+                fork set mkConn addr (app' appCounter) connCounter ii
+                acceptLoop connCounter appCounter
 
     acceptNewConnection connCounter = do
         ex <- E.try getConnMaker
