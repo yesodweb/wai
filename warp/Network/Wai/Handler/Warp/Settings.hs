@@ -25,7 +25,7 @@ import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
 import System.TimeManager
 
-import Network.Wai.Handler.Warp.Counter (Counter, newCounter)
+import Network.Wai.Handler.Warp.Counter (Counter, newCounter, ShuttingDown, newShuttingDown)
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
 #if WINDOWS
@@ -187,6 +187,14 @@ data Settings = Settings
     -- Default: 'Nothing' (warp creates an internal counter)
     --
     -- Since 3.4.11
+    , settingsShuttingDown :: Maybe ShuttingDown
+    -- ^ A counter for tracking open connections.
+    -- Use 'makeSettingsAndShuttingDown' to create settings with a counter,
+    -- then use 'getCount' on the returned 'Counter' to read the current value.
+    --
+    -- Default: 'Nothing' (warp creates an internal variable)
+    --
+    -- Since 3.4.13
     }
 
 -- | Specify usage of the PROXY protocol.
@@ -232,6 +240,7 @@ defaultSettings =
         , settingsAltSvc = Nothing
         , settingsMaxBuilderResponseBufferSize = 1049000000
         , settingsConnectionCounter = Nothing
+        , settingsShuttingDown = Nothing
         }
 
 -- | Create 'Settings' with a connection counter.
@@ -242,6 +251,17 @@ makeSettingsAndCounter :: IO (Counter, Settings)
 makeSettingsAndCounter = do
     counter <- newCounter
     pure (counter, defaultSettings{settingsConnectionCounter = Just counter})
+
+
+setCounter :: Settings -> IO (Counter, Settings)
+setCounter settings = do
+    counter <- newCounter
+    pure $ (counter, settings {settingsConnectionCounter = Just counter})
+
+setShuttingDown :: Settings -> IO (ShuttingDown, Settings)
+setShuttingDown settings = do
+    shuttingDown <- newShuttingDown
+    pure $ (shuttingDown, settings {settingsShuttingDown = Just shuttingDown})
 
 -- | Apply the logic provided by 'defaultOnException' to determine if an
 -- exception should be shown or not. The goal is to hide exceptions which occur

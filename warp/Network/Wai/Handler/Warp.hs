@@ -93,8 +93,14 @@ module Network.Wai.Handler.Warp (
 
     -- ** Connection counter
     makeSettingsAndCounter,
+    setCounter,
     Counter,
     getCount,
+
+    -- ** Shutting down state
+    ShuttingDown,
+    setShuttingDown,
+    readShuttingDown,
 
     -- ** Exception handler
     defaultOnException,
@@ -156,7 +162,7 @@ import Network.Socket (SockAddr, Socket)
 import Network.Wai (Request, Response, vault)
 import System.TimeManager
 
-import Network.Wai.Handler.Warp.Counter (Counter, getCount)
+import Network.Wai.Handler.Warp.Counter (Counter, getCount, ShuttingDown, readShuttingDown)
 import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.HTTP2.Request (
     getHTTP2Data,

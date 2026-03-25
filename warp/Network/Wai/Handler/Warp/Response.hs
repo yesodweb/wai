@@ -15,7 +15,6 @@ module Network.Wai.Handler.Warp.Response (
     addAltSvc,
 ) where
 
-import Control.Concurrent.STM (atomically, readTVar)
 import qualified Control.Exception as E
 import Data.Array ((!))
 import qualified Data.ByteString as S
@@ -41,6 +40,7 @@ import Network.Wai.Internal
 import qualified System.TimeManager as T
 
 import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
+import Network.Wai.Handler.Warp.Counter (readShuttingDown)
 import qualified Network.Wai.Handler.Warp.Date as D
 import Network.Wai.Handler.Warp.File
 import Network.Wai.Handler.Warp.Header
@@ -121,7 +121,7 @@ sendResponse
     -> IO Bool
     -- ^ Returing True if the connection is persistent.
 sendResponse settings conn ii th req reqidxhdr src response = do
-    isShuttingDown <- atomically $ readTVar $ connShuttingDown conn
+    isShuttingDown <- readShuttingDown $ connShuttingDown conn
     hs <- addConnection isShuttingDown . addAltSvc settings <$> addServerAndDate hs0
     if hasBody s
         then do

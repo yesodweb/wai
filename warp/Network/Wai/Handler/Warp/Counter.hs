@@ -8,6 +8,11 @@ module Network.Wai.Handler.Warp.Counter (
     decrease,
     waitForDecreased,
     getCount,
+    ShuttingDown,
+    newShuttingDown,
+    readShuttingDown,
+    readShuttingDownSTM,
+    writeShuttingDown,
 ) where
 
 import Control.Concurrent.STM
@@ -42,3 +47,19 @@ decrease (Counter var) = atomically $ modifyTVar' var $ \x -> x - 1
 -- Since 3.4.11
 getCount :: Counter -> IO Int
 getCount (Counter var) = readTVarIO var
+
+----------------------------------------------------------------
+
+newtype ShuttingDown = ShuttingDown (TVar Bool)
+
+newShuttingDown :: IO ShuttingDown
+newShuttingDown = ShuttingDown <$> newTVarIO False
+
+readShuttingDown :: ShuttingDown -> IO Bool
+readShuttingDown (ShuttingDown var) = readTVarIO var
+
+readShuttingDownSTM :: ShuttingDown -> STM Bool
+readShuttingDownSTM (ShuttingDown var) = readTVar var
+
+writeShuttingDown :: ShuttingDown -> Bool -> IO ()
+writeShuttingDown (ShuttingDown var) b = atomically $ writeTVar var b

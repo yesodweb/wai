@@ -54,7 +54,7 @@ import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
 
-makeRecv :: Socket -> BufferPool -> TVar Bool -> TVar Bool -> Recv
+makeRecv :: Socket -> BufferPool -> ShuttingDown -> TVar Bool -> Recv
 makeRecv sock pool shuttingDown inProgress = do
     sockWait <- waitReadSocketSTM sock
     ok <- atomically $
@@ -67,12 +67,12 @@ makeRecv sock pool shuttingDown inProgress = do
   where
     recv = receive sock pool
     checkShutdown = do
-       isShuttingDown <- readTVar shuttingDown
+       isShuttingDown <- readShuttingDownSTM shuttingDown
        appInactive <- not <$> readTVar inProgress
        check (isShuttingDown && appInactive)
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
-socketConnection :: Settings -> Socket -> TVar Bool -> IO Connection
+socketConnection :: Settings -> Socket -> ShuttingDown -> IO Connection
 #if MIN_VERSION_network(3,1,1)
 socketConnection set s shuttingDown = do
 #else
@@ -191,7 +191,9 @@ runSettings set app =
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket set@Settings{settingsAccept = accept'} socket app = do
-    shuttingDown <- newTVarIO False
+    shuttingDown <- case settingsShuttingDown set of
+        Just c -> pure c
+        Nothing -> newShuttingDown
     settingsInstallShutdownHandler set closeListenSocket
     runSettingsConnection set (getConn shuttingDown) app shuttingDown
   where
@@ -215,7 +217,7 @@ runSettingsSocket set@Settings{settingsAccept = accept'} socket app = do
 --
 -- Since 1.3.5
 runSettingsConnection
-    :: Settings -> IO (Connection, SockAddr) -> Application -> TVar Bool -> IO ()
+    :: Settings -> IO (Connection, SockAddr) -> Application -> ShuttingDown -> IO ()
 runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
   where
     getConnMaker = do
@@ -225,7 +227,7 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
 -- | This modifies the connection maker so that it returns 'TCP' for 'Transport'
 -- (i.e. plain HTTP) then calls 'runSettingsConnectionMakerSecure'.
 runSettingsConnectionMaker
-    :: Settings -> IO (IO Connection, SockAddr) -> Application -> TVar Bool -> IO ()
+    :: Settings -> IO (IO Connection, SockAddr) -> Application -> ShuttingDown -> IO ()
 runSettingsConnectionMaker x y =
     runSettingsConnectionMakerSecure x (toTCP <$> y)
   where
@@ -240,7 +242,7 @@ runSettingsConnectionMaker x y =
 --
 -- Since 2.1.4
 runSettingsConnectionMakerSecure
-    :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> TVar Bool -> IO ()
+    :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> ShuttingDown -> IO ()
 runSettingsConnectionMakerSecure set getConnMaker app shuttingDown = do
     settingsBeforeMainLoop set
     withII set $ acceptConnection set getConnMaker app shuttingDown
@@ -285,7 +287,7 @@ acceptConnection
     :: Settings
     -> IO (IO (Connection, Transport), SockAddr)
     -> Application
-    -> TVar Bool
+    -> ShuttingDown
     -> InternalInfo
     -> IO ()
 acceptConnection set getConnMaker app shuttingDown ii = do
@@ -301,7 +303,7 @@ acceptConnection set getConnMaker app shuttingDown ii = do
     -- In some cases, we want to stop Warp here without graceful shutdown.
     -- So, async exceptions are allowed here.
     -- That's why `finally` is not used.
-    atomically $ writeTVar shuttingDown True
+    writeShuttingDown shuttingDown True
     gracefulShutdown set connCounter
   where
     acceptLoop connCounter = do

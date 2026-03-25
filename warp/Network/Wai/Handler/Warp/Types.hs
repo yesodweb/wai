@@ -21,6 +21,7 @@ import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.Imports
+import Network.Wai.Handler.Warp.Counter (ShuttingDown)
 
 ----------------------------------------------------------------
 
@@ -131,7 +132,7 @@ data Connection = Connection
     , connHTTP2 :: IORef Bool
     -- ^ Is this connection HTTP/2?
     , connMySockAddr :: SockAddr
-    , connShuttingDown :: TVar Bool
+    , connShuttingDown :: ShuttingDown
     , connInProgress :: TVar Bool
     }
 
