@@ -1,5 +1,9 @@
 # ChangeLog for time-manager
 
+## 0.3.2
+
+* Add `stopAfterWithResult`. [#1069](https://github.com/yesodweb/wai/pull/1069)
+
 ## 0.3.1.1
 
 * Added `README.md` file and improved documentation of modules and functions.
