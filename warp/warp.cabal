@@ -193,6 +193,7 @@ test-suite spec
         ResponseSpec
         RunSpec
         SendFileSpec
+        ServerStateSpec
         WithApplicationSpec
         Network.Wai.Handler.Warp
         Network.Wai.Handler.Warp.Internal
