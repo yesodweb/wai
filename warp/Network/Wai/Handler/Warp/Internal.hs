@@ -5,10 +5,21 @@ module Network.Wai.Handler.Warp.Internal (
     Settings (..),
     ProxyProtocol (..),
     makeSettingsAndCounter,
+    makeSettingsAndServerState,
 
-    -- * Connection counter
+    -- ** Connection counter
     Counter,
     getCount,
+
+    -- ** Server state
+    ServerState,
+    newServerState,
+    currentOpenConnections,
+    currentShuttingDownState,
+
+    -- *** STM versions
+    currentOpenConnectionsSTM,
+    currentShuttingDownStateSTM,
 
     -- * Low level run functions
     runSettingsConnection,

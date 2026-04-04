@@ -90,11 +90,30 @@ module Network.Wai.Handler.Warp (
     getGracefulCloseTimeout1,
     getGracefulCloseTimeout2,
     getOpenConnectionCounter,
+    getServerState,
 
     -- ** Connection counter
+    --
+    -- /Deprecated in favor of 'ServerState'/
     makeSettingsAndCounter,
     Counter,
     getCount,
+
+    -- ** Internal server state
+    --
+    -- Creating 'Settings' with insight into the internal state of the server.
+    --
+    -- When using 'makeSettingsAndServerState', you will receive the 'ServerState'
+    -- that will be used by @warp@ so that you can query things like the
+    -- 'currentOpenConnections', and 'currentShuttingDownState'.
+    ServerState,
+    makeSettingsAndServerState,
+    currentOpenConnections,
+    currentShuttingDownState,
+
+    -- *** STM versions
+    currentOpenConnectionsSTM,
+    currentShuttingDownStateSTM,
 
     -- ** Exception handler
     defaultOnException,
@@ -576,9 +595,21 @@ getGracefulCloseTimeout2 = settingsGracefulCloseTimeout2
 --
 -- See 'makeSettingsAndCounter' to create settings with a counter.
 --
+-- /DEPRECATED in favor of 'getServerState'/
+--
 -- Since 3.4.11
 getOpenConnectionCounter :: Settings -> Maybe Counter
 getOpenConnectionCounter = settingsConnectionCounter
+
+-- | Get the 'ServerState', if one was configured.
+-- Use things like 'currentOpenConnections' and 'currentShuttingDownState' to
+-- query information about the current state of the server.
+--
+-- See 'makeSettingsAndServerState' to create 'Settings' with a 'ServerState'.
+--
+-- Since 3.4.12
+getServerState :: Settings -> Maybe ServerState
+getServerState = settingsServerState
 
 #ifdef MIN_VERSION_crypton_x509
 -- | Getting information of client certificate.
