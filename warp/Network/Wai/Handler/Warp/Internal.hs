@@ -14,6 +14,7 @@ module Network.Wai.Handler.Warp.Internal (
     -- ** Server state
     ServerState,
     newServerState,
+    makeServerState,
     currentOpenConnections,
     currentShuttingDownState,
 
@@ -33,6 +34,7 @@ module Network.Wai.Handler.Warp.Internal (
 
     -- ** Receive
     Recv,
+    makeRecv,
     RecvBuf,
 
     -- ** Buffer

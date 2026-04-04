@@ -11,12 +11,12 @@ import qualified Control.Exception as E
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
+import GHC.Conc (TVar)
 import Network.Socket (SockAddr)
 import Network.Socket.BufferPool
 import System.Posix.Types (Fd)
 import qualified System.TimeManager as T
 
-import Network.Wai.Handler.Warp.Counter (Counter)
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
@@ -131,7 +131,7 @@ data Connection = Connection
     , connHTTP2 :: IORef Bool
     -- ^ Is this connection HTTP/2?
     , connMySockAddr :: SockAddr
-    , connAppsInProgress :: Counter
+    , connAppsInProgress :: TVar Int
     -- ^ Amount of apps currently in progress on this connection.
     --
     -- /HTTP2 can handle more than one request concurrently/

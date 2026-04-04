@@ -10,7 +10,14 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
-import Control.Concurrent.STM (atomically, check)
+import Control.Concurrent.STM (
+    TVar,
+    atomically,
+    check,
+    modifyTVar',
+    newTVarIO,
+    readTVar,
+ )
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.IORef (newIORef, readIORef)
@@ -53,7 +60,7 @@ import Network.Wai.Handler.Warp.HTTP2.Types (isHTTP2)
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.SendFile (sendFile)
 import Network.Wai.Handler.Warp.Settings
-import Network.Wai.Handler.Warp.ShuttingDown (ShuttingDown, readShuttingDownSTM, writeShuttingDown)
+import Network.Wai.Handler.Warp.ShuttingDown (writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
@@ -63,13 +70,12 @@ import Network.Wai.Handler.Warp.Types
 socketConnection :: Settings -> Socket -> IO Connection
 socketConnection set s = do
     (ss, _) <- makeServerState set
-    let shuttingDown = serverShuttingDown ss
     bufferPool <- newBufferPool 2048 16384
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
-    appsInProgress <- newCounter
+    appsInProgress <- newTVarIO 0
     return
         Connection
             { connSendMany = Sock.sendMany s
@@ -88,7 +94,7 @@ socketConnection set s = do
 #else
             , connClose = close s
 #endif
-            , connRecv = receive' bufferPool shuttingDown appsInProgress
+            , connRecv = receive' bufferPool ss appsInProgress
             , connRecvBuf = \_ _ -> return True -- obsoleted
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
@@ -96,8 +102,8 @@ socketConnection set s = do
             , connAppsInProgress = appsInProgress
             }
   where
-    receive' bufferPool shuttingDown appsInProgress =
-        E.handle handler $ makeRecv s bufferPool shuttingDown appsInProgress
+    receive' bufferPool ss appsInProgress =
+        E.handle handler $ makeRecv s bufferPool ss appsInProgress
       where
         handler :: E.IOException -> IO ByteString
         handler e
@@ -129,8 +135,8 @@ socketConnection set s = do
             E.throwIO
             $ Sock.sendAll sock bs
 
-makeRecv :: Socket -> BufferPool -> ShuttingDown -> Counter -> Recv
-makeRecv sock pool shuttingDown appsInProgress = do
+makeRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
+makeRecv sock pool ss appsInProgress = do
     sockWait <- waitReadSocketSTM sock
     ok <- atomically $
         -- when shutting down throw
@@ -142,8 +148,8 @@ makeRecv sock pool shuttingDown appsInProgress = do
   where
     recv = receive sock pool
     checkShutdown = do
-       check =<< readShuttingDownSTM shuttingDown
-       check . (<= 0) =<< getCountSTM appsInProgress
+       check =<< currentShuttingDownStateSTM ss
+       check . (<= 0) =<< readTVar appsInProgress
 
 -- | Run an 'Application' on the given port.
 -- This calls 'runSettings' with 'defaultSettings'.
@@ -418,8 +424,8 @@ serveConnection conn ii th origAddr transport settings app = do
     let appsInProgress = connAppsInProgress conn
         app' req rsp =
             E.bracket_
-                (increase appsInProgress)
-                (decrease appsInProgress)
+                (atomically $ modifyTVar' appsInProgress $ (+ 1))
+                (atomically $ modifyTVar' appsInProgress $ \i -> (i - 1))
                 $ app req rsp
     if settingsHTTP2Enabled settings && h2
         then do
