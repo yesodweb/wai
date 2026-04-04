@@ -57,12 +57,13 @@ import Network.Wai.Handler.Warp.ShuttingDown (ShuttingDown, readShuttingDownSTM,
 import Network.Wai.Handler.Warp.Types
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
-socketConnection :: Settings -> Socket -> ShuttingDown -> IO Connection
-#if MIN_VERSION_network(3,1,1)
-socketConnection set s shuttingDown = do
-#else
-socketConnection _ s shuttingDown = do
-#endif
+--
+-- (N.B. make sure the 'Settings' have an initialized 'ServerState' to guarantee
+-- a graceful shutdown)
+socketConnection :: Settings -> Socket -> IO Connection
+socketConnection set s = do
+    (ss, _) <- makeServerState set
+    let shuttingDown = serverShuttingDown ss
     bufferPool <- newBufferPool 2048 16384
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- newIORef writeBuffer
@@ -87,7 +88,7 @@ socketConnection _ s shuttingDown = do
 #else
             , connClose = close s
 #endif
-            , connRecv = receive' bufferPool appsInProgress
+            , connRecv = receive' bufferPool shuttingDown appsInProgress
             , connRecvBuf = \_ _ -> return True -- obsoleted
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
@@ -95,7 +96,7 @@ socketConnection _ s shuttingDown = do
             , connAppsInProgress = appsInProgress
             }
   where
-    receive' bufferPool appsInProgress =
+    receive' bufferPool shuttingDown appsInProgress =
         E.handle handler $ makeRecv s bufferPool shuttingDown appsInProgress
       where
         handler :: E.IOException -> IO ByteString
@@ -193,16 +194,15 @@ runSettings set app =
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket oldSettings@Settings{settingsAccept = accept'} socket app = do
     settingsInstallShutdownHandler oldSettings closeListenSocket
-    (ServerState{serverShuttingDown}, newSettings) <- makeServerState oldSettings
-    let mkConn = getConn newSettings serverShuttingDown
-    runSettingsConnection newSettings mkConn app
+    (_, newSettings) <- makeServerState oldSettings
+    runSettingsConnection newSettings (getConn newSettings) app
   where
-    getConn newSettings shuttingDown = do
+    getConn set = do
         (s, sa) <- accept' socket
         setSocketCloseOnExec s
         -- NoDelay causes an error for AF_UNIX.
         setSocketOption s NoDelay 1 `E.catch` throughAsync (return ())
-        conn <- socketConnection newSettings s shuttingDown
+        conn <- socketConnection set s
         return (conn, sa)
 
     closeListenSocket = close socket
