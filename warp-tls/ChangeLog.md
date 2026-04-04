@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.4.14
+
+* Build with `warp-3.4.13`.
+  [#1071](https://github.com/yesodweb/wai/pull/1071)
+
 ## 3.4.13
 
 * Introduced new smart constructor `tlsSettingsSni` to make it more convenient
