@@ -86,6 +86,7 @@ library
         Network.Wai.Handler.Warp.Run
         Network.Wai.Handler.Warp.SendFile
         Network.Wai.Handler.Warp.Settings
+        Network.Wai.Handler.Warp.ShuttingDown
         Network.Wai.Handler.Warp.Types
         Network.Wai.Handler.Warp.Windows
         Network.Wai.Handler.Warp.WithApplication
@@ -221,6 +222,7 @@ test-suite spec
         Network.Wai.Handler.Warp.Run
         Network.Wai.Handler.Warp.SendFile
         Network.Wai.Handler.Warp.Settings
+        Network.Wai.Handler.Warp.ShuttingDown
         Network.Wai.Handler.Warp.Types
         Network.Wai.Handler.Warp.Windows
         Network.Wai.Handler.Warp.WithApplication
