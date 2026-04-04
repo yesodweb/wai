@@ -8,6 +8,7 @@ module Network.Wai.Handler.Warp.Counter (
     decrease,
     waitForDecreased,
     getCount,
+    getCountSTM,
 ) where
 
 import Control.Concurrent.STM
@@ -42,3 +43,9 @@ decrease (Counter var) = atomically $ modifyTVar' var $ \x -> x - 1
 -- Since 3.4.11
 getCount :: Counter -> IO Int
 getCount (Counter var) = readTVarIO var
+
+-- | Get the current count in an 'STM' transaction.
+--
+-- Since 3.4.13
+getCountSTM :: Counter -> STM Int
+getCountSTM (Counter tvar) = readTVar tvar
