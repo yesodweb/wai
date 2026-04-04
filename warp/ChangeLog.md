@@ -1,9 +1,21 @@
 # ChangeLog for warp
 
+## 3.4.13
+
+* Change graceful shutdown logic to stop accepting data from idle connections,
+  but to wait for busy `Application`s, adding `Connection: close` headers to
+  responses if the server is shutting down.
+  This should make sure the server doesn't wait for idle keep-alive connections.
+* Expose a broader way to access internal state like the open connection `Counter`
+  and whether the server is currently `ShuttingDown` or not.
+  Users can use `makeSettingsAndServerState` to get a `ServerState` while
+  making `defaultSettings`.
+  [#1071](https://github.com/yesodweb/wai/pull/1071)
+
 ## 3.4.12
 
 * Respond with `Connection: close` header if connection is to be closed after a request.
-   [#958](https://github.com/yesodweb/wai/pull/958)
+  [#958](https://github.com/yesodweb/wai/pull/958)
 
 ## 3.4.11
 
