@@ -184,6 +184,7 @@ test-suite spec
         ExceptionSpec
         FdCacheSpec
         FileSpec
+        GracefulShutdownSpec
         HTTP
         PackIntSpec
         ReadIntSpec
