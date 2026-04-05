@@ -19,6 +19,7 @@ module System.ThreadManager (
     ThreadManager,
     newThreadManager,
     stopAfter,
+    stopAfterWithResult,
     KilledByThreadManager (..),
 
     -- * Fork
@@ -106,7 +107,25 @@ instance Exception KilledByThreadManager where
 -- to cleanup in all circumstances. If an exception is caught, it is rethrown
 -- after the cleanup is complete.
 stopAfter :: ThreadManager -> IO a -> (Maybe SomeException -> IO ()) -> IO a
-stopAfter (ThreadManager _timmgr var) action cleanup = do
+stopAfter mgr action cleanup =
+    stopAfterWithResult mgr action $ \mResult ->
+        case mResult of
+            Left err -> do
+                cleanup (Just err)
+                E.throwIO err
+            Right result -> do
+                cleanup Nothing
+                return result
+
+-- | Generalization of 'stopAfter' where the cleanup handler is allowed to construct the final result
+--
+-- Unlike in 'stopAfter', if an exception is thrown, it is not re-thrown after the cleanup
+-- handler completes; the cleanup handler itself can decide to rethrow it or compute a result.
+--
+-- @since 0.3.2
+stopAfterWithResult
+    :: ThreadManager -> IO a -> (Either SomeException a -> IO b) -> IO b
+stopAfterWithResult (ThreadManager _timmgr var) action cleanup = do
     E.mask $ \unmask -> do
         ma <- E.try $ unmask action
         m <- atomically $ do
@@ -117,9 +136,7 @@ stopAfter (ThreadManager _timmgr var) action cleanup = do
             er = either Just (const Nothing) ma
             ex = KilledByThreadManager er
         forM_ ths $ \(ManagedThread wtid ref) -> lockAndKill wtid ref ex
-        case ma of
-            Left err -> cleanup (Just err) >> E.throwIO err
-            Right a -> cleanup Nothing >> return a
+        cleanup ma
 
 ----------------------------------------------------------------
 
