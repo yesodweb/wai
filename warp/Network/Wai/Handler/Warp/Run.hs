@@ -104,7 +104,7 @@ socketConnection set s = do
             }
   where
     receive' bufferPool ss appsInProgress =
-        E.handle handler $ makeRecv s bufferPool ss appsInProgress
+        E.handle handler $ makeGracefulRecv s bufferPool ss appsInProgress
       where
         handler :: E.IOException -> IO ByteString
         handler e
@@ -136,8 +136,12 @@ socketConnection set s = do
             E.throwIO
             $ Sock.sendAll sock bs
 
-makeRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
-makeRecv sock pool ss appsInProgress = do
+-- | Create a 'Recv' using 'Network.Socket.BufferPool.Recv.receive', but make
+-- it non-blocking with 'waitReadSocketSTM' /AND/ cut off receiving any bytes
+-- when the server is shutting down and there are no more 'Application's
+-- actively using this 'Socket'.
+makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
+makeGracefulRecv sock pool ss appsInProgress = do
     sockWait <- waitReadSocketSTM sock
     isShuttingDown <- atomically $
         -- when shutting down

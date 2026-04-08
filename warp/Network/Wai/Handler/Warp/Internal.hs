@@ -34,7 +34,7 @@ module Network.Wai.Handler.Warp.Internal (
 
     -- ** Receive
     Recv,
-    makeRecv,
+    makeGracefulRecv,
     RecvBuf,
 
     -- ** Buffer

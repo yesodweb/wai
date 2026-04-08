@@ -394,7 +394,7 @@ httpOverTls TLSSettings{..} set s bs0 params =
 #if MIN_VERSION_warp(3,4,13)
         appsInProgress <- newTVarIO 0
         (ss, _) <- makeServerState set
-        let recv = makeRecv s pool ss appsInProgress
+        let recv = makeGracefulRecv s pool ss appsInProgress
 #else
         let recv = receive s pool
 #endif
