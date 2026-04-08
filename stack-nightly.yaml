@@ -1,5 +1,4 @@
 resolver: nightly
-compiler: ghc-9.12.2
 packages:
   - ./auto-update
   - ./mime-types

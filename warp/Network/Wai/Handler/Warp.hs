@@ -92,13 +92,6 @@ module Network.Wai.Handler.Warp (
     getOpenConnectionCounter,
     getServerState,
 
-    -- ** Connection counter
-    --
-    -- /Deprecated in favor of 'ServerState'/
-    makeSettingsAndCounter,
-    Counter,
-    getCount,
-
     -- ** Internal server state
     --
     -- Creating 'Settings' with insight into the internal state of the server.
@@ -114,6 +107,13 @@ module Network.Wai.Handler.Warp (
     -- *** STM versions
     currentOpenConnectionsSTM,
     currentShuttingDownStateSTM,
+
+    -- ** Connection counter
+    --
+    -- /Deprecated in favor of 'ServerState'/
+    makeSettingsAndCounter,
+    Counter,
+    getCount,
 
     -- ** Exception handler
     defaultOnException,
