@@ -4,14 +4,14 @@
 
 module Network.Wai.Handler.Warp.Types where
 
+import Control.Concurrent.STM (TVar)
+import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Typeable (Typeable)
-import qualified Control.Exception as E
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
-import GHC.Conc (TVar)
 import Network.Socket (SockAddr)
 import Network.Socket.BufferPool
 import System.Posix.Types (Fd)

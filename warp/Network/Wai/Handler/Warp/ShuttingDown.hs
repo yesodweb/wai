@@ -1,4 +1,4 @@
--- Most important is to not export the data constructor
+-- Most important is to not export the data constructor from this module
 -- and to not expose 'writeShuttingDown' to the end user.
 module Network.Wai.Handler.Warp.ShuttingDown (
     ShuttingDown,
@@ -8,7 +8,7 @@ module Network.Wai.Handler.Warp.ShuttingDown (
     writeShuttingDown,
 ) where
 
-import GHC.Conc (
+import Control.Concurrent.STM (
     STM,
     TVar,
     atomically,

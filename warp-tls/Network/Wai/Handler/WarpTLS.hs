@@ -59,6 +59,9 @@ module Network.Wai.Handler.WarpTLS (
 ) where
 
 import Control.Applicative ((<|>))
+#if MIN_VERSION_warp(3,4,13)
+import Control.Concurrent.STM (newTVarIO, TVar)
+#endif
 import Control.Exception (
     Exception,
     IOException,
@@ -90,9 +93,6 @@ import Network.Socket (
 #endif
     withSocketsDo,
  )
-#if MIN_VERSION_warp(3,4,13)
-import GHC.Conc (newTVarIO, TVar)
-#endif
 import Network.Socket.BufferPool
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
@@ -360,12 +360,10 @@ mkConn tlsset set s params = do
       Just bs -> switch bs
   where
     recvFirstBS = safeRecv s 4096 `onException` close s
-    switch firstBS =
-        case S.uncons firstBS of
-            Nothing -> close s >> throwIO ClientClosedConnectionPrematurely
-            Just (w8, _)
-                | w8 == 0x16 -> httpOverTls tlsset set s firstBS params
-                | otherwise -> plainHTTP tlsset set s firstBS
+    switch firstBS
+        | S.null firstBS = close s >> throwIO ClientClosedConnectionPrematurely
+        | S.head firstBS == 0x16 = httpOverTls tlsset set s firstBS params
+        | otherwise = plainHTTP tlsset set s firstBS
 
 ----------------------------------------------------------------
 

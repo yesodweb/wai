@@ -20,6 +20,7 @@ import Control.Concurrent.STM (
  )
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
+import Data.Functor (($>))
 import Data.IORef (newIORef, readIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
@@ -138,13 +139,13 @@ socketConnection set s = do
 makeRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
 makeRecv sock pool ss appsInProgress = do
     sockWait <- waitReadSocketSTM sock
-    ok <- atomically $
-        -- when shutting down throw
-        (checkShutdown >> pure False)
+    isShuttingDown <- atomically $
+        -- when shutting down
+        (checkShutdown $> True)
         <|>
         -- else wait for socket readiness and do non-blocking read
-        (sockWait >> pure True)
-    if ok then recv else pure ""
+        (sockWait $> False)
+    if isShuttingDown then pure "" else recv
   where
     recv = receive sock pool
     checkShutdown = do

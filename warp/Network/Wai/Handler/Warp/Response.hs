@@ -161,7 +161,7 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist, isChunked)
     method = requestMethod req
     isHead = method == H.methodHead
-    !rsp = case response of
+    rsp = case response of
         ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr (T.tickle th)
         ResponseBuilder _ _ b
             | isHead -> RspNoBody

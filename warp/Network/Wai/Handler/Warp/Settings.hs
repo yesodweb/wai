@@ -9,13 +9,13 @@
 
 module Network.Wai.Handler.Warp.Settings where
 
-import Control.Exception (SomeException(..), fromException, throw)
+import Control.Concurrent.STM (STM)
+import Control.Exception (SomeException (..), fromException, throw)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as C8
 import Data.Streaming.Network (HostPreference)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import GHC.Conc (STM)
 import GHC.Exts (fork#)
 import GHC.IO (IO (IO), unsafeUnmask)
 import GHC.IO.Exception (IOErrorType (..))
@@ -193,6 +193,8 @@ data Settings = Settings
     --
     -- Default: 'Nothing' (warp creates an internal counter)
     --
+    -- /DEPRECATED in favor of 'settingsServerState'/
+    --
     -- Since 3.4.11
     , settingsServerState :: Maybe ServerState
     -- ^ Internal read-only server state.
@@ -282,7 +284,7 @@ currentShuttingDownState = readShuttingDown . serverShuttingDown
 
 -- | Check if the server is currently shutting down in an 'STM' transaction.
 --
--- (This way you can have a thread wait for server shutdown with 'GHC.Conc.retry')
+-- (This way you can have a thread wait for server shutdown with 'Control.Concurrent.STM.retry')
 --
 -- > False: Server is not shutting down
 -- > True:  Server is shutting down or has shut down.
