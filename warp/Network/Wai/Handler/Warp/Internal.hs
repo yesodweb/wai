@@ -23,14 +23,7 @@ module Network.Wai.Handler.Warp.Internal (
 
     -- ** Server state
     ServerState,
-    newServerState,
     makeServerState,
-    currentOpenConnections,
-    currentShuttingDownState,
-
-    -- *** STM versions
-    currentOpenConnectionsSTM,
-    currentShuttingDownStateSTM,
 
     -- * Low level run functions
     runSettingsConnection,
