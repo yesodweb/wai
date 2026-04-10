@@ -123,6 +123,8 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     isShuttingDown <-
         case settingsServerState settings of
             Just serverState -> currentShuttingDownState serverState
+            -- Should never be reached!
+            -- (cf. 'makeServerState' in 'runSettingsConnectionMakerSecure')
             Nothing -> pure False
     let shouldPersist =
             not isShuttingDown && if hasBody s then ret else isPersist
