@@ -1,14 +1,29 @@
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
+-- |
+-- __IMPORTANT NOTICE__
+--
+-- This module exports internals mainly to provide the @warp-tls@ package
+-- with tools to implement what it needs to. This module\/API should /NOT/ be
+-- expected to remain stable at all, even between minor releases.
+--
+-- If you see a use case for these functions or types for other purposes,
+-- please create an issue in the repository so that we might add it to the
+-- main 'Network.Wai.Handler.Warp' API.
 module Network.Wai.Handler.Warp.Internal (
     -- * Settings
     Settings (..),
     ProxyProtocol (..),
     makeSettingsAndCounter,
+    makeSettingsAndServerState,
 
-    -- * Connection counter
+    -- ** Connection counter
     Counter,
     getCount,
+
+    -- ** Server state
+    ServerState,
+    makeServerState,
 
     -- * Low level run functions
     runSettingsConnection,
@@ -22,6 +37,7 @@ module Network.Wai.Handler.Warp.Internal (
 
     -- ** Receive
     Recv,
+    makeGracefulRecv,
     RecvBuf,
 
     -- ** Buffer

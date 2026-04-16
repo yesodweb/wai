@@ -59,6 +59,9 @@ module Network.Wai.Handler.WarpTLS (
 ) where
 
 import Control.Applicative ((<|>))
+#if MIN_VERSION_warp(3,4,13)
+import Control.Concurrent.STM (newTVarIO, TVar)
+#endif
 import Control.Exception (
     Exception,
     IOException,
@@ -72,6 +75,7 @@ import Control.Exception (
     throwIO,
     try,
  )
+import qualified Control.Exception as E
 import Control.Monad (guard, void)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -89,7 +93,6 @@ import Network.Socket (
 #endif
     withSocketsDo,
  )
-import qualified Control.Exception as E
 import Network.Socket.BufferPool
 import Network.Socket.ByteString (sendAll)
 import qualified Network.TLS as TLS
@@ -274,10 +277,16 @@ runTLSSocket'
     -> Socket
     -> Application
     -> IO ()
-runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock =
-    runSettingsConnectionMakerSecure set get
+runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock app = do
+#if MIN_VERSION_warp(3,4,13)
+    (_, newSettings) <- makeServerState set
+    let get = getter tlsset newSettings sock params
+    runSettingsConnectionMakerSecure newSettings get app
+#else
+    let get = getter tlsset set sock params
+    runSettingsConnectionMakerSecure set get app
+#endif
   where
-    get = getter tlsset set sock params
     params =
         TLS.defaultParamsServer
             { TLS.serverWantClientCert = tlsWantClientCert
@@ -382,7 +391,14 @@ httpOverTls TLSSettings{..} set s bs0 params =
   where
     makeConn = do
         pool <- newBufferPool 2048 16384
-        rawRecvN <- makeRecvN bs0 $ receive s pool
+#if MIN_VERSION_warp(3,4,13)
+        appsInProgress <- newTVarIO 0
+        (ss, _) <- makeServerState set
+        let recv = makeGracefulRecv s pool ss appsInProgress
+#else
+        let recv = receive s pool
+#endif
+        rawRecvN <- makeRecvN bs0 recv
         let recvN = wrappedRecvN rawRecvN
         ctx <- TLS.contextNew (backend recvN) params
         TLS.contextHookSetLogging ctx tlsLogging
@@ -390,7 +406,11 @@ httpOverTls TLSSettings{..} set s bs0 params =
         mconn <- timeout tm $ do
             TLS.handshake ctx
             mysa <- getSocketName s
+#if MIN_VERSION_warp(3,4,13)
+            attachConn mysa ctx appsInProgress
+#else
             attachConn mysa ctx
+#endif
         case mconn of
           Nothing -> throwIO IncompleteHeaders
           Just conn -> return conn
@@ -419,8 +439,16 @@ httpOverTls TLSSettings{..} set s bs0 params =
 
 -- | Get "Connection" and "Transport" for a TLS connection that is already did the handshake.
 -- @since 3.4.7
-attachConn :: SockAddr -> TLS.Context -> IO (Connection, Transport)
+attachConn
+    :: SockAddr
+    -> TLS.Context
+#if MIN_VERSION_warp(3,4,13)
+    -> TVar Int -> IO (Connection, Transport)
+attachConn mysa ctx appsInProgress = do
+#else
+    -> IO (Connection, Transport)
 attachConn mysa ctx = do
+#endif
     h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
     isH2 <- I.newIORef h2
     writeBuffer <- createWriteBuffer 16384
@@ -440,6 +468,9 @@ attachConn mysa ctx = do
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
+#if MIN_VERSION_warp(3,4,13)
+            , connAppsInProgress = appsInProgress
+#endif
             }
       where
         sendall = TLS.sendData ctx . L.fromChunks . return

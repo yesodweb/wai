@@ -1,16 +1,26 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
-{-# LANGUAGE MultiWayIf #-}
 
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
+import Control.Concurrent.STM (
+    TVar,
+    atomically,
+    check,
+    modifyTVar',
+    newTVarIO,
+    readTVar,
+ )
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
+import Data.Functor (($>))
 import Data.IORef (newIORef, readIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
@@ -26,6 +36,7 @@ import Network.Socket (
 #endif
     getSocketName,
     setSocketOption,
+    waitReadSocketSTM,
     withSocketsDo,
  )
 #if MIN_VERSION_network(3,1,1)
@@ -39,7 +50,7 @@ import System.IO.Error (ioeGetErrorType)
 import qualified System.TimeManager as T
 import System.Timeout (timeout)
 
-import Network.Wai.Handler.Warp.Buffer
+import Network.Wai.Handler.Warp.Buffer (createWriteBuffer)
 import Network.Wai.Handler.Warp.Counter
 import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
@@ -48,22 +59,24 @@ import Network.Wai.Handler.Warp.HTTP1 (http1)
 import Network.Wai.Handler.Warp.HTTP2 (http2)
 import Network.Wai.Handler.Warp.HTTP2.Types (isHTTP2)
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
-import Network.Wai.Handler.Warp.SendFile
+import Network.Wai.Handler.Warp.SendFile (sendFile)
 import Network.Wai.Handler.Warp.Settings
+import Network.Wai.Handler.Warp.ShuttingDown (writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
+--
+-- (N.B. make sure the 'Settings' have an initialized 'ServerState' to guarantee
+-- a graceful shutdown)
 socketConnection :: Settings -> Socket -> IO Connection
-#if MIN_VERSION_network(3,1,1)
 socketConnection set s = do
-#else
-socketConnection _ s = do
-#endif
+    (ss, _) <- makeServerState set
     bufferPool <- newBufferPool 2048 16384
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
+    appsInProgress <- newTVarIO 0
     return
         Connection
             { connSendMany = Sock.sendMany s
@@ -82,14 +95,16 @@ socketConnection _ s = do
 #else
             , connClose = close s
 #endif
-            , connRecv = receive' s bufferPool
+            , connRecv = receive' bufferPool ss appsInProgress
             , connRecvBuf = \_ _ -> return True -- obsoleted
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
+            , connAppsInProgress = appsInProgress
             }
   where
-    receive' sock pool = E.handle handler $ receive sock pool
+    receive' bufferPool ss appsInProgress =
+        E.handle handler $ makeGracefulRecv s bufferPool ss appsInProgress
       where
         handler :: E.IOException -> IO ByteString
         handler e
@@ -120,6 +135,26 @@ socketConnection _ s = do
             )
             E.throwIO
             $ Sock.sendAll sock bs
+
+-- | Create a 'Recv' using 'Network.Socket.BufferPool.Recv.receive', but make
+-- it non-blocking with 'waitReadSocketSTM' /AND/ cut off receiving any bytes
+-- when the server is shutting down and there are no more 'Application's
+-- actively using this 'Socket'.
+makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
+makeGracefulRecv sock pool ss appsInProgress = do
+    sockWait <- waitReadSocketSTM sock
+    isShuttingDown <- atomically $
+        -- when shutting down
+        (checkShutdown $> True)
+        <|>
+        -- else wait for socket readiness and do non-blocking read
+        (sockWait $> False)
+    if isShuttingDown then pure "" else recv
+  where
+    recv = receive sock pool
+    checkShutdown = do
+       check =<< currentShuttingDownStateSTM ss
+       check . (<= 0) =<< readTVar appsInProgress
 
 -- | Run an 'Application' on the given port.
 -- This calls 'runSettings' with 'defaultSettings'.
@@ -168,11 +203,12 @@ runSettings set app =
 -- Note that the 'settingsPort' will still be passed to 'Application's via the
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
-runSettingsSocket set@Settings{settingsAccept = accept'} socket app = do
-    settingsInstallShutdownHandler set closeListenSocket
-    runSettingsConnection set getConn app
+runSettingsSocket oldSettings@Settings{settingsAccept = accept'} socket app = do
+    settingsInstallShutdownHandler oldSettings closeListenSocket
+    (_, newSettings) <- makeServerState oldSettings
+    runSettingsConnection newSettings (getConn newSettings) app
   where
-    getConn = do
+    getConn set = do
         (s, sa) <- accept' socket
         setSocketCloseOnExec s
         -- NoDelay causes an error for AF_UNIX.
@@ -218,12 +254,11 @@ runSettingsConnectionMaker x y =
 -- Since 2.1.4
 runSettingsConnectionMakerSecure
     :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
-runSettingsConnectionMakerSecure set getConnMaker app = do
-    settingsBeforeMainLoop set
-    counter <- case settingsConnectionCounter set of
-        Just c -> pure c
-        Nothing -> newCounter
-    withII set $ acceptConnection set getConnMaker app counter
+runSettingsConnectionMakerSecure oldSettings getConnMaker app = do
+    settingsBeforeMainLoop oldSettings
+    (ServerState{serverConnectionCounter}, newSettings) <- makeServerState oldSettings
+    withII newSettings $
+        acceptConnection newSettings getConnMaker app serverConnectionCounter
 
 -- | Running an action with internal info.
 --
@@ -391,13 +426,19 @@ serveConnection conn ii th origAddr transport settings app = do
                 if "PRI " `S.isPrefixOf` bs0
                     then return (True, bs0)
                     else return (False, bs0)
+    let appsInProgress = connAppsInProgress conn
+        app' req rsp =
+            E.bracket_
+                (atomically $ modifyTVar' appsInProgress $ (+ 1))
+                (atomically $ modifyTVar' appsInProgress $ \i -> (i - 1))
+                $ app req rsp
     if settingsHTTP2Enabled settings && h2
         then do
             labelThread tid ("Warp HTTP/2 " ++ show origAddr)
-            http2 settings ii conn transport app origAddr th bs
+            http2 settings ii conn transport app' origAddr th bs
         else do
             labelThread tid ("Warp HTTP/1.1 " ++ show origAddr)
-            http1 settings ii conn transport app origAddr th bs
+            http1 settings ii conn transport app' origAddr th bs
   where
     recv4 bs0 = do
         bs1 <- connRecv conn
@@ -430,11 +471,17 @@ setSocketCloseOnExec socket = do
 #endif
 
 gracefulShutdown :: Settings -> Counter -> IO ()
-gracefulShutdown set counter =
+gracefulShutdown set counter = do
+    setShuttingDown
     case settingsGracefulShutdownTimeout set of
         Nothing ->
             waitForZero counter
         (Just seconds) ->
             void (timeout (seconds * microsPerSecond) (waitForZero counter))
-          where
-            microsPerSecond = 1000000
+  where
+    microsPerSecond = 1000000
+    setShuttingDown =
+        case settingsServerState set of
+            Nothing -> pure ()
+            Just ServerState{serverShuttingDown} ->
+                writeShuttingDown serverShuttingDown True

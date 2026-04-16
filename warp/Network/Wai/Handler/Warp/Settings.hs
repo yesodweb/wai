@@ -9,7 +9,8 @@
 
 module Network.Wai.Handler.Warp.Settings where
 
-import Control.Exception (SomeException(..), fromException, throw)
+import Control.Concurrent.STM (STM)
+import Control.Exception (SomeException (..), fromException, throw)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as C8
 import Data.Streaming.Network (HostPreference)
@@ -25,8 +26,14 @@ import System.IO (stderr)
 import System.IO.Error (ioeGetErrorType)
 import System.TimeManager
 
-import Network.Wai.Handler.Warp.Counter (Counter, newCounter)
+import Network.Wai.Handler.Warp.Counter (Counter, getCount, newCounter, getCountSTM)
 import Network.Wai.Handler.Warp.Imports
+import Network.Wai.Handler.Warp.ShuttingDown (
+    ShuttingDown,
+    newShuttingDown,
+    readShuttingDown,
+    readShuttingDownSTM,
+ )
 import Network.Wai.Handler.Warp.Types
 #if WINDOWS
 import Network.Wai.Handler.Warp.Windows (windowsThreadBlockHack)
@@ -186,7 +193,18 @@ data Settings = Settings
     --
     -- Default: 'Nothing' (warp creates an internal counter)
     --
+    -- /DEPRECATED in favor of 'settingsServerState'/
+    --
     -- Since 3.4.11
+    , settingsServerState :: Maybe ServerState
+    -- ^ Internal read-only server state.
+    -- Use 'makeSettingsAndServerState' to gain access to the state of the server.
+    -- Using functions like 'currentOpenConnections' or 'currentShuttingDownState'
+    -- to gain insight into the current state of the server.
+    --
+    -- Default: 'Nothing' (warp creates its own internal state)
+    --
+    -- Since 3.4.13
     }
 
 -- | Specify usage of the PROXY protocol.
@@ -197,6 +215,83 @@ data ProxyProtocol
       ProxyProtocolRequired
     | -- | See @setProxyProtocolOptional@.
       ProxyProtocolOptional
+
+-- | Internal read-only state of the server
+--
+-- Since 3.4.13
+data ServerState = ServerState
+    { serverConnectionCounter :: Counter
+    , serverShuttingDown :: ShuttingDown
+    }
+
+-- | Takes 'Settings' and either returns the 'ServerState'
+-- that was already in there, or creates a new 'ServerState'.
+--
+-- The returned 'Settings' will always contain a 'ServerState'.
+--
+-- This makes it idempotent if care is taken that the @oldSettings@
+-- are not used after using this function.
+--
+-- Since 3.4.13
+makeServerState :: Settings -> IO (ServerState, Settings)
+makeServerState oldSettings =
+    case settingsServerState oldSettings of
+        Just serverState -> pure (serverState, oldSettings)
+        Nothing -> do
+            serverState <- newServerState
+            let counter = serverConnectionCounter serverState
+            pure
+                ( serverState
+                , oldSettings
+                    { settingsServerState = Just serverState
+                    , settingsConnectionCounter = Just counter
+                    }
+                )
+
+-- | Initialize a 'ServerState'
+--
+-- Since 3.4.13
+newServerState :: IO ServerState
+newServerState = do
+    counter <- newCounter
+    shuttingDown <- newShuttingDown
+    pure
+        ServerState
+            { serverConnectionCounter = counter
+            , serverShuttingDown = shuttingDown
+            }
+
+-- | Get the currently open connections of the server.
+--
+-- Since 3.4.13
+currentOpenConnections :: ServerState -> IO Int
+currentOpenConnections = getCount . serverConnectionCounter
+
+-- | Get the currently open connections of the server in an 'STM' transaction.
+--
+-- Since 3.4.13
+currentOpenConnectionsSTM :: ServerState -> STM Int
+currentOpenConnectionsSTM = getCountSTM . serverConnectionCounter
+
+-- | Check if the server is currently shutting down.
+--
+-- > False: Server is not shutting down
+-- > True:  Server is shutting down or has shut down.
+--
+-- Since 3.4.13
+currentShuttingDownState :: ServerState -> IO Bool
+currentShuttingDownState = readShuttingDown . serverShuttingDown
+
+-- | Check if the server is currently shutting down in an 'STM' transaction.
+--
+-- (This way you can have a thread wait for server shutdown with 'Control.Concurrent.STM.retry')
+--
+-- > False: Server is not shutting down
+-- > True:  Server is shutting down or has shut down.
+--
+-- Since 3.4.13
+currentShuttingDownStateSTM :: ServerState -> STM Bool
+currentShuttingDownStateSTM = readShuttingDownSTM . serverShuttingDown
 
 -- | The default settings for the Warp server. See the individual settings for
 -- the default value.
@@ -232,16 +327,27 @@ defaultSettings =
         , settingsAltSvc = Nothing
         , settingsMaxBuilderResponseBufferSize = 1049000000
         , settingsConnectionCounter = Nothing
+        , settingsServerState = Nothing
         }
 
--- | Create 'Settings' with a connection counter.
+-- | Create 'defaultSettings' with a connection counter.
 -- Use 'getCount' on the returned 'Counter' to check open connections.
+--
+-- /DEPRECATED in favor of 'makeSettingsAndServerState'/
 --
 -- Since 3.4.11
 makeSettingsAndCounter :: IO (Counter, Settings)
 makeSettingsAndCounter = do
-    counter <- newCounter
-    pure (counter, defaultSettings{settingsConnectionCounter = Just counter})
+    (serverState, settings) <- makeSettingsAndServerState
+    pure (serverConnectionCounter serverState, settings)
+
+-- | Create 'defaultSettings' with a 'ServerState'.
+-- Use functions like 'currentOpenConnections' and 'currentShuttingDownState'
+-- to gain insight into the state of the server.
+--
+-- Since 3.4.13
+makeSettingsAndServerState :: IO (ServerState, Settings)
+makeSettingsAndServerState = makeServerState defaultSettings
 
 -- | Apply the logic provided by 'defaultOnException' to determine if an
 -- exception should be shown or not. The goal is to hide exceptions which occur
