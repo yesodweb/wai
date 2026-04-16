@@ -135,6 +135,8 @@ data Connection = Connection
     -- ^ Amount of apps currently in progress on this connection.
     --
     -- /HTTP2 can handle more than one request concurrently/
+    --
+    -- @since 3.4.13
     }
 
 getConnHTTP2 :: Connection -> IO Bool
