@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RankNTypes #-}
@@ -81,7 +80,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
 import Data.Streaming.Network (bindPortTCP, safeRecv)
-import Data.Typeable (Typeable)
 import GHC.IO.Exception (IOErrorType (..))
 import Network.Socket (
     SockAddr,
@@ -588,5 +586,5 @@ recvPlain ref fallback = do
 data WarpTLSException
     = InsecureConnectionDenied
     | ClientClosedConnectionPrematurely
-    deriving (Show, Typeable)
+    deriving (Show)
 instance Exception WarpTLSException
