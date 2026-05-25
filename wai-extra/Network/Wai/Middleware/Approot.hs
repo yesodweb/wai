@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-
 -- | Middleware for establishing the root of the application.
 --
 -- Many application need the ability to create URLs referring back to the
@@ -33,7 +31,6 @@ import Control.Exception (Exception, throw)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
 import Data.Maybe (fromMaybe)
-import Data.Typeable (Typeable)
 import qualified Data.Vault.Lazy as V
 import Network.Wai (Middleware, Request, vault)
 import System.Environment (lookupEnv)
@@ -108,7 +105,7 @@ fromRequest :: Middleware
 fromRequest = approotMiddleware (return . guessApproot)
 
 data ApprootMiddlewareNotSetup = ApprootMiddlewareNotSetup
-    deriving (Show, Typeable)
+    deriving (Show)
 instance Exception ApprootMiddlewareNotSetup
 
 -- | Get the approot set by the middleware. If the middleware is not in use,

@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-
 -- | Some helpers for interrogating a WAI 'Request'.
 module Network.Wai.Request (
     appearsSecure,
@@ -14,7 +12,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C
 import Data.IORef (atomicModifyIORef', newIORef)
 import Data.Maybe (fromMaybe)
-import Data.Typeable (Typeable)
 import Data.Word (Word64)
 import Network.HTTP.Types (HeaderName)
 import Network.Wai
@@ -63,7 +60,7 @@ guessApproot req =
 -- @since 3.0.15
 newtype RequestSizeException
     = RequestSizeException Word64
-    deriving (Eq, Ord, Typeable)
+    deriving (Eq, Ord)
 
 instance Exception RequestSizeException
 
