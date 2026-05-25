@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wai.Handler.Warp.Types where
@@ -8,7 +7,6 @@ import Control.Concurrent.STM (TVar)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Data.Typeable (Typeable)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
@@ -47,7 +45,7 @@ data InvalidRequest
       PayloadTooLarge
     | -- | Since 3.3.22
       RequestHeaderFieldsTooLarge
-    deriving (Eq, Typeable)
+    deriving (Eq)
 
 instance Show InvalidRequest where
     show (NotEnoughLines xs) = "Warp: Incomplete request headers, received: " ++ show xs
@@ -72,7 +70,7 @@ instance E.Exception InvalidRequest
 -- Used to determine whether keeping the HTTP1.1 connection / HTTP2 stream alive is safe
 -- or irrecoverable.
 newtype ExceptionInsideResponseBody = ExceptionInsideResponseBody E.SomeException
-    deriving (Show, Typeable)
+    deriving (Show)
 
 instance E.Exception ExceptionInsideResponseBody
 

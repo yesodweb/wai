@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternGuards #-}
@@ -76,7 +75,6 @@ import Data.IORef
 import Data.Int (Int64)
 import Data.List (sortBy)
 import Data.Maybe (catMaybes, fromMaybe)
-import Data.Typeable
 import Data.Word8
 import Network.HTTP.Types (hContentType)
 import qualified Network.HTTP.Types as H
@@ -660,7 +658,7 @@ data RequestParseException
     | MaxFileNumberExceeded Int
     | FilenameTooLong S.ByteString Int
     | TooManyHeaderLines Int
-    deriving (Eq, Typeable)
+    deriving (Eq)
 
 instance E.Exception RequestParseException
 instance Show RequestParseException where
@@ -806,7 +804,7 @@ parseContentDispositionAttrs = parseTokenValues
         let (token, rest) = parseToken $ dropSpace input
          in case S.uncons rest of
             Just (c, rest')
-                | c == _equal -> 
+                | c == _equal ->
                     let (value, rest'') = parseValue rest'
                      in (token, value) : parseTokenValues (S.drop 1 rest'')
                 | otherwise -> (token, S.empty) : parseTokenValues rest'

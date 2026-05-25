@@ -9,7 +9,6 @@ import qualified Data.ByteString as B
 import Data.ByteString.Builder (Builder)
 import Data.List (intercalate)
 import Data.Text (Text)
-import Data.Typeable (Typeable)
 import Data.Vault.Lazy (Vault)
 import Data.Word (Word64)
 import qualified Network.HTTP.Types as H
@@ -93,7 +92,6 @@ data Request = Request
     --
     -- @since 3.2.0
     }
-    deriving (Typeable)
 
 -- | Get the next chunk of the body. Returns 'B.empty' when the
 -- body is fully consumed.
@@ -138,7 +136,6 @@ data Response
     | ResponseBuilder H.Status H.ResponseHeaders Builder
     | ResponseStream H.Status H.ResponseHeaders StreamingBody
     | ResponseRaw (IO B.ByteString -> (B.ByteString -> IO ()) -> IO ()) Response
-    deriving (Typeable)
 
 -- | Represents a streaming HTTP response body. It's a function of two
 -- parameters; the first parameter provides a means of sending another chunk of
@@ -175,4 +172,3 @@ data FilePart = FilePart
 --
 -- @since 3.0.0
 data ResponseReceived = ResponseReceived
-    deriving (Typeable)

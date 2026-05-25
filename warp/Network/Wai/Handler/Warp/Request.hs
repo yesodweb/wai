@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
@@ -21,7 +20,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
 import qualified Data.IORef as I
-import Data.Typeable (Typeable)
 import qualified Data.Vault.Lazy as Vault
 import Data.Word8 (_cr, _lf)
 #ifdef MIN_VERSION_crypton_x509
@@ -136,7 +134,7 @@ headerLines maxTotalHeaderLength firstRequest src = do
         else push maxTotalHeaderLength src (THStatus 0 0 id id) bs
 
 data NoKeepAliveRequest = NoKeepAliveRequest
-    deriving (Show, Typeable)
+    deriving (Show)
 instance Exception NoKeepAliveRequest
 
 ----------------------------------------------------------------
