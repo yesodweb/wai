@@ -148,7 +148,7 @@ makeGracefulRecv sock pool ss appsInProgress = do
 #else
         -- FIXME: 'waitReadSocketSTM' doesn't work on WINDOWS, and actually
         -- blocks indefinitely, so we fall back to going straight to 'recv'.
-        pure ()
+        pure (pure ())
 #endif
     isShuttingDown <- atomically $
         -- when shutting down
