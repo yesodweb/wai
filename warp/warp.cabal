@@ -132,7 +132,7 @@ library
             network-bytestring >=0.1.3 && <0.1.4
 
     else
-        build-depends: network >=2.3
+        build-depends: network >=3.2.3.0
 
     if flag(warp-debug)
         cpp-options: -DWARP_DEBUG
