@@ -33,7 +33,9 @@ import Network.Socket (
     close,
 #if !WINDOWS
     fdSocket,
+#if MIN_VERSION_network(3,2,2)
     waitReadSocketSTM,
+#endif
 #endif
     getSocketName,
     setSocketOption,
@@ -143,7 +145,7 @@ socketConnection set s = do
 makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
 makeGracefulRecv sock pool ss appsInProgress = do
     sockWait <-
-#if !WINDOWS
+#if !WINDOWS && MIN_VERSION_network(3,2,2)
         waitReadSocketSTM sock
 #else
         -- FIXME: 'waitReadSocketSTM' doesn't work on WINDOWS, and actually
