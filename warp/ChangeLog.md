@@ -1,5 +1,11 @@
 # ChangeLog for warp
 
+## 3.4.13.1
+
+* Bugfix to fall back to "blocking `recv`" when on Windows systems and when
+  using `network < 3.2.2`.
+  [#1077](https://github.com/yesodweb/wai/pull/1077)
+
 ## 3.4.13
 
 * Change graceful shutdown logic to stop accepting data from idle connections,

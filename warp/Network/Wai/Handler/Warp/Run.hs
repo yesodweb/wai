@@ -33,10 +33,12 @@ import Network.Socket (
     close,
 #if !WINDOWS
     fdSocket,
+#if MIN_VERSION_network(3,2,2)
+    waitReadSocketSTM,
+#endif
 #endif
     getSocketName,
     setSocketOption,
-    waitReadSocketSTM,
     withSocketsDo,
  )
 #if MIN_VERSION_network(3,1,1)
@@ -142,7 +144,14 @@ socketConnection set s = do
 -- actively using this 'Socket'.
 makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
 makeGracefulRecv sock pool ss appsInProgress = do
-    sockWait <- waitReadSocketSTM sock
+    sockWait <-
+#if !WINDOWS && MIN_VERSION_network(3,2,2)
+        waitReadSocketSTM sock
+#else
+        -- FIXME: 'waitReadSocketSTM' doesn't work on WINDOWS, and actually
+        -- blocks indefinitely, so we fall back to going straight to 'recv'.
+        pure (pure ())
+#endif
     isShuttingDown <- atomically $
         -- when shutting down
         (checkShutdown $> True)
