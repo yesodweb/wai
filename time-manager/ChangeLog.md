@@ -37,6 +37,9 @@ BUGFIXES:
   * `resume` is now re-registration of timeout.
   * The signature of `withHandle` is changed.
 
+This change also means that using this package only works with the threaded runtime.
+The moment a timeout is registered on a non-threaded runtime, an exception will be thrown.
+
 ## 0.2.4
 
 * Providing `isAllGone`.
