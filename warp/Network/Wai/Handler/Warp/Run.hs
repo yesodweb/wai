@@ -352,7 +352,8 @@ acceptConnection set getConnMaker app counter ii = do
                 if | isErrno eCONNABORTED -> acceptNewConnection
                    | isErrno eMFILE -> do
                        settingsOnException set Nothing $ E.toException e
-                       waitForDecreased counter
+                       -- if there are requests in flight wait for (at least) one to finish
+                       waitForCounter (\prev next -> prev <= 0 || prev > next) counter
                        acceptNewConnection
                    | otherwise -> do
                        settingsOnException set Nothing $ E.toException e

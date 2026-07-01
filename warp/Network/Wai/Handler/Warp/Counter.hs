@@ -6,6 +6,7 @@ module Network.Wai.Handler.Warp.Counter (
     waitForZero,
     increase,
     decrease,
+    waitForCounter,
     waitForDecreased,
     getCount,
     getCountSTM,
@@ -26,11 +27,14 @@ waitForZero (Counter var) = atomically $ do
     when (x > 0) retry
 
 waitForDecreased :: Counter -> IO ()
-waitForDecreased (Counter var) = do
-    n0 <- atomically $ readTVar var
+waitForDecreased = waitForCounter (>)
+
+waitForCounter :: (Int -> Int -> Bool) -> Counter -> IO ()
+waitForCounter condition (Counter var) = do
+    n0 <- readTVarIO var
     atomically $ do
         n <- readTVar var
-        check (n < n0)
+        check (condition n0 n)
 
 increase :: Counter -> IO ()
 increase (Counter var) = atomically $ modifyTVar' var $ \x -> x + 1
