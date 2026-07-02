@@ -48,9 +48,10 @@ parseQValueList = fmap go . splitCommas
     checkQ (val, "") = (val, Just 1000)
     checkQ (val, bs) =
         -- RFC 7231 says optional whitespace can be around the semicolon.
-        -- So drop any before it       ,           . and any behind it       $ and drop the semicolon
+        -- So drop any before it
         ( dropWhileEnd (== _space) val
-        , parseQval . S.dropWhile (== _space) $ S.drop 1 bs
+        , --        . and any behind it       $ and drop the semicolon
+          parseQval . S.dropWhile (== _space) $ S.drop 1 bs
         )
       where
         parseQval qVal = do
@@ -66,7 +67,8 @@ parseQValueList = fmap go . splitCommas
                     | i == _1 -> Just 1000
                     | otherwise -> Nothing
                 Just (dot, trail)
-                    | dot == _period && not (i == _1 && S.any (/= _0) trail) -> do
+                    | dot == _period
+                    , not (i == _1 && S.any (/= _0) trail) -> do
                         let len = S.length trail
                             extraZeroes = replicate (3 - len) '0'
                         guard $ len > 0
