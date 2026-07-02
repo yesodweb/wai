@@ -37,20 +37,27 @@ jobs:
           GHC_VERSION="9.12"
           case "${{ matrix.resolver }}" in
             "nightly")
-              STACKYAML="stack-nightly.yaml" ;;
+              STACKYAML="stack-nightly.yaml"
+              ;;
             "lts-24")
-              GHC_VERSION="9.10" ;;
+              GHC_VERSION="9.10"
+              ;;
             "lts-23")
-              GHC_VERSION="9.8" ;;
+              GHC_VERSION="9.8"
+              STACKYAML="stack-lts-23.yaml"
+              ;;
             "lts-22")
               GHC_VERSION="9.6"
-              STACKYAML="stack-lts-22.yaml" ;;
+              STACKYAML="stack-lts-22.yaml"
+              ;;
             "lts-21")
               GHC_VERSION="9.4"
-              STACKYAML="stack-lts-21.yaml" ;;
+              STACKYAML="stack-lts-21.yaml"
+              ;;
             "lts-20")
               GHC_VERSION="9.2"
-              STACKYAML="stack-lts-20.yaml" ;;
+              STACKYAML="stack-lts-20.yaml"
+              ;;
             *)
               ;;
           esac
