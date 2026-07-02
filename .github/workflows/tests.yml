@@ -64,13 +64,25 @@ jobs:
           echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
 
+      - name: Collect directories
+        id: get-dirs
+        uses: haskell-actions/setup@v2
+
+      - name: DEBUG
+        shell: bash
+        run: |
+          echo "-- Testing if we get paths without building anything --"
+          echo "ghc-path: ${{ steps.get-dirs.outputs.ghc-path }}"
+          echo "cabal-path: ${{ steps.get-dirs.outputs.cabal-path }}"
+          echo "stack-path: ${{ steps.get-dirs.outputs.stack-path }}"
+
       - name: Clone project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # We need separate caching steps, because of path names (Windows vs. other)
       - name: Cache dependencies (Windows)
         if: ${{ matrix.os == 'windows-latest' }}
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ${{ env.STACK_PATH_GLOBAL_WINDOWS }}
@@ -80,7 +92,7 @@ jobs:
 
       - name: Cache dependencies (Linux / MacOS)
         if: ${{ matrix.os != 'windows-latest' }}
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ${{ env.STACK_PATH_GLOBAL_UNIX }}
@@ -90,7 +102,7 @@ jobs:
 
       # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
       - name: Cache local files
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ${{ env.STACK_PATH_LOCAL }}
