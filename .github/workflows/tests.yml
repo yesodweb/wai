@@ -19,7 +19,9 @@ jobs:
       STACK_PATH_LOCAL: ".stack-work"
       GHCUP_PATH_WINDOWS: "C:\\ghcup"
       GHCUP_PATH_MAC: "/Users/runner/.ghcup"
-      GHCUP_PATH_LINUX: "/home/runner/.ghcup"
+      GHCUP_PATH_LINUX: |
+        /usr/local/.ghcup
+        /home/runner/.ghcup
 
     strategy:
       fail-fast: false
