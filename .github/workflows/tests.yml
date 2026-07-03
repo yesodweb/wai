@@ -111,7 +111,7 @@ jobs:
       - name: Cache GHCUP installs
         uses: actions/cache@v6
         with:
-          path: |
+          path: |-
             ${{ case(
               runner.os == 'windows-latest', env.GHCUP_PATH_WINDOWS,
               runner.os == 'macos-latest', env.GHCUP_PATH_MAC,
