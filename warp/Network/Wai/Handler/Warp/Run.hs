@@ -21,7 +21,7 @@ import Control.Concurrent.STM (
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Functor (($>))
-import Data.IORef (newIORef, readIORef)
+import Data.IORef (newIORef, readIORef, IORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
 import GHC.Conc.Sync (labelThread, myThreadId)
@@ -266,8 +266,9 @@ runSettingsConnectionMakerSecure
 runSettingsConnectionMakerSecure oldSettings getConnMaker app = do
     settingsBeforeMainLoop oldSettings
     (ServerState{serverConnectionCounter}, newSettings) <- makeServerState oldSettings
-    withII newSettings $
-        acceptConnection newSettings getConnMaker app serverConnectionCounter
+    withII newSettings $ \ii ->
+        initFdExhaustionRef >>=
+            acceptConnection newSettings getConnMaker app serverConnectionCounter ii
 
 -- | Running an action with internal info.
 --
@@ -311,8 +312,12 @@ acceptConnection
     -> Application
     -> Counter
     -> InternalInfo
+    -> IORef FdExhaustion
+        -- ^ This ref will be used to "debounce" the call to 'settingsOnException'
+        -- when we hit an 'IOError' with 'eMFILE' in the case that Warp is not
+        -- the reason the file descriptors are exhausted.
     -> IO ()
-acceptConnection set getConnMaker app counter ii = do
+acceptConnection set getConnMaker app counter ii fdRef = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
@@ -345,18 +350,43 @@ acceptConnection set getConnMaker app counter ii = do
     acceptNewConnection = do
         ex <- E.try getConnMaker
         case ex of
-            Right x -> return $ Just x
+            Right x -> do
+                -- Important to mark the exhaustion issue to be resolved
+                -- when we get connections again.
+                resetFdExhaustion fdRef
+                return $ Just x
             Left e -> do
                 let getErrno (Errno cInt) = cInt
                     isErrno err = ioe_errno e == Just (getErrno err)
-                if | isErrno eCONNABORTED -> acceptNewConnection
+                if | isErrno eCONNABORTED -> do
+                        -- Important to mark the exhaustion issue to be resolved
+                        resetFdExhaustion fdRef
+                        acceptNewConnection
+                     -- Keep in mind to reset the ref when anything other
+                     -- than this branch runs
                    | isErrno eMFILE -> do
-                       settingsOnException set Nothing $ E.toException e
-                       waitForDecreased counter
-                       acceptNewConnection
+                        handleFdExhaustion e
+                        acceptNewConnection
                    | otherwise -> do
-                       settingsOnException set Nothing $ E.toException e
-                       return Nothing
+                        -- Maybe not important to mark the exhaustion issue
+                        -- as resolved here, but just for completeness' sake.
+                        resetFdExhaustion fdRef
+                        settingsOnException set Nothing $ E.toException e
+                        return Nothing
+
+    handleFdExhaustion e = do
+        fdExhaustion <- readIORef fdRef
+        -- If file descriptors are exhausted while Warp has
+        -- no current connections, 'settingsOnException' would
+        -- get called an enormous amount of times per second.
+        when (fdExhaustion /= FdExhausted) $
+            settingsOnException set Nothing $ E.toException e
+        hasDecreased <- waitForDecreased counter
+        -- If we get 'NoConnections', that means the file
+        -- descriptor exhaustion is outside of our control.
+        -- We flag it so that 'settingsOnException' doesn't get
+        -- called until the exhaustion issue is resolved.
+        when (hasDecreased == NoConnections) $ setFdExhaustion fdRef
 
 -- Fork a new worker thread for this connection maker, and ask for a
 -- function to unmask (i.e., allow async exceptions to be thrown).
@@ -494,3 +524,15 @@ gracefulShutdown set counter = do
             Nothing -> pure ()
             Just ServerState{serverShuttingDown} ->
                 writeShuttingDown serverShuttingDown True
+
+data FdExhaustion = NoFdIssue | FdExhausted
+    deriving (Eq, Show)
+
+initFdExhaustionRef :: IO (IORef FdExhaustion)
+initFdExhaustionRef = newIORef NoFdIssue
+
+resetFdExhaustion :: IORef FdExhaustion -> IO ()
+resetFdExhaustion = flip writeIORef NoFdIssue
+
+setFdExhaustion :: IORef FdExhaustion -> IO ()
+setFdExhaustion = flip writeIORef FdExhausted
