@@ -3,6 +3,7 @@
 module Network.Wai.Handler.Warp.Counter (
     Counter,
     newCounter,
+    HasDecreased (..),
     waitForZero,
     increase,
     decrease,
@@ -25,12 +26,18 @@ waitForZero (Counter var) = atomically $ do
     x <- readTVar var
     when (x > 0) retry
 
-waitForDecreased :: Counter -> IO ()
+data HasDecreased = HasDecreased | NoConnections
+    deriving (Eq, Show)
+
+waitForDecreased :: Counter -> IO HasDecreased
 waitForDecreased (Counter var) = do
     n0 <- atomically $ readTVar var
-    atomically $ do
-        n <- readTVar var
-        check (n < n0)
+    if n0 <= 0
+        then pure NoConnections
+        else atomically $ do
+            n <- readTVar var
+            check (n < n0)
+            pure HasDecreased
 
 increase :: Counter -> IO ()
 increase (Counter var) = atomically $ modifyTVar' var $ \x -> x + 1
