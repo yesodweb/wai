@@ -14,6 +14,9 @@ jobs:
       STACK_PATH_GLOBAL_WINDOWS: "C:\\sr"
       STACK_PATH_GLOBAL_UNIX: "~/.stack"
       STACK_PATH_LOCAL: ".stack-work"
+      GHCUP_PATH_WINDOWS: "C:\\ghcup"
+      GHCUP_PATH_MAC: "/Users/runner/.ghcup"
+      GHCUP_PATH_LINUX: "/home/runner/.ghcup"
 
     strategy:
       fail-fast: false
@@ -33,6 +36,8 @@ jobs:
         id: env-vars
         shell: bash
         run: |
+          # First we decide which GHC and which LTS we build with
+
           STACKYAML="stack.yaml"
           GHC_VERSION="9.12"
           case "${{ matrix.resolver }}" in
@@ -61,20 +66,10 @@ jobs:
             *)
               ;;
           esac
+
+          # And then we expose these variables in the 'env'
           echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
-
-      - name: Collect directories
-        id: get-dirs
-        uses: haskell-actions/setup@v2
-
-      - name: DEBUG
-        shell: bash
-        run: |
-          echo "-- Testing if we get paths without building anything --"
-          echo "ghc-path: ${{ steps.get-dirs.outputs.ghc-path }}"
-          echo "cabal-path: ${{ steps.get-dirs.outputs.cabal-path }}"
-          echo "stack-path: ${{ steps.get-dirs.outputs.stack-path }}"
 
       - name: Clone project
         uses: actions/checkout@v6
@@ -86,6 +81,8 @@ jobs:
         with:
           path: |
             ${{ env.STACK_PATH_GLOBAL_WINDOWS }}
+            %APPDATA%\stack
+            %LOCALAPPDATA%\Programs\stack
           key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.resolver }}-
@@ -110,6 +107,17 @@ jobs:
           restore-keys: |
             stack-work-${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}-
             stack-work-${{ runner.os }}-${{ matrix.resolver }}-
+
+      - name: Cache GHCUP installs
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ case(
+              runner.os == 'windows-latest', env.GHCUP_PATH_WINDOWS,
+              runner.os == 'macos-latest', env.GHCUP_PATH_MAC,
+              env.GHCUP_PATH_LINUX,
+            ) }}
+          key: ghcup-${{ runner.os }}
 
       - uses: haskell-actions/setup@v2
         name: Setup Haskell Stack
