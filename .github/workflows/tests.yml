@@ -115,7 +115,7 @@ jobs:
             ${{ case(
               runner.os == 'windows-latest', env.GHCUP_PATH_WINDOWS,
               runner.os == 'macos-latest', env.GHCUP_PATH_MAC,
-              env.GHCUP_PATH_LINUX,
+              env.GHCUP_PATH_LINUX
             ) }}
           key: ghcup-${{ runner.os }}
 
