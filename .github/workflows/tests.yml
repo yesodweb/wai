@@ -11,7 +11,10 @@ jobs:
     name: Stack
     runs-on: ${{ matrix.os }}
     env:
-      STACK_PATH_GLOBAL_WINDOWS: "C:\\sr"
+      STACK_PATHS_GLOBAL_WINDOWS: |
+        C:\\sr
+        %APPDATA%\stack
+        %LOCALAPPDATA%\Programs\stack
       STACK_PATH_GLOBAL_UNIX: "~/.stack"
       STACK_PATH_LOCAL: ".stack-work"
       GHCUP_PATH_WINDOWS: "C:\\ghcup"
@@ -74,25 +77,14 @@ jobs:
       - name: Clone project
         uses: actions/checkout@v6
 
-      # We need separate caching steps, because of path names (Windows vs. other)
-      - name: Cache dependencies (Windows)
-        if: ${{ matrix.os == 'windows-latest' }}
+      - name: Cache dependencies
         uses: actions/cache@v6
         with:
-          path: |
-            ${{ env.STACK_PATH_GLOBAL_WINDOWS }}
-            %APPDATA%\stack
-            %LOCALAPPDATA%\Programs\stack
-          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.resolver }}-
-
-      - name: Cache dependencies (Linux / MacOS)
-        if: ${{ matrix.os != 'windows-latest' }}
-        uses: actions/cache@v6
-        with:
-          path: |
-            ${{ env.STACK_PATH_GLOBAL_UNIX }}
+          path: |-
+            ${{ case(
+              matrix.os == 'windows-latest', env.STACK_PATHS_GLOBAL_WINDOWS,
+              env.STACK_PATH_GLOBAL_UNIX
+            ) }}
           key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.resolver }}-
