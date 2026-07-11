@@ -1,5 +1,13 @@
 # ChangeLog for warp
 
+## 3.4.14
+
+* Important bugfix to not deadlock on empty file descriptors if the cause of
+  the file descriptor exhaustion is outside of the server's control.
+  (i.e. the server does not have any running connections and can't use a file
+  descriptor to create the next connection)
+  [#1084](https://github.com/yesodweb/wai/pull/1084)
+
 ## 3.4.13.1
 
 * Bugfix to fall back to "blocking `recv`" when on Windows systems and when
