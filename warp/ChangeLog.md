@@ -6,6 +6,20 @@
   `requestSendEarlyHints`, so a WAI application can emit informational responses
   ahead of the final response.
   [#1085](https://github.com/yesodweb/wai/pull/1085).
+* Rework keep alive logic for HTTP/1.X so connections won't be automatically
+  closed on HEAD requests anymore. Should conform more to spec in general.
+  Should also reliably close connection when user created `Response` headers
+  contain a `Connection: close` entry (HTTP/1.1).
+* Replace multiline header value support with sanitizing newlines and NUL bytes
+  with spaces. (as per RFC 9110 section 5.5)
+* Also counts bytes for streaming responses for `settingsLogger`'s size argument.
+  And fixed size for builder responses, since those included the status and header
+  lines. Now the `Maybe Integer` argument in `settingsLogger` is consistently
+  just the message body's bytes.
+  [#1086](https://github.com/yesodweb/wai/pull/1086)
+* Add phantom type parameter to `IndexedHeader` to catch request/response
+  mismatches at compile time.
+  [#1088](https://github.com/yesodweb/wai/pull/1088)
 
 * Reworked internal indexed headers to records for performance and to remove
   dependencies on `array`.
