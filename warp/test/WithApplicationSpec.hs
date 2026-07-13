@@ -9,6 +9,7 @@ import System.Environment
 import System.Process
 import Test.Hspec
 
+import Network.Wai.Handler.Warp (defaultSettings, setOnException)
 import Network.Wai.Handler.Warp.WithApplication
 
 -- All these tests assume the "curl" process can be called directly.
@@ -31,16 +32,21 @@ spec = do
 
         it "does not propagate exceptions from the server to the executing thread" $ do
             let mkApp = return $ \_request _respond -> throwIO $ ErrorCall "foo"
-            withApplication mkApp $ \port -> do
+            withApplicationSettings silentSettings mkApp $ \port -> do
                 output <- readProcess "curl" ["-s", "localhost:" ++ show port] ""
-                output `shouldContain` "Something went wron"
+                output `shouldContain` "Something went wrong"
 
     describe "testWithApplication" $ do
         it "propagates exceptions from the server to the executing thread" $ do
             let mkApp = return $ \_request _respond -> throwIO $ ErrorCall "foo"
-            testWithApplication
+            testWithApplicationSettings
+                silentSettings
                 mkApp
                 ( \port -> do
                     readProcess "curl" ["-s", "localhost:" ++ show port] ""
                 )
                 `shouldThrow` (errorCall "foo")
+  where
+    -- So that we don't muddy the test result screen.
+    -- (normally, 'defaultSettings' use 'defaultOnException', sending to 'stderr')
+    silentSettings = setOnException (\_ _ -> pure ()) defaultSettings
