@@ -1,9 +1,19 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.Wai.Handler.Warp.Header where
+module Network.Wai.Handler.Warp.Header (
+    IndexedHeader,
+    (!),
+    RequestHeaderIndex (..),
+    indexRequestHeader,
+    requestMaxIndex,
+    defaultIndexRequestHeader,
+    ResponseHeaderIndex (..),
+    indexResponseHeader,
+) where
 
-import Data.Array
+import Data.Array (Array, array)
+import qualified Data.Array as A ((!))
 import Data.Array.ST
 import qualified Data.ByteString as BS
 import Data.CaseInsensitive (foldedCase)
@@ -14,11 +24,15 @@ import Network.Wai.Handler.Warp.Types
 ----------------------------------------------------------------
 
 -- | Array for a set of HTTP headers.
-type IndexedHeader = Array Int (Maybe HeaderValue)
+newtype IndexedHeader a = IxHeader (Array Int (Maybe HeaderValue))
+
+-- | Safer way to lookup 'IndexedHeader' values
+(!) :: Enum a => IndexedHeader a -> a -> Maybe HeaderValue
+(IxHeader ixHdr) ! ix = ixHdr A.! fromEnum ix
 
 ----------------------------------------------------------------
 
-indexRequestHeader :: RequestHeaders -> IndexedHeader
+indexRequestHeader :: RequestHeaders -> IndexedHeader RequestHeaderIndex
 indexRequestHeader hdr = traverseHeader hdr requestMaxIndex requestKeyIndex
 
 data RequestHeaderIndex
@@ -78,12 +92,14 @@ requestKeyIndex hn = case BS.length bs of
   where
     bs = foldedCase hn
 
-defaultIndexRequestHeader :: IndexedHeader
-defaultIndexRequestHeader = array (0, requestMaxIndex) [(i, Nothing) | i <- [0 .. requestMaxIndex]]
+defaultIndexRequestHeader :: IndexedHeader RequestHeaderIndex
+defaultIndexRequestHeader =
+    IxHeader $
+        array (0, requestMaxIndex) [(i, Nothing) | i <- [0 .. requestMaxIndex]]
 
 ----------------------------------------------------------------
 
-indexResponseHeader :: ResponseHeaders -> IndexedHeader
+indexResponseHeader :: ResponseHeaders -> IndexedHeader ResponseHeaderIndex
 indexResponseHeader hdr = traverseHeader hdr responseMaxIndex responseKeyIndex
 
 data ResponseHeaderIndex
@@ -109,8 +125,8 @@ responseKeyIndex hn = case BS.length bs of
 
 ----------------------------------------------------------------
 
-traverseHeader :: [Header] -> Int -> (HeaderName -> Int) -> IndexedHeader
-traverseHeader hdr maxidx getIndex = runSTArray $ do
+traverseHeader :: [Header] -> Int -> (HeaderName -> Int) -> IndexedHeader a
+traverseHeader hdr maxidx getIndex = IxHeader $ runSTArray $ do
     arr <- newArray (0, maxidx) Nothing
     mapM_ (insert arr) hdr
     return arr
