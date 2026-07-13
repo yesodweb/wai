@@ -27,6 +27,7 @@ import Data.ByteString.Builder.HTTP.Chunked (
  )
 import qualified Data.CaseInsensitive as CI
 import Data.Foldable (for_)
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Streaming.ByteString.Builder (
     newByteStringBuilderRecv,
     reuseBufferStrategy,
@@ -271,8 +272,8 @@ sendRsp conn _ _ ver s hs _ _ _ RspNoBody = do
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th ver s hs _ maxRspBufSize _ (RspBuilder body needsChunked) = do
-    header <- composeHeaderBuilder ver s hs needsChunked
+sendRsp conn _ th ver s hs rspidxhdr maxRspBufSize _ (RspBuilder body needsChunked) = do
+    (header, hdrLen) <- composeHeaderBuilder ver s hs rspidxhdr needsChunked
     let hdrBdy
             | needsChunked =
                 header
@@ -286,23 +287,28 @@ sendRsp conn _ th ver s hs _ maxRspBufSize _ (RspBuilder body needsChunked) = do
             writeBufferRef
             (\bs -> connSendAll conn bs >> T.tickle th)
             hdrBdy
-    return (Just s, Just len)
+    --              small adjustment to only count the body
+    return (Just s, Just $ len - fromIntegral hdrLen)
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th ver s hs _ _ _ (RspStream streamingBody needsChunked) = do
-    header <- composeHeaderBuilder ver s hs needsChunked
+sendRsp conn _ th ver s hs rspidxhdr _ _ (RspStream streamingBody needsChunked) = do
+    (header, hdrLen) <- composeHeaderBuilder ver s hs rspidxhdr needsChunked
     (recv, finish) <-
         newByteStringBuilderRecv $
             reuseBufferStrategy $
                 toBuilderBuffer $
                     connWriteBuffer conn
+    -- We'll be counting how many bytes we send with this 'IORef'
+    sizeCounter <- newIORef (0 :: Integer)
     let send builder = do
             popper <- recv builder
             let loop = do
                     bs <- popper
                     unless (S.null bs) $ do
                         sendFragment conn th bs
+                        -- add amount of bytes to count
+                        S.length bs `addToCounter` sizeCounter
                         loop
             loop
         sendChunk
@@ -313,7 +319,14 @@ sendRsp conn _ th ver s hs _ _ _ (RspStream streamingBody needsChunked) = do
     when needsChunked $ send chunkedTransferTerminator
     mbs <- finish
     maybe (return ()) (sendFragment conn th) mbs
-    return (Just s, Nothing) -- fixme: can we tell the actual sent bytes?
+    finalSize <- readIORef sizeCounter
+    --              small adjustment to only count the body
+    return (Just s, Just $ finalSize - fromIntegral hdrLen)
+  where
+    addToCounter :: Int -> IORef Integer -> IO ()
+    addToCounter bytes ref =
+        atomicModifyIORef' ref $ \old ->
+            (old + fromIntegral bytes, ())
 
 ----------------------------------------------------------------
 
@@ -534,8 +547,11 @@ replaceHeader k v hdrs = (k, v) : filter ((/= k) . fst) hdrs
 ----------------------------------------------------------------
 
 composeHeaderBuilder
-    :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> IO Builder
-composeHeaderBuilder ver s hs True =
-    byteString <$> composeHeader ver s (addTransferEncoding hs)
-composeHeaderBuilder ver s hs False =
-    byteString <$> composeHeader ver s hs
+    :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> IndexedHeader -> Bool -> IO (Builder, Int)
+composeHeaderBuilder ver s hs rspidxhdr shouldChunk = do
+    bs <- composeHeader ver s finalHdrs
+    pure (byteString bs, S.length bs)
+  where
+    finalHdrs
+        | shouldChunk = addTransferEncoding rspidxhdr hs
+        | otherwise = hs
