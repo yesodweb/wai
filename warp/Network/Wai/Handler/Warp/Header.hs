@@ -91,6 +91,7 @@ data ResponseHeaderIndex
     | ResServer
     | ResDate
     | ResLastModified
+    | ResTransferEncoding
     deriving (Enum, Bounded)
 
 -- | The size for 'IndexedHeader' for HTTP Response.
@@ -103,6 +104,7 @@ responseKeyIndex hn = case BS.length bs of
     6 | bs == "server" -> fromEnum ResServer
     13 | bs == "last-modified" -> fromEnum ResLastModified
     14 | bs == "content-length" -> fromEnum ResContentLength
+    17 | bs == "transfer-encoding" -> fromEnum ResTransferEncoding
     _ -> -1
   where
     bs = foldedCase hn

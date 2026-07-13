@@ -26,8 +26,7 @@ import Data.ByteString.Builder.HTTP.Chunked (
     chunkedTransferTerminator,
  )
 import qualified Data.CaseInsensitive as CI
-import Data.Function (on)
-import Data.List (deleteBy)
+import Data.Foldable (for_)
 import Data.Streaming.ByteString.Builder (
     newByteStringBuilderRecv,
     reuseBufferStrategy,
@@ -480,8 +479,15 @@ hasBody s =
 
 ----------------------------------------------------------------
 
-addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
-addTransferEncoding hdrs = (H.hTransferEncoding, "chunked") : hdrs
+-- | We ASSUME there's no middleware that will chunk the transfer, so
+-- we'll add it to the headers if there's no other encoding, or add it
+-- to the end in case it is.
+-- (e.g. if a 'Middleware' were to add "Transfer-Encoding: gzip")
+addTransferEncoding :: IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
+addTransferEncoding rspidxhdr =
+    case rspidxhdr ! fromEnum ResTransferEncoding of
+        Nothing -> ((Header.hTransferEncoding, "chunked") :)
+        Just value -> replaceHeader Header.hTransferEncoding (value <> ", chunked")
 
 addDate
     :: IO D.GMTDate -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
@@ -510,13 +516,14 @@ addAltSvc settings hs = case settingsAltSvc settings of
 
 ----------------------------------------------------------------
 
--- |
+-- | Replaces a header, instead of just adding it which might lead to
+-- duplicate entries of the same header name.
 --
 -- >>> replaceHeader "Content-Type" "new" [("content-type","old")]
 -- [("Content-Type","new")]
 replaceHeader
     :: H.HeaderName -> HeaderValue -> H.ResponseHeaders -> H.ResponseHeaders
-replaceHeader k v hdrs = (k, v) : deleteBy ((==) `on` fst) (k, v) hdrs
+replaceHeader k v hdrs = (k, v) : filter ((/= k) . fst) hdrs
 
 ----------------------------------------------------------------
 
