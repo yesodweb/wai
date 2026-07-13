@@ -73,35 +73,15 @@ testPartial size offset count out = it title $ withApp defaultSettings app $ wit
 
 spec :: Spec
 spec = do
-    {- http-client does not support this.
-        describe "preventing response splitting attack" $ do
-            it "sanitizes header values" $ do
-                let app _ respond = respond $ responseLBS status200 [("foo", "foo\r\nbar")] "Hello"
-                withApp defaultSettings app $ \port -> do
-                    res <- sendGET $ "http://127.0.0.1:" ++ show port
-                    getHeaderValue "foo" (responseHeaders res) `shouldBe`
-                      Just "foo   bar" -- HTTP inserts two spaces for \r\n.
-    -}
-
     describe "sanitizeHeaderValue" $ do
-        it "doesn't alter valid multiline header values" $ do
-            sanitizeHeaderValue "foo\r\n bar" `shouldBe` "foo\r\n bar"
-
-        it "adds missing spaces after \r\n" $ do
-            sanitizeHeaderValue "foo\r\nbar" `shouldBe` "foo\r\n bar"
-
-        it "discards empty lines" $ do
-            sanitizeHeaderValue "foo\r\n\r\nbar" `shouldBe` "foo\r\n bar"
-
-        context "when sanitizing single occurrences of \n" $ do
-            it "replaces \n with \r\n" $ do
-                sanitizeHeaderValue "foo\n bar" `shouldBe` "foo\r\n bar"
-
-            it "adds missing spaces after \n" $ do
-                sanitizeHeaderValue "foo\nbar" `shouldBe` "foo\r\n bar"
-
-        it "discards single occurrences of \r" $ do
-            sanitizeHeaderValue "foo\rbar" `shouldBe` "foobar"
+        it "replaces multiline header value's [CR LF NUL] with SP" $ do
+            sanitizeHeaderValue "foo\r\n bar" `shouldBe` "foo   bar"
+            sanitizeHeaderValue "foo\r\n\NULbar" `shouldBe` "foo   bar"
+            sanitizeHeaderValue "foo\r\n\r\nbar" `shouldBe` "foo    bar"
+            sanitizeHeaderValue "foo\n bar" `shouldBe` "foo  bar"
+            sanitizeHeaderValue "foo\nbar" `shouldBe` "foo bar"
+            sanitizeHeaderValue "foo\rbar" `shouldBe` "foo bar"
+            sanitizeHeaderValue "foo\NULbar" `shouldBe` "foo bar"
 
     describe "range requests" $ do
         testRange "2-3" "23" $ Just "2-3/16"
