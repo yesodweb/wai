@@ -516,12 +516,17 @@ addDate getdate rspidxhdr hdrs
 {-# INLINE addServer #-}
 addServer
     :: HeaderValue -> ResponseHeaderPresence -> H.ResponseHeaders -> H.ResponseHeaders
-addServer "" rspidxhdr hdrs
-    | hasServer rspidxhdr = filter ((/= H.hServer) . fst) hdrs
-    | otherwise = hdrs
-addServer serverName rspidxhdr hdrs
-    | hasServer rspidxhdr = hdrs
-    | otherwise = (H.hServer, serverName) : hdrs
+addServer serverName rspidxhdr hdrs =
+    case serverName of
+        -- empty string means there shouldn't be a "Server" header
+        "" | serverPresent ->
+            filter ((/= Header.hServer) . fst) hdrs
+        -- Anything else should set the "Server" header if it isn't already set
+        _ | not serverPresent ->
+            (Header.hServer, serverName) : hdrs
+        _ -> hdrs
+  where
+    serverPresent = hasServer rspidxhdr
 
 addAltSvc :: Settings -> H.ResponseHeaders -> H.ResponseHeaders
 addAltSvc settings hs = case settingsAltSvc settings of
