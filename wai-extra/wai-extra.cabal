@@ -113,7 +113,7 @@ Library
                    , data-default
                    , directory                 >= 1.2.7.0
                    , fast-logger               >= 2.4.5
-                   , http-types                >= 0.7
+                   , http-types                >= 0.7      && < 1
                    , HUnit
                    , iproute                   >= 1.7.8
                    , network                   >= 2.6.1.0

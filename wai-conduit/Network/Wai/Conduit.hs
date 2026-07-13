@@ -18,7 +18,7 @@ import qualified Data.ByteString as S
 import Data.ByteString.Builder (Builder)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
-import Network.HTTP.Types
+import Network.HTTP.Types (ResponseHeaders, Status)
 import Network.Wai
 
 -- | Stream the request body.
