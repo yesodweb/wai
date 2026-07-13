@@ -34,7 +34,7 @@ import Data.Streaming.ByteString.Builder (
  )
 import Data.Word8 (_cr, _lf, _space, _tab)
 import qualified Network.HTTP.Types as H
-import qualified Network.HTTP.Types.Header as H
+import qualified Network.HTTP.Types.Header as Header
 import Network.Wai
 import Network.Wai.Internal
 import qualified System.TimeManager as T
@@ -129,7 +129,7 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     let shouldPersist =
             not isShuttingDown && if hasBody s then ret else isPersist
         addConnection hs =
-            if shouldPersist then hs else (H.hConnection, "close") : hs
+            if shouldPersist then hs else (Header.hConnection, "close") : hs
     hs <- addConnection . addAltSvc settings <$> addServerAndDate hs0
     if hasBody s
         then do
@@ -400,7 +400,7 @@ sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize method =
         (RspBuilder body True)
   where
     s = H.notFound404
-    hs = replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
+    hs = replaceHeader Header.hContentType "text/plain; charset=utf-8" hs0
     body = byteString "File not found"
 
 ----------------------------------------------------------------
@@ -481,7 +481,7 @@ addDate
 addDate getdate rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
     Nothing -> do
         gmtdate <- getdate
-        return $ (H.hDate, gmtdate) : hdrs
+        return $ (Header.hDate, gmtdate) : hdrs
     Just _ -> return hdrs
 
 ----------------------------------------------------------------
