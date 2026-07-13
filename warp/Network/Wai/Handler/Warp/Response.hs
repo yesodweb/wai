@@ -16,7 +16,6 @@ module Network.Wai.Handler.Warp.Response (
 ) where
 
 import qualified Control.Exception as E
-import Data.Array ((!))
 import qualified Data.ByteString as S
 import Data.ByteString.Builder (Builder, byteString)
 import Data.ByteString.Builder.Extra (flush)
@@ -111,7 +110,7 @@ sendResponse
     -> T.Handle
     -> Request
     -- ^ HTTP request.
-    -> IndexedHeader
+    -> IndexedRequestHeader
     -- ^ Indexed header of HTTP request.
     -> IO ByteString
     -- ^ source from client, for raw response
@@ -208,7 +207,7 @@ sanitizeHeaderValue v = case C8.lines $ S.filter (/= _cr) v of
 
 data Rsp
     = RspNoBody
-    | RspFile FilePath (Maybe FilePart) IndexedHeader (IO ())
+    | RspFile FilePath (Maybe FilePart) (IndexedRequestHeader) (IO ())
     | RspBuilder Builder Bool
     | RspStream StreamingBody Bool
     | RspRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) (IO ByteString)
@@ -222,7 +221,7 @@ sendRsp
     -> H.HttpVersion
     -> H.Status
     -> H.ResponseHeaders
-    -> IndexedHeader -- Response
+    -> IndexedResponseHeader
     -> Int -- maxBuilderResponseBufferSize
     -> H.Method
     -> Rsp
@@ -357,7 +356,7 @@ sendRspFile2XX
     -> H.HttpVersion
     -> H.Status
     -> H.ResponseHeaders
-    -> IndexedHeader
+    -> IndexedResponseHeader
     -> Int
     -> H.Method
     -> FilePath
@@ -382,7 +381,7 @@ sendRspFile404
     -> T.Handle
     -> H.HttpVersion
     -> H.ResponseHeaders
-    -> IndexedHeader
+    -> IndexedResponseHeader
     -> Int
     -> H.Method
     -> IO (Maybe H.Status, Maybe Integer)
@@ -422,19 +421,19 @@ sendFragment Connection{connSendAll = send} th bs = do
 
 infoFromRequest
     :: Request
-    -> IndexedHeader
+    -> IndexedRequestHeader
     -> ( Bool -- isPersist
        , Bool -- isChunked
        )
 infoFromRequest req reqidxhdr = (checkPersist req reqidxhdr, checkChunk req)
 
-checkPersist :: Request -> IndexedHeader -> Bool
+checkPersist :: Request -> IndexedRequestHeader -> Bool
 checkPersist req reqidxhdr
     | ver == H.http11 = checkPersist11 conn
     | otherwise = checkPersist10 conn
   where
     ver = httpVersion req
-    conn = reqidxhdr ! fromEnum ReqConnection
+    conn = reqidxhdr ! ReqConnection
     checkPersist11 (Just x)
         | CI.foldCase x == "close" = False
     checkPersist11 _ = True
@@ -454,12 +453,12 @@ checkChunk req = httpVersion req == H.http11
 --
 -- Content-Length is specified by a reverse proxy.
 -- Note that CGI does not specify Content-Length.
-infoFromResponse :: IndexedHeader -> (Bool, Bool) -> (Bool, Bool)
+infoFromResponse :: IndexedResponseHeader -> (Bool, Bool) -> (Bool, Bool)
 infoFromResponse rspidxhdr (isPersist, isChunked) = (isKeepAlive, needsChunked)
   where
     needsChunked = isChunked && not hasLength
     isKeepAlive = isPersist && (isChunked || hasLength)
-    hasLength = isJust $ rspidxhdr ! fromEnum ResContentLength
+    hasLength = isJust $ rspidxhdr ! ResContentLength
 
 ----------------------------------------------------------------
 
@@ -477,8 +476,8 @@ addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
 addTransferEncoding hdrs = (H.hTransferEncoding, "chunked") : hdrs
 
 addDate
-    :: IO D.GMTDate -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
-addDate getdate rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
+    :: IO D.GMTDate -> IndexedResponseHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
+addDate getdate rspidxhdr hdrs = case rspidxhdr ! ResDate of
     Nothing -> do
         gmtdate <- getdate
         return $ (H.hDate, gmtdate) : hdrs
@@ -488,11 +487,11 @@ addDate getdate rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
 
 {-# INLINE addServer #-}
 addServer
-    :: HeaderValue -> IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
-addServer "" rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
+    :: HeaderValue -> IndexedResponseHeader -> H.ResponseHeaders -> H.ResponseHeaders
+addServer "" rspidxhdr hdrs = case rspidxhdr ! ResServer of
     Nothing -> hdrs
     _ -> filter ((/= H.hServer) . fst) hdrs
-addServer serverName rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
+addServer serverName rspidxhdr hdrs = case rspidxhdr ! ResServer of
     Nothing -> (H.hServer, serverName) : hdrs
     _ -> hdrs
 

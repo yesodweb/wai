@@ -3,6 +3,8 @@
 
 module Network.Wai.Handler.Warp.Header (
     IndexedHeader,
+    IndexedRequestHeader,
+    IndexedResponseHeader,
     (!),
     RequestHeaderIndex (..),
     indexRequestHeader,
@@ -25,6 +27,9 @@ import Network.Wai.Handler.Warp.Types
 
 -- | Array for a set of HTTP headers.
 newtype IndexedHeader a = IxHeader (Array Int (Maybe HeaderValue))
+
+type IndexedRequestHeader = IndexedHeader RequestHeaderIndex
+type IndexedResponseHeader = IndexedHeader ResponseHeaderIndex
 
 -- | Safer way to lookup 'IndexedHeader' values
 (!) :: Enum a => IndexedHeader a -> a -> Maybe HeaderValue

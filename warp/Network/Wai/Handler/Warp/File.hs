@@ -9,7 +9,6 @@ module Network.Wai.Handler.Warp.File (
     H.parseByteRanges,
 ) where
 
-import Data.Array ((!))
 import qualified Data.ByteString.Char8 as C8 (pack)
 import Network.HTTP.Date
 import qualified Network.HTTP.Types as H
@@ -34,16 +33,14 @@ conditionalRequest
     :: I.FileInfo
     -> H.ResponseHeaders
     -> H.Method
-    -> IndexedHeader
-    -- ^ Response
-    -> IndexedHeader
-    -- ^ Request
+    -> IndexedResponseHeader
+    -> IndexedRequestHeader
     -> RspFileInfo
 conditionalRequest finfo hs0 method rspidx reqidx = case condition of
     nobody@(WithoutBody _) -> nobody
     WithBody s _ off len ->
         let !hs1 = addContentHeaders hs0 off len size
-            !hs = case rspidx ! fromEnum ResLastModified of
+            !hs = case rspidx ! ResLastModified of
                 Just _ -> hs1
                 Nothing -> (H.hLastModified, date) : hs1
          in WithBody s hs off len
@@ -72,57 +69,67 @@ conditionalRequest finfo hs0 method rspidx reqidx = case condition of
 
 ----------------------------------------------------------------
 
-ifModifiedSince :: IndexedHeader -> Maybe HTTPDate
-ifModifiedSince reqidx = reqidx ! fromEnum ReqIfModifiedSince >>= parseHTTPDate
+ifModifiedSince :: IndexedRequestHeader -> Maybe HTTPDate
+ifModifiedSince reqidx = reqidx ! ReqIfModifiedSince >>= parseHTTPDate
 
-ifUnmodifiedSince :: IndexedHeader -> Maybe HTTPDate
-ifUnmodifiedSince reqidx = reqidx ! fromEnum ReqIfUnmodifiedSince >>= parseHTTPDate
+ifUnmodifiedSince :: IndexedRequestHeader -> Maybe HTTPDate
+ifUnmodifiedSince reqidx = reqidx ! ReqIfUnmodifiedSince >>= parseHTTPDate
 
-ifRange :: IndexedHeader -> Maybe HTTPDate
-ifRange reqidx = reqidx ! fromEnum ReqIfRange >>= parseHTTPDate
+ifRange :: IndexedRequestHeader -> Maybe HTTPDate
+ifRange reqidx = reqidx ! ReqIfRange >>= parseHTTPDate
 
 ----------------------------------------------------------------
 
-ifmodified :: IndexedHeader -> HTTPDate -> H.Method -> Maybe RspFileInfo
+ifmodified
+    :: IndexedRequestHeader
+    -> HTTPDate
+    -> H.Method
+    -> Maybe RspFileInfo
 ifmodified reqidx mtime method = do
     date <- ifModifiedSince reqidx
     -- According to RFC 9110:
     -- "A recipient MUST ignore If-Modified-Since if the request
     -- contains an If-None-Match header field; [...]"
-    guard . isNothing $ reqidx ! fromEnum ReqIfNoneMatch
+    guard . isNothing $ reqidx ! ReqIfNoneMatch
     -- "A recipient MUST ignore the If-Modified-Since header field
     -- if [...] the request method is neither GET nor HEAD."
     guard $ method == H.methodGet || method == H.methodHead
     guard $ date == mtime || date > mtime
     Just $ WithoutBody H.notModified304
 
-ifunmodified :: IndexedHeader -> HTTPDate -> Maybe RspFileInfo
+ifunmodified
+    :: IndexedRequestHeader -> HTTPDate -> Maybe RspFileInfo
 ifunmodified reqidx mtime = do
     date <- ifUnmodifiedSince reqidx
     -- According to RFC 9110:
     -- "A recipient MUST ignore If-Unmodified-Since if the request
     -- contains an If-Match header field; [...]"
-    guard . isNothing $ reqidx ! fromEnum ReqIfMatch
+    guard . isNothing $ reqidx ! ReqIfMatch
     guard $ date /= mtime && date < mtime
     Just $ WithoutBody H.preconditionFailed412
 
 -- TODO: Should technically also strongly match on ETags.
-ifrange :: IndexedHeader -> HTTPDate -> H.Method -> Integer -> Maybe RspFileInfo
+ifrange
+    :: IndexedRequestHeader
+    -> HTTPDate
+    -> H.Method
+    -> Integer
+    -> Maybe RspFileInfo
 ifrange reqidx mtime method size = do
     -- According to RFC 9110:
     -- "When the method is GET and both Range and If-Range are
     -- present, evaluate the If-Range precondition:"
     date <- ifRange reqidx
-    rng <- reqidx ! fromEnum ReqRange
+    rng <- reqidx ! ReqRange
     guard $ method == H.methodGet
     return $
         if date == mtime
             then parseRange rng size
             else WithBody H.ok200 [] 0 size
 
-unconditional :: IndexedHeader -> Integer -> RspFileInfo
+unconditional :: IndexedRequestHeader -> Integer -> RspFileInfo
 unconditional reqidx =
-    case reqidx ! fromEnum ReqRange of
+    case reqidx ! ReqRange of
         Nothing -> WithBody H.ok200 [] 0
         Just rng -> parseRange rng
 
