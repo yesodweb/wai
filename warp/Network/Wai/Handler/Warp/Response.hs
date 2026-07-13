@@ -120,17 +120,23 @@ sendResponse
     -> IO Bool
     -- ^ Returing True if the connection is persistent.
 sendResponse settings conn ii th req reqidxhdr src response = do
+    -- Decide connection persistence
     isShuttingDown <-
         case settingsServerState settings of
             Just serverState -> currentShuttingDownState serverState
             -- Should never be reached!
             -- (cf. 'makeServerState' in 'runSettingsConnectionMakerSecure')
             Nothing -> pure False
-    let shouldPersist =
-            not isShuttingDown && if hasBody s then ret else isPersist
+    let shouldPersist = not isShuttingDown && ret
         addConnection hs =
-            if shouldPersist then hs else (Header.hConnection, "close") : hs
+            if shouldPersist || responseWantsToClose
+                then hs
+                else (Header.hConnection, "close") : hs
+
+    -- Adjust headers
     hs <- addConnection . addAltSvc settings <$> addServerAndDate hs0
+
+    -- Start response logic
     if hasBody s
         then do
             -- The response to HEAD does not have body.
@@ -149,20 +155,33 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     T.tickle th
     return shouldPersist
   where
+    -- From Settings --
     defServer = settingsServerName settings
     logger = settingsLogger settings
     maxRspBufSize = settingsMaxBuilderResponseBufferSize settings
+
+    -- From Request --
+    method = requestMethod req
+    isHead = method == H.methodHead
     ver = httpVersion req
+    isHttp11 = ver == H.http11
+    reqSaysPersist = checkReqConnectionHeader isHttp11 reqidxhdr
+
+    -- From Response --
     s = responseStatus response
     hs0 = sanitizeHeaders $ responseHeaders response
     rspidxhdr = indexResponseHeader hs0
+    hasLength = isJust $ rspidxhdr ! fromEnum ResContentLength
+    responseWantsToClose =
+        case rspidxhdr ! fromEnum ResConnection of
+            Nothing -> False
+            Just v -> CI.foldCase v == "close"
+    isPersist = reqSaysPersist && not responseWantsToClose
+
+    -- Other --
     getdate = getDate ii
     addServerAndDate = addDate getdate rspidxhdr . addServer defServer rspidxhdr
-    (isPersist, isChunked0) = infoFromRequest req reqidxhdr
-    isChunked = not isHead && isChunked0
-    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist, isChunked)
-    method = requestMethod req
-    isHead = method == H.methodHead
+    needsChunked = isHttp11 && not hasLength
     rsp = case response of
         ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr (T.tickle th)
         ResponseBuilder _ _ b
@@ -172,11 +191,20 @@ sendResponse settings conn ii th req reqidxhdr src response = do
             | isHead -> RspNoBody
             | otherwise -> RspStream fb needsChunked
         ResponseRaw raw _ -> RspRaw raw src
+    -- Should be False if (http10 && not hasLength), regardless of what
+    -- the 'Connection' header says. (as long as the response should have a body)
+    isKeepAlive =
+        isPersist && (isHttp11 || hasLength || isHead || not (hasBody s))
     -- Make sure we don't hang on to 'response' (avoid space leak)
     !ret = case response of
+        -- Will get 'Content-Length' header later on using the
+        -- 'addContentHeaders(ForFilePart)' functions, so if the
+        -- 'Connection' header says we persist, we persist.
         ResponseFile{} -> isPersist
         ResponseBuilder{} -> isKeepAlive
         ResponseStream{} -> isKeepAlive
+        -- Is already an ongoing open connection, so if it is done,
+        -- the connection should be closed.
         ResponseRaw{} -> False
 
 ----------------------------------------------------------------
@@ -426,49 +454,23 @@ sendFragment Connection{connSendAll = send} th bs = do
 
 ----------------------------------------------------------------
 
-infoFromRequest
-    :: Request
-    -> IndexedHeader
-    -> ( Bool -- isPersist
-       , Bool -- isChunked
-       )
-infoFromRequest req reqidxhdr = (checkPersist req reqidxhdr, checkChunk req)
-
-checkPersist :: Request -> IndexedHeader -> Bool
-checkPersist req reqidxhdr
-    | ver == H.http11 = checkPersist11 conn
-    | otherwise = checkPersist10 conn
-  where
-    ver = httpVersion req
-    conn = reqidxhdr ! fromEnum ReqConnection
-    checkPersist11 (Just x)
-        | CI.foldCase x == "close" = False
-    checkPersist11 _ = True
-    checkPersist10 (Just x)
-        | CI.foldCase x == "keep-alive" = True
-    checkPersist10 _ = False
-
-checkChunk :: Request -> Bool
-checkChunk req = httpVersion req == H.http11
+-- | We infer from the request whether the connection should be persisted.
+checkReqConnectionHeader :: Bool -> IndexedHeader -> Bool
+checkReqConnectionHeader isHttp11 reqidxhdr =
+    case reqidxhdr ! fromEnum ReqConnection of
+        -- If no "Connection" header, then default: HTTP/1.1 == persist
+        Nothing -> isHttp11
+        Just val ->
+            let connValue = CI.foldCase val
+             in if isHttp11
+                    then connValue /= "close"
+                    else connValue == "keep-alive"
 
 ----------------------------------------------------------------
 
--- Used for ResponseBuilder and ResponseSource.
--- Don't use this for ResponseFile since this logic does not fit
--- for ResponseFile. For instance, isKeepAlive should be True in some cases
--- even if the response header does not have Content-Length.
+-- | Only checks for status codes, NOT for methods.
 --
--- Content-Length is specified by a reverse proxy.
--- Note that CGI does not specify Content-Length.
-infoFromResponse :: IndexedHeader -> (Bool, Bool) -> (Bool, Bool)
-infoFromResponse rspidxhdr (isPersist, isChunked) = (isKeepAlive, needsChunked)
-  where
-    needsChunked = isChunked && not hasLength
-    isKeepAlive = isPersist && (isChunked || hasLength)
-    hasLength = isJust $ rspidxhdr ! fromEnum ResContentLength
-
-----------------------------------------------------------------
-
+-- This is by design and some handling relies on HEAD being a separate check.
 hasBody :: H.Status -> Bool
 hasBody s =
     sc /= 204

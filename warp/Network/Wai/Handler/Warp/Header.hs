@@ -92,6 +92,7 @@ data ResponseHeaderIndex
     | ResDate
     | ResLastModified
     | ResTransferEncoding
+    | ResConnection
     deriving (Enum, Bounded)
 
 -- | The size for 'IndexedHeader' for HTTP Response.
@@ -102,6 +103,7 @@ responseKeyIndex :: HeaderName -> Int
 responseKeyIndex hn = case BS.length bs of
     4 | bs == "date" -> fromEnum ResDate
     6 | bs == "server" -> fromEnum ResServer
+    10 | bs == "connection" -> fromEnum ResConnection
     13 | bs == "last-modified" -> fromEnum ResLastModified
     14 | bs == "content-length" -> fromEnum ResContentLength
     17 | bs == "transfer-encoding" -> fromEnum ResTransferEncoding
