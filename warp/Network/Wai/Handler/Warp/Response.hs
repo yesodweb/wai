@@ -426,6 +426,8 @@ sendRspFile2XX
     -> IO (Maybe H.Status, Maybe Integer)
 sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize method path beg len hook
     | method == H.methodHead =
+        -- FIXME: We could check the size of the file and add a
+        -- 'Content-Length' header to give the requester more information?
         sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize method RspNoBody
     | otherwise = do
         lheader <- composeHeader ver s hs
