@@ -18,13 +18,13 @@ module Network.Wai.Handler.Warp.Response (
 import qualified Control.Exception as E
 import Data.Array ((!))
 import qualified Data.ByteString as S
+import Data.ByteString.Internal (toForeignPtr, unsafeCreate)
 import Data.ByteString.Builder (Builder, byteString)
 import Data.ByteString.Builder.Extra (flush)
 import Data.ByteString.Builder.HTTP.Chunked (
     chunkedTransferEncoding,
     chunkedTransferTerminator,
  )
-import qualified Data.ByteString.Char8 as C8
 import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
 import Data.List (deleteBy)
@@ -32,7 +32,8 @@ import Data.Streaming.ByteString.Builder (
     newByteStringBuilderRecv,
     reuseBufferStrategy,
  )
-import Data.Word8 (_cr, _lf, _space, _tab)
+import Data.Word8 (_cr, _lf, _nul, _space)
+import Foreign (copyBytes, plusForeignPtr, pokeByteOff, withForeignPtr)
 import qualified Network.HTTP.Types as H
 import qualified Network.HTTP.Types.Header as Header
 import Network.Wai
@@ -181,28 +182,34 @@ sendResponse settings conn ii th req reqidxhdr src response = do
 
 ----------------------------------------------------------------
 
+-- | As per RFC 9110 we replace any newlines (\r\n) or \NUL with spaces
 sanitizeHeaders :: H.ResponseHeaders -> H.ResponseHeaders
-sanitizeHeaders = map (sanitize <$>)
-  where
-    sanitize v
-        | containsNewlines v = sanitizeHeaderValue v -- slow path
-        | otherwise = v -- fast path
+sanitizeHeaders = map (sanitizeHeaderValue <$>)
 
-{-# INLINE containsNewlines #-}
-containsNewlines :: ByteString -> Bool
-containsNewlines = S.any (\w -> w == _cr || w == _lf)
+{-# INLINE isRecoverableWhitespace #-}
+-- | CR, LF and NUL can safely be replaced with a SP according to RFC 9110
+-- <https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5-5>
+isRecoverableWhitespace :: Word8 -> Bool
+isRecoverableWhitespace w = w == _cr || w == _lf || w == _nul
 
-{-# INLINE sanitizeHeaderValue #-}
 sanitizeHeaderValue :: ByteString -> ByteString
-sanitizeHeaderValue v = case C8.lines $ S.filter (/= _cr) v of
-    [] -> ""
-    x : xs -> C8.intercalate "\r\n" (x : mapMaybe addSpaceIfMissing xs)
+sanitizeHeaderValue v =
+    case S.findIndices isRecoverableWhitespace v of
+        -- Nothing to replace
+        [] -> v
+        -- Found CR, LF or NUL.
+        ixs ->
+            unsafeCreate len $ \dst -> do
+                withForeignPtr fptr $ \src -> do
+                    -- copy the bytestring
+                    copyBytes dst src len
+                    -- and then replace the offending bytes
+                    for_ ixs $ \ix -> pokeByteOff dst ix _space
   where
-    addSpaceIfMissing line = case S.uncons line of
-        Nothing -> Nothing
-        Just (first, _)
-            | first == _space || first == _tab -> Just line
-            | otherwise -> Just $ _space `S.cons` line
+    (fptr', offset, len) = toForeignPtr v
+    -- We need to use the offset for backwards compatibility with
+    -- "bytestring < 0.11"
+    fptr = fptr' `plusForeignPtr` offset
 
 ----------------------------------------------------------------
 
