@@ -119,6 +119,14 @@ import System.IO.Unsafe (unsafeInterleaveIO)
 
 -- | Creating 'Response' from a file.
 --
+-- Server implementations like @warp@ might disregard the t'Status' when
+-- using 'responseFile', since the server might rework the response based on
+-- headers or presence/absence of the file.
+-- @warp@ does not do do any extra processing when sending file parts, though,
+-- so be mindful of how each server implementation handles file responses.
+--
+-- /The above was written when @warp-3.4.14@ was the newest version/
+--
 -- @since 2.0.0
 responseFile
     :: H.Status -> H.ResponseHeaders -> FilePath -> Maybe FilePart -> Response
