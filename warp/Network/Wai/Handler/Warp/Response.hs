@@ -504,12 +504,16 @@ addDate getdate rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
 {-# INLINE addServer #-}
 addServer
     :: HeaderValue -> IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
-addServer "" rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
-    Nothing -> hdrs
-    _ -> filter ((/= H.hServer) . fst) hdrs
-addServer serverName rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
-    Nothing -> (H.hServer, serverName) : hdrs
-    _ -> hdrs
+addServer serverName rspidxhdr hdrs =
+    case (serverName, serverHdr) of
+        -- empty string means there shouldn't be a "Server" header
+        ("", Nothing) -> hdrs
+        ("", _) -> filter ((/= Header.hServer) . fst) hdrs
+        -- Anything else should set the "Server" header if it isn't already set
+        (_, Nothing) -> (Header.hServer, serverName) : hdrs
+        _ -> hdrs
+  where
+    serverHdr = rspidxhdr ! fromEnum ResServer
 
 addAltSvc :: Settings -> H.ResponseHeaders -> H.ResponseHeaders
 addAltSvc settings hs = case settingsAltSvc settings of
