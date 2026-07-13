@@ -1,5 +1,17 @@
 # ChangeLog for warp
 
+## 3.4.15
+
+* Rework keep alive logic for HTTP/1.X so connections won't be automatically
+  closed on HEAD requests anymore. Should conform more to spec in general.
+* Replace multiline header value support with sanitizing newlines and NUL bytes
+  with spaces. (as per RFC 9110 section 5.5)
+* Also counts bytes for streaming responses for `settingsLogger`'s size argument.
+  And fixed size for builder responses, since those included the status and header
+  lines. Now the `Maybe Integer` argument in `settingsLogger` is consistently
+  just the message body's bytes.
+  [#1086](https://github.com/yesodweb/wai/pull/1086)
+
 ## 3.4.14
 
 * Important bugfix to not deadlock on empty file descriptors if the cause of

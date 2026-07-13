@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wai.Handler.Warp.File (
@@ -11,15 +10,19 @@ module Network.Wai.Handler.Warp.File (
 
 import Data.Array ((!))
 import qualified Data.ByteString.Char8 as C8 (pack)
-import Network.HTTP.Date
+import Network.HTTP.Date (HTTPDate, parseHTTPDate)
 import qualified Network.HTTP.Types as H
-import qualified Network.HTTP.Types.Header as H
-import Network.Wai
+import qualified Network.HTTP.Types.Header as Header
+import Network.Wai (FilePart (..))
 
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
-import Network.Wai.Handler.Warp.Header
+import Network.Wai.Handler.Warp.Header (
+    IndexedHeader,
+    RequestHeaderIndex (..),
+    ResponseHeaderIndex (..),
+ )
 import Network.Wai.Handler.Warp.Imports
-import Network.Wai.Handler.Warp.PackInt
+import Network.Wai.Handler.Warp.PackInt (packIntegral)
 
 ----------------------------------------------------------------
 
@@ -45,7 +48,7 @@ conditionalRequest finfo hs0 method rspidx reqidx = case condition of
         let !hs1 = addContentHeaders hs0 off len size
             !hs = case rspidx ! fromEnum ResLastModified of
                 Just _ -> hs1
-                Nothing -> (H.hLastModified, date) : hs1
+                Nothing -> (Header.hLastModified, date) : hs1
          in WithBody s hs off len
   where
     !mtime = I.fileInfoTime finfo
@@ -151,7 +154,7 @@ checkRange (H.ByteRangeSuffix count) size = (max 0 (size - count), size - 1)
 -- | @contentRangeHeader beg end total@ constructs a Content-Range 'H.Header'
 -- for the range specified.
 contentRangeHeader :: Integer -> Integer -> Integer -> H.Header
-contentRangeHeader beg end total = (H.hContentRange, range)
+contentRangeHeader beg end total = (Header.hContentRange, range)
   where
     range =
         C8.pack
@@ -183,7 +186,10 @@ addContentHeaders hs off len size
          in ctrng : hs'
   where
     !lengthBS = packIntegral len
-    !hs' = (H.hContentLength, lengthBS) : (H.hAcceptRanges, "bytes") : hs
+    !hs' =
+        (Header.hContentLength, lengthBS)
+            : (Header.hAcceptRanges, "bytes")
+            : filter (\(h, _) -> h /= Header.hContentLength && h /= Header.hAcceptRanges) hs
 
 -- |
 --

@@ -6,7 +6,7 @@ module Network.Wai.Handler.Warp.ResponseHeader (composeHeader) where
 import qualified Data.ByteString as S
 import Data.ByteString.Internal (create)
 import qualified Data.CaseInsensitive as CI
-import Data.List (foldl')
+import Data.List as List (foldl')
 import Data.Word8
 import Foreign.Ptr
 import GHC.Storable
@@ -23,7 +23,7 @@ composeHeader !httpversion !status !responseHeaders = create len $ \ptr -> do
     ptr2 <- copyHeaders ptr1 responseHeaders
     void $ copyCRLF ptr2
   where
-    !len = 17 + slen + foldl' fieldLength 0 responseHeaders
+    !len = 17 + slen + List.foldl' fieldLength 0 responseHeaders
     fieldLength !l (!k, !v) = l + S.length (CI.original k) + S.length v + 4
     !slen = S.length $ H.statusMessage status
 

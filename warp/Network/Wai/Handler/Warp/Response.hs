@@ -18,23 +18,24 @@ module Network.Wai.Handler.Warp.Response (
 import qualified Control.Exception as E
 import Data.Array ((!))
 import qualified Data.ByteString as S
+import Data.ByteString.Internal (toForeignPtr, unsafeCreate)
 import Data.ByteString.Builder (Builder, byteString)
 import Data.ByteString.Builder.Extra (flush)
 import Data.ByteString.Builder.HTTP.Chunked (
     chunkedTransferEncoding,
     chunkedTransferTerminator,
  )
-import qualified Data.ByteString.Char8 as C8
 import qualified Data.CaseInsensitive as CI
-import Data.Function (on)
-import Data.List (deleteBy)
+import Data.Foldable (for_)
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Streaming.ByteString.Builder (
     newByteStringBuilderRecv,
     reuseBufferStrategy,
  )
-import Data.Word8 (_cr, _lf, _space, _tab)
+import Data.Word8 (_cr, _lf, _nul, _space)
+import Foreign (copyBytes, plusForeignPtr, pokeByteOff, withForeignPtr)
 import qualified Network.HTTP.Types as H
-import qualified Network.HTTP.Types.Header as H
+import qualified Network.HTTP.Types.Header as Header
 import Network.Wai
 import Network.Wai.Internal
 import qualified System.TimeManager as T
@@ -120,17 +121,23 @@ sendResponse
     -> IO Bool
     -- ^ Returing True if the connection is persistent.
 sendResponse settings conn ii th req reqidxhdr src response = do
+    -- Decide connection persistence
     isShuttingDown <-
         case settingsServerState settings of
             Just serverState -> currentShuttingDownState serverState
             -- Should never be reached!
             -- (cf. 'makeServerState' in 'runSettingsConnectionMakerSecure')
             Nothing -> pure False
-    let shouldPersist =
-            not isShuttingDown && if hasBody s then ret else isPersist
+    let shouldPersist = not isShuttingDown && ret
         addConnection hs =
-            if shouldPersist then hs else (H.hConnection, "close") : hs
+            if shouldPersist || responseWantsToClose
+                then hs
+                else (Header.hConnection, "close") : hs
+
+    -- Adjust headers
     hs <- addConnection . addAltSvc settings <$> addServerAndDate hs0
+
+    -- Start response logic
     if hasBody s
         then do
             -- The response to HEAD does not have body.
@@ -149,20 +156,33 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     T.tickle th
     return shouldPersist
   where
+    -- From Settings --
     defServer = settingsServerName settings
     logger = settingsLogger settings
     maxRspBufSize = settingsMaxBuilderResponseBufferSize settings
+
+    -- From Request --
+    method = requestMethod req
+    isHead = method == H.methodHead
     ver = httpVersion req
+    isHttp11 = ver == H.http11
+    reqSaysPersist = checkReqConnectionHeader isHttp11 reqidxhdr
+
+    -- From Response --
     s = responseStatus response
     hs0 = sanitizeHeaders $ responseHeaders response
     rspidxhdr = indexResponseHeader hs0
+    hasLength = isJust $ rspidxhdr ! fromEnum ResContentLength
+    responseWantsToClose =
+        case rspidxhdr ! fromEnum ResConnection of
+            Nothing -> False
+            Just v -> CI.foldCase v == "close"
+    isPersist = reqSaysPersist && not responseWantsToClose
+
+    -- Other --
     getdate = getDate ii
     addServerAndDate = addDate getdate rspidxhdr . addServer defServer rspidxhdr
-    (isPersist, isChunked0) = infoFromRequest req reqidxhdr
-    isChunked = not isHead && isChunked0
-    (isKeepAlive, needsChunked) = infoFromResponse rspidxhdr (isPersist, isChunked)
-    method = requestMethod req
-    isHead = method == H.methodHead
+    needsChunked = isHttp11 && not hasLength
     rsp = case response of
         ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr (T.tickle th)
         ResponseBuilder _ _ b
@@ -172,37 +192,52 @@ sendResponse settings conn ii th req reqidxhdr src response = do
             | isHead -> RspNoBody
             | otherwise -> RspStream fb needsChunked
         ResponseRaw raw _ -> RspRaw raw src
+    -- Should be False if (http10 && not hasLength), regardless of what
+    -- the 'Connection' header says. (as long as the response should have a body)
+    isKeepAlive =
+        isPersist && (isHttp11 || hasLength || isHead || not (hasBody s))
     -- Make sure we don't hang on to 'response' (avoid space leak)
     !ret = case response of
+        -- Will get 'Content-Length' header later on using the
+        -- 'addContentHeaders(ForFilePart)' functions, so if the
+        -- 'Connection' header says we persist, we persist.
         ResponseFile{} -> isPersist
         ResponseBuilder{} -> isKeepAlive
         ResponseStream{} -> isKeepAlive
+        -- Is already an ongoing open connection, so if it is done,
+        -- the connection should be closed.
         ResponseRaw{} -> False
 
 ----------------------------------------------------------------
 
+-- | As per RFC 9110 we replace any newlines (\r\n) or \NUL with spaces
 sanitizeHeaders :: H.ResponseHeaders -> H.ResponseHeaders
-sanitizeHeaders = map (sanitize <$>)
-  where
-    sanitize v
-        | containsNewlines v = sanitizeHeaderValue v -- slow path
-        | otherwise = v -- fast path
+sanitizeHeaders = map (sanitizeHeaderValue <$>)
 
-{-# INLINE containsNewlines #-}
-containsNewlines :: ByteString -> Bool
-containsNewlines = S.any (\w -> w == _cr || w == _lf)
+{-# INLINE isRecoverableWhitespace #-}
+-- | CR, LF and NUL can safely be replaced with a SP according to RFC 9110
+-- <https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5-5>
+isRecoverableWhitespace :: Word8 -> Bool
+isRecoverableWhitespace w = w == _cr || w == _lf || w == _nul
 
-{-# INLINE sanitizeHeaderValue #-}
 sanitizeHeaderValue :: ByteString -> ByteString
-sanitizeHeaderValue v = case C8.lines $ S.filter (/= _cr) v of
-    [] -> ""
-    x : xs -> C8.intercalate "\r\n" (x : mapMaybe addSpaceIfMissing xs)
+sanitizeHeaderValue v =
+    case S.findIndices isRecoverableWhitespace v of
+        -- Nothing to replace
+        [] -> v
+        -- Found CR, LF or NUL.
+        ixs ->
+            unsafeCreate len $ \dst -> do
+                withForeignPtr fptr $ \src -> do
+                    -- copy the bytestring
+                    copyBytes dst src len
+                    -- and then replace the offending bytes
+                    for_ ixs $ \ix -> pokeByteOff dst ix _space
   where
-    addSpaceIfMissing line = case S.uncons line of
-        Nothing -> Nothing
-        Just (first, _)
-            | first == _space || first == _tab -> Just line
-            | otherwise -> Just $ _space `S.cons` line
+    (fptr', offset, len) = toForeignPtr v
+    -- We need to use the offset for backwards compatibility with
+    -- "bytestring < 0.11"
+    fptr = fptr' `plusForeignPtr` offset
 
 ----------------------------------------------------------------
 
@@ -237,8 +272,8 @@ sendRsp conn _ _ ver s hs _ _ _ RspNoBody = do
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th ver s hs _ maxRspBufSize _ (RspBuilder body needsChunked) = do
-    header <- composeHeaderBuilder ver s hs needsChunked
+sendRsp conn _ th ver s hs rspidxhdr maxRspBufSize _ (RspBuilder body needsChunked) = do
+    (header, hdrLen) <- composeHeaderBuilder ver s hs rspidxhdr needsChunked
     let hdrBdy
             | needsChunked =
                 header
@@ -252,23 +287,28 @@ sendRsp conn _ th ver s hs _ maxRspBufSize _ (RspBuilder body needsChunked) = do
             writeBufferRef
             (\bs -> connSendAll conn bs >> T.tickle th)
             hdrBdy
-    return (Just s, Just len)
+    --              small adjustment to only count the body
+    return (Just s, Just $ len - fromIntegral hdrLen)
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th ver s hs _ _ _ (RspStream streamingBody needsChunked) = do
-    header <- composeHeaderBuilder ver s hs needsChunked
+sendRsp conn _ th ver s hs rspidxhdr _ _ (RspStream streamingBody needsChunked) = do
+    (header, hdrLen) <- composeHeaderBuilder ver s hs rspidxhdr needsChunked
     (recv, finish) <-
         newByteStringBuilderRecv $
             reuseBufferStrategy $
                 toBuilderBuffer $
                     connWriteBuffer conn
+    -- We'll be counting how many bytes we send with this 'IORef'
+    sizeCounter <- newIORef (0 :: Integer)
     let send builder = do
             popper <- recv builder
             let loop = do
                     bs <- popper
                     unless (S.null bs) $ do
                         sendFragment conn th bs
+                        -- add amount of bytes to count
+                        S.length bs `addToCounter` sizeCounter
                         loop
             loop
         sendChunk
@@ -279,7 +319,14 @@ sendRsp conn _ th ver s hs _ _ _ (RspStream streamingBody needsChunked) = do
     when needsChunked $ send chunkedTransferTerminator
     mbs <- finish
     maybe (return ()) (sendFragment conn th) mbs
-    return (Just s, Nothing) -- fixme: can we tell the actual sent bytes?
+    finalSize <- readIORef sizeCounter
+    --              small adjustment to only count the body
+    return (Just s, Just $ finalSize - fromIntegral hdrLen)
+  where
+    addToCounter :: Int -> IORef Integer -> IO ()
+    addToCounter bytes ref =
+        atomicModifyIORef' ref $ \old ->
+            (old + fromIntegral bytes, ())
 
 ----------------------------------------------------------------
 
@@ -367,6 +414,8 @@ sendRspFile2XX
     -> IO (Maybe H.Status, Maybe Integer)
 sendRspFile2XX conn ii th ver s hs rspidxhdr maxRspBufSize method path beg len hook
     | method == H.methodHead =
+        -- FIXME: We could check the size of the file and add a
+        -- 'Content-Length' header to give the requester more information?
         sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize method RspNoBody
     | otherwise = do
         lheader <- composeHeader ver s hs
@@ -400,7 +449,7 @@ sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize method =
         (RspBuilder body True)
   where
     s = H.notFound404
-    hs = replaceHeader H.hContentType "text/plain; charset=utf-8" hs0
+    hs = replaceHeader Header.hContentType "text/plain; charset=utf-8" hs0
     body = byteString "File not found"
 
 ----------------------------------------------------------------
@@ -420,49 +469,23 @@ sendFragment Connection{connSendAll = send} th bs = do
 
 ----------------------------------------------------------------
 
-infoFromRequest
-    :: Request
-    -> IndexedHeader
-    -> ( Bool -- isPersist
-       , Bool -- isChunked
-       )
-infoFromRequest req reqidxhdr = (checkPersist req reqidxhdr, checkChunk req)
-
-checkPersist :: Request -> IndexedHeader -> Bool
-checkPersist req reqidxhdr
-    | ver == H.http11 = checkPersist11 conn
-    | otherwise = checkPersist10 conn
-  where
-    ver = httpVersion req
-    conn = reqidxhdr ! fromEnum ReqConnection
-    checkPersist11 (Just x)
-        | CI.foldCase x == "close" = False
-    checkPersist11 _ = True
-    checkPersist10 (Just x)
-        | CI.foldCase x == "keep-alive" = True
-    checkPersist10 _ = False
-
-checkChunk :: Request -> Bool
-checkChunk req = httpVersion req == H.http11
+-- | We infer from the request whether the connection should be persisted.
+checkReqConnectionHeader :: Bool -> IndexedHeader -> Bool
+checkReqConnectionHeader isHttp11 reqidxhdr =
+    case reqidxhdr ! fromEnum ReqConnection of
+        -- If no "Connection" header, then default: HTTP/1.1 == persist
+        Nothing -> isHttp11
+        Just val ->
+            let connValue = CI.foldCase val
+             in if isHttp11
+                    then connValue /= "close"
+                    else connValue == "keep-alive"
 
 ----------------------------------------------------------------
 
--- Used for ResponseBuilder and ResponseSource.
--- Don't use this for ResponseFile since this logic does not fit
--- for ResponseFile. For instance, isKeepAlive should be True in some cases
--- even if the response header does not have Content-Length.
+-- | Only checks for status codes, NOT for methods.
 --
--- Content-Length is specified by a reverse proxy.
--- Note that CGI does not specify Content-Length.
-infoFromResponse :: IndexedHeader -> (Bool, Bool) -> (Bool, Bool)
-infoFromResponse rspidxhdr (isPersist, isChunked) = (isKeepAlive, needsChunked)
-  where
-    needsChunked = isChunked && not hasLength
-    isKeepAlive = isPersist && (isChunked || hasLength)
-    hasLength = isJust $ rspidxhdr ! fromEnum ResContentLength
-
-----------------------------------------------------------------
-
+-- This is by design and some handling relies on HEAD being a separate check.
 hasBody :: H.Status -> Bool
 hasBody s =
     sc /= 204
@@ -473,15 +496,22 @@ hasBody s =
 
 ----------------------------------------------------------------
 
-addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
-addTransferEncoding hdrs = (H.hTransferEncoding, "chunked") : hdrs
+-- | We ASSUME there's no middleware that will chunk the transfer, so
+-- we'll add it to the headers if there's no other encoding, or add it
+-- to the end in case it is.
+-- (e.g. if a 'Middleware' were to add "Transfer-Encoding: gzip")
+addTransferEncoding :: IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
+addTransferEncoding rspidxhdr =
+    case rspidxhdr ! fromEnum ResTransferEncoding of
+        Nothing -> ((Header.hTransferEncoding, "chunked") :)
+        Just value -> replaceHeader Header.hTransferEncoding (value <> ", chunked")
 
 addDate
     :: IO D.GMTDate -> IndexedHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
 addDate getdate rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
     Nothing -> do
         gmtdate <- getdate
-        return $ (H.hDate, gmtdate) : hdrs
+        return $ (Header.hDate, gmtdate) : hdrs
     Just _ -> return hdrs
 
 ----------------------------------------------------------------
@@ -489,12 +519,16 @@ addDate getdate rspidxhdr hdrs = case rspidxhdr ! fromEnum ResDate of
 {-# INLINE addServer #-}
 addServer
     :: HeaderValue -> IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
-addServer "" rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
-    Nothing -> hdrs
-    _ -> filter ((/= H.hServer) . fst) hdrs
-addServer serverName rspidxhdr hdrs = case rspidxhdr ! fromEnum ResServer of
-    Nothing -> (H.hServer, serverName) : hdrs
-    _ -> hdrs
+addServer serverName rspidxhdr hdrs =
+    case (serverName, serverHdr) of
+        -- empty string means there shouldn't be a "Server" header
+        ("", Nothing) -> hdrs
+        ("", _) -> filter ((/= Header.hServer) . fst) hdrs
+        -- Anything else should set the "Server" header if it isn't already set
+        (_, Nothing) -> (Header.hServer, serverName) : hdrs
+        _ -> hdrs
+  where
+    serverHdr = rspidxhdr ! fromEnum ResServer
 
 addAltSvc :: Settings -> H.ResponseHeaders -> H.ResponseHeaders
 addAltSvc settings hs = case settingsAltSvc settings of
@@ -503,19 +537,23 @@ addAltSvc settings hs = case settingsAltSvc settings of
 
 ----------------------------------------------------------------
 
--- |
+-- | Replaces a header, instead of just adding it which might lead to
+-- duplicate entries of the same header name.
 --
 -- >>> replaceHeader "Content-Type" "new" [("content-type","old")]
 -- [("Content-Type","new")]
 replaceHeader
     :: H.HeaderName -> HeaderValue -> H.ResponseHeaders -> H.ResponseHeaders
-replaceHeader k v hdrs = (k, v) : deleteBy ((==) `on` fst) (k, v) hdrs
+replaceHeader k v hdrs = (k, v) : filter ((/= k) . fst) hdrs
 
 ----------------------------------------------------------------
 
 composeHeaderBuilder
-    :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> Bool -> IO Builder
-composeHeaderBuilder ver s hs True =
-    byteString <$> composeHeader ver s (addTransferEncoding hs)
-composeHeaderBuilder ver s hs False =
-    byteString <$> composeHeader ver s hs
+    :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> IndexedHeader -> Bool -> IO (Builder, Int)
+composeHeaderBuilder ver s hs rspidxhdr shouldChunk = do
+    bs <- composeHeader ver s finalHdrs
+    pure (byteString bs, S.length bs)
+  where
+    finalHdrs
+        | shouldChunk = addTransferEncoding rspidxhdr hs
+        | otherwise = hs
