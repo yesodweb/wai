@@ -181,7 +181,7 @@ processRequest
     -> Source
     -> Request
     -> Maybe (IORef Int)
-    -> IndexedHeader
+    -> IndexedRequestHeader
     -> IO ByteString
     -> IO ReuseConnection
 processRequest settings ii conn app th istatus src req mremainingRef idxhdr nextBodyFlush = do

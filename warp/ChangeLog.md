@@ -1,5 +1,12 @@
 # ChangeLog for warp
 
+## 3.4.15
+
+* Add phantom type parameter to `IndexedHeader` to catch request/response
+  mismatches at compile time. This does change the API of
+  `Network.Wai.Handler.Warp.Internal`, so this gets a minor version bump.
+  [#1088](https://github.com/yesodweb/wai/pull/1088)
+
 ## 3.4.14
 
 * Important bugfix to not deadlock on empty file descriptors if the cause of

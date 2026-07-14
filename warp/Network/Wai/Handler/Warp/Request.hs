@@ -15,7 +15,6 @@ module Network.Wai.Handler.Warp.Request (
 ) where
 
 import qualified Control.Concurrent as Conc (yield)
-import Data.Array ((!))
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
@@ -68,7 +67,7 @@ recvRequest
     -> IO
         ( Request
         , Maybe (I.IORef Int)
-        , IndexedHeader
+        , IndexedRequestHeader
         , IO ByteString
         )
     -- ^
@@ -81,7 +80,7 @@ recvRequest firstRequest settings conn ii th addr src transport = do
     (method, unparsedPath, path, query, httpversion, hdr) <-
         parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
-        expect = idxhdr ! fromEnum ReqExpect
+        expect = idxhdr ! ReqExpect
         handle100Continue = handleExpect conn httpversion expect
     (rbody, remainingRef, bodyLength) <- bodyAndSource src idxhdr
     -- body producing function which will produce '100-continue', if needed
@@ -110,10 +109,10 @@ recvRequest firstRequest settings conn ii th addr src transport = do
                 , requestBody = rbody'
                 , vault = vaultValue
                 , requestBodyLength = bodyLength
-                , requestHeaderHost = idxhdr ! fromEnum ReqHost
-                , requestHeaderRange = idxhdr ! fromEnum ReqRange
-                , requestHeaderReferer = idxhdr ! fromEnum ReqReferer
-                , requestHeaderUserAgent = idxhdr ! fromEnum ReqUserAgent
+                , requestHeaderHost = idxhdr ! ReqHost
+                , requestHeaderRange = idxhdr ! ReqRange
+                , requestHeaderReferer = idxhdr ! ReqReferer
+                , requestHeaderUserAgent = idxhdr ! ReqUserAgent
                 }
     return (req, remainingRef, idxhdr, rbodyFlush)
 
@@ -157,7 +156,7 @@ handleExpect _ _ _ = return ()
 
 bodyAndSource
     :: Source
-    -> IndexedHeader
+    -> IndexedRequestHeader
     -> IO
         ( IO ByteString
         , Maybe (I.IORef Int)
@@ -168,12 +167,12 @@ bodyAndSource src idxhdr
         csrc <- mkCSource src
         return (readCSource csrc, Nothing, ChunkedBody)
     | otherwise = do
-        let len = toLength $ idxhdr ! fromEnum ReqContentLength
+        let len = toLength $ idxhdr ! ReqContentLength
             bodyLen = KnownLength $ fromIntegral len
         isrc@(ISource _ remaining) <- mkISource src len
         return (readISource isrc, Just remaining, bodyLen)
   where
-    chunked = isChunked $ idxhdr ! fromEnum ReqTransferEncoding
+    chunked = isChunked $ idxhdr ! ReqTransferEncoding
 
 toLength :: Maybe HeaderValue -> Int
 toLength Nothing = 0
