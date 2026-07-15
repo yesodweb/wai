@@ -61,6 +61,7 @@ module Network.Wai (
     requestHeaderRange,
     requestHeaderReferer,
     requestHeaderUserAgent,
+    requestSendEarlyHints,
     -- $streamingRequestBodies
     strictRequestBody,
     consumeRequestBodyStrict,
@@ -322,6 +323,7 @@ defaultRequest =
         , requestHeaderRange = Nothing
         , requestHeaderReferer = Nothing
         , requestHeaderUserAgent = Nothing
+        , requestSendEarlyHints = \_ -> return ()
         }
 
 -- | A @Middleware@ is a component that sits between the server and application.

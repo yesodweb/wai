@@ -20,7 +20,7 @@ library
                  , http-types
                  , transformers
                  , case-insensitive
-                 , wai               >= 3.0      && < 3.3
+                 , wai               >= 3.0      && < 3.4
     exposed-modules: Network.Wai.Frontend.MonadCGI
     ghc-options:     -Wall
 
