@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -28,6 +29,14 @@ import Network.Wai.Handler.Warp.HTTP2.Response
 import Network.Wai.Handler.Warp.Imports
 import qualified Network.Wai.Handler.Warp.Settings as S
 import Network.Wai.Handler.Warp.Types
+
+-- Early Hints wiring needs both the http-semantics 'auxSendInformational' field
+-- (0.4.1) and the http2 sender support that actually emits it (5.4.2).
+#define HAS_EARLY_HINTS_SUPPORT (MIN_VERSION_http_semantics(0,4,1) && MIN_VERSION_http2(5,4,2))
+
+#if HAS_EARLY_HINTS_SUPPORT
+import qualified Network.HTTP.Types as H
+#endif
 
 ----------------------------------------------------------------
 
@@ -89,7 +98,12 @@ http2server
 http2server label settings ii transport addr app h2req0 aux0 response = do
     tid <- myThreadId
     labelThread tid (label ++ " http2server " ++ show addr)
-    req <- toWAIRequest h2req0 aux0
+    req0 <- toWAIRequest h2req0 aux0
+#if HAS_EARLY_HINTS_SUPPORT
+    let req = req0{requestSendEarlyHints = H2.auxSendInformational aux0 (H.mkStatus 103 "Early Hints")}
+#else
+    let req = req0
+#endif
     ref <- I.newIORef Nothing
     eResponseReceived <- E.try $ app req $ \rsp -> do
         (h2rsp, st, hasBody) <- fromResponse settings ii req rsp
