@@ -98,7 +98,9 @@ toRequest' ii settings addr ref (reqths, reqvt) bodylen body th transport =
     !path = H.extractPath unparsedPath
     !rawPath = if S.settingsNoParsePath settings then unparsedPath else path
     -- fixme: pauseTimeout. th is not available here.
-    !vaultValue =
+    -- Lazy on purpose (~ defeats -XStrict): most handlers never touch
+    -- 'vault', so don't pay for the inserts unless somebody looks.
+    ~vaultValue =
         Vault.insert getFileInfoKey (getFileInfo ii)
             . Vault.insert getHTTP2DataKey (readIORef ref)
             . Vault.insert setHTTP2DataKey (writeIORef ref)
