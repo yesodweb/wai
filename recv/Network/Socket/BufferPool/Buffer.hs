@@ -1,6 +1,7 @@
 module Network.Socket.BufferPool.Buffer (
     newBufferPool,
     withBufferPool,
+    tryWithBufferPool,
     mallocBS,
     copy,
 ) where
@@ -43,6 +44,26 @@ withBufferPool (BufferPool l h ref) f = do
     consumed <- withForeignBuffer buf f
     writeIORef ref $ unsafeDrop consumed buf
     return $ unsafeTake consumed buf
+
+-- | Like 'withBufferPool' for fillers that can decline to fill:
+--   a negative return value from the filler leaves the pool untouched
+--   and produces 'Nothing'.
+tryWithBufferPool
+    :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO (Maybe ByteString)
+tryWithBufferPool (BufferPool l h ref) f = do
+    buf0 <- readIORef ref
+    buf <-
+        if BS.length buf0 >= l
+            then return buf0
+            else mallocBS h
+    consumed <- withForeignBuffer buf f
+    if consumed < 0
+        then do
+            writeIORef ref buf
+            return Nothing
+        else do
+            writeIORef ref $ unsafeDrop consumed buf
+            return $ Just $ unsafeTake consumed buf
 
 withForeignBuffer :: ByteString -> (Buffer -> BufSize -> IO Int) -> IO Int
 withForeignBuffer (PS ps s l) f = withForeignPtr ps $ \p -> f (castPtr p `plusPtr` s) l

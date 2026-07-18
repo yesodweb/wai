@@ -140,22 +140,33 @@ socketConnection set s = do
 -- actively using this 'Socket'.
 makeGracefulRecv :: Socket -> BufferPool -> ServerState -> IORef Int -> Recv
 makeGracefulRecv sock pool ss appsInProgress = do
-    sockWait <-
-#if !WINDOWS && MIN_VERSION_network(3,2,2)
-        waitReadSocketSTM sock
-#else
-        -- FIXME: 'waitReadSocketSTM' doesn't work on WINDOWS, and actually
-        -- blocks indefinitely, so we fall back to going straight to 'recv'.
-        pure (pure ())
-#endif
-    isShuttingDown <- atomically $
-        -- when shutting down
-        (checkShutdown $> True)
-        <|>
-        -- else wait for socket readiness and do non-blocking read
-        (sockWait $> False)
-    if isShuttingDown then drain sockWait else recv
+    -- Fast path: under load the next request has usually already arrived,
+    -- so read it without registering with the IO manager or entering STM.
+    -- One epoll_ctl + one futex sleep/wake pair saved per request.
+    -- A request already in the kernel buffer is served even if shutdown
+    -- began meanwhile, which merely restores pre-graceful-shutdown behavior
+    -- for bytes the client already sent.
+    mbs <- receiveNoWait sock pool
+    case mbs of
+        Just bs -> return bs
+        Nothing -> slowPath
   where
+    slowPath = do
+        sockWait <-
+#if !WINDOWS && MIN_VERSION_network(3,2,2)
+            waitReadSocketSTM sock
+#else
+            -- FIXME: 'waitReadSocketSTM' doesn't work on WINDOWS, and actually
+            -- blocks indefinitely, so we fall back to going straight to 'recv'.
+            pure (pure ())
+#endif
+        isShuttingDown <- atomically $
+            -- when shutting down
+            (checkShutdown $> True)
+            <|>
+            -- else wait for socket readiness and do non-blocking read
+            (sockWait $> False)
+        if isShuttingDown then drain sockWait else recv
     recv = receive sock pool
     checkShutdown = check =<< currentShuttingDownStateSTM ss
     -- Shutting down: cut off this connection once no 'Application' is using

@@ -214,13 +214,10 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
     keepAlive <- readIORef keepAliveRef
 
     -- We just send a Response and it takes a time to
-    -- receive a Request again. If we immediately call recv,
-    -- it is likely to fail and cause the IO manager to do some work.
-    -- It is very costly, so we yield to another Haskell
-    -- thread hoping that the next Request will arrive
-    -- when this Haskell thread will be re-scheduled.
-    -- This improves performance at least when
-    -- the number of cores is small.
+    -- receive a Request again. Yield to other Haskell threads so the
+    -- next Request has a chance to arrive before we call recv: the
+    -- non-blocking fast path in 'makeGracefulRecv' then reads it without
+    -- involving the IO manager at all.
     Conc.yield
 
     if keepAlive
