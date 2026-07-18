@@ -459,7 +459,7 @@ checkPersist req reqidxhdr
     | otherwise = checkPersist10 conn
   where
     ver = httpVersion req
-    conn = reqidxhdr ! ReqConnection
+    conn = reqidxConnection reqidxhdr
     checkPersist11 (Just x)
         | CI.foldCase x == "close" = False
     checkPersist11 _ = True

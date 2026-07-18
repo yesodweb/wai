@@ -62,8 +62,6 @@ module Network.Wai.Handler.Warp.Internal (
     InternalInfo (..),
     HeaderValue,
     IndexedRequestHeader,
-    -- I assume 'requestMaxIndex' was used in case anyone wanted to create
-    -- an empty array, so we replace it with 'defaultIndexRequestHeader'.
     defaultIndexRequestHeader,
 
     -- * Time out manager
