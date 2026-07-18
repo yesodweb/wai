@@ -273,6 +273,12 @@ sendRsp conn _ th ver s hs _ maxRspBufSize _ (RspBuilder body needsChunked) = do
 
 sendRsp conn _ th ver s hs _ _ _ (RspStream streamingBody needsChunked) = do
     header <- composeHeaderBuilder ver s hs needsChunked
+    -- Make sure the timeout is armed for the whole streaming section,
+    -- so that the per-fragment 'T.tickle' below has effect. Normally
+    -- the handle is already active (the respond callback resumed it),
+    -- making this a cheap no-op; it matters for streaming responses
+    -- sent from an exception handler, where the handle is still paused.
+    T.resume th
     (recv, finish) <-
         newByteStringBuilderRecv $
             reuseBufferStrategy $
@@ -424,14 +430,18 @@ sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize method =
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
 sendFragment :: Connection -> T.Handle -> ByteString -> IO ()
 sendFragment Connection{connSendAll = send} th bs = do
-    T.resume th
+    T.tickle th
     send bs
-    T.pause th
 
--- We pause timeouts before passing control back to user code. This ensures
--- that a timeout will only ever be executed when Warp is in control. We
--- also make sure to resume the timeout after the completion of user code
--- so that we can kill idle connections.
+-- The timeout stays armed during the whole streaming section (see the
+-- 'T.resume' in the RspStream case of 'sendRsp'); each fragment merely
+-- tickles it, which the rate limiter in time-manager makes nearly free.
+-- Compared to the previous resume/send/pause per fragment this keeps
+-- slowloris protection active while the fragment is being sent. The
+-- flip side is that user code producing the next fragment now runs with
+-- the timeout armed, so a streaming body that emits nothing for a full
+-- timeout period is killed, whereas it previously had the timeout
+-- paused between fragments.
 
 ----------------------------------------------------------------
 
