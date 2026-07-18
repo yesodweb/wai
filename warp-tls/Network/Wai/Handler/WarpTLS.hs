@@ -58,9 +58,6 @@ module Network.Wai.Handler.WarpTLS (
 ) where
 
 import Control.Applicative ((<|>))
-#if MIN_VERSION_warp(3,4,13)
-import Control.Concurrent.STM (newTVarIO, TVar)
-#endif
 import Control.Exception (
     Exception,
     IOException,
@@ -390,7 +387,7 @@ httpOverTls TLSSettings{..} set s bs0 params =
     makeConn = do
         pool <- newBufferPool 2048 16384
 #if MIN_VERSION_warp(3,4,13)
-        appsInProgress <- newTVarIO 0
+        appsInProgress <- I.newIORef 0
         (ss, _) <- makeServerState set
         let recv = makeGracefulRecv s pool ss appsInProgress
 #else
@@ -441,7 +438,7 @@ attachConn
     :: SockAddr
     -> TLS.Context
 #if MIN_VERSION_warp(3,4,13)
-    -> TVar Int -> IO (Connection, Transport)
+    -> I.IORef Int -> IO (Connection, Transport)
 attachConn mysa ctx appsInProgress = do
 #else
     -> IO (Connection, Transport)

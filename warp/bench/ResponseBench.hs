@@ -6,7 +6,6 @@
 -- header composition, chunking, buffer management and timeout handling.
 module Main (main) where
 
-import Control.Concurrent.STM (newTVarIO)
 import Criterion.Main
 import Data.ByteString.Builder (byteString)
 import Data.IORef (newIORef)
@@ -28,7 +27,7 @@ main :: IO ()
 main = do
     writeBuf <- createWriteBuffer 16384 >>= newIORef
     http2Ref <- newIORef False
-    apps <- newTVarIO (0 :: Int)
+    apps <- newIORef (0 :: Int)
     let conn =
             Connection
                 { connSendMany = \_ -> return ()
