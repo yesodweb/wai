@@ -4,13 +4,12 @@
 module Network.Wai.Handler.Warp.Header (
     IndexedHeader,
     IndexedRequestHeader,
-    IndexedResponseHeader,
+    IndexedResponseHeader (..),
     (!),
     RequestHeaderIndex (..),
     indexRequestHeader,
     requestMaxIndex,
     defaultIndexRequestHeader,
-    ResponseHeaderIndex (..),
     indexResponseHeader,
 ) where
 
@@ -29,7 +28,6 @@ import Network.Wai.Handler.Warp.Types
 newtype IndexedHeader a = IxHeader (Array Int (Maybe HeaderValue))
 
 type IndexedRequestHeader = IndexedHeader RequestHeaderIndex
-type IndexedResponseHeader = IndexedHeader ResponseHeaderIndex
 
 -- | Safer way to lookup 'IndexedHeader' values
 (!) :: Enum a => IndexedHeader a -> a -> Maybe HeaderValue
@@ -104,29 +102,40 @@ defaultIndexRequestHeader =
 
 ----------------------------------------------------------------
 
-indexResponseHeader :: ResponseHeaders -> IndexedHeader ResponseHeaderIndex
-indexResponseHeader hdr = traverseHeader hdr responseMaxIndex responseKeyIndex
+-- | Index for the response headers Warp itself consults.
+--   Only these four headers are ever looked up on the response side,
+--   so a flat record built in a single traversal beats a boxed array.
+--   The fields are strict via StrictData.
+data IndexedResponseHeader = IndexedResponseHeader
+    { resContentLength :: Maybe HeaderValue
+    , resServer :: Maybe HeaderValue
+    , resDate :: Maybe HeaderValue
+    , resLastModified :: Maybe HeaderValue
+    }
 
-data ResponseHeaderIndex
-    = ResContentLength
-    | ResServer
-    | ResDate
-    | ResLastModified
-    deriving (Enum, Bounded)
-
--- | The size for 'IndexedHeader' for HTTP Response.
-responseMaxIndex :: Int
-responseMaxIndex = fromEnum (maxBound :: ResponseHeaderIndex)
-
-responseKeyIndex :: HeaderName -> Int
-responseKeyIndex hn = case BS.length bs of
-    4 | bs == "date" -> fromEnum ResDate
-    6 | bs == "server" -> fromEnum ResServer
-    13 | bs == "last-modified" -> fromEnum ResLastModified
-    14 | bs == "content-length" -> fromEnum ResContentLength
-    _ -> -1
+indexResponseHeader :: ResponseHeaders -> IndexedResponseHeader
+indexResponseHeader = go emptyIndexedResponseHeader
   where
-    bs = foldedCase hn
+    go ix [] = ix
+    go ix ((key, val) : rest) = go (insert ix key val) rest
+    -- Like 'traverseHeader', a later duplicate wins.
+    insert ix key val = case BS.length bs of
+        4 | bs == "date" -> ix{resDate = Just val}
+        6 | bs == "server" -> ix{resServer = Just val}
+        13 | bs == "last-modified" -> ix{resLastModified = Just val}
+        14 | bs == "content-length" -> ix{resContentLength = Just val}
+        _ -> ix
+      where
+        bs = foldedCase key
+
+emptyIndexedResponseHeader :: IndexedResponseHeader
+emptyIndexedResponseHeader =
+    IndexedResponseHeader
+        { resContentLength = Nothing
+        , resServer = Nothing
+        , resDate = Nothing
+        , resLastModified = Nothing
+        }
 
 ----------------------------------------------------------------
 

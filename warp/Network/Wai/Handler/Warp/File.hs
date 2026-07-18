@@ -40,7 +40,7 @@ conditionalRequest finfo hs0 method rspidx reqidx = case condition of
     nobody@(WithoutBody _) -> nobody
     WithBody s _ off len ->
         let !hs1 = addContentHeaders hs0 off len size
-            !hs = case rspidx ! ResLastModified of
+            !hs = case resLastModified rspidx of
                 Just _ -> hs1
                 Nothing -> (H.hLastModified, date) : hs1
          in WithBody s hs off len
