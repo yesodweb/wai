@@ -9,6 +9,7 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
+import Foreign.ForeignPtr (ForeignPtr)
 import Network.Socket (SockAddr)
 import Network.Socket.BufferPool
 import System.Posix.Types (Fd)
@@ -94,6 +95,10 @@ type SendFile = FileId -> Integer -> Integer -> IO () -> [ByteString] -> IO ()
 -- containing bytes and a way to free the buffer.
 data WriteBuffer = WriteBuffer
     { bufBuffer :: Buffer
+    , bufFPtr :: ForeignPtr Word8
+    -- ^ A finalizer-free 'ForeignPtr' wrapping 'bufBuffer', cached so that
+    -- flushing does not allocate a fresh wrapper on every call. The buffer
+    -- is freed via 'bufFree', never via this 'ForeignPtr'.
     , bufSize :: !BufSize
     -- ^ The size of the write buffer.
     , bufFree :: IO ()

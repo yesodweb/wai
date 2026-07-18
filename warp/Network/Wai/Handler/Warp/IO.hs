@@ -34,7 +34,7 @@ toBufIOWithOffset offset0 maxRspBufSize writeBufferRef io builder = do
         let buf = bufBuffer writeBuffer
             size = bufSize writeBuffer
         (len, signal) <- writer (buf `plusPtr` offset) (size - offset)
-        bufferIO buf (offset + len) io
+        bufferIO writeBuffer (offset + len) io
         let totalBytesSent = toInteger (offset + len) + bytesSent
         case signal of
             Done -> return totalBytesSent
