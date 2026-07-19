@@ -19,7 +19,7 @@ toBufIOWith maxRspBufSize writeBufferRef io builder = do
         let buf = bufBuffer writeBuffer
             size = bufSize writeBuffer
         (len, signal) <- writer buf size
-        bufferIO buf len io
+        bufferIO writeBuffer len io
         let totalBytesSent = toInteger len + bytesSent
         case signal of
             Done -> return totalBytesSent
