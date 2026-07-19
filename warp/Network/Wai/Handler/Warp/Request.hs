@@ -80,7 +80,7 @@ recvRequest firstRequest settings conn ii th addr src transport = do
     (method, unparsedPath, path, query, httpversion, hdr) <-
         parseHeaderLines hdrlines
     let idxhdr = indexRequestHeader hdr
-        expect = idxhdr ! ReqExpect
+        expect = reqidxExpect idxhdr
         handle100Continue = handleExpect conn httpversion expect
     (rbody, remainingRef, bodyLength) <- bodyAndSource src idxhdr
     -- body producing function which will produce '100-continue', if needed
@@ -109,10 +109,10 @@ recvRequest firstRequest settings conn ii th addr src transport = do
                 , requestBody = rbody'
                 , vault = vaultValue
                 , requestBodyLength = bodyLength
-                , requestHeaderHost = idxhdr ! ReqHost
-                , requestHeaderRange = idxhdr ! ReqRange
-                , requestHeaderReferer = idxhdr ! ReqReferer
-                , requestHeaderUserAgent = idxhdr ! ReqUserAgent
+                , requestHeaderHost = reqidxHost idxhdr
+                , requestHeaderRange = reqidxRange idxhdr
+                , requestHeaderReferer = reqidxReferer idxhdr
+                , requestHeaderUserAgent = reqidxUserAgent idxhdr
                 }
     return (req, remainingRef, idxhdr, rbodyFlush)
 
@@ -167,12 +167,12 @@ bodyAndSource src idxhdr
         csrc <- mkCSource src
         return (readCSource csrc, Nothing, ChunkedBody)
     | otherwise = do
-        let len = toLength $ idxhdr ! ReqContentLength
+        let len = toLength $ reqidxContentLength idxhdr
             bodyLen = KnownLength $ fromIntegral len
         isrc@(ISource _ remaining) <- mkISource src len
         return (readISource isrc, Just remaining, bodyLen)
   where
-    chunked = isChunked $ idxhdr ! ReqTransferEncoding
+    chunked = isChunked $ reqidxTransferEncoding idxhdr
 
 toLength :: Maybe HeaderValue -> Int
 toLength Nothing = 0
