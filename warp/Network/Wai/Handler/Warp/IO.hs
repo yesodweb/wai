@@ -4,23 +4,38 @@ import Control.Exception (mask_)
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder.Extra (Next (Chunk, Done, More), runBuilder)
 import Data.IORef (IORef, readIORef, writeIORef)
+import Foreign.Ptr (plusPtr)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
 
 toBufIOWith
     :: Int -> IORef WriteBuffer -> (ByteString -> IO ()) -> Builder -> IO Integer
-toBufIOWith maxRspBufSize writeBufferRef io builder = do
+toBufIOWith = toBufIOWithOffset 0
+
+-- | Like 'toBufIOWith' but the first @offset@ bytes of the write buffer
+-- are assumed to be already filled (e.g. with a response header composed
+-- directly into the buffer). They are flushed together with the first
+-- batch of builder output and included in the returned total.
+-- @offset@ must not exceed the current buffer size.
+toBufIOWithOffset
+    :: Int
+    -> Int
+    -> IORef WriteBuffer
+    -> (ByteString -> IO ())
+    -> Builder
+    -> IO Integer
+toBufIOWithOffset offset0 maxRspBufSize writeBufferRef io builder = do
     writeBuffer <- readIORef writeBufferRef
-    loop writeBuffer firstWriter 0
+    loop writeBuffer offset0 firstWriter 0
   where
     firstWriter = runBuilder builder
-    loop writeBuffer writer bytesSent = do
+    loop writeBuffer offset writer bytesSent = do
         let buf = bufBuffer writeBuffer
             size = bufSize writeBuffer
-        (len, signal) <- writer buf size
-        bufferIO buf len io
-        let totalBytesSent = toInteger len + bytesSent
+        (len, signal) <- writer (buf `plusPtr` offset) (size - offset)
+        bufferIO buf (offset + len) io
+        let totalBytesSent = toInteger (offset + len) + bytesSent
         case signal of
             Done -> return totalBytesSent
             More minSize next
@@ -43,8 +58,8 @@ toBufIOWith maxRspBufSize writeBufferRef io builder = do
                         biggerWriteBuffer <- createWriteBuffer minSize
                         writeIORef writeBufferRef biggerWriteBuffer
                         return biggerWriteBuffer
-                    loop biggerWriteBuffer next totalBytesSent
-                | otherwise -> loop writeBuffer next totalBytesSent
+                    loop biggerWriteBuffer 0 next totalBytesSent
+                | otherwise -> loop writeBuffer 0 next totalBytesSent
             Chunk bs next -> do
                 io bs
-                loop writeBuffer next totalBytesSent
+                loop writeBuffer 0 next totalBytesSent
