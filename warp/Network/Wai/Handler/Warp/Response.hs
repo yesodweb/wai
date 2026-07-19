@@ -26,6 +26,7 @@ import Data.ByteString.Builder.HTTP.Chunked (
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.CaseInsensitive as CI
 import Data.Function (on)
+import Data.IORef (readIORef)
 import Data.List (deleteBy)
 import Data.Streaming.ByteString.Builder (
     newByteStringBuilderRecv,
@@ -42,7 +43,7 @@ import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
 import Network.Wai.Handler.Warp.File
 import Network.Wai.Handler.Warp.Header
-import Network.Wai.Handler.Warp.IO (toBufIOWith)
+import Network.Wai.Handler.Warp.IO (toBufIOWith, toBufIOWithOffset)
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.ResponseHeader
 import Network.Wai.Handler.Warp.Settings
@@ -237,21 +238,32 @@ sendRsp conn _ _ ver s hs _ _ _ RspNoBody = do
 ----------------------------------------------------------------
 
 sendRsp conn _ th ver s hs _ maxRspBufSize _ (RspBuilder body needsChunked) = do
-    header <- composeHeaderBuilder ver s hs needsChunked
-    let hdrBdy
-            | needsChunked =
-                header
-                    <> chunkedTransferEncoding body
-                    <> chunkedTransferTerminator
-            | otherwise = header <> body
-        writeBufferRef = connWriteBuffer conn
+    writeBuffer <- readIORef writeBufferRef
     len <-
-        toBufIOWith
-            maxRspBufSize
-            writeBufferRef
-            (\bs -> connSendAll conn bs >> T.tickle th)
-            hdrBdy
+        if hdrLen < bufSize writeBuffer
+            then do
+                -- Compose the header directly into the connection write
+                -- buffer and run the body builder right after it, saving
+                -- a copy of the header bytes through an intermediate
+                -- ByteString.
+                _ <- composeHeaderPtr (bufBuffer writeBuffer) ver s hs'
+                toBufIOWithOffset hdrLen maxRspBufSize writeBufferRef send bdy
+            else do
+                -- Huge headers: fall back to composing a separate header
+                -- ByteString and letting the builder machinery copy it.
+                header <- composeHeaderBuilder ver s hs needsChunked
+                toBufIOWith maxRspBufSize writeBufferRef send (header <> bdy)
     return (Just s, Just len)
+  where
+    hs'
+        | needsChunked = addTransferEncoding hs
+        | otherwise = hs
+    hdrLen = composeHeaderLength s hs'
+    bdy
+        | needsChunked = chunkedTransferEncoding body <> chunkedTransferTerminator
+        | otherwise = body
+    writeBufferRef = connWriteBuffer conn
+    send bs = connSendAll conn bs >> T.tickle th
 
 ----------------------------------------------------------------
 
