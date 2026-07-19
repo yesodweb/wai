@@ -72,7 +72,7 @@ packHeader buf siz send hook (bs : bss) n
         let dst = buf `plusPtr` n
             (bs1, bs2) = BS.splitAt room bs
         void $ copy dst bs1
-        bufferIO buf siz send
+        rawBufferIO buf siz send
         hook
         packHeader buf siz send hook (bs2 : bss) 0
   where
@@ -98,7 +98,7 @@ readSendFile buf siz send fid off0 len0 hook headers = do
     IO.withBinaryFile path IO.ReadMode $ \h -> do
         IO.hSeek h IO.AbsoluteSeek off0
         n <- IO.hGetBufSome h buf' (mini room len0)
-        bufferIO buf (hn + n) send
+        rawBufferIO buf (hn + n) send
         hook
         let n' = fromIntegral n
         fptr <- newForeignPtr_ buf
@@ -123,7 +123,7 @@ readSendFile buf siz send fid off0 len0 hook headers =
         let room = siz - hn
             buf' = buf `plusPtr` hn
         n <- positionRead fd buf' (mini room len0) off0
-        bufferIO buf (hn + n) send
+        rawBufferIO buf (hn + n) send
         hook
         let n' = fromIntegral n
         loop fd (len0 - n') (off0 + n')
@@ -139,7 +139,7 @@ readSendFile buf siz send fid off0 len0 hook headers =
         | len <= 0 = return ()
         | otherwise = do
             n <- positionRead fd buf (mini siz len) off
-            bufferIO buf n send
+            rawBufferIO buf n send
             let n' = fromIntegral n
             hook
             loop fd (len - n') (off + n')
