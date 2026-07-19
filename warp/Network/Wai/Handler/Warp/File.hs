@@ -70,13 +70,13 @@ conditionalRequest finfo hs0 method rspidx reqidx = case condition of
 ----------------------------------------------------------------
 
 ifModifiedSince :: IndexedRequestHeader -> Maybe HTTPDate
-ifModifiedSince reqidx = reqidx ! ReqIfModifiedSince >>= parseHTTPDate
+ifModifiedSince reqidx = reqidxIfModifiedSince reqidx >>= parseHTTPDate
 
 ifUnmodifiedSince :: IndexedRequestHeader -> Maybe HTTPDate
-ifUnmodifiedSince reqidx = reqidx ! ReqIfUnmodifiedSince >>= parseHTTPDate
+ifUnmodifiedSince reqidx = reqidxIfUnmodifiedSince reqidx >>= parseHTTPDate
 
 ifRange :: IndexedRequestHeader -> Maybe HTTPDate
-ifRange reqidx = reqidx ! ReqIfRange >>= parseHTTPDate
+ifRange reqidx = reqidxIfRange reqidx >>= parseHTTPDate
 
 ----------------------------------------------------------------
 
@@ -90,7 +90,7 @@ ifmodified reqidx mtime method = do
     -- According to RFC 9110:
     -- "A recipient MUST ignore If-Modified-Since if the request
     -- contains an If-None-Match header field; [...]"
-    guard . isNothing $ reqidx ! ReqIfNoneMatch
+    guard . isNothing $ reqidxIfNoneMatch reqidx
     -- "A recipient MUST ignore the If-Modified-Since header field
     -- if [...] the request method is neither GET nor HEAD."
     guard $ method == H.methodGet || method == H.methodHead
@@ -104,7 +104,7 @@ ifunmodified reqidx mtime = do
     -- According to RFC 9110:
     -- "A recipient MUST ignore If-Unmodified-Since if the request
     -- contains an If-Match header field; [...]"
-    guard . isNothing $ reqidx ! ReqIfMatch
+    guard . isNothing $ reqidxIfMatch reqidx
     guard $ date /= mtime && date < mtime
     Just $ WithoutBody H.preconditionFailed412
 
@@ -120,7 +120,7 @@ ifrange reqidx mtime method size = do
     -- "When the method is GET and both Range and If-Range are
     -- present, evaluate the If-Range precondition:"
     date <- ifRange reqidx
-    rng <- reqidx ! ReqRange
+    rng <- reqidxRange reqidx
     guard $ method == H.methodGet
     return $
         if date == mtime
@@ -129,7 +129,7 @@ ifrange reqidx mtime method size = do
 
 unconditional :: IndexedRequestHeader -> Integer -> RspFileInfo
 unconditional reqidx =
-    case reqidx ! ReqRange of
+    case reqidxRange reqidx of
         Nothing -> WithBody H.ok200 [] 0
         Just rng -> parseRange rng
 
