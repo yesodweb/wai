@@ -3,7 +3,6 @@
 
 module Network.Wai.Handler.Warp.Types where
 
-import Control.Concurrent.STM (TVar)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
@@ -129,7 +128,7 @@ data Connection = Connection
     , connHTTP2 :: IORef Bool
     -- ^ Is this connection HTTP/2?
     , connMySockAddr :: SockAddr
-    , connAppsInProgress :: TVar Int
+    , connAppsInProgress :: IORef Int
     -- ^ Amount of apps currently in progress on this connection.
     --
     -- /HTTP2 can handle more than one request concurrently/

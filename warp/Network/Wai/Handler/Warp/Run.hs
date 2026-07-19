@@ -11,17 +11,13 @@ module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
 import Control.Concurrent.STM (
-    TVar,
     atomically,
     check,
-    modifyTVar',
-    newTVarIO,
-    readTVar,
  )
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Functor (($>))
-import Data.IORef (newIORef, readIORef, IORef, writeIORef)
+import Data.IORef (atomicModifyIORef', newIORef, readIORef, IORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
 import GHC.Conc.Sync (labelThread, myThreadId)
@@ -78,7 +74,7 @@ socketConnection set s = do
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
-    appsInProgress <- newTVarIO 0
+    appsInProgress <- newIORef 0
     return
         Connection
             { connSendMany = Sock.sendMany s
@@ -142,7 +138,7 @@ socketConnection set s = do
 -- it non-blocking with 'waitReadSocketSTM' /AND/ cut off receiving any bytes
 -- when the server is shutting down and there are no more 'Application's
 -- actively using this 'Socket'.
-makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
+makeGracefulRecv :: Socket -> BufferPool -> ServerState -> IORef Int -> Recv
 makeGracefulRecv sock pool ss appsInProgress = do
     sockWait <-
 #if !WINDOWS && MIN_VERSION_network(3,2,2)
@@ -158,12 +154,25 @@ makeGracefulRecv sock pool ss appsInProgress = do
         <|>
         -- else wait for socket readiness and do non-blocking read
         (sockWait $> False)
-    if isShuttingDown then pure "" else recv
+    if isShuttingDown then drain sockWait else recv
   where
     recv = receive sock pool
-    checkShutdown = do
-       check =<< currentShuttingDownStateSTM ss
-       check . (<= 0) =<< readTVar appsInProgress
+    checkShutdown = check =<< currentShuttingDownStateSTM ss
+    -- Shutting down: cut off this connection once no 'Application' is using
+    -- it any more, but keep feeding data to the ones still in progress
+    -- (HTTP/2 can run several concurrent streams). The counter is a plain
+    -- 'IORef' incremented with 'atomicModifyIORef'', so it cannot take part
+    -- in the STM wait above; instead it is polled here. Graceful shutdown is
+    -- not latency sensitive, and the 'timeout' sleeps between polls, so this
+    -- is not a busy wait.
+    drain sockWait = do
+        inProgress <- readIORef appsInProgress
+        if inProgress <= 0
+            then pure ""
+            else do
+                ready <- timeout pollInterval $ atomically sockWait
+                maybe (drain sockWait) (const recv) ready
+    pollInterval = 20000 -- microseconds
 
 -- | Run an 'Application' on the given port.
 -- This calls 'runSettings' with 'defaultSettings'.
@@ -468,8 +477,8 @@ serveConnection conn ii th origAddr transport settings app = do
     let appsInProgress = connAppsInProgress conn
         app' req rsp =
             E.bracket_
-                (atomically $ modifyTVar' appsInProgress $ (+ 1))
-                (atomically $ modifyTVar' appsInProgress $ \i -> (i - 1))
+                (atomicModifyIORef' appsInProgress $ \i -> (i + 1, ()))
+                (atomicModifyIORef' appsInProgress $ \i -> (i - 1, ()))
                 $ app req rsp
     if settingsHTTP2Enabled settings && h2
         then do
