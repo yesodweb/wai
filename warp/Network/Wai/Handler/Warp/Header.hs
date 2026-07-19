@@ -3,18 +3,16 @@
 
 module Network.Wai.Handler.Warp.Header (
     IndexedHeader,
-    IndexedRequestHeader,
+    IndexedRequestHeader (..),
     IndexedResponseHeader,
     (!),
-    RequestHeaderIndex (..),
     indexRequestHeader,
-    requestMaxIndex,
     defaultIndexRequestHeader,
     ResponseHeaderIndex (..),
     indexResponseHeader,
 ) where
 
-import Data.Array (Array, array)
+import Data.Array (Array)
 import qualified Data.Array as A ((!))
 import Data.Array.ST
 import qualified Data.ByteString as BS
@@ -28,7 +26,6 @@ import Network.Wai.Handler.Warp.Types
 -- | Array for a set of HTTP headers.
 newtype IndexedHeader a = IxHeader (Array Int (Maybe HeaderValue))
 
-type IndexedRequestHeader = IndexedHeader RequestHeaderIndex
 type IndexedResponseHeader = IndexedHeader ResponseHeaderIndex
 
 -- | Safer way to lookup 'IndexedHeader' values
@@ -37,8 +34,23 @@ type IndexedResponseHeader = IndexedHeader ResponseHeaderIndex
 
 ----------------------------------------------------------------
 
-indexRequestHeader :: RequestHeaders -> IndexedHeader RequestHeaderIndex
-indexRequestHeader hdr = traverseHeader hdr requestMaxIndex requestKeyIndex
+-- | Strict record of the request headers that Warp inspects,
+--   one field per header.
+data IndexedRequestHeader = IndexedRequestHeader
+    { reqidxContentLength :: Maybe HeaderValue
+    , reqidxTransferEncoding :: Maybe HeaderValue
+    , reqidxExpect :: Maybe HeaderValue
+    , reqidxConnection :: Maybe HeaderValue
+    , reqidxRange :: Maybe HeaderValue
+    , reqidxHost :: Maybe HeaderValue
+    , reqidxIfModifiedSince :: Maybe HeaderValue
+    , reqidxIfUnmodifiedSince :: Maybe HeaderValue
+    , reqidxIfRange :: Maybe HeaderValue
+    , reqidxReferer :: Maybe HeaderValue
+    , reqidxUserAgent :: Maybe HeaderValue
+    , reqidxIfMatch :: Maybe HeaderValue
+    , reqidxIfNoneMatch :: Maybe HeaderValue
+    }
 
 data RequestHeaderIndex
     = ReqContentLength
@@ -54,53 +66,66 @@ data RequestHeaderIndex
     | ReqUserAgent
     | ReqIfMatch
     | ReqIfNoneMatch
-    deriving (Enum, Bounded)
 
--- | The size for 'IndexedHeader' for HTTP Request.
---   From 0 to this corresponds to:
---
--- - \"Content-Length\"
--- - \"Transfer-Encoding\"
--- - \"Expect\"
--- - \"Connection\"
--- - \"Range\"
--- - \"Host\"
--- - \"If-Modified-Since\"
--- - \"If-Unmodified-Since\"
--- - \"If-Range\"
--- - \"Referer\"
--- - \"User-Agent\"
--- - \"If-Match\"
--- - \"If-None-Match\"
-requestMaxIndex :: Int
-requestMaxIndex = fromEnum (maxBound :: RequestHeaderIndex)
+indexRequestHeader :: RequestHeaders -> IndexedRequestHeader
+indexRequestHeader = foldl' insert defaultIndexRequestHeader
+  where
+    insert ix (key, val) = case requestKeyIndex key of
+        Nothing -> ix
+        Just ReqContentLength -> ix{reqidxContentLength = Just val}
+        Just ReqTransferEncoding -> ix{reqidxTransferEncoding = Just val}
+        Just ReqExpect -> ix{reqidxExpect = Just val}
+        Just ReqConnection -> ix{reqidxConnection = Just val}
+        Just ReqRange -> ix{reqidxRange = Just val}
+        Just ReqHost -> ix{reqidxHost = Just val}
+        Just ReqIfModifiedSince -> ix{reqidxIfModifiedSince = Just val}
+        Just ReqIfUnmodifiedSince -> ix{reqidxIfUnmodifiedSince = Just val}
+        Just ReqIfRange -> ix{reqidxIfRange = Just val}
+        Just ReqReferer -> ix{reqidxReferer = Just val}
+        Just ReqUserAgent -> ix{reqidxUserAgent = Just val}
+        Just ReqIfMatch -> ix{reqidxIfMatch = Just val}
+        Just ReqIfNoneMatch -> ix{reqidxIfNoneMatch = Just val}
 
-requestKeyIndex :: HeaderName -> Int
+requestKeyIndex :: HeaderName -> Maybe RequestHeaderIndex
 requestKeyIndex hn = case BS.length bs of
-    4 | bs == "host" -> fromEnum ReqHost
-    5 | bs == "range" -> fromEnum ReqRange
-    6 | bs == "expect" -> fromEnum ReqExpect
-    7 | bs == "referer" -> fromEnum ReqReferer
+    4 | bs == "host" -> Just ReqHost
+    5 | bs == "range" -> Just ReqRange
+    6 | bs == "expect" -> Just ReqExpect
+    7 | bs == "referer" -> Just ReqReferer
     8
-        | bs == "if-range" -> fromEnum ReqIfRange
-        | bs == "if-match" -> fromEnum ReqIfMatch
+        | bs == "if-range" -> Just ReqIfRange
+        | bs == "if-match" -> Just ReqIfMatch
     10
-        | bs == "user-agent" -> fromEnum ReqUserAgent
-        | bs == "connection" -> fromEnum ReqConnection
-    13 | bs == "if-none-match" -> fromEnum ReqIfNoneMatch
-    14 | bs == "content-length" -> fromEnum ReqContentLength
+        | bs == "user-agent" -> Just ReqUserAgent
+        | bs == "connection" -> Just ReqConnection
+    13 | bs == "if-none-match" -> Just ReqIfNoneMatch
+    14 | bs == "content-length" -> Just ReqContentLength
     17
-        | bs == "transfer-encoding" -> fromEnum ReqTransferEncoding
-        | bs == "if-modified-since" -> fromEnum ReqIfModifiedSince
-    19 | bs == "if-unmodified-since" -> fromEnum ReqIfUnmodifiedSince
-    _ -> -1
+        | bs == "transfer-encoding" -> Just ReqTransferEncoding
+        | bs == "if-modified-since" -> Just ReqIfModifiedSince
+    19 | bs == "if-unmodified-since" -> Just ReqIfUnmodifiedSince
+    _ -> Nothing
   where
     bs = foldedCase hn
 
-defaultIndexRequestHeader :: IndexedHeader RequestHeaderIndex
+-- | 'IndexedRequestHeader' with no headers set.
+defaultIndexRequestHeader :: IndexedRequestHeader
 defaultIndexRequestHeader =
-    IxHeader $
-        array (0, requestMaxIndex) [(i, Nothing) | i <- [0 .. requestMaxIndex]]
+    IndexedRequestHeader
+        { reqidxContentLength = Nothing
+        , reqidxTransferEncoding = Nothing
+        , reqidxExpect = Nothing
+        , reqidxConnection = Nothing
+        , reqidxRange = Nothing
+        , reqidxHost = Nothing
+        , reqidxIfModifiedSince = Nothing
+        , reqidxIfUnmodifiedSince = Nothing
+        , reqidxIfRange = Nothing
+        , reqidxReferer = Nothing
+        , reqidxUserAgent = Nothing
+        , reqidxIfMatch = Nothing
+        , reqidxIfNoneMatch = Nothing
+        }
 
 ----------------------------------------------------------------
 
