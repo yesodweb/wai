@@ -180,16 +180,20 @@ sendResponse settings conn ii th req reqidxhdr src response = do
 
 ----------------------------------------------------------------
 
+-- Values without CR/LF (the overwhelmingly common case) leave the
+-- header list untouched; only a dirty value triggers a rebuild.
 sanitizeHeaders :: H.ResponseHeaders -> H.ResponseHeaders
-sanitizeHeaders = map (sanitize <$>)
+sanitizeHeaders hs
+    | any (containsNewlines . snd) hs = map (sanitize <$>) hs -- slow path
+    | otherwise = hs -- fast path
   where
     sanitize v
-        | containsNewlines v = sanitizeHeaderValue v -- slow path
-        | otherwise = v -- fast path
+        | containsNewlines v = sanitizeHeaderValue v
+        | otherwise = v
 
 {-# INLINE containsNewlines #-}
 containsNewlines :: ByteString -> Bool
-containsNewlines = S.any (\w -> w == _cr || w == _lf)
+containsNewlines v = isJust (S.elemIndex _cr v) || isJust (S.elemIndex _lf v)
 
 {-# INLINE sanitizeHeaderValue #-}
 sanitizeHeaderValue :: ByteString -> ByteString
@@ -458,7 +462,7 @@ infoFromResponse rspidxhdr (isPersist, isChunked) = (isKeepAlive, needsChunked)
   where
     needsChunked = isChunked && not hasLength
     isKeepAlive = isPersist && (isChunked || hasLength)
-    hasLength = isJust $ rspidxhdr ! ResContentLength
+    hasLength = isJust $ resContentLength rspidxhdr
 
 ----------------------------------------------------------------
 
@@ -477,7 +481,7 @@ addTransferEncoding hdrs = (H.hTransferEncoding, "chunked") : hdrs
 
 addDate
     :: IO D.GMTDate -> IndexedResponseHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
-addDate getdate rspidxhdr hdrs = case rspidxhdr ! ResDate of
+addDate getdate rspidxhdr hdrs = case resDate rspidxhdr of
     Nothing -> do
         gmtdate <- getdate
         return $ (H.hDate, gmtdate) : hdrs
@@ -488,10 +492,10 @@ addDate getdate rspidxhdr hdrs = case rspidxhdr ! ResDate of
 {-# INLINE addServer #-}
 addServer
     :: HeaderValue -> IndexedResponseHeader -> H.ResponseHeaders -> H.ResponseHeaders
-addServer "" rspidxhdr hdrs = case rspidxhdr ! ResServer of
+addServer "" rspidxhdr hdrs = case resServer rspidxhdr of
     Nothing -> hdrs
     _ -> filter ((/= H.hServer) . fst) hdrs
-addServer serverName rspidxhdr hdrs = case rspidxhdr ! ResServer of
+addServer serverName rspidxhdr hdrs = case resServer rspidxhdr of
     Nothing -> (H.hServer, serverName) : hdrs
     _ -> hdrs
 
