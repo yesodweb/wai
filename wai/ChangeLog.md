@@ -1,5 +1,9 @@
 # ChangeLog for wai
 
+## 3.3.0
+
+* Add a `requestSendEarlyHints :: [Header] -> IO ()` field to `Request` for sending `103 Early Hints` responses. [#1085](https://github.com/yesodweb/wai/pull/1085)
+
 ## 3.2.4
 
 * Add helpers for modifying request headers: `modifyRequest` and `mapRequestHeaders`. [#710](https://github.com/yesodweb/wai/pull/710) [#952](https://github.com/yesodweb/wai/pull/952)

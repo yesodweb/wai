@@ -91,6 +91,16 @@ data Request = Request
     -- ^ The value of the User-Agent header in a HTTP request.
     --
     -- @since 3.2.0
+    , requestSendEarlyHints :: H.ResponseHeaders -> IO ()
+    -- ^ Send a @103 Early Hints@ informational response carrying the given
+    -- headers, ahead of the final response. This lets a client (typically over
+    -- HTTP\/2) start fetching resources named in @Link@ headers while the final
+    -- response is still being produced.
+    --
+    -- A handler (e.g. Warp over HTTP\/2) that supports early hints installs an
+    -- action here; otherwise it is a no-op.
+    --
+    -- @since 3.3.0
     }
 
 -- | Get the next chunk of the body. Returns 'B.empty' when the
