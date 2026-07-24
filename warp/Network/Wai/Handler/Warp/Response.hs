@@ -193,7 +193,8 @@ sanitizeHeaders hs
 
 {-# INLINE containsNewlines #-}
 containsNewlines :: ByteString -> Bool
-containsNewlines v = isJust (S.elemIndex _cr v) || isJust (S.elemIndex _lf v)
+-- Each 'S.any (w ==)' is rewritten to a memchr via bytestring's 'anyByte' rule.
+containsNewlines v = S.any (_lf ==) v || S.any (_cr ==) v
 
 {-# INLINE sanitizeHeaderValue #-}
 sanitizeHeaderValue :: ByteString -> ByteString
@@ -225,7 +226,7 @@ sendRsp
     -> H.HttpVersion
     -> H.Status
     -> H.ResponseHeaders
-    -> IndexedResponseHeader
+    -> ResponseHeaderPresence
     -> Int -- maxBuilderResponseBufferSize
     -> H.Method
     -> Rsp
@@ -360,7 +361,7 @@ sendRspFile2XX
     -> H.HttpVersion
     -> H.Status
     -> H.ResponseHeaders
-    -> IndexedResponseHeader
+    -> ResponseHeaderPresence
     -> Int
     -> H.Method
     -> FilePath
@@ -385,7 +386,7 @@ sendRspFile404
     -> T.Handle
     -> H.HttpVersion
     -> H.ResponseHeaders
-    -> IndexedResponseHeader
+    -> ResponseHeaderPresence
     -> Int
     -> H.Method
     -> IO (Maybe H.Status, Maybe Integer)
@@ -457,12 +458,12 @@ checkChunk req = httpVersion req == H.http11
 --
 -- Content-Length is specified by a reverse proxy.
 -- Note that CGI does not specify Content-Length.
-infoFromResponse :: IndexedResponseHeader -> (Bool, Bool) -> (Bool, Bool)
+infoFromResponse :: ResponseHeaderPresence -> (Bool, Bool) -> (Bool, Bool)
 infoFromResponse rspidxhdr (isPersist, isChunked) = (isKeepAlive, needsChunked)
   where
     needsChunked = isChunked && not hasLength
     isKeepAlive = isPersist && (isChunked || hasLength)
-    hasLength = isJust $ resContentLength rspidxhdr
+    hasLength = hasContentLength rspidxhdr
 
 ----------------------------------------------------------------
 
@@ -480,24 +481,24 @@ addTransferEncoding :: H.ResponseHeaders -> H.ResponseHeaders
 addTransferEncoding hdrs = (H.hTransferEncoding, "chunked") : hdrs
 
 addDate
-    :: IO D.GMTDate -> IndexedResponseHeader -> H.ResponseHeaders -> IO H.ResponseHeaders
-addDate getdate rspidxhdr hdrs = case resDate rspidxhdr of
-    Nothing -> do
+    :: IO D.GMTDate -> ResponseHeaderPresence -> H.ResponseHeaders -> IO H.ResponseHeaders
+addDate getdate rspidxhdr hdrs
+    | hasDate rspidxhdr = return hdrs
+    | otherwise = do
         gmtdate <- getdate
         return $ (H.hDate, gmtdate) : hdrs
-    Just _ -> return hdrs
 
 ----------------------------------------------------------------
 
 {-# INLINE addServer #-}
 addServer
-    :: HeaderValue -> IndexedResponseHeader -> H.ResponseHeaders -> H.ResponseHeaders
-addServer "" rspidxhdr hdrs = case resServer rspidxhdr of
-    Nothing -> hdrs
-    _ -> filter ((/= H.hServer) . fst) hdrs
-addServer serverName rspidxhdr hdrs = case resServer rspidxhdr of
-    Nothing -> (H.hServer, serverName) : hdrs
-    _ -> hdrs
+    :: HeaderValue -> ResponseHeaderPresence -> H.ResponseHeaders -> H.ResponseHeaders
+addServer "" rspidxhdr hdrs
+    | hasServer rspidxhdr = filter ((/= H.hServer) . fst) hdrs
+    | otherwise = hdrs
+addServer serverName rspidxhdr hdrs
+    | hasServer rspidxhdr = hdrs
+    | otherwise = (H.hServer, serverName) : hdrs
 
 addAltSvc :: Settings -> H.ResponseHeaders -> H.ResponseHeaders
 addAltSvc settings hs = case settingsAltSvc settings of

@@ -4,7 +4,7 @@
 module Network.Wai.Handler.Warp.Header (
     IndexedHeader,
     IndexedRequestHeader,
-    IndexedResponseHeader (..),
+    ResponseHeaderPresence (..),
     (!),
     RequestHeaderIndex (..),
     indexRequestHeader,
@@ -102,39 +102,38 @@ defaultIndexRequestHeader =
 
 ----------------------------------------------------------------
 
--- | Index for the response headers Warp itself consults.
---   Only these four headers are ever looked up on the response side,
---   so a flat record built in a single traversal beats a boxed array.
---   The fields are strict via StrictData.
-data IndexedResponseHeader = IndexedResponseHeader
-    { resContentLength :: Maybe HeaderValue
-    , resServer :: Maybe HeaderValue
-    , resDate :: Maybe HeaderValue
-    , resLastModified :: Maybe HeaderValue
+-- | Presence of the response headers Warp itself consults.
+--   Only these four headers are ever looked up on the response side, and
+--   only their presence, never their value, so a flat record of strict
+--   'Bool's built in a single traversal beats a boxed array.
+data ResponseHeaderPresence = ResponseHeaderPresence
+    { hasContentLength :: Bool
+    , hasServer :: Bool
+    , hasDate :: Bool
+    , hasLastModified :: Bool
     }
 
-indexResponseHeader :: ResponseHeaders -> IndexedResponseHeader
-indexResponseHeader = go emptyIndexedResponseHeader
+indexResponseHeader :: ResponseHeaders -> ResponseHeaderPresence
+indexResponseHeader = go emptyResponseHeaderPresence
   where
     go ix [] = ix
-    go ix ((key, val) : rest) = go (insert ix key val) rest
-    -- Like 'traverseHeader', a later duplicate wins.
-    insert ix key val = case BS.length bs of
-        4 | bs == "date" -> ix{resDate = Just val}
-        6 | bs == "server" -> ix{resServer = Just val}
-        13 | bs == "last-modified" -> ix{resLastModified = Just val}
-        14 | bs == "content-length" -> ix{resContentLength = Just val}
+    go ix ((key, _) : rest) = go (insert ix key) rest
+    insert ix key = case BS.length bs of
+        4 | bs == "date" -> ix{hasDate = True}
+        6 | bs == "server" -> ix{hasServer = True}
+        13 | bs == "last-modified" -> ix{hasLastModified = True}
+        14 | bs == "content-length" -> ix{hasContentLength = True}
         _ -> ix
       where
         bs = foldedCase key
 
-emptyIndexedResponseHeader :: IndexedResponseHeader
-emptyIndexedResponseHeader =
-    IndexedResponseHeader
-        { resContentLength = Nothing
-        , resServer = Nothing
-        , resDate = Nothing
-        , resLastModified = Nothing
+emptyResponseHeaderPresence :: ResponseHeaderPresence
+emptyResponseHeaderPresence =
+    ResponseHeaderPresence
+        { hasContentLength = False
+        , hasServer = False
+        , hasDate = False
+        , hasLastModified = False
         }
 
 ----------------------------------------------------------------
