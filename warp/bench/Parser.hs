@@ -19,6 +19,7 @@ import qualified Network.HTTP.Types as H
 import Prelude hiding (lines)
 
 import Network.Wai.Handler.Warp.Request (FirstRequest (..), headerLines)
+import Network.Wai.Handler.Warp.Response (containsNewlines)
 import Network.Wai.Handler.Warp.Types
 
 import Criterion.Main
@@ -53,6 +54,15 @@ main = do
             , bench "new parsing 10" $ whnfAppIO testIt (chunkRequest 10)
             , bench "new parsing 25" $ whnfAppIO testIt (chunkRequest 25)
             , bench "new parsing 100" $ whnfAppIO testIt (chunkRequest 100)
+            ]
+        , bgroup
+            "containsNewlines"
+            -- Clean values (no CR/LF) are the overwhelmingly common case and
+            -- the one the fast path must stay cheap for; the dirty case is
+            -- what forces a rebuild in 'sanitizeHeaders'.
+            [ bench "clean short" $ whnf containsNewlines "Mighttpd/2.5.8"
+            , bench "clean long" $ whnf containsNewlines cleanLong
+            , bench "dirty" $ whnf containsNewlines "text/html\r\nInjected: header"
             ]
         ]
   where
@@ -241,6 +251,11 @@ parseRequestLine0 s =
                      in return $! (method, rpath, qstring, hv)
                 else throwIO NonHttp
         _ -> throwIO $ BadFirstLine $ B.unpack s
+
+-- A long, clean header value (no CR/LF): forces the memchr scan to walk the
+-- whole value before deciding it is clean.
+cleanLong :: S.ByteString
+cleanLong = S.replicate 512 _A
 
 producer :: [ByteString] -> IO Source
 producer a = do

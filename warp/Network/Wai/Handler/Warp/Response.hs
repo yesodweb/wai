@@ -7,6 +7,7 @@
 module Network.Wai.Handler.Warp.Response (
     sendResponse,
     sanitizeHeaderValue, -- for testing
+    containsNewlines, -- for benchmarking
     --  Provided here for backwards compatibility.
     warpVersion,
     hasBody,
