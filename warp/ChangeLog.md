@@ -7,6 +7,11 @@
   `Network.Wai.Handler.Warp.Internal`, so this gets a minor version bump.
   [#1088](https://github.com/yesodweb/wai/pull/1088)
 
+* Support `103 Early Hints` over HTTP/2: the HTTP/2 handler installs
+  `requestSendEarlyHints`, so a WAI application can emit informational responses
+  ahead of the final response.
+  [#1085](https://github.com/yesodweb/wai/pull/1085).
+
 ## 3.4.14
 
 * Important bugfix to not deadlock on empty file descriptors if the cause of
