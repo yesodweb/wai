@@ -45,61 +45,29 @@ data IndexedRequestHeader = IndexedRequestHeader
     , reqidxIfNoneMatch :: Maybe HeaderValue
     }
 
-data RequestHeaderIndex
-    = ReqContentLength
-    | ReqTransferEncoding
-    | ReqExpect
-    | ReqConnection
-    | ReqRange
-    | ReqHost
-    | ReqIfModifiedSince
-    | ReqIfUnmodifiedSince
-    | ReqIfRange
-    | ReqReferer
-    | ReqUserAgent
-    | ReqIfMatch
-    | ReqIfNoneMatch
-
 indexRequestHeader :: RequestHeaders -> IndexedRequestHeader
 indexRequestHeader = foldl' insert defaultIndexRequestHeader
   where
-    insert ix (key, val) = case requestKeyIndex key of
-        Nothing -> ix
-        Just ReqContentLength -> ix{reqidxContentLength = Just val}
-        Just ReqTransferEncoding -> ix{reqidxTransferEncoding = Just val}
-        Just ReqExpect -> ix{reqidxExpect = Just val}
-        Just ReqConnection -> ix{reqidxConnection = Just val}
-        Just ReqRange -> ix{reqidxRange = Just val}
-        Just ReqHost -> ix{reqidxHost = Just val}
-        Just ReqIfModifiedSince -> ix{reqidxIfModifiedSince = Just val}
-        Just ReqIfUnmodifiedSince -> ix{reqidxIfUnmodifiedSince = Just val}
-        Just ReqIfRange -> ix{reqidxIfRange = Just val}
-        Just ReqReferer -> ix{reqidxReferer = Just val}
-        Just ReqUserAgent -> ix{reqidxUserAgent = Just val}
-        Just ReqIfMatch -> ix{reqidxIfMatch = Just val}
-        Just ReqIfNoneMatch -> ix{reqidxIfNoneMatch = Just val}
-
-requestKeyIndex :: HeaderName -> Maybe RequestHeaderIndex
-requestKeyIndex hn = case BS.length bs of
-    4 | bs == "host" -> Just ReqHost
-    5 | bs == "range" -> Just ReqRange
-    6 | bs == "expect" -> Just ReqExpect
-    7 | bs == "referer" -> Just ReqReferer
-    8
-        | bs == "if-range" -> Just ReqIfRange
-        | bs == "if-match" -> Just ReqIfMatch
-    10
-        | bs == "user-agent" -> Just ReqUserAgent
-        | bs == "connection" -> Just ReqConnection
-    13 | bs == "if-none-match" -> Just ReqIfNoneMatch
-    14 | bs == "content-length" -> Just ReqContentLength
-    17
-        | bs == "transfer-encoding" -> Just ReqTransferEncoding
-        | bs == "if-modified-since" -> Just ReqIfModifiedSince
-    19 | bs == "if-unmodified-since" -> Just ReqIfUnmodifiedSince
-    _ -> Nothing
-  where
-    bs = foldedCase hn
+    insert ix (key, val) = case BS.length bs of
+        4 | bs == "host" -> ix{reqidxHost = Just val}
+        5 | bs == "range" -> ix{reqidxRange = Just val}
+        6 | bs == "expect" -> ix{reqidxExpect = Just val}
+        7 | bs == "referer" -> ix{reqidxReferer = Just val}
+        8
+            | bs == "if-range" -> ix{reqidxIfRange = Just val}
+            | bs == "if-match" -> ix{reqidxIfMatch = Just val}
+        10
+            | bs == "user-agent" -> ix{reqidxUserAgent = Just val}
+            | bs == "connection" -> ix{reqidxConnection = Just val}
+        13 | bs == "if-none-match" -> ix{reqidxIfNoneMatch = Just val}
+        14 | bs == "content-length" -> ix{reqidxContentLength = Just val}
+        17
+            | bs == "transfer-encoding" -> ix{reqidxTransferEncoding = Just val}
+            | bs == "if-modified-since" -> ix{reqidxIfModifiedSince = Just val}
+        19 | bs == "if-unmodified-since" -> ix{reqidxIfUnmodifiedSince = Just val}
+        _ -> ix
+      where
+        bs = foldedCase key
 
 -- | 'IndexedRequestHeader' with no headers set.
 defaultIndexRequestHeader :: IndexedRequestHeader
