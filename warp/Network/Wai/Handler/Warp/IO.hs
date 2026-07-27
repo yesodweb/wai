@@ -11,21 +11,30 @@ import Network.Wai.Handler.Warp.Types
 
 toBufIOWith
     :: Int -> IORef WriteBuffer -> (ByteString -> IO ()) -> Builder -> IO Integer
-toBufIOWith = toBufIOWithOffset 0
+toBufIOWith = unsafeToBufIOWithOffset 0
 
 -- | Like 'toBufIOWith' but the first @offset@ bytes of the write buffer
 -- are assumed to be already filled (e.g. with a response header composed
 -- directly into the buffer). They are flushed together with the first
 -- batch of builder output and included in the returned total.
--- @offset@ must not exceed the current buffer size.
-toBufIOWithOffset
+--
+-- === WARNING: @offset@ MUST NOT exceed the current buffer size!!!
+--
+-- This function performs NO bounds checking on @offset@. The builder is
+-- handed the pointer @buffer + offset@ with @bufSize - offset@ bytes of
+-- claimed free space, so an oversized @offset@ points past the end of the
+-- allocation and advertises negative capacity, i.e. out-of-bounds writes
+-- and memory corruption. Every caller MUST verify
+-- @offset < bufSize@ of the current write buffer first (see the
+-- @hdrLen@ check in 'Network.Wai.Handler.Warp.Response.sendRsp').
+unsafeToBufIOWithOffset
     :: Int
     -> Int
     -> IORef WriteBuffer
     -> (ByteString -> IO ())
     -> Builder
     -> IO Integer
-toBufIOWithOffset offset0 maxRspBufSize writeBufferRef io builder = do
+unsafeToBufIOWithOffset offset0 maxRspBufSize writeBufferRef io builder = do
     writeBuffer <- readIORef writeBufferRef
     loop writeBuffer offset0 firstWriter 0
   where

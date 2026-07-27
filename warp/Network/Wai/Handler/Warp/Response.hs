@@ -43,7 +43,7 @@ import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
 import Network.Wai.Handler.Warp.File
 import Network.Wai.Handler.Warp.Header
-import Network.Wai.Handler.Warp.IO (toBufIOWith, toBufIOWithOffset)
+import Network.Wai.Handler.Warp.IO (toBufIOWith, unsafeToBufIOWithOffset)
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.ResponseHeader
 import Network.Wai.Handler.Warp.Settings
@@ -240,6 +240,15 @@ sendRsp conn _ _ ver s hs _ _ _ RspNoBody = do
 sendRsp conn _ th ver s hs _ maxRspBufSize _ (RspBuilder body needsChunked) = do
     writeBuffer <- readIORef writeBufferRef
     len <-
+        -- SAFETY: this check is what makes the unchecked writes below
+        -- memory-safe, do not weaken it. composeHeaderPtr writes hdrLen
+        -- bytes into the write buffer with no bounds checking of its own,
+        -- and unsafeToBufIOWithOffset requires an offset within the
+        -- buffer (it hands the builder buffer + offset with
+        -- bufSize - offset bytes of claimed free space). If hdrLen could
+        -- reach the buffer size, either write would run past the end of
+        -- the allocation and corrupt memory, so oversized headers must
+        -- take the composeHeaderBuilder fallback.
         if hdrLen < bufSize writeBuffer
             then do
                 -- Compose the header directly into the connection write
@@ -247,7 +256,7 @@ sendRsp conn _ th ver s hs _ maxRspBufSize _ (RspBuilder body needsChunked) = do
                 -- a copy of the header bytes through an intermediate
                 -- ByteString.
                 _ <- composeHeaderPtr (bufBuffer writeBuffer) ver s hs'
-                toBufIOWithOffset hdrLen maxRspBufSize writeBufferRef send bdy
+                unsafeToBufIOWithOffset hdrLen maxRspBufSize writeBufferRef send bdy
             else do
                 -- Huge headers: fall back to composing a separate header
                 -- ByteString and letting the builder machinery copy it.
