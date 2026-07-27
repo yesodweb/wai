@@ -1,7 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.Wai.Handler.Warp.ResponseHeader (composeHeader) where
+module Network.Wai.Handler.Warp.ResponseHeader (
+    composeHeader,
+    composeHeaderPtr,
+    composeHeaderLength,
+) where
 
 import qualified Data.ByteString as S
 import Data.ByteString.Internal (create)
@@ -18,14 +22,31 @@ import Network.Wai.Handler.Warp.Imports
 ----------------------------------------------------------------
 
 composeHeader :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> IO ByteString
-composeHeader !httpversion !status !responseHeaders = create len $ \ptr -> do
-    ptr1 <- copyStatus ptr httpversion status
-    ptr2 <- copyHeaders ptr1 responseHeaders
-    void $ copyCRLF ptr2
+composeHeader !httpversion !status !responseHeaders =
+    create len $ \ptr ->
+        void $ composeHeaderPtr ptr httpversion status responseHeaders
   where
-    !len = 17 + slen + foldl' fieldLength 0 responseHeaders
+    !len = composeHeaderLength status responseHeaders
+
+-- | The exact number of bytes 'composeHeaderPtr' writes for this
+-- status line and header list (including the final CRLF).
+composeHeaderLength :: H.Status -> H.ResponseHeaders -> Int
+composeHeaderLength !status !responseHeaders =
+    17 + slen + foldl' fieldLength 0 responseHeaders
+  where
     fieldLength !l (!k, !v) = l + S.length (CI.original k) + S.length v + 4
     !slen = S.length $ H.statusMessage status
+
+-- | Compose the response header directly into the given buffer,
+-- returning the number of bytes written. The buffer must have room
+-- for at least 'composeHeaderLength' bytes.
+composeHeaderPtr
+    :: Ptr Word8 -> H.HttpVersion -> H.Status -> H.ResponseHeaders -> IO Int
+composeHeaderPtr !ptr !httpversion !status !responseHeaders = do
+    ptr1 <- copyStatus ptr httpversion status
+    ptr2 <- copyHeaders ptr1 responseHeaders
+    ptr3 <- copyCRLF ptr2
+    return $! ptr3 `minusPtr` ptr
 
 httpVer11 :: ByteString
 httpVer11 = "HTTP/1.1 "
