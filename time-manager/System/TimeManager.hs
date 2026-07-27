@@ -49,6 +49,7 @@ module System.TimeManager (
 import Control.Concurrent (forkIO, mkWeakThreadId, myThreadId)
 import qualified Control.Exception as E
 import Control.Monad (void, when)
+import Data.Bits (shiftR)
 import qualified Data.IORef as I
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
@@ -161,7 +162,7 @@ register mgr@(Manager timeout) onTimeout
 --   this gap, but turns hot 'tickle' loops (one per chunk sent or
 --   received) into a clock read and a comparison.
 minRenewGap :: Int -> Word64
-minRenewGap timeout = min oneSecond (microToNano timeout `div` 4)
+minRenewGap timeout = min oneSecond (microToNano timeout `shiftR` 2)
   where
     oneSecond = 1000000000
     microToNano = (* 1000) . fromIntegral
