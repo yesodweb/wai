@@ -9,7 +9,7 @@ import Network.Wai.Handler.Warp.Buffer (createWriteBuffer)
 import Network.Wai.Handler.Warp.IO (toBufIOWith)
 import Test.Hspec
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (NonNegative (..), withMaxSize)
+import Test.QuickCheck (NonNegative (..))
 
 main :: IO ()
 main = hspec spec
@@ -21,7 +21,7 @@ spec = describe "toBufIOWith" $ do
     -- This failed before fixing 'toBufIOWith'
     it "counts long bytestrings" $ do
         testBufIOWith 1000000
-    prop "counts bytestrings of different sizes" . withMaxSize 10000000 $
+    modifyMaxSize (const 10000000) . prop "counts bytestrings of different sizes" $
         \(NonNegative i) -> testBufIOWith i
 
 testBufIOWith :: Int -> Expectation
