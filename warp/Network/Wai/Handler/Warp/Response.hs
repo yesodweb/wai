@@ -7,7 +7,7 @@
 module Network.Wai.Handler.Warp.Response (
     sendResponse,
     sanitizeHeaderValue, -- for testing
-    containsNewlines, -- for benchmarking
+    containsRecoverableWhitespace, -- for benchmarking
     --  Provided here for backwards compatibility.
     warpVersion,
     hasBody,
@@ -210,21 +210,25 @@ sendResponse settings conn ii th req reqidxhdr src response = do
 
 ----------------------------------------------------------------
 
--- Values without CR/LF (the overwhelmingly common case) leave the
+-- | As per RFC 9110 we replace any newlines (\r\n) or \NUL with spaces
+-- Values without CR/LF/NUL (the overwhelmingly common case) leave the
 -- header list untouched; only a dirty value triggers a rebuild.
 sanitizeHeaders :: H.ResponseHeaders -> H.ResponseHeaders
-sanitizeHeaders hs
-    | any (containsNewlines . snd) hs = map (sanitize <$>) hs -- slow path
-    | otherwise = hs -- fast path
+sanitizeHeaders hdrs
+      -- slow path
+    | any (containsRecoverableWhitespace . snd) hdrs = map (sanitize <$>) hdrs
+      -- fast path
+    | otherwise = hdrs
   where
-    sanitize v
-        | containsNewlines v = sanitizeHeaderValue v
-        | otherwise = v
+    sanitize bs
+        | containsRecoverableWhitespace bs = sanitizeHeaderValue bs
+        | otherwise = bs
 
-{-# INLINE containsNewlines #-}
-containsNewlines :: ByteString -> Bool
--- Each 'S.any (w ==)' is rewritten to a memchr via bytestring's 'anyByte' rule.
-containsNewlines v = S.any (_lf ==) v || S.any (_cr ==) v
+-- Yes, this is quicker than @S.any (\w -> w == _lf || w == _cr || w == _nul)@
+-- because of `bytestring`'s rewrite rules.
+containsRecoverableWhitespace :: ByteString -> Bool
+containsRecoverableWhitespace bs =
+    S.any (_lf ==) bs || S.any (_cr ==) bs || S.any (_nul ==) bs
 
 {-# INLINE isRecoverableWhitespace #-}
 -- | CR, LF and NUL can safely be replaced with a SP according to RFC 9110

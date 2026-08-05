@@ -19,7 +19,7 @@ import qualified Network.HTTP.Types as H
 import Prelude hiding (lines)
 
 import Network.Wai.Handler.Warp.Request (FirstRequest (..), headerLines)
-import Network.Wai.Handler.Warp.Response (containsNewlines)
+import Network.Wai.Handler.Warp.Response (containsRecoverableWhitespace)
 import Network.Wai.Handler.Warp.Types
 
 import Criterion.Main
@@ -56,13 +56,14 @@ main = do
             , bench "new parsing 100" $ whnfAppIO testIt (chunkRequest 100)
             ]
         , bgroup
-            "containsNewlines"
-            -- Clean values (no CR/LF) are the overwhelmingly common case and
+            "containsRecoverableWhitespace"
+            -- Clean values (no CR/LF/NUL) are the overwhelmingly common case and
             -- the one the fast path must stay cheap for; the dirty case is
             -- what forces a rebuild in 'sanitizeHeaders'.
-            [ bench "clean short" $ whnf containsNewlines "Mighttpd/2.5.8"
-            , bench "clean long" $ whnf containsNewlines cleanLong
-            , bench "dirty" $ whnf containsNewlines "text/html\r\nInjected: header"
+            [ bench "clean short" $ whnf containsRecoverableWhitespace "Mighttpd/2.5.8"
+            , bench "clean long" $ whnf containsRecoverableWhitespace cleanLong
+            , bench "dirty" $
+                whnf containsRecoverableWhitespace "text/html\r\nInjected: header"
             ]
         ]
   where
