@@ -15,12 +15,8 @@
 * Also counts bytes for streaming responses for `settingsLogger`'s size argument.
   And fixed size for builder responses, since those included the status and header
   lines. Now the `Maybe Integer` argument in `settingsLogger` is consistently
-  just the message body's bytes.
+  just the amount of bytes of the sent message body.
   [#1086](https://github.com/yesodweb/wai/pull/1086)
-* Add phantom type parameter to `IndexedHeader` to catch request/response
-  mismatches at compile time.
-  [#1088](https://github.com/yesodweb/wai/pull/1088)
-
 * Reworked internal indexed headers to records for performance and to remove
   dependencies on `array`.
   [#1092](https://github.com/yesodweb/wai/pull/1092) [#1093](https://github.com/yesodweb/wai/pull/1093)

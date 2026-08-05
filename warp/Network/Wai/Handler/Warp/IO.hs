@@ -1,6 +1,7 @@
 module Network.Wai.Handler.Warp.IO where
 
 import Control.Exception (mask_)
+import qualified Data.ByteString as B (length)
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder.Extra (Next (Chunk, Done, More), runBuilder)
 import Data.IORef (IORef, readIORef, writeIORef)
@@ -47,4 +48,4 @@ toBufIOWith maxRspBufSize writeBufferRef io builder = do
                 | otherwise -> loop writeBuffer next totalBytesSent
             Chunk bs next -> do
                 io bs
-                loop writeBuffer next totalBytesSent
+                loop writeBuffer next $ totalBytesSent + fromIntegral (B.length bs)
