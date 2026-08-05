@@ -2,103 +2,82 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wai.Handler.Warp.Header (
-    IndexedHeader,
-    IndexedRequestHeader,
+    IndexedRequestHeader (..),
     ResponseHeaderPresence (..),
-    (!),
-    RequestHeaderIndex (..),
     indexRequestHeader,
-    requestMaxIndex,
     defaultIndexRequestHeader,
     indexResponseHeader,
 ) where
 
-import Data.Array (Array, array)
-import qualified Data.Array as A ((!))
-import Data.Array.ST
 import qualified Data.ByteString as BS
 import Data.CaseInsensitive (foldedCase)
+import Data.List as L (foldl')
 import Network.HTTP.Types
 
 import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
--- | Array for a set of HTTP headers.
-newtype IndexedHeader a = IxHeader (Array Int (Maybe HeaderValue))
+-- | Strict record of the request headers that Warp inspects,
+--   one field per header.
+data IndexedRequestHeader = IndexedRequestHeader
+    { reqidxContentLength :: Maybe HeaderValue
+    , reqidxTransferEncoding :: Maybe HeaderValue
+    , reqidxExpect :: Maybe HeaderValue
+    , reqidxConnection :: Maybe HeaderValue
+    , reqidxRange :: Maybe HeaderValue
+    , reqidxHost :: Maybe HeaderValue
+    , reqidxIfModifiedSince :: Maybe HeaderValue
+    , reqidxIfUnmodifiedSince :: Maybe HeaderValue
+    , reqidxIfRange :: Maybe HeaderValue
+    , reqidxReferer :: Maybe HeaderValue
+    , reqidxUserAgent :: Maybe HeaderValue
+    , reqidxIfMatch :: Maybe HeaderValue
+    , reqidxIfNoneMatch :: Maybe HeaderValue
+    }
 
-type IndexedRequestHeader = IndexedHeader RequestHeaderIndex
-
--- | Safer way to lookup 'IndexedHeader' values
-(!) :: Enum a => IndexedHeader a -> a -> Maybe HeaderValue
-(IxHeader ixHdr) ! ix = ixHdr A.! fromEnum ix
-
-----------------------------------------------------------------
-
-indexRequestHeader :: RequestHeaders -> IndexedHeader RequestHeaderIndex
-indexRequestHeader hdr = traverseHeader hdr requestMaxIndex requestKeyIndex
-
-data RequestHeaderIndex
-    = ReqContentLength
-    | ReqTransferEncoding
-    | ReqExpect
-    | ReqConnection
-    | ReqRange
-    | ReqHost
-    | ReqIfModifiedSince
-    | ReqIfUnmodifiedSince
-    | ReqIfRange
-    | ReqReferer
-    | ReqUserAgent
-    | ReqIfMatch
-    | ReqIfNoneMatch
-    deriving (Enum, Bounded)
-
--- | The size for 'IndexedHeader' for HTTP Request.
---   From 0 to this corresponds to:
---
--- - \"Content-Length\"
--- - \"Transfer-Encoding\"
--- - \"Expect\"
--- - \"Connection\"
--- - \"Range\"
--- - \"Host\"
--- - \"If-Modified-Since\"
--- - \"If-Unmodified-Since\"
--- - \"If-Range\"
--- - \"Referer\"
--- - \"User-Agent\"
--- - \"If-Match\"
--- - \"If-None-Match\"
-requestMaxIndex :: Int
-requestMaxIndex = fromEnum (maxBound :: RequestHeaderIndex)
-
-requestKeyIndex :: HeaderName -> Int
-requestKeyIndex hn = case BS.length bs of
-    4 | bs == "host" -> fromEnum ReqHost
-    5 | bs == "range" -> fromEnum ReqRange
-    6 | bs == "expect" -> fromEnum ReqExpect
-    7 | bs == "referer" -> fromEnum ReqReferer
-    8
-        | bs == "if-range" -> fromEnum ReqIfRange
-        | bs == "if-match" -> fromEnum ReqIfMatch
-    10
-        | bs == "user-agent" -> fromEnum ReqUserAgent
-        | bs == "connection" -> fromEnum ReqConnection
-    13 | bs == "if-none-match" -> fromEnum ReqIfNoneMatch
-    14 | bs == "content-length" -> fromEnum ReqContentLength
-    17
-        | bs == "transfer-encoding" -> fromEnum ReqTransferEncoding
-        | bs == "if-modified-since" -> fromEnum ReqIfModifiedSince
-    19 | bs == "if-unmodified-since" -> fromEnum ReqIfUnmodifiedSince
-    _ -> -1
+indexRequestHeader :: RequestHeaders -> IndexedRequestHeader
+indexRequestHeader = L.foldl' insert defaultIndexRequestHeader
   where
-    bs = foldedCase hn
+    insert ix (key, val) = case BS.length bs of
+        4 | bs == "host" -> ix{reqidxHost = Just val}
+        5 | bs == "range" -> ix{reqidxRange = Just val}
+        6 | bs == "expect" -> ix{reqidxExpect = Just val}
+        7 | bs == "referer" -> ix{reqidxReferer = Just val}
+        8
+            | bs == "if-range" -> ix{reqidxIfRange = Just val}
+            | bs == "if-match" -> ix{reqidxIfMatch = Just val}
+        10
+            | bs == "user-agent" -> ix{reqidxUserAgent = Just val}
+            | bs == "connection" -> ix{reqidxConnection = Just val}
+        13 | bs == "if-none-match" -> ix{reqidxIfNoneMatch = Just val}
+        14 | bs == "content-length" -> ix{reqidxContentLength = Just val}
+        17
+            | bs == "transfer-encoding" -> ix{reqidxTransferEncoding = Just val}
+            | bs == "if-modified-since" -> ix{reqidxIfModifiedSince = Just val}
+        19 | bs == "if-unmodified-since" -> ix{reqidxIfUnmodifiedSince = Just val}
+        _ -> ix
+      where
+        bs = foldedCase key
 
-defaultIndexRequestHeader :: IndexedHeader RequestHeaderIndex
+-- | 'IndexedRequestHeader' with no headers set.
+defaultIndexRequestHeader :: IndexedRequestHeader
 defaultIndexRequestHeader =
-    IxHeader $
-        array (0, requestMaxIndex) [(i, Nothing) | i <- [0 .. requestMaxIndex]]
+    IndexedRequestHeader
+        { reqidxContentLength = Nothing
+        , reqidxTransferEncoding = Nothing
+        , reqidxExpect = Nothing
+        , reqidxConnection = Nothing
+        , reqidxRange = Nothing
+        , reqidxHost = Nothing
+        , reqidxIfModifiedSince = Nothing
+        , reqidxIfUnmodifiedSince = Nothing
+        , reqidxIfRange = Nothing
+        , reqidxReferer = Nothing
+        , reqidxUserAgent = Nothing
+        , reqidxIfMatch = Nothing
+        , reqidxIfNoneMatch = Nothing
+        }
 
 ----------------------------------------------------------------
 
@@ -135,17 +114,3 @@ emptyResponseHeaderPresence =
         , hasDate = False
         , hasLastModified = False
         }
-
-----------------------------------------------------------------
-
-traverseHeader :: [Header] -> Int -> (HeaderName -> Int) -> IndexedHeader a
-traverseHeader hdr maxidx getIndex = IxHeader $ runSTArray $ do
-    arr <- newArray (0, maxidx) Nothing
-    mapM_ (insert arr) hdr
-    return arr
-  where
-    insert arr (key, val)
-        | idx == -1 = return ()
-        | otherwise = writeArray arr idx (Just val)
-      where
-        idx = getIndex key

@@ -64,9 +64,9 @@ spec = describe "Connection header" $ do
                     lookup "Connection" headers `shouldBe` Just "close"
 parseHeaders :: ByteString -> [(ByteString, ByteString)]
 parseHeaders bs = 
-    let lines = S8.lines bs
+    let ls = S8.lines bs
         -- Drop status line
-        headerLines = takeWhile (not . S8.null . S8.filter (/= '\r')) $ drop 1 lines
+        headerLines = takeWhile (not . S8.null . S8.filter (/= '\r')) $ drop 1 ls
         parseLine line = 
             let (k, v) = S8.break (== ':') line
                 v' = S8.takeWhile (/= '\r') v

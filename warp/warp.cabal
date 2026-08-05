@@ -98,7 +98,6 @@ library
     ghc-options:      -Wall
     build-depends:
         base >=4.12 && <5,
-        array,
         auto-update >=0.2.2 && <0.3,
         async >= 2,
         bsb-http-chunked <0.1,
@@ -239,7 +238,6 @@ test-suite spec
     build-depends:
         base >=4.8 && <5,
         QuickCheck,
-        array,
         auto-update,
         async,
         bsb-http-chunked <0.1,
@@ -326,7 +324,6 @@ benchmark parser
     default-language: Haskell2010
     build-depends:
         base >=4.8 && <5,
-        array,
         async,
         auto-update,
         bsb-http-chunked,
