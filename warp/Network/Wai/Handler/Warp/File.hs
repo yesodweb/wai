@@ -16,7 +16,7 @@ import Network.Wai (FilePart (..))
 
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.Header (
-    IndexedRequestHeader,
+    IndexedRequestHeader (..),
     ResponseHeaderPresence (..),
  )
 import Network.Wai.Handler.Warp.Imports

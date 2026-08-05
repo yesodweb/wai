@@ -172,9 +172,9 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     s = responseStatus response
     hs0 = sanitizeHeaders $ responseHeaders response
     rspidxhdr = indexResponseHeader hs0
-    hasLength = isJust $ rspidxhdr ! ResContentLength
+    hasLength = hasContentLength rspidxhdr
     responseWantsToClose =
-        case rspidxhdr ! ResConnection of
+        case hasConnection rspidxhdr of
             Nothing -> False
             Just v -> CI.foldCase v == "close"
     isPersist = reqSaysPersist && not responseWantsToClose
@@ -516,11 +516,11 @@ hasBody s =
 -- we'll add it to the headers if there's no other encoding, or add it
 -- to the end in case it is.
 -- (e.g. if a 'Middleware' were to add "Transfer-Encoding: gzip")
-addTransferEncoding :: IndexedResponseHeader -> H.ResponseHeaders -> H.ResponseHeaders
+addTransferEncoding :: ResponseHeaderPresence -> H.ResponseHeaders -> H.ResponseHeaders
 addTransferEncoding rspidxhdr =
-    case rspidxhdr ! ResTransferEncoding of
-        Nothing -> ((Header.hTransferEncoding, "chunked") :)
+    case hasTransferEncoding rspidxhdr of
         Just value -> replaceHeader Header.hTransferEncoding (value <> ", chunked")
+        Nothing -> ((Header.hTransferEncoding, "chunked") :)
 
 addDate
     :: IO D.GMTDate -> ResponseHeaderPresence -> H.ResponseHeaders -> IO H.ResponseHeaders
@@ -538,12 +538,13 @@ addServer
 addServer serverName rspidxhdr hdrs =
     case serverName of
         -- empty string means there shouldn't be a "Server" header
-        "" | serverPresent ->
-            filter ((/= Header.hServer) . fst) hdrs
+        ""
+            | serverPresent -> filter ((/= Header.hServer) . fst) hdrs
+            | otherwise -> hdrs
         -- Anything else should set the "Server" header if it isn't already set
-        _ | not serverPresent ->
-            (Header.hServer, serverName) : hdrs
-        _ -> hdrs
+        _
+            | not serverPresent -> (Header.hServer, serverName) : hdrs
+            | otherwise -> hdrs
   where
     serverPresent = hasServer rspidxhdr
 
@@ -566,7 +567,7 @@ replaceHeader k v hdrs = (k, v) : filter ((/= k) . fst) hdrs
 ----------------------------------------------------------------
 
 composeHeaderBuilder
-    :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> IndexedResponseHeader -> Bool -> IO (Builder, Int)
+    :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> ResponseHeaderPresence -> Bool -> IO (Builder, Int)
 composeHeaderBuilder ver s hs rspidxhdr shouldChunk = do
     bs <- composeHeader ver s finalHdrs
     pure (byteString bs, S.length bs)
