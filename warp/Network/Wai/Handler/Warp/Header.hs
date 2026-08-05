@@ -2,28 +2,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wai.Handler.Warp.Header (
-    IndexedHeader,
     IndexedRequestHeader (..),
     ResponseHeaderPresence (..),
-    (!),
     indexRequestHeader,
     defaultIndexRequestHeader,
     indexResponseHeader,
 ) where
 
-import Data.Array (Array)
-import qualified Data.Array as A ((!))
-import Data.Array.ST
 import qualified Data.ByteString as BS
 import Data.CaseInsensitive (foldedCase)
+import Data.List as L (foldl')
 import Network.HTTP.Types
 
 import Network.Wai.Handler.Warp.Types
-
-----------------------------------------------------------------
-
--- | Array for a set of HTTP headers.
-newtype IndexedHeader a = IxHeader (Array Int (Maybe HeaderValue))
 
 ----------------------------------------------------------------
 
@@ -46,7 +37,7 @@ data IndexedRequestHeader = IndexedRequestHeader
     }
 
 indexRequestHeader :: RequestHeaders -> IndexedRequestHeader
-indexRequestHeader = foldl' insert defaultIndexRequestHeader
+indexRequestHeader = L.foldl' insert defaultIndexRequestHeader
   where
     insert ix (key, val) = case BS.length bs of
         4 | bs == "host" -> ix{reqidxHost = Just val}
@@ -123,17 +114,3 @@ emptyResponseHeaderPresence =
         , hasDate = False
         , hasLastModified = False
         }
-
-----------------------------------------------------------------
-
-traverseHeader :: [Header] -> Int -> (HeaderName -> Int) -> IndexedHeader a
-traverseHeader hdr maxidx getIndex = IxHeader $ runSTArray $ do
-    arr <- newArray (0, maxidx) Nothing
-    mapM_ (insert arr) hdr
-    return arr
-  where
-    insert arr (key, val)
-        | idx == -1 = return ()
-        | otherwise = writeArray arr idx (Just val)
-      where
-        idx = getIndex key

@@ -113,6 +113,7 @@ recvRequest firstRequest settings conn ii th addr src transport = do
                 , requestHeaderRange = reqidxRange idxhdr
                 , requestHeaderReferer = reqidxReferer idxhdr
                 , requestHeaderUserAgent = reqidxUserAgent idxhdr
+                , requestSendEarlyHints = \_ -> pure ()
                 }
     return (req, remainingRef, idxhdr, rbodyFlush)
 

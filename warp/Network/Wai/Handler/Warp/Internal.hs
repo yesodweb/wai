@@ -59,9 +59,17 @@ module Network.Wai.Handler.Warp.Internal (
     warpVersion,
 
     -- * Data types
+
+    -- |
+    --
+    -- The internals of 'IndexedHeader' have changed since @3.4.15@, so we
+    -- keep exporting it as a type synonym, but it is now a record instead of
+    -- an array.
+    -- As such there's no more 'requestMaxIndex', but we provide a blank
+    -- 'defaultIndexRequestHeader'.
     InternalInfo (..),
     HeaderValue,
-    IndexedRequestHeader,
+    IndexedHeader,
     -- I assume 'requestMaxIndex' was used in case anyone wanted to create
     -- an empty array, so we replace it with 'defaultIndexRequestHeader'.
     defaultIndexRequestHeader,
@@ -131,3 +139,5 @@ import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Handler.Warp.Windows
+
+type IndexedHeader = IndexedRequestHeader

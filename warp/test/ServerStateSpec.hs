@@ -3,7 +3,7 @@
 module ServerStateSpec where
 
 import Network.Wai.Handler.Warp (getServerState)
-import Network.Wai.Handler.Warp.Counter (getCount, increase)
+import Network.Wai.Handler.Warp.Counter (increase)
 import Network.Wai.Handler.Warp.Settings (
     ServerState (..),
     currentOpenConnections,

@@ -2,15 +2,14 @@
 
 ## 3.4.15
 
-* Add phantom type parameter to `IndexedHeader` to catch request/response
-  mismatches at compile time. This does change the API of
-  `Network.Wai.Handler.Warp.Internal`, so this gets a minor version bump.
-  [#1088](https://github.com/yesodweb/wai/pull/1088)
-
 * Support `103 Early Hints` over HTTP/2: the HTTP/2 handler installs
   `requestSendEarlyHints`, so a WAI application can emit informational responses
   ahead of the final response.
   [#1085](https://github.com/yesodweb/wai/pull/1085).
+
+* Reworked internal indexed headers to records for performance and to remove
+  dependencies on `array`.
+  [#1092](https://github.com/yesodweb/wai/pull/1092) [#1093](https://github.com/yesodweb/wai/pull/1093)
 
 ## 3.4.14
 
