@@ -172,9 +172,9 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     s = responseStatus response
     hs0 = sanitizeHeaders $ responseHeaders response
     rspidxhdr = indexResponseHeader hs0
-    hasLength = isJust $ rspidxhdr ! fromEnum ResContentLength
+    hasLength = isJust $ rspidxhdr ! ResContentLength
     responseWantsToClose =
-        case rspidxhdr ! fromEnum ResConnection of
+        case rspidxhdr ! ResConnection of
             Nothing -> False
             Just v -> CI.foldCase v == "close"
     isPersist = reqSaysPersist && not responseWantsToClose
@@ -512,9 +512,9 @@ hasBody s =
 -- we'll add it to the headers if there's no other encoding, or add it
 -- to the end in case it is.
 -- (e.g. if a 'Middleware' were to add "Transfer-Encoding: gzip")
-addTransferEncoding :: IndexedHeader -> H.ResponseHeaders -> H.ResponseHeaders
+addTransferEncoding :: IndexedResponseHeader -> H.ResponseHeaders -> H.ResponseHeaders
 addTransferEncoding rspidxhdr =
-    case rspidxhdr ! fromEnum ResTransferEncoding of
+    case rspidxhdr ! ResTransferEncoding of
         Nothing -> ((Header.hTransferEncoding, "chunked") :)
         Just value -> replaceHeader Header.hTransferEncoding (value <> ", chunked")
 
@@ -562,7 +562,7 @@ replaceHeader k v hdrs = (k, v) : filter ((/= k) . fst) hdrs
 ----------------------------------------------------------------
 
 composeHeaderBuilder
-    :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> IndexedHeader -> Bool -> IO (Builder, Int)
+    :: H.HttpVersion -> H.Status -> H.ResponseHeaders -> IndexedResponseHeader -> Bool -> IO (Builder, Int)
 composeHeaderBuilder ver s hs rspidxhdr shouldChunk = do
     bs <- composeHeader ver s finalHdrs
     pure (byteString bs, S.length bs)
