@@ -4,13 +4,12 @@
 module Network.Wai.Handler.Warp.Header (
     IndexedHeader,
     IndexedRequestHeader,
-    IndexedResponseHeader,
+    ResponseHeaderPresence (..),
     (!),
     RequestHeaderIndex (..),
     indexRequestHeader,
     requestMaxIndex,
     defaultIndexRequestHeader,
-    ResponseHeaderIndex (..),
     indexResponseHeader,
 ) where
 
@@ -29,7 +28,6 @@ import Network.Wai.Handler.Warp.Types
 newtype IndexedHeader a = IxHeader (Array Int (Maybe HeaderValue))
 
 type IndexedRequestHeader = IndexedHeader RequestHeaderIndex
-type IndexedResponseHeader = IndexedHeader ResponseHeaderIndex
 
 -- | Safer way to lookup 'IndexedHeader' values
 (!) :: Enum a => IndexedHeader a -> a -> Maybe HeaderValue
@@ -104,29 +102,39 @@ defaultIndexRequestHeader =
 
 ----------------------------------------------------------------
 
-indexResponseHeader :: ResponseHeaders -> IndexedHeader ResponseHeaderIndex
-indexResponseHeader hdr = traverseHeader hdr responseMaxIndex responseKeyIndex
+-- | Presence of the response headers Warp itself consults.
+--   Only these four headers are ever looked up on the response side, and
+--   only their presence, never their value, so a flat record of strict
+--   'Bool's built in a single traversal beats a boxed array.
+data ResponseHeaderPresence = ResponseHeaderPresence
+    { hasContentLength :: Bool
+    , hasServer :: Bool
+    , hasDate :: Bool
+    , hasLastModified :: Bool
+    }
 
-data ResponseHeaderIndex
-    = ResContentLength
-    | ResServer
-    | ResDate
-    | ResLastModified
-    deriving (Enum, Bounded)
-
--- | The size for 'IndexedHeader' for HTTP Response.
-responseMaxIndex :: Int
-responseMaxIndex = fromEnum (maxBound :: ResponseHeaderIndex)
-
-responseKeyIndex :: HeaderName -> Int
-responseKeyIndex hn = case BS.length bs of
-    4 | bs == "date" -> fromEnum ResDate
-    6 | bs == "server" -> fromEnum ResServer
-    13 | bs == "last-modified" -> fromEnum ResLastModified
-    14 | bs == "content-length" -> fromEnum ResContentLength
-    _ -> -1
+indexResponseHeader :: ResponseHeaders -> ResponseHeaderPresence
+indexResponseHeader = go emptyResponseHeaderPresence
   where
-    bs = foldedCase hn
+    go ix [] = ix
+    go ix ((key, _) : rest) = go (insert ix key) rest
+    insert ix key = case BS.length bs of
+        4 | bs == "date" -> ix{hasDate = True}
+        6 | bs == "server" -> ix{hasServer = True}
+        13 | bs == "last-modified" -> ix{hasLastModified = True}
+        14 | bs == "content-length" -> ix{hasContentLength = True}
+        _ -> ix
+      where
+        bs = foldedCase key
+
+emptyResponseHeaderPresence :: ResponseHeaderPresence
+emptyResponseHeaderPresence =
+    ResponseHeaderPresence
+        { hasContentLength = False
+        , hasServer = False
+        , hasDate = False
+        , hasLastModified = False
+        }
 
 ----------------------------------------------------------------
 

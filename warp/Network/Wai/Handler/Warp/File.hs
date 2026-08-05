@@ -33,16 +33,16 @@ conditionalRequest
     :: I.FileInfo
     -> H.ResponseHeaders
     -> H.Method
-    -> IndexedResponseHeader
+    -> ResponseHeaderPresence
     -> IndexedRequestHeader
     -> RspFileInfo
 conditionalRequest finfo hs0 method rspidx reqidx = case condition of
     nobody@(WithoutBody _) -> nobody
     WithBody s _ off len ->
         let !hs1 = addContentHeaders hs0 off len size
-            !hs = case rspidx ! ResLastModified of
-                Just _ -> hs1
-                Nothing -> (H.hLastModified, date) : hs1
+            !hs
+                | hasLastModified rspidx = hs1
+                | otherwise = (H.hLastModified, date) : hs1
          in WithBody s hs off len
   where
     !mtime = I.fileInfoTime finfo
