@@ -14,8 +14,9 @@
   with spaces. (as per RFC 9110 section 5.5)
 * Also counts bytes for streaming responses for `settingsLogger`'s size argument.
   And fixed size for builder responses, since those included the status and header
-  lines. Now the `Maybe Integer` argument in `settingsLogger` is consistently
-  just the amount of bytes of the sent message body.
+  lines, and large `ByteString` chunks would not get counted.
+  Now the `Maybe Integer` argument in `settingsLogger` is consistently the
+  amount of bytes of the sent raw message body.
   [#1086](https://github.com/yesodweb/wai/pull/1086)
 * Reworked internal indexed headers to records for performance and to remove
   dependencies on `array`.
