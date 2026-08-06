@@ -259,7 +259,7 @@ sanitizeHeaderValue v =
 
 data Rsp
     = RspNoBody
-    | RspFile FilePath (Maybe FilePart) (IndexedRequestHeader) (IO ())
+    | RspFile FilePath (Maybe FilePart) IndexedRequestHeader (IO ())
     | RspBuilder Builder Bool
     | RspStream StreamingBody Bool
     | RspRaw (IO ByteString -> (ByteString -> IO ()) -> IO ()) (IO ByteString)

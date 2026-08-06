@@ -143,9 +143,8 @@ data Settings = Settings
     -- @settingsLogger req status mSentBytes@
     --
     -- /N.B. @Maybe Integer@ is the concrete bytes of the message body/
-    -- /after all the headers have been sent. This is 'Nothing' when the/
-    -- /response has either no body, or 'responseRaw' is used./
-    -- /(e.g. when using websockets)/
+    -- /after all the headers have been sent. This is 'Nothing' when/
+    -- /'responseRaw' is used. (e.g. when using websockets)/
     --
     -- Since 3.1.10
     , settingsServerPushLogger :: Request -> ByteString -> Integer -> IO ()
