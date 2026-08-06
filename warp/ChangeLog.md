@@ -10,15 +10,21 @@
   closed on HEAD requests anymore. Should conform more to spec in general.
   Should also reliably close connection when user created `Response` headers
   contain a `Connection: close` entry (HTTP/1.1).
+  [#1086](https://github.com/yesodweb/wai/pull/1086)
 * Replace multiline header value support with sanitizing newlines and NUL bytes
   with spaces. (as per RFC 9110 section 5.5)
-* Also counts bytes for streaming responses for `settingsLogger`'s size argument.
-  And fixed size for builder responses, since those included the status and header
-  lines, and large `ByteString` chunks would not get counted.
-  Now the `Maybe Integer` argument in `settingsLogger` is consistently the
-  amount of bytes of the sent raw message body.
   [#1086](https://github.com/yesodweb/wai/pull/1086)
-* Reworked internal indexed headers to records for performance and to remove
+* Size for responses in `Maybe Integer` argument of `settingsLogger` now
+  consistently and always gives amount of bytes of the sent raw __message body__.
+  It will only be `Nothing` when using `responseRaw` (mostly used for websockets)
+  [#1086](https://github.com/yesodweb/wai/pull/1086)
+    * `responseFile`: no change, gives size of file (part)
+    * `responseBuilder/responseLBS`:
+        * included the status and header lines, now fixed
+        * large `ByteString` chunks would not get counted, now fixed
+    * `responseStream`: now counts bytes of body sent
+    * `responseRaw`: will always be `Nothing`
+* Rework internal indexed headers to records for performance and to remove
   dependencies on `array`.
   [#1092](https://github.com/yesodweb/wai/pull/1092) [#1093](https://github.com/yesodweb/wai/pull/1093)
 

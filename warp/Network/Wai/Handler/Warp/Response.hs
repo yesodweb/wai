@@ -284,7 +284,7 @@ sendRsp conn _ _ ver s hs _ _ _ RspNoBody = do
     -- Not adding Content-Length.
     -- User agents treats it as Content-Length: 0.
     composeHeader ver s hs >>= connSendAll conn
-    return (Just s, Nothing)
+    return (Just s, Just 0)
 
 ----------------------------------------------------------------
 
@@ -317,14 +317,16 @@ sendRsp conn _ th ver s hs rspidxhdr _ _ (RspStream streamingBody needsChunked) 
                     connWriteBuffer conn
     -- We'll be counting how many bytes we send with this 'IORef'
     sizeCounter <- newIORef (0 :: Integer)
+    let sendFragmentAndCount bs = do
+            sendFragment conn th bs
+            -- add amount of bytes to count
+            S.length bs `addToCounter` sizeCounter
     let send builder = do
             popper <- recv builder
             let loop = do
                     bs <- popper
                     unless (S.null bs) $ do
-                        sendFragment conn th bs
-                        -- add amount of bytes to count
-                        S.length bs `addToCounter` sizeCounter
+                        sendFragmentAndCount bs
                         loop
             loop
         sendChunk
@@ -333,8 +335,8 @@ sendRsp conn _ th ver s hs rspidxhdr _ _ (RspStream streamingBody needsChunked) 
     send header
     streamingBody sendChunk (sendChunk flush)
     when needsChunked $ send chunkedTransferTerminator
-    mbs <- finish
-    maybe (return ()) (sendFragment conn th) mbs
+    -- final flush
+    finish >>= mapM_ sendFragmentAndCount
     finalSize <- readIORef sizeCounter
     --              small adjustment to only count the body
     return (Just s, Just $ finalSize - fromIntegral hdrLen)
