@@ -20,7 +20,7 @@ import Control.Exception (
     try,
  )
 import Control.Monad (void)
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.IORef (newIORef, readIORef, writeIORef, atomicWriteIORef)
 import Data.Maybe (fromMaybe)
 import GHC.Conc.Sync (labelThread)
 
@@ -97,7 +97,7 @@ mkAutoUpdateHelper us updateActionModify = do
                 a <- catchSome $ fromMaybe (updateAction us) (updateActionModify <*> maybea)
 
                 -- we got a new value, update currRef and lastValue
-                writeIORef currRef $ Right a
+                atomicWriteIORef currRef $ Right a
                 putMVar responseVar a
 
                 -- delay until we're needed again
@@ -108,7 +108,7 @@ mkAutoUpdateHelper us updateActionModify = do
                 -- variable. Then loop again with the updated response
                 -- variable.
                 responseVar' <- newEmptyMVar
-                writeIORef currRef $ Left responseVar'
+                atomicWriteIORef currRef $ Left responseVar'
                 loop responseVar' (Just a)
 
         -- Kick off the loop, with the initial responseVar0 variable.
