@@ -11,3 +11,5 @@ packages:
     wai-websockets
     wai-conduit
     time-manager
+
+benchmarks: True
