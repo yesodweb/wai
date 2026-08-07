@@ -150,7 +150,7 @@ withApp settings app f = do
         ( const $ do
             takeMVar baton
             -- use timeout to make sure we don't take too long
-            mres <- timeout (60 * 1000 * 1000) (f port)
+            mres <- timeout (3 * 1000 * 1000) (f port)
             case mres of
                 Nothing -> error "Timeout triggered, too slow!"
                 Just a -> pure a
@@ -392,7 +392,7 @@ spec = do
                             `onException` liftIO
                                 (I.atomicModifyIORef ifront (\front -> (front . ("consume interrupted" :), ())))
                     liftIO $
-                        threadDelay 4000000 `E.catch` \e -> do
+                        threadDelay 500000 `E.catch` \e -> do
                             I.atomicModifyIORef
                                 ifront
                                 ( \front ->
@@ -415,7 +415,7 @@ spec = do
                 msWrite ms bs1
                 threadDelay 100000
                 msWrite ms bs2
-                threadDelay 5000000
+                threadDelay 1000000
                 front <- I.readIORef ifront
                 S.concat (front []) `shouldBe` bs
     describe "raw body" $ do

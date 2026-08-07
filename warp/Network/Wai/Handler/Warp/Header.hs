@@ -90,18 +90,22 @@ data ResponseHeaderPresence = ResponseHeaderPresence
     , hasServer :: Bool
     , hasDate :: Bool
     , hasLastModified :: Bool
+    , hasTransferEncoding :: Maybe HeaderValue
+    , hasConnection :: Maybe HeaderValue
     }
 
 indexResponseHeader :: ResponseHeaders -> ResponseHeaderPresence
 indexResponseHeader = go emptyResponseHeaderPresence
   where
     go ix [] = ix
-    go ix ((key, _) : rest) = go (insert ix key) rest
-    insert ix key = case BS.length bs of
+    go ix (tup : rest) = go (insert ix tup) rest
+    insert ix (key, val) = case BS.length bs of
         4 | bs == "date" -> ix{hasDate = True}
         6 | bs == "server" -> ix{hasServer = True}
+        10 | bs == "connection" -> ix{hasConnection = Just val}
         13 | bs == "last-modified" -> ix{hasLastModified = True}
         14 | bs == "content-length" -> ix{hasContentLength = True}
+        17 | bs == "transfer-encoding" -> ix{hasTransferEncoding = Just val}
         _ -> ix
       where
         bs = foldedCase key
@@ -113,4 +117,6 @@ emptyResponseHeaderPresence =
         , hasServer = False
         , hasDate = False
         , hasLastModified = False
+        , hasTransferEncoding = Nothing
+        , hasConnection = Nothing
         }

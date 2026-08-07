@@ -140,6 +140,12 @@ data Settings = Settings
     , settingsLogger :: Request -> H.Status -> Maybe Integer -> IO ()
     -- ^ A log function. Default: no action.
     --
+    -- @settingsLogger req status mSentBytes@
+    --
+    -- /N.B. @Maybe Integer@ is the concrete bytes of the message body/
+    -- /after all the headers have been sent. This is 'Nothing' when/
+    -- /'responseRaw' is used. (e.g. when using websockets)/
+    --
     -- Since 3.1.10
     , settingsServerPushLogger :: Request -> ByteString -> Integer -> IO ()
     -- ^ A HTTP/2 server push log function. Default: no action.

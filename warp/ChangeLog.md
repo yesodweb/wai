@@ -6,8 +6,25 @@
   `requestSendEarlyHints`, so a WAI application can emit informational responses
   ahead of the final response.
   [#1085](https://github.com/yesodweb/wai/pull/1085).
-
-* Reworked internal indexed headers to records for performance and to remove
+* Rework keep alive logic for HTTP/1.X so connections won't be automatically
+  closed on HEAD requests anymore. Should conform more to spec in general.
+  Should also reliably close connection when user created `Response` headers
+  contain a `Connection: close` entry (HTTP/1.1).
+  [#1086](https://github.com/yesodweb/wai/pull/1086)
+* Replace multiline header value support with sanitizing newlines and NUL bytes
+  with spaces. (as per RFC 9110 section 5.5)
+  [#1086](https://github.com/yesodweb/wai/pull/1086)
+* Size for responses in `Maybe Integer` argument of `settingsLogger` now
+  consistently and always gives amount of bytes of the sent raw __message body__.
+  It will only be `Nothing` when using `responseRaw` (mostly used for websockets)
+  [#1086](https://github.com/yesodweb/wai/pull/1086)
+    * `responseFile`: no change, gives size of file (part)
+    * `responseBuilder/responseLBS`:
+        * included the status and header lines, now fixed
+        * large `ByteString` chunks would not get counted, now fixed
+    * `responseStream`: now counts bytes of body sent
+    * `responseRaw`: will always be `Nothing`
+* Rework internal indexed headers to records for performance and to remove
   dependencies on `array`.
   [#1092](https://github.com/yesodweb/wai/pull/1092) [#1093](https://github.com/yesodweb/wai/pull/1093)
 

@@ -179,6 +179,7 @@ test-suite spec
     build-tool-depends: hspec-discover:hspec-discover
     hs-source-dirs:     test .
     other-modules:
+        BufferSpec
         ConduitSpec
         ConnectionSpec
         EarlyHintsSpec
