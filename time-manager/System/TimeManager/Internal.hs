@@ -6,6 +6,7 @@
 module System.TimeManager.Internal where
 
 import Data.IORef (IORef)
+import Data.Word (Word64)
 
 #if defined(mingw32_HOST_OS)
 import qualified GHC.Event.Windows as EV
@@ -31,8 +32,17 @@ type TimeoutAction = IO ()
 data Handle = Handle
     { handleTimeout :: Int
     , handleAction :: TimeoutAction
+    , handleTimerManager :: ~TimerManager
+    -- ^ The system timer manager the timeout key was registered with.
+    --   Cached so that per-request operations don't re-fetch it.
     , handleKeyRef :: ~(IORef EV.TimeoutKey)
     , handleState :: ~(IORef HandleState)
+    , handleLastRenewed :: ~(IORef Word64)
+    -- ^ Monotonic time (in nanoseconds) when the timeout was last
+    --   registered or updated.
+    , handleMinRenewGap :: Word64
+    -- ^ 'tickle' is a no-op unless at least this many nanoseconds have
+    --   passed since the last renewal.
     }
 
 -- | Tracking the state of a handle, to be able to have 'resume'
@@ -47,9 +57,13 @@ withNonEmptyHandle h act =
     if isEmptyHandle h then pure () else act
 
 #if defined(mingw32_HOST_OS)
-getTimerManager :: IO EV.Manager
+type TimerManager = EV.Manager
+
+getTimerManager :: IO TimerManager
 getTimerManager = EV.getSystemManager
 #else
-getTimerManager :: IO EV.TimerManager
+type TimerManager = EV.TimerManager
+
+getTimerManager :: IO TimerManager
 getTimerManager = EV.getSystemTimerManager
 #endif
