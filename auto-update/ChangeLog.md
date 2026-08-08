@@ -1,5 +1,11 @@
 # ChangeLog for auto-update
 
+## 0.2.7
+
+* Use `atomicModifyIORef` in `mkAutoUpdate(Helper)` to prevent race conditions
+  in multi-threaded situations.
+  [#1103](https://github.com/yesodweb/wai/pull/1103)
+
 ## 0.2.6.1
 
 * Fixed documentation of when `leadingMuteEdge` and `trailingDelayEdge` were
