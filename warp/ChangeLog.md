@@ -1,5 +1,13 @@
 # ChangeLog for warp
 
+## 3.4.15.1
+
+* Graceful shutdown no longer stops while a connection it accepted is
+  unserved. The connection counter it waits on is now raised when the accept
+  loop accepts a connection rather than when the thread serving it is
+  scheduled, closing a window in which an accepted connection was invisible
+  to the shutdown.
+
 ## 3.4.15
 
 * Support `103 Early Hints` over HTTP/2: the HTTP/2 handler installs

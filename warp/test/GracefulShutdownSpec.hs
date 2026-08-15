@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module GracefulShutdownSpec (spec) where
 
@@ -8,16 +9,61 @@ import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Exception (bracket)
 import Control.Monad (void)
+import Data.IORef
 import Network.HTTP.Client
 import Network.HTTP.Types (ok200, status200)
-import Network.Socket (close)
+import Network.Socket
 import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp
 import System.Timeout (timeout)
 import Test.Hspec
 
 spec :: Spec
-spec = describe "graceful shutdown" $
+spec = describe "graceful shutdown" $ do
+    it "waits for a connection accepted just before it stopped accepting" $ do
+        -- The window is between accepting a connection and the thread
+        -- serving it being scheduled. Delaying the thread makes it wide
+        -- enough to test; in a running server it is however long the RTS
+        -- takes to get to the new thread.
+        accepted <- newIORef (0 :: Int)
+        closed <- newIORef (0 :: Int)
+
+        let slowFork :: ((forall a. IO a -> IO a) -> IO ()) -> IO ()
+            slowFork act = void $ forkIOWithUnmask $ \unmask -> do
+                threadDelay 200_000
+                act unmask
+
+            -- Take one connection, then stop accepting, which is what
+            -- closing the listening socket does to the accept loop without
+            -- closing a descriptor it is parked on.
+            acceptOnlyOne sock = do
+                taken <- atomicModifyIORef' accepted $ \n -> (n + 1, n)
+                if taken == 0
+                    then accept sock
+                    else ioError (userError "the listening socket is closed")
+
+            settings =
+                setFork slowFork $
+                    setAccept acceptOnlyOne $
+                        setOnClose (\_ -> atomicModifyIORef' closed $ \n -> (n + 1, ())) $
+                            setGracefulShutdownTimeout (Just 5) $
+                                setOnException (\_ _ -> pure ()) defaultSettings
+
+            app _ respond = respond $ responseLBS status200 [("Content-Length", "0")] ""
+
+        bracket openFreePort (close . snd) $ \(testPort, sock) -> do
+            -- Connect before the server starts, so the accept loop has a
+            -- connection waiting for it whatever else the machine is doing.
+            bracket (openConnection testPort) close $ \_ -> pure ()
+
+            withAsync (runSettingsSocket settings sock app) $ \server -> do
+                timeout 30_000_000 (wait server)
+                    >>= maybe (expectationFailure "Timeout waiting for server shutdown") pure
+                -- Returning is what lets the process exit, so a connection
+                -- still open here is one the client never hears back on.
+                connectionsClosed <- readIORef closed
+                connectionsClosed `shouldBe` 1
+
     it "serves the request in flight, then closes keep-alive connections and exits" $ do
         shutdownSignal <- newEmptyMVar
         allowResponse <- newEmptyMVar
@@ -76,6 +122,11 @@ spec = describe "graceful shutdown" $
                         -- wait for all clients and propagate any exceptions
                         wait clients
   where
+    openConnection testPort = do
+        client <- socket AF_INET Stream defaultProtocol
+        connect client $
+            SockAddrInet (fromIntegral testPort) (tupleToHostAddress (127, 0, 0, 1))
+        pure client
     -- set number of clients to the number of keep-alive connections
     numClients = managerConnCount defaultManagerSettings
     connectionRefused = \case
