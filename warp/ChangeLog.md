@@ -1,5 +1,13 @@
 # ChangeLog for warp
 
+## 3.4.15.1
+
+* `runSettings` and friends now rethrow when `accept()` fails for a reason
+  other than the listening socket being closed on purpose. Previously the
+  accept loop ended and the caller was handed a `()`, which is what a graceful
+  shutdown returns, so a server that could no longer accept was
+  indistinguishable from one that had been asked to stop.
+
 ## 3.4.15
 
 * Support `103 Early Hints` over HTTP/2: the HTTP/2 handler installs

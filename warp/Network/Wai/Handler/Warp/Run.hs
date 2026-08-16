@@ -372,7 +372,20 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                         -- as resolved here, but just for completeness' sake.
                         resetFdExhaustion fdRef
                         settingsOnException set Nothing $ E.toException e
-                        return Nothing
+                        -- Closing the listening socket is how a graceful
+                        -- shutdown ends this loop, and it arrives here as an
+                        -- InvalidArgument, which warp already reads as the
+                        -- socket going away in the normal course of running
+                        -- (see 'defaultShouldDisplayException').
+                        --
+                        -- Anything else is an accept() that broke on its own,
+                        -- and has to reach the caller: ending the loop hands
+                        -- back a () that cannot be told apart from a clean
+                        -- stop, leaving the caller holding a server that will
+                        -- never accept again and does not know it.
+                        if ioeGetErrorType e == InvalidArgument
+                            then return Nothing
+                            else E.throwIO e
 
     handleFdExhaustion e = do
         fdExhaustion <- readIORef fdRef
