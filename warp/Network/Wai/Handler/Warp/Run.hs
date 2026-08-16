@@ -266,9 +266,14 @@ runSettingsConnectionMakerSecure
 runSettingsConnectionMakerSecure oldSettings getConnMaker app = do
     settingsBeforeMainLoop oldSettings
     (ServerState{serverConnectionCounter}, newSettings) <- makeServerState oldSettings
+    -- Connections warp is holding, raised when accept hands one over rather
+    -- than when the thread serving it is scheduled.  Kept apart from
+    -- serverConnectionCounter, which is exposed as getCount and keeps its
+    -- meaning of connections that have been opened.
+    acceptedCounter <- newCounter
     withII newSettings $ \ii ->
         initFdExhaustionRef >>=
-            acceptConnection newSettings getConnMaker app serverConnectionCounter ii
+            acceptConnection newSettings getConnMaker app serverConnectionCounter acceptedCounter ii
 
 -- | Running an action with internal info.
 --
@@ -311,13 +316,17 @@ acceptConnection
     -> IO (IO (Connection, Transport), SockAddr)
     -> Application
     -> Counter
+        -- ^ Connections that have been opened, which is what 'getCount' reports.
+    -> Counter
+        -- ^ Connections warp has accepted, which is what it has to finish with
+        -- before it can stop.
     -> InternalInfo
     -> IORef FdExhaustion
         -- ^ This ref will be used to "debounce" the call to 'settingsOnException'
         -- when we hit an 'IOError' with 'eMFILE' in the case that Warp is not
         -- the reason the file descriptors are exhausted.
     -> IO ()
-acceptConnection set getConnMaker app counter ii fdRef = do
+acceptConnection set getConnMaker app counter accepted ii fdRef = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
@@ -327,7 +336,7 @@ acceptConnection set getConnMaker app counter ii fdRef = do
     -- In some cases, we want to stop Warp here without graceful shutdown.
     -- So, async exceptions are allowed here.
     -- That's why `finally` is not used.
-    gracefulShutdown set counter
+    gracefulShutdown set accepted
   where
     acceptLoop = do
         -- Allow async exceptions before receiving the next connection maker.
@@ -344,7 +353,7 @@ acceptConnection set getConnMaker app counter ii fdRef = do
         case mx of
             Nothing -> return ()
             Just (mkConn, addr) -> do
-                fork set mkConn addr app counter ii
+                fork set mkConn addr app counter accepted ii
                 acceptLoop
 
     acceptNewConnection = do
@@ -381,7 +390,7 @@ acceptConnection set getConnMaker app counter ii fdRef = do
         -- get called an enormous amount of times per second.
         when (fdExhaustion /= FdExhausted) $
             settingsOnException set Nothing $ E.toException e
-        hasDecreased <- waitForDecreased counter
+        hasDecreased <- waitForDecreased accepted
         -- If we get 'NoConnections', that means the file
         -- descriptor exhaustion is outside of our control.
         -- We flag it so that 'settingsOnException' doesn't get
@@ -396,30 +405,37 @@ fork
     -> SockAddr
     -> Application
     -> Counter
+    -> Counter
     -> InternalInfo
     -> IO ()
-fork set mkConn addr app counter ii = settingsFork set $ \unmask -> do
-    tid <- myThreadId
-    labelThread tid "Warp just forked"
-    -- Call the user-supplied on exception code if any
-    -- exceptions are thrown.
-    --
-    -- Intentionally using Control.Exception.handle, since we want to
-    -- catch all exceptions and avoid them from propagating, even
-    -- async exceptions. See:
-    -- https://github.com/yesodweb/wai/issues/850
-    E.handle (settingsOnException set Nothing) $
-        -- Run the connection maker to get a new connection, and ensure
-        -- that the connection is closed. If the mkConn call throws an
-        -- exception, we will leak the connection. If the mkConn call is
-        -- vulnerable to attacks (e.g., Slowloris), we do nothing to
-        -- protect the server. It is therefore vital that mkConn is well
-        -- vetted.
+fork set mkConn addr app counter accepted ii = do
+    -- Count the connection here rather than in the thread below.  The accept
+    -- loop does not wait for that thread to be scheduled, so counting there
+    -- leaves a window in which the connection is accepted and not counted,
+    -- and 'gracefulShutdown' waits on this counter.
+    increase accepted
+    settingsFork set $ \unmask -> (`E.finally` decrease accepted) $ do
+        tid <- myThreadId
+        labelThread tid "Warp just forked"
+        -- Call the user-supplied on exception code if any
+        -- exceptions are thrown.
         --
-        -- We grab the connection before registering timeouts since the
-        -- timeouts will be useless during connection creation, due to the
-        -- fact that async exceptions are still masked.
-        E.bracket mkConn cleanUp (serve unmask)
+        -- Intentionally using Control.Exception.handle, since we want to
+        -- catch all exceptions and avoid them from propagating, even
+        -- async exceptions. See:
+        -- https://github.com/yesodweb/wai/issues/850
+        E.handle (settingsOnException set Nothing) $
+            -- Run the connection maker to get a new connection, and ensure
+            -- that the connection is closed. If the mkConn call throws an
+            -- exception, we will leak the connection. If the mkConn call is
+            -- vulnerable to attacks (e.g., Slowloris), we do nothing to
+            -- protect the server. It is therefore vital that mkConn is well
+            -- vetted.
+            --
+            -- We grab the connection before registering timeouts since the
+            -- timeouts will be useless during connection creation, due to the
+            -- fact that async exceptions are still masked.
+            E.bracket mkConn cleanUp (serve unmask)
   where
     cleanUp (conn, _) =
         connClose conn `E.finally` do

@@ -1,5 +1,13 @@
 # ChangeLog for warp
 
+## 3.4.15.1
+
+* Graceful shutdown no longer stops while a connection warp has accepted is
+  still unfinished. It now waits on a count raised when the accept loop
+  accepts a connection, rather than on the connection count reported by
+  `getCount`, which is raised later, when the thread serving the connection
+  is scheduled.
+
 ## 3.4.15
 
 * Support `103 Early Hints` over HTTP/2: the HTTP/2 handler installs
