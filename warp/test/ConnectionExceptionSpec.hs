@@ -9,6 +9,7 @@ import Control.Monad (forM_, replicateM, void)
 import Data.IORef (newIORef, readIORef, writeIORef, modifyIORef')
 import Data.Maybe (isJust)
 import qualified Data.Streaming.Network as N
+import Foreign.C.Error (eBADF, errnoToIOError)
 import Network.HTTP.Types (internalServerError500)
 import Network.Socket (SockAddr (SockAddrInet), close, tupleToHostAddress)
 import Network.Wai (remoteHost)
@@ -59,7 +60,12 @@ spec = describe "connection exception peer" $ do
         let legacy request _ = modifyIORef' calls (++ [("legacy", isJust request)])
             connection _ _ = modifyIORef' calls (++ [("connection", False)])
             settings = setOnException legacy $ setOnConnectionException connection defaultSettings
-        runSettingsConnectionMakerSecure settings (ioError (userError "accept failed")) unusedApplication
+        -- The errno has to be the one a closed listening socket gives:
+        -- every other accept() failure now reaches the caller instead of
+        -- ending the loop, so this would throw before it could observe
+        -- anything.
+        let closedListener = errnoToIOError "accept" eBADF Nothing Nothing
+        runSettingsConnectionMakerSecure settings (ioError closedListener) unusedApplication
         readIORef calls `shouldReturn` [("legacy", False)]
 
     it "keeps application exceptions on the legacy observer with their request" $
