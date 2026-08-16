@@ -1,12 +1,13 @@
 # ChangeLog for warp
 
-## 3.4.15.1
+## 3.5.0
 
-* `runSettings` and friends now rethrow when `accept()` fails for a reason
-  other than the listening socket being closed on purpose. Previously the
-  accept loop ended and the caller was handed a `()`, which is what a graceful
-  shutdown returns, so a server that could no longer accept was
+* Breaking change: `runSettings` and friends now rethrow when `accept()` fails
+  for a reason other than the listening socket being closed on purpose.
+  Previously the accept loop ended and the caller was handed a `()`, which is
+  what a graceful shutdown returns, so a server that could no longer accept was
   indistinguishable from one that had been asked to stop.
+  [#1106](https://github.com/yesodweb/wai/pull/1106)
 
 ## 3.4.15
 

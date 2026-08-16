@@ -376,13 +376,16 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                         -- shutdown ends this loop, and it arrives here as an
                         -- InvalidArgument, which warp already reads as the
                         -- socket going away in the normal course of running
-                        -- (see 'defaultShouldDisplayException').
+                        -- (see 'defaultShouldDisplayException'). Returning
+                        -- Nothing for that one ends the loop quietly and
+                        -- 'runSettings' returns ().
                         --
-                        -- Anything else is an accept() that broke on its own,
-                        -- and has to reach the caller: ending the loop hands
-                        -- back a () that cannot be told apart from a clean
-                        -- stop, leaving the caller holding a server that will
-                        -- never accept again and does not know it.
+                        -- Every other errno is an accept() that broke on its
+                        -- own. Returning Nothing there too would end the loop
+                        -- the same way and return that same (), so a server
+                        -- that died and a server that was asked to stop would
+                        -- be reported identically and the caller could not
+                        -- tell which had happened. Throw instead, so it can.
                         if ioeGetErrorType e == InvalidArgument
                             then return Nothing
                             else E.throwIO e
