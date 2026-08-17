@@ -25,6 +25,7 @@ import Data.IORef (newIORef, readIORef, IORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (
     Errno (..),
+    eBADF,
     eCONNABORTED,
     eHOSTDOWN,
     eHOSTUNREACH,
@@ -409,12 +410,12 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                         resetFdExhaustion fdRef
                         settingsOnException set Nothing $ E.toException e
                         -- Closing the listening socket is how a graceful
-                        -- shutdown ends this loop, and it arrives here as an
-                        -- InvalidArgument, which warp already reads as the
-                        -- socket going away in the normal course of running
-                        -- (see 'defaultShouldDisplayException'). Returning
-                        -- Nothing for that one ends the loop quietly and
-                        -- 'runSettings' returns ().
+                        -- shutdown ends this loop, and it gives EBADF rather
+                        -- than merely tending to: 'close' swaps the descriptor
+                        -- for -1 before the syscall, so an accept() racing it
+                        -- has nothing else to find. Returning Nothing for that
+                        -- one ends the loop quietly and 'runSettings' returns
+                        -- ().
                         --
                         -- Every errno that is left is one the listening socket
                         -- will keep giving: descriptors exhausted system-wide,
@@ -424,7 +425,7 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                         -- server that was asked to stop would be reported
                         -- identically and the caller could not tell which had
                         -- happened. Throw instead, so it can.
-                        if ioeGetErrorType e == InvalidArgument
+                        if isErrno eBADF
                             then return Nothing
                             else E.throwIO e
 
