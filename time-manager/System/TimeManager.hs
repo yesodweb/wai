@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- | Timeout manager. Since @v0.3.0@, timeout manager is a wrapper of
@@ -140,9 +141,9 @@ register mgr@(Manager timeout) onTimeout
         -- IORef on every tickle/pause/resume.
         sysmgr <- getTimerManager
         key <- EV.registerTimeout sysmgr timeout onTimeout
+        now <- getMonotonicTimeNSec
         keyref <- I.newIORef key
         state <- I.newIORef Active
-        now <- getMonotonicTimeNSec
         lastRenewed <- I.newIORef now
         let h =
                 Handle
@@ -164,8 +165,8 @@ register mgr@(Manager timeout) onTimeout
 minRenewGap :: Int -> Word64
 minRenewGap timeout = min oneSecond (microToNano timeout `shiftR` 2)
   where
-    oneSecond = 1000000000
-    microToNano = (* 1000) . fromIntegral
+    oneSecond = 1_000_000_000
+    microToNano = (* 1_000) . fromIntegral
 
 -- | Unregistering the timeout.
 cancel :: Handle -> IO ()
@@ -187,13 +188,13 @@ tickle h@Handle{..} = withNonEmptyHandle h $ do
     lastRenewed <- I.readIORef handleLastRenewed
     when (now - lastRenewed >= handleMinRenewGap) $ do
         key <- I.readIORef handleKeyRef
+        I.writeIORef handleLastRenewed now
 #if defined(mingw32_HOST_OS)
         EV.updateTimeout handleTimerManager key $
-            fromIntegral (handleTimeout `div` 1000000)
+            fromIntegral (handleTimeout `div` 1_000_000)
 #else
         EV.updateTimeout handleTimerManager key handleTimeout
 #endif
-        I.writeIORef handleLastRenewed now
 
 -- | This is identical to 'cancel'.
 --   To resume timeout with the same 'Handle', 'resume' MUST be called.
