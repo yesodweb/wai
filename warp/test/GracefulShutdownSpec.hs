@@ -10,7 +10,6 @@ import Control.Concurrent.Async
 import Control.Exception (bracket)
 import Control.Monad (void)
 import Data.IORef
-import Foreign.C.Error (eBADF, errnoToIOError)
 import Network.HTTP.Client
 import Network.HTTP.Types (ok200, status200)
 import Network.Socket
@@ -34,15 +33,15 @@ spec = describe "graceful shutdown" $ do
                 threadDelay 200_000
                 act unmask
 
-            -- Take one connection, then stop accepting, with the error a
-            -- closed listening socket actually gives.  Closing it for real
-            -- would mean closing a descriptor the accept loop is parked on,
-            -- which the IO manager does not survive cleanly.
+            -- Take one connection, then stop accepting by closing the
+            -- listening socket, which is what a graceful shutdown does. The
+            -- close happens here rather than from another thread so that it
+            -- cannot land while the accept loop is parked inside accept().
             acceptOnlyOne sock = do
                 taken <- atomicModifyIORef' accepted $ \n -> (n + 1, n)
                 if taken == 0
                     then accept sock
-                    else ioError (errnoToIOError "accept" eBADF Nothing Nothing)
+                    else close sock >> accept sock
 
             settings =
                 setFork slowFork $
