@@ -485,8 +485,7 @@ attachConn mysa ctx = do
         sendfile fid offset len hook headers = do
             writeBuffer <- I.readIORef writeBufferRef
             readSendFile
-                (bufBuffer writeBuffer)
-                (bufSize writeBuffer)
+                writeBuffer
                 sendall
                 fid
                 offset

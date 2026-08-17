@@ -60,34 +60,34 @@ spec = do
             tryReadSendFile 10 20 100 ["012345678", "901234"] `shouldReturn` ExitSuccess
 
 tryPackHeader :: Int -> [ByteString] -> IO Int
-tryPackHeader siz hdrs = bracket (allocateBuffer siz) freeBuffer $ \buf ->
-    packHeader buf siz send hook hdrs 0
+tryPackHeader siz hdrs = bracket (createWriteBuffer siz) bufFree $ \wbuf ->
+    packHeader wbuf send hook hdrs 0
   where
     send _ = return ()
     hook = return ()
 
 tryPackHeader2 :: Int -> [ByteString] -> ByteString -> IO Bool
-tryPackHeader2 siz hdrs ans = bracket setup teardown $ \buf -> do
-    _ <- packHeader buf siz send hook hdrs 0
+tryPackHeader2 siz hdrs ans = bracket setup teardown $ \wbuf -> do
+    _ <- packHeader wbuf send hook hdrs 0
     checkFile outputFile ans
   where
-    setup = allocateBuffer siz
-    teardown buf = freeBuffer buf >> removeFileIfExists outputFile
+    setup = createWriteBuffer siz
+    teardown wbuf = bufFree wbuf >> removeFileIfExists outputFile
     outputFile = "tempfile"
     send = BS.appendFile outputFile
     hook = return ()
 
 tryReadSendFile :: Int -> Integer -> Integer -> [ByteString] -> IO ExitCode
-tryReadSendFile siz off len hdrs = bracket setup teardown $ \buf -> do
+tryReadSendFile siz off len hdrs = bracket setup teardown $ \wbuf -> do
     mapM_ (BS.appendFile expectedFile) hdrs
     copyfile inputFile expectedFile off len
-    readSendFile buf siz send fid off len hook hdrs
+    readSendFile wbuf send fid off len hook hdrs
     compareFiles expectedFile outputFile
   where
     hook = return ()
-    setup = allocateBuffer siz
-    teardown buf = do
-        freeBuffer buf
+    setup = createWriteBuffer siz
+    teardown wbuf = do
+        bufFree wbuf
         removeFileIfExists outputFile
         removeFileIfExists expectedFile
     inputFile = "test/inputFile"
