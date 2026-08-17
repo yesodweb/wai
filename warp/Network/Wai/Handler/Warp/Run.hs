@@ -371,13 +371,14 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                 let getErrno (Errno cInt) = cInt
                     isErrno err = ioe_errno e == Just (getErrno err)
                     -- Errors about one queued connection rather than about the
-                    -- listening socket. Linux reports the new socket's
-                    -- already-pending network errors through accept(), and
-                    -- accept(2) says to treat those like EAGAIN and retry,
-                    -- which is what eCONNABORTED does here already. The
-                    -- connection they refer to has left the queue, so the
-                    -- retry blocks for a new one rather than spinning on the
-                    -- same failure.
+                    -- listening socket. eCONNABORTED is the familiar one, a
+                    -- peer that went away before it could be accepted. Linux
+                    -- also reports the new socket's already-pending network
+                    -- errors through accept(), and accept(2) asks for those to
+                    -- be treated the same way, retried like EAGAIN. Either
+                    -- way the connection has left the queue, so the retry
+                    -- blocks for a new one rather than spinning on the same
+                    -- failure.
                     --
                     -- eOPNOTSUPP is on that list in accept(2) and is left off
                     -- this one on purpose: it also means the listening socket
@@ -387,7 +388,8 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                     isQueuedConnectionError =
                         any
                             isErrno
-                            [ eNETDOWN
+                            [ eCONNABORTED
+                            , eNETDOWN
                             , ePROTO
                             , eNOPROTOOPT
                             , eHOSTDOWN
@@ -395,7 +397,7 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                             , eHOSTUNREACH
                             , eNETUNREACH
                             ]
-                if | isErrno eCONNABORTED || isQueuedConnectionError -> do
+                if | isQueuedConnectionError -> do
                         -- Important to mark the exhaustion issue to be resolved
                         resetFdExhaustion fdRef
                         acceptNewConnection
@@ -404,30 +406,29 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                    | isErrno eMFILE -> do
                         handleFdExhaustion e
                         acceptNewConnection
+                     -- Closing the listening socket is how a graceful shutdown
+                     -- ends this loop, and it gives EBADF rather than merely
+                     -- tending to: 'close' swaps the descriptor for -1 before
+                     -- the syscall, so an accept() racing it has nothing else
+                     -- to find.
+                   | isErrno eBADF -> do
+                        resetFdExhaustion fdRef
+                        settingsOnException set Nothing $ E.toException e
+                        return Nothing
+                     -- Everything left is something the listening socket will
+                     -- keep giving: descriptors exhausted system-wide, no
+                     -- memory for a socket, a socket that cannot accept.
+                     -- Ending the loop for those would return the same () a
+                     -- graceful shutdown returns, so a server that died and a
+                     -- server that was asked to stop would be reported
+                     -- identically and the caller could not tell which had
+                     -- happened. Throw instead, so it can.
                    | otherwise -> do
                         -- Maybe not important to mark the exhaustion issue
                         -- as resolved here, but just for completeness' sake.
                         resetFdExhaustion fdRef
                         settingsOnException set Nothing $ E.toException e
-                        -- Closing the listening socket is how a graceful
-                        -- shutdown ends this loop, and it gives EBADF rather
-                        -- than merely tending to: 'close' swaps the descriptor
-                        -- for -1 before the syscall, so an accept() racing it
-                        -- has nothing else to find. Returning Nothing for that
-                        -- one ends the loop quietly and 'runSettings' returns
-                        -- ().
-                        --
-                        -- Every errno that is left is one the listening socket
-                        -- will keep giving: descriptors exhausted system-wide,
-                        -- no memory for a socket, a socket that cannot accept.
-                        -- Returning Nothing for those would end the loop and
-                        -- return that same (), so a server that died and a
-                        -- server that was asked to stop would be reported
-                        -- identically and the caller could not tell which had
-                        -- happened. Throw instead, so it can.
-                        if isErrno eBADF
-                            then return Nothing
-                            else E.throwIO e
+                        E.throwIO e
 
     handleFdExhaustion e = do
         fdExhaustion <- readIORef fdRef
