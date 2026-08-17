@@ -7,7 +7,14 @@ import Control.Concurrent
 import Control.Exception
 import qualified Data.ByteString.Lazy as BL
 import Data.IORef
-import Foreign.C.Error (eNETDOWN, eNFILE, eOPNOTSUPP, errnoToIOError)
+import Foreign.C.Error (
+    Errno (..),
+    eNETDOWN,
+    eNFILE,
+    eOPNOTSUPP,
+    errnoToIOError,
+ )
+import GHC.IO.Exception (IOException (..))
 import HTTP (responseBody, sendGET)
 import Network.HTTP.Types (status200)
 import Network.Socket
@@ -15,6 +22,16 @@ import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp
 import System.Timeout (timeout)
 import Test.Hspec
+
+-- Did this come out of accept() failing with this errno?
+--
+-- Worth checking rather than taking any exception: a test that accepts
+-- whatever it is given would still pass if the accept loop started throwing
+-- something else entirely.
+failedWith :: Errno -> SomeException -> Bool
+failedWith (Errno wanted) e = case fromException e of
+    Just ioe -> ioe_errno ioe == Just wanted
+    Nothing -> False
 
 -- Run a server on an ephemeral port and report how runSettingsSocket ended.
 --
@@ -66,7 +83,10 @@ spec = do
             let failingAccept _ = ioError (errnoToIOError "accept" eNFILE Nothing Nothing)
             r <- runServerUntil failingAccept $ \_ _ -> return ()
             case r of
-                Left _ -> return ()
+                Left e
+                    | failedWith eNFILE e -> return ()
+                    | otherwise ->
+                        expectationFailure $ "expected the ENFILE from accept(), got: " <> show e
                 Right () ->
                     expectationFailure
                         "runSettingsSocket returned normally after accept() failed, \
@@ -113,7 +133,10 @@ spec = do
             r <- timeout 5_000_000 $ runServerUntil unsupportedAccept $ \_ _ -> return ()
             case r of
                 Nothing -> expectationFailure "the accept loop spun instead of giving up"
-                Just (Left _) -> return ()
+                Just (Left e)
+                    | failedWith eOPNOTSUPP e -> return ()
+                    | otherwise ->
+                        expectationFailure $ "expected the EOPNOTSUPP from accept(), got: " <> show e
                 Just (Right ()) ->
                     expectationFailure
                         "runSettingsSocket returned normally on a socket that cannot accept"
