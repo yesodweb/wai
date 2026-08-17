@@ -406,11 +406,12 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                    | isErrno eMFILE -> do
                         handleFdExhaustion e
                         acceptNewConnection
-                     -- Closing the listening socket is how a graceful shutdown
-                     -- ends this loop, and it gives EBADF rather than merely
-                     -- tending to: 'close' swaps the descriptor for -1 before
-                     -- the syscall, so an accept() racing it has nothing else
-                     -- to find.
+                     -- A graceful shutdown ends this loop by closing the
+                     -- listening socket, and that always arrives here as
+                     -- EBADF: 'close' replaces the descriptor with -1 before
+                     -- closing it, so every later accept() is handed -1 and
+                     -- fails that way. Matching EBADF alone therefore cannot
+                     -- miss a deliberate shutdown.
                    | isErrno eBADF -> do
                         resetFdExhaustion fdRef
                         settingsOnException set Nothing $ E.toException e
