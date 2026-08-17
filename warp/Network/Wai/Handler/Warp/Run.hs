@@ -117,8 +117,7 @@ socketConnection set s = do
         writeBuffer <- readIORef writeBufferRef
         sendFile
             s
-            (bufBuffer writeBuffer)
-            (bufSize writeBuffer)
+            writeBuffer
             sendall
             fid
             offset

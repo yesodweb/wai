@@ -4,7 +4,6 @@ module Network.Wai.Handler.Warp.Buffer (
     freeBuffer,
     toBuilderBuffer,
     bufferIO,
-    rawBufferIO,
 ) where
 
 import Data.IORef (IORef, readIORef)
@@ -60,10 +59,3 @@ toBuilderBuffer writeBufferRef = do
 -- cached 'ForeignPtr', without allocating a fresh wrapper.
 bufferIO :: WriteBuffer -> Int -> (ByteString -> IO ()) -> IO ()
 bufferIO writeBuffer siz io = io $ PS (bufFPtr writeBuffer) 0 siz
-
--- | Like 'bufferIO' for callers that only have a raw pointer.
--- This allocates a fresh 'ForeignPtr' wrapper on every call.
-rawBufferIO :: Buffer -> Int -> (ByteString -> IO ()) -> IO ()
-rawBufferIO ptr siz io = do
-    fptr <- newForeignPtr_ ptr
-    io $ PS fptr 0 siz

@@ -27,6 +27,11 @@
 * Rework internal indexed headers to records for performance and to remove
   dependencies on `array`.
   [#1092](https://github.com/yesodweb/wai/pull/1092) [#1093](https://github.com/yesodweb/wai/pull/1093)
+* `WriteBuffer` now carries a cached `ForeignPtr` of its buffer, so flushing a
+  response no longer allocates a fresh wrapper. `sendFile` and `readSendFile`
+  now take the `WriteBuffer` instead of a `Buffer` and a `BufSize`, which
+  changes the API of `Network.Wai.Handler.Warp.Internal`.
+  [#1095](https://github.com/yesodweb/wai/pull/1095)
 
 ## 3.4.14
 
