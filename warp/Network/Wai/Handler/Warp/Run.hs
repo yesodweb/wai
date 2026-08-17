@@ -397,13 +397,15 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                             , eHOSTUNREACH
                             , eNETUNREACH
                             ]
+                    isFdExhaustion = isErrno eMFILE
+                    isIntentionallyClosedSocket = isErrno eBADF
                 if | isQueuedConnectionError -> do
                         -- Important to mark the exhaustion issue to be resolved
                         resetFdExhaustion fdRef
                         acceptNewConnection
                      -- Keep in mind to reset the ref when anything other
                      -- than this branch runs
-                   | isErrno eMFILE -> do
+                   | isFdExhaustion -> do
                         handleFdExhaustion e
                         acceptNewConnection
                      -- A graceful shutdown ends this loop by closing the
@@ -412,7 +414,7 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                      -- closing it, so every later accept() is handed -1 and
                      -- fails that way. Matching EBADF alone therefore cannot
                      -- miss a deliberate shutdown.
-                   | isErrno eBADF -> do
+                   | isIntentionallyClosedSocket -> do
                         resetFdExhaustion fdRef
                         settingsOnException set Nothing $ E.toException e
                         return Nothing

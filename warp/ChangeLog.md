@@ -6,13 +6,17 @@
   for a reason the listening socket will keep giving, such as `ENFILE` or
   `ENOMEM`. Previously the accept loop ended and the caller was handed a `()`,
   which is what a graceful shutdown returns, so a server that could no longer
-  accept was indistinguishable from one that had been asked to stop.
+  accept was indistinguishable from one that had been asked to stop. POSIX
+  only: on Windows `network` reports a socket error without an errno, so warp
+  cannot tell one `accept()` failure from another there.
   [#1106](https://github.com/yesodweb/wai/pull/1106)
 * The accept loop now retries, rather than stopping, on the errors `accept()`
   reports for a single queued connection: `ENETDOWN`, `EPROTO`, `ENOPROTOOPT`,
   `EHOSTDOWN`, `ENONET`, `EHOSTUNREACH` and `ENETUNREACH`. `accept(2)` asks for
   these to be treated like `EAGAIN`, which is how `ECONNABORTED` was already
-  handled. One unreachable client no longer stops the server.
+  handled. One unreachable client no longer stops the server. POSIX only: on
+  Windows `network` reports a socket error without an errno for warp to match
+  on.
   [#1106](https://github.com/yesodweb/wai/pull/1106)
 
 ## 3.4.15
