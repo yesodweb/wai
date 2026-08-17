@@ -431,7 +431,17 @@ acceptConnection set getConnMaker app counter ii fdRef = do
                         -- as resolved here, but just for completeness' sake.
                         resetFdExhaustion fdRef
                         settingsOnException set Nothing $ E.toException e
+#if WINDOWS
+                        -- None of the guards above can match on Windows, where
+                        -- network reports a socket error with no errno on it,
+                        -- so every accept() failure arrives here including the
+                        -- EBADF of a deliberate shutdown. Throwing would turn
+                        -- an ordinary shutdown into an exception, so Windows
+                        -- keeps ending the loop the way it always has.
+                        return Nothing
+#else
                         E.throwIO e
+#endif
 
     handleFdExhaustion e = do
         fdExhaustion <- readIORef fdRef
