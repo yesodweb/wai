@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -8,21 +9,23 @@ import Control.Exception
 import qualified Data.ByteString.Lazy as BL
 import Data.IORef
 import Foreign.C.Error (
-    Errno (..),
     eNETDOWN,
     eNFILE,
-    eOPNOTSUPP,
     errnoToIOError,
  )
-import GHC.IO.Exception (IOException (..))
 import HTTP (responseBody, sendGET)
 import Network.HTTP.Types (status200)
 import Network.Socket
 import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp
-import System.Timeout (timeout)
 import Test.Hspec
+#if !WINDOWS
+import Foreign.C.Error (Errno (..), eOPNOTSUPP)
+import GHC.IO.Exception (IOException (..))
+import System.Timeout (timeout)
+#endif
 
+#if !WINDOWS
 -- Did this come out of accept() failing with this errno?
 --
 -- Worth checking rather than taking any exception: a test that accepts
@@ -32,6 +35,7 @@ failedWith :: Errno -> SomeException -> Bool
 failedWith (Errno wanted) e = case fromException e of
     Just ioe -> ioe_errno ioe == Just wanted
     Nothing -> False
+#endif
 
 -- Run a server on an ephemeral port and report how runSettingsSocket ended.
 --
@@ -75,6 +79,24 @@ spec = do
                 Right () -> return ()
                 Left e -> expectationFailure $ "graceful shutdown threw: " <> show e
 
+#if WINDOWS
+        -- Windows cannot tell these apart. network reports every accept()
+        -- failure there without an errno, a graceful shutdown's EBADF
+        -- included, so warp ends the loop for all of them the way it always
+        -- has rather than turning an ordinary shutdown into an exception.
+        it "ends the accept loop on Windows whatever accept fails with" $ do
+            let failingAccept _ = ioError (errnoToIOError "accept" eNFILE Nothing Nothing)
+            r <- runServerUntil failingAccept $ \_ _ -> return ()
+            case r of
+                Right () -> return ()
+                Left e ->
+                    expectationFailure $
+                        unwords
+                            [ "an accept() failure reached the caller on Windows,"
+                            , "where it cannot be told from a graceful shutdown:"
+                            , show e
+                            ]
+#else
         -- Without this, accept() failing leaves the caller with a plain (),
         -- which is exactly what a graceful shutdown returns. A server that can
         -- no longer accept is then indistinguishable from one that was asked
@@ -88,9 +110,12 @@ spec = do
                     | otherwise ->
                         expectationFailure $ "expected the ENFILE from accept(), got: " <> show e
                 Right () ->
-                    expectationFailure
-                        "runSettingsSocket returned normally after accept() failed, \
-                        \so a lost listener looks just like a clean shutdown"
+                    expectationFailure $
+                        unwords
+                            [ "runSettingsSocket returned normally after accept() failed,"
+                            , "so a lost listener looks just like a clean shutdown"
+                            ]
+#endif
 
         -- Not a reason to stop: the socket is fine and the connection that
         -- failed is already off the queue, so serving continues.
@@ -115,14 +140,17 @@ spec = do
                 Just (Right body) -> body `shouldBe` "ok"
                 Just (Left e) ->
                     expectationFailure $
-                        "the server stopped accepting after a queued connection \
-                        \failed, so the next request went unanswered: "
-                            <> show e
+                        unwords
+                            [ "the server stopped accepting after a queued connection failed,"
+                            , "so the next request went unanswered:"
+                            , show e
+                            ]
                 Nothing -> expectationFailure "the request was never made"
             case r of
                 Right () -> return ()
                 Left e -> expectationFailure $ "graceful shutdown threw: " <> show e
 
+#if !WINDOWS
         -- eOPNOTSUPP is a queued-connection error in accept(2) and also what a
         -- listening socket that is not SOCK_STREAM answers. The two are
         -- indistinguishable here, and retrying the second spins forever, so it
@@ -140,3 +168,4 @@ spec = do
                 Just (Right ()) ->
                     expectationFailure
                         "runSettingsSocket returned normally on a socket that cannot accept"
+#endif
