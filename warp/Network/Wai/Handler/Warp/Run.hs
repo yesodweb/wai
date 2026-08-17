@@ -144,16 +144,22 @@ socketConnection set s = do
 -- actively using this 'Socket'.
 makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
 makeGracefulRecv sock pool ss appsInProgress = do
-    -- Fast path: under load the next request has usually already arrived,
-    -- so read it without registering with the IO manager or entering STM.
-    -- One epoll_ctl + one futex sleep/wake pair saved per request.
-    -- A request already in the kernel buffer is served even if shutdown
-    -- began meanwhile, which merely restores pre-graceful-shutdown behavior
-    -- for bytes the client already sent.
-    mbs <- receiveNoWait sock pool
-    case mbs of
-        Just bs -> return bs
-        Nothing -> slowPath
+    -- Graceful shutdown is checked before the fast path, so the non-blocking
+    -- read below can never serve a request that shutdown should have cut off.
+    -- Reading the flag is enough: 'checkShutdown' only fires when it is set,
+    -- so observing it unset means the slow path would have gone on to wait
+    -- for the socket and read anyway. Once it is set we hand over to the slow
+    -- path, which still has to wait for the in-progress 'Application's.
+    isShuttingDown <- currentShuttingDownState ss
+    if isShuttingDown
+        then slowPath
+        else do
+            -- Fast path: under load the next request has usually already
+            -- arrived, so read it without registering with the IO manager
+            -- or parking in STM. One epoll_ctl plus one futex sleep/wake
+            -- pair saved per request.
+            mbs <- receiveNoWait sock pool
+            maybe slowPath pure mbs
   where
     slowPath = do
         sockWait <-

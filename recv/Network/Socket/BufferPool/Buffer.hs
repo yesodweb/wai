@@ -10,6 +10,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString (..))
 import Data.ByteString.Unsafe (unsafeDrop, unsafeTake)
 import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.Maybe (fromMaybe)
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc (finalizerFree, mallocBytes)
 import Foreign.Marshal.Utils (copyBytes)
@@ -35,19 +36,11 @@ newBufferPool l h = BufferPool l h <$> newIORef BS.empty
 --   how many bytes are filled in the buffer.
 --   The buffer in the buffer pool is automatically managed.
 withBufferPool :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO ByteString
-withBufferPool (BufferPool l h ref) f = do
-    buf0 <- readIORef ref
-    buf <-
-        if BS.length buf0 >= l
-            then return buf0
-            else mallocBS h
-    consumed <- withForeignBuffer buf f
-    writeIORef ref $ unsafeDrop consumed buf
-    return $ unsafeTake consumed buf
+withBufferPool pool f = fromMaybe BS.empty <$> tryWithBufferPool pool f
 
--- | Like 'withBufferPool' for fillers that can decline to fill:
---   a negative return value from the filler leaves the pool untouched
---   and produces 'Nothing'.
+-- | Like 'withBufferPool', but for fillers that can decline to fill the
+--   buffer: a negative return value from the filler leaves the buffer pool
+--   untouched and produces 'Nothing'.
 tryWithBufferPool
     :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO (Maybe ByteString)
 tryWithBufferPool (BufferPool l h ref) f = do
