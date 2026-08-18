@@ -42,6 +42,7 @@ composeHeaderLength !status !responseHeaders =
 -- for at least 'composeHeaderLength' bytes.
 composeHeaderPtr
     :: Ptr Word8 -> H.HttpVersion -> H.Status -> H.ResponseHeaders -> IO Int
+{-# INLINE composeHeaderPtr #-}
 composeHeaderPtr !ptr !httpversion !status !responseHeaders = do
     ptr1 <- copyStatus ptr httpversion status
     ptr2 <- copyHeaders ptr1 responseHeaders
