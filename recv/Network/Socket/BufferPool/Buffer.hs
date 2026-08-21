@@ -35,13 +35,8 @@ newBufferPool l h = BufferPool l h <$> newIORef BS.empty
 --   how many bytes are filled in the buffer.
 --   The buffer in the buffer pool is automatically managed.
 withBufferPool :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO ByteString
-withBufferPool (BufferPool l h ref) f = do
-    buf0 <- readIORef ref
-    buf <-
-        if BS.length buf0 >= l
-            then return buf0
-            else mallocBS h
-    consumed <- withForeignBuffer buf f
+withBufferPool pool@(BufferPool _ _ ref) f = do
+    (buf, consumed) <- applyBufferPool pool f
     writeIORef ref $ unsafeDrop consumed buf
     return $ unsafeTake consumed buf
 
@@ -50,13 +45,8 @@ withBufferPool (BufferPool l h ref) f = do
 --   and produces 'Nothing'.
 tryWithBufferPool
     :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO (Maybe ByteString)
-tryWithBufferPool (BufferPool l h ref) f = do
-    buf0 <- readIORef ref
-    buf <-
-        if BS.length buf0 >= l
-            then return buf0
-            else mallocBS h
-    consumed <- withForeignBuffer buf f
+tryWithBufferPool pool@(BufferPool _ _ ref) f = do
+    (buf, consumed) <- applyBufferPool pool f
     if consumed < 0
         then do
             writeIORef ref buf
@@ -64,6 +54,17 @@ tryWithBufferPool (BufferPool l h ref) f = do
         else do
             writeIORef ref $ unsafeDrop consumed buf
             return $ Just $ unsafeTake consumed buf
+
+applyBufferPool
+    :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO (ByteString, Int)
+applyBufferPool (BufferPool l h ref) f = do
+    buf0 <- readIORef ref
+    buf <-
+        if BS.length buf0 >= l
+            then return buf0
+            else mallocBS h
+    consumed <- withForeignBuffer buf f
+    return (buf, consumed)
 
 withForeignBuffer :: ByteString -> (Buffer -> BufSize -> IO Int) -> IO Int
 withForeignBuffer (PS ps s l) f = withForeignPtr ps $ \p -> f (castPtr p `plusPtr` s) l
