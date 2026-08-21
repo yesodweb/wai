@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.Socket.BufferPool.Recv (
@@ -10,13 +9,7 @@ module Network.Socket.BufferPool.Recv (
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString (..), unsafeCreate)
 import Data.IORef
-import Network.Socket (Socket, recvBuf)
-#ifndef mingw32_HOST_OS
-import Foreign.C.Types (CInt (..), CSize (..))
-import Foreign.Ptr (Ptr, castPtr)
-import Network.Socket (withFdSocket)
-import System.Posix.Types (CSsize (..))
-#endif
+import Network.Socket (Socket, recvBuf, recvBufNoWait)
 
 import Network.Socket.BufferPool.Buffer
 import Network.Socket.BufferPool.Types
@@ -33,21 +26,12 @@ receive sock pool = withBufferPool pool $ \ptr size -> recvBuf sock ptr size
 --   subsequent blocking 'receive' will report properly). @Just \"\"@ is EOF.
 --   On Windows this always returns 'Nothing'.
 receiveNoWait :: Socket -> BufferPool -> IO (Maybe ByteString)
-#ifndef mingw32_HOST_OS
 receiveNoWait sock pool = tryWithBufferPool pool $ \ptr size ->
-    withFdSocket sock $ \fd -> do
-        -- The socket is non-blocking, so an unsafe foreign call is fine:
-        -- recv(2) returns immediately either way. Both EAGAIN and real
-        -- errors map to a negative result, deferring to the blocking path
-        -- so errors surface there with their errno intact.
-        n <- c_recv fd (castPtr ptr) (fromIntegral size) 0
-        return $ fromIntegral n
-
-foreign import ccall unsafe "recv"
-    c_recv :: CInt -> Ptr CSsize -> CSize -> CInt -> IO CSsize
-#else
-receiveNoWait _ _ = return Nothing
-#endif
+    -- The socket is non-blocking, so an unsafe foreign call is fine:
+    -- recv(2) returns immediately either way. Both EAGAIN and real
+    -- errors map to a negative result, deferring to the blocking path
+    -- so errors surface there with their errno intact.
+    fromIntegral <$> recvBufNoWait sock ptr size
 
 ----------------------------------------------------------------
 
