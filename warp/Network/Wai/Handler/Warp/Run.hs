@@ -153,10 +153,7 @@ makeGracefulRecv sock pool ss appsInProgress = do
       else do
         makeGracefulRecvSlow sock pool ss appsInProgress
   where
-    isShuttingdown = atomically $ do
-       s <- currentShuttingDownStateSTM ss
-       n <-readTVar appsInProgress
-       return (s && n <= 0)
+    isShuttingdown = atomically $ currentShuttingDownStateSTM ss
 
 makeGracefulRecvSlow :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
 makeGracefulRecvSlow sock pool ss appsInProgress = do
