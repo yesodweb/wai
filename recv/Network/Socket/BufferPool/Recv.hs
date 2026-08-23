@@ -27,10 +27,9 @@ receive sock pool = withBufferPool pool $ \ptr size -> recvBuf sock ptr size
 --   On Windows this always returns 'Nothing'.
 receiveNoWait :: Socket -> BufferPool -> IO (Maybe ByteString)
 receiveNoWait sock pool = tryWithBufferPool pool $ \ptr size ->
-    -- The socket is non-blocking, so an unsafe foreign call is fine:
-    -- recv(2) returns immediately either way. Both EAGAIN and real
-    -- errors map to a negative result, deferring to the blocking path
-    -- so errors surface there with their errno intact.
+    -- Both EAGAIN and real errors map to a negative result, deferring
+    -- to the blocking path so errors surface there with their errno
+    -- intact.
     fromIntegral <$> recvBufNoWait sock ptr size
 
 ----------------------------------------------------------------
