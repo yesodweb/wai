@@ -144,16 +144,15 @@ socketConnection set s = do
 -- actively using this 'Socket'.
 makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
 makeGracefulRecv sock pool ss appsInProgress = do
-    tryFastPath <- not <$> isShuttingdown
+    tryFastPath <- not <$> atomically (currentShuttingDownStateSTM ss)
     if tryFastPath then do
         mbs <- receiveNoWait sock pool
         case mbs of
           Just bs -> return bs
-          Nothing -> makeGracefulRecvSlow sock pool ss appsInProgress
-      else do
-        makeGracefulRecvSlow sock pool ss appsInProgress
+          Nothing -> slowPath
+      else slowPath
   where
-    isShuttingdown = atomically $ currentShuttingDownStateSTM ss
+    slowPath = makeGracefulRecvSlow sock pool ss appsInProgress
 
 makeGracefulRecvSlow :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
 makeGracefulRecvSlow sock pool ss appsInProgress = do
