@@ -38,7 +38,7 @@ extra-deps:
   - http2-5.4.0
   - http3-0.1.2
   - mwc-random-0.15.2.0
-  - network-3.2.7.0
+  - network-3.2.9.0
   - network-control-0.1.7
   - os-string-2.0.8
   - quic-0.2.21
