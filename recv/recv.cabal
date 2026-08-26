@@ -25,7 +25,7 @@ library
     build-depends:
         base >=4.12 && <5,
         bytestring >=0.9.1.4,
-        network >=3.1.0
+        network >=3.2.9
 
     if impl(ghc >=8)
         default-extensions: Strict StrictData
