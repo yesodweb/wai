@@ -24,7 +24,6 @@ receive sock pool = withBufferPool pool $ \ptr size -> recvBuf sock ptr size
 -- | Like 'receive' but never blocks and never involves the IO manager:
 --   'Nothing' means no data was available (or an error occurred, which a
 --   subsequent blocking 'receive' will report properly). @Just \"\"@ is EOF.
---   On Windows this always returns 'Nothing'.
 receiveNoWait :: Socket -> BufferPool -> IO (Maybe ByteString)
 receiveNoWait sock pool = tryWithBufferPool pool $ \ptr size ->
     -- Both EAGAIN and real errors map to a negative result, deferring
