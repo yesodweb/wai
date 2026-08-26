@@ -65,6 +65,7 @@ import Network.Wai.Handler.Warp.SendFile (sendFile)
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.ShuttingDown (writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.ShuttingDown
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
 --
@@ -144,7 +145,7 @@ socketConnection set s = do
 -- actively using this 'Socket'.
 makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
 makeGracefulRecv sock pool ss appsInProgress = do
-    tryFastPath <- not <$> atomically (currentShuttingDownStateSTM ss)
+    tryFastPath <- not <$> readShuttingDown (serverShuttingDown ss)
     if tryFastPath then do
         mbs <- receiveNoWait sock pool
         case mbs of
