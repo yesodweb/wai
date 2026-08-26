@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               warp
-version:            3.4.15
+version:            3.5.0
 license:            MIT
 license-file:       LICENSE
 maintainer:         michael@snoyman.com
@@ -179,6 +179,7 @@ test-suite spec
     build-tool-depends: hspec-discover:hspec-discover
     hs-source-dirs:     test .
     other-modules:
+        AcceptFailureSpec
         BufferSpec
         ConduitSpec
         ConnectionSpec

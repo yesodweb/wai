@@ -23,7 +23,19 @@ import qualified Data.ByteString as S
 import Data.Functor (($>))
 import Data.IORef (newIORef, readIORef, IORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
-import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
+import Foreign.C.Error (
+    Errno (..),
+    eBADF,
+    eCONNABORTED,
+    eHOSTDOWN,
+    eHOSTUNREACH,
+    eMFILE,
+    eNETDOWN,
+    eNETUNREACH,
+    eNONET,
+    eNOPROTOOPT,
+    ePROTO,
+ )
 import GHC.Conc.Sync (labelThread, myThreadId)
 import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Network.Socket (
@@ -358,21 +370,78 @@ acceptConnection set getConnMaker app counter ii fdRef = do
             Left e -> do
                 let getErrno (Errno cInt) = cInt
                     isErrno err = ioe_errno e == Just (getErrno err)
-                if | isErrno eCONNABORTED -> do
+                    -- Errors about one queued connection rather than about the
+                    -- listening socket. eCONNABORTED is the familiar one, a
+                    -- peer that went away before it could be accepted. Linux
+                    -- also reports the new socket's already-pending network
+                    -- errors through accept(), and accept(2) asks for those to
+                    -- be treated the same way, retried like EAGAIN. Either
+                    -- way the connection has left the queue, so the retry
+                    -- blocks for a new one rather than spinning on the same
+                    -- failure.
+                    --
+                    -- eOPNOTSUPP is on that list in accept(2) and is left off
+                    -- this one on purpose: it also means the listening socket
+                    -- is not SOCK_STREAM, which is a permanent condition that
+                    -- retrying would spin on forever. Throwing tells whoever
+                    -- passed that socket, which is the only thing that helps.
+                    isQueuedConnectionError =
+                        any
+                            isErrno
+                            [ eCONNABORTED
+                            , eNETDOWN
+                            , ePROTO
+                            , eNOPROTOOPT
+                            , eHOSTDOWN
+                            , eNONET
+                            , eHOSTUNREACH
+                            , eNETUNREACH
+                            ]
+                    isFdExhaustion = isErrno eMFILE
+                    isIntentionallyClosedSocket = isErrno eBADF
+                if | isQueuedConnectionError -> do
                         -- Important to mark the exhaustion issue to be resolved
                         resetFdExhaustion fdRef
                         acceptNewConnection
                      -- Keep in mind to reset the ref when anything other
                      -- than this branch runs
-                   | isErrno eMFILE -> do
+                   | isFdExhaustion -> do
                         handleFdExhaustion e
                         acceptNewConnection
+                     -- A graceful shutdown ends this loop by closing the
+                     -- listening socket, and that always arrives here as
+                     -- EBADF: 'close' replaces the descriptor with -1 before
+                     -- closing it, so every later accept() is handed -1 and
+                     -- fails that way. Matching EBADF alone therefore cannot
+                     -- miss a deliberate shutdown.
+                   | isIntentionallyClosedSocket -> do
+                        resetFdExhaustion fdRef
+                        settingsOnException set Nothing $ E.toException e
+                        return Nothing
+                     -- Everything left is something the listening socket will
+                     -- keep giving: descriptors exhausted system-wide, no
+                     -- memory for a socket, a socket that cannot accept.
+                     -- Ending the loop for those would return the same () a
+                     -- graceful shutdown returns, so a server that died and a
+                     -- server that was asked to stop would be reported
+                     -- identically and the caller could not tell which had
+                     -- happened. Throw instead, so it can.
                    | otherwise -> do
                         -- Maybe not important to mark the exhaustion issue
                         -- as resolved here, but just for completeness' sake.
                         resetFdExhaustion fdRef
                         settingsOnException set Nothing $ E.toException e
+#if WINDOWS
+                        -- None of the guards above can match on Windows, where
+                        -- network reports a socket error with no errno on it,
+                        -- so every accept() failure arrives here including the
+                        -- EBADF of a deliberate shutdown. Throwing would turn
+                        -- an ordinary shutdown into an exception, so Windows
+                        -- keeps ending the loop the way it always has.
                         return Nothing
+#else
+                        E.throwIO e
+#endif
 
     handleFdExhaustion e = do
         fdExhaustion <- readIORef fdRef
