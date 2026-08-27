@@ -82,7 +82,6 @@ emptyHandle =
         , handleLastRenewed = mutError "handleLastRenewed"
         , handleMinRenewGap = 0
         , handleLock = mutError "handleLock"
-        , handleOwnRef = mutError "handleOwnRef"
         }
   where
     mutError s = error $ "time-manager: Handle." <> s <> " not set"
@@ -219,8 +218,6 @@ register mgr@(Manager timeout) onTimeout
         stateRef <- I.newIORef Stopped
         lock <- newLock
         lastRenewedRef <- I.newIORef =<< getMonotonicTimeNSec
-        handleRef <-
-            I.newIORef $ error "System.TimeManager.register: handleRef not filled"
         let h =
                 Handle
                     { handleTimeout = timeout
@@ -230,44 +227,35 @@ register mgr@(Manager timeout) onTimeout
                     , handleLastRenewed = lastRenewedRef
                     , handleMinRenewGap = minRenewGap timeout
                     , handleLock = lock
-                    , handleOwnRef = handleRef
                     }
-        I.writeIORef handleRef h
         -- Just in case the timeout is only 1 microsecond and because of thread
         -- scheduling it runs before we can change the state to 'Active'
         withLock lock $ do
-            key <- registerAdjustedTimeout sysmgr timeout handleRef onTimeout
+            key <- registerAdjustedTimeout h timeout
             now <- getMonotonicTimeNSec
             I.writeIORef lastRenewedRef now
             I.writeIORef stateRef $ Active key
         pure h
 
-registerAdjustedTimeout
-    :: TimerManager
-    -> Int
-    -> I.IORef Handle
-    -> TimeoutAction
-    -> IO EV.TimeoutKey
-registerAdjustedTimeout sysmgr timeout handleRef onTimeout = do
+-- | This function needs a separate 'timeout' argument, because we might not
+-- register the full amount of time when continuing a timeout that was started
+-- a bit earlier. (cf. "Surprise Active" situation)
+registerAdjustedTimeout :: Handle -> Int -> IO EV.TimeoutKey
+registerAdjustedTimeout h@Handle{..} timeout = do
     originalKeyRef <-
         I.newIORef $
             error "System.TimeManager.registerAdjustedTimeout: originalKeyRef not filled"
     key <-
-        EV.registerTimeout sysmgr timeout $
-            adjustOnTimeout originalKeyRef handleRef onTimeout
+        EV.registerTimeout handleTimerManager timeout $
+            adjustOnTimeout originalKeyRef h
     I.writeIORef originalKeyRef key
     pure key
 
 -- | Wrapper around a registered action to ensure correct handling.
 --
 -- We basically need the 'Handle', but this is used before making the handle, so
-adjustOnTimeout
-    :: I.IORef EV.TimeoutKey
-    -> I.IORef Handle
-    -> TimeoutAction
-    -> TimeoutAction
-adjustOnTimeout originalKeyRef handleRef action = do
-    Handle{..} <- I.readIORef handleRef
+adjustOnTimeout :: I.IORef EV.TimeoutKey -> Handle -> TimeoutAction
+adjustOnTimeout originalKeyRef h@Handle{..} = do
     let writeState = I.atomicWriteIORef handleState
     -- Lock ensures we don't get race conditions.
     -- We return a boolean so that we don't run the (potentially long) action
@@ -295,12 +283,7 @@ adjustOnTimeout originalKeyRef handleRef action = do
                         else do
                             -- We reschedule, but with only the remaining time
                             let remainingTimeout = handleTimeout - diff
-                            k <-
-                                registerAdjustedTimeout
-                                    handleTimerManager
-                                    remainingTimeout
-                                    handleRef
-                                    handleAction
+                            k <- registerAdjustedTimeout h remainingTimeout
                             writeState $ Active k
                             pure False
             -- We find this action being run after it's been paused. We write
@@ -312,7 +295,7 @@ adjustOnTimeout originalKeyRef handleRef action = do
                     pure False
             -- 'Stopped' and 'Cancelled' mean the action shouldn't run.
             _ -> pure False
-    when shouldRun action
+    when shouldRun handleAction
   where
     -- If the key in the state isn't the same as the one this action
     -- was registered with, then this action shouldn't run.
@@ -442,12 +425,7 @@ resume h@Handle{..} =
         activateTimeout k
         tickle h
     stoppedF = do
-        key <-
-            registerAdjustedTimeout
-                handleTimerManager
-                handleTimeout
-                handleOwnRef
-                handleAction
+        key <- registerAdjustedTimeout h handleTimeout
         now <- getMonotonicTimeNSec
         I.atomicWriteIORef handleLastRenewed now
         activateTimeout key
