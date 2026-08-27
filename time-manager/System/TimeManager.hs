@@ -216,22 +216,113 @@ register mgr@(Manager timeout) onTimeout
         -- cache it in the 'Handle' instead of re-reading the global
         -- IORef on every tickle/pause/resume.
         sysmgr <- getTimerManager
-        key <- EV.registerTimeout sysmgr timeout onTimeout
-        now <- getMonotonicTimeNSec
-        keyref <- I.newIORef key
-        state <- I.newIORef Active
-        lastRenewed <- I.newIORef now
+        stateRef <- I.newIORef Stopped
+        lock <- newLock
+        lastRenewedRef <- I.newIORef =<< getMonotonicTimeNSec
+        handleRef <-
+            I.newIORef $ error "System.TimeManager.register: handleRef not filled"
         let h =
                 Handle
                     { handleTimeout = timeout
                     , handleAction = onTimeout
                     , handleTimerManager = sysmgr
-                    , handleKeyRef = keyref
-                    , handleState = state
-                    , handleLastRenewed = lastRenewed
+                    , handleState = stateRef
+                    , handleLastRenewed = lastRenewedRef
                     , handleMinRenewGap = minRenewGap timeout
+                    , handleLock = lock
+                    , handleOwnRef = handleRef
                     }
+        I.writeIORef handleRef h
+        -- Just in case the timeout is only 1 microsecond and because of thread
+        -- scheduling it runs before we can change the state to 'Active'
+        withLock lock $ do
+            key <- registerAdjustedTimeout sysmgr timeout handleRef onTimeout
+            now <- getMonotonicTimeNSec
+            I.writeIORef lastRenewedRef now
+            I.writeIORef stateRef $ Active key
         pure h
+
+registerAdjustedTimeout
+    :: TimerManager
+    -> Int
+    -> I.IORef Handle
+    -> TimeoutAction
+    -> IO EV.TimeoutKey
+registerAdjustedTimeout sysmgr timeout handleRef onTimeout = do
+    originalKeyRef <-
+        I.newIORef $
+            error "System.TimeManager.registerAdjustedTimeout: originalKeyRef not filled"
+    key <-
+        EV.registerTimeout sysmgr timeout $
+            adjustOnTimeout originalKeyRef handleRef onTimeout
+    I.writeIORef originalKeyRef key
+    pure key
+
+-- | Wrapper around a registered action to ensure correct handling.
+--
+-- We basically need the 'Handle', but this is used before making the handle, so
+adjustOnTimeout
+    :: I.IORef EV.TimeoutKey
+    -> I.IORef Handle
+    -> TimeoutAction
+    -> TimeoutAction
+adjustOnTimeout originalKeyRef handleRef action = do
+    Handle{..} <- I.readIORef handleRef
+    let writeState = I.atomicWriteIORef handleState
+    -- Lock ensures we don't get race conditions.
+    -- We return a boolean so that we don't run the (potentially long) action
+    -- while holding on to the lock.
+    shouldRun <- withLock handleLock $ do
+        st <- I.readIORef handleState
+        case st of
+            -- We can check the @now - handleLastRenewed@ diff
+            -- and 'threadDelay' the diff to make the timing better?
+            -- @if diff > 'handleTimeout - 'handleMinRenewGap' then runTimeout@
+            Active key -> do
+                -- set state ref to 'Active'?
+                ifSameKey key $ do
+                    lastRenewed <- I.readIORef handleLastRenewed
+                    now <- getMonotonicTimeNSec
+                    let diff = fromIntegral $ now - lastRenewed
+                    if diff > handleTimeout
+                        -- Valid expiration of the timeout, we run the action
+                        then do
+                            -- We're going to run the action, so set the state
+                            -- so that it won't be resumed.
+                            writeState Cancelled
+                            pure True
+                        -- "Surprise Active" situation
+                        else do
+                            -- We reschedule, but with only the remaining time
+                            let remainingTimeout = handleTimeout - diff
+                            k <-
+                                registerAdjustedTimeout
+                                    handleTimerManager
+                                    remainingTimeout
+                                    handleRef
+                                    handleAction
+                            writeState $ Active k
+                            pure False
+            -- We find this action being run after it's been paused. We write
+            -- the state to 'Stopped' so that 'resume' knows to reregister the
+            -- timeout action.
+            Paused key ->
+                ifSameKey key $ do
+                    writeState Stopped
+                    pure False
+            -- 'Stopped' and 'Cancelled' mean the action shouldn't run.
+            _ -> pure False
+    when shouldRun action
+  where
+    -- If the key in the state isn't the same as the one this action
+    -- was registered with, then this action shouldn't run.
+    -- (Technically, this situation shouldn't happen. but since the registered
+    -- action only ever runs once, we can afford to be redundant)
+    ifSameKey key f = do
+        originalKey <- I.readIORef originalKeyRef
+        if key == originalKey
+            then f
+            else pure False
 
 -- | How long 'tickle' waits before actually renewing the timeout:
 --   a quarter of the timeout, capped at one second. Skipping a renewal
@@ -239,17 +330,42 @@ register mgr@(Manager timeout) onTimeout
 --   this gap, but turns hot 'tickle' loops (one per chunk sent or
 --   received) into a clock read and a comparison.
 minRenewGap :: Int -> Word64
-minRenewGap timeout = min oneSecond (microToNano timeout `shiftR` 2)
+minRenewGap timeout =
+    -- @shiftR 2 === divide by 4@
+    min maxRenewDebounce (microToNano timeout `shiftR` 2)
   where
-    oneSecond = 1_000_000_000
     microToNano = (* 1_000) . fromIntegral
 
+-- | One second in nanoseconds
+maxRenewDebounce :: Word64
+maxRenewDebounce = 1_000_000_000
+
+-- | Run 'f' if the minimum renew gap has been crossed.
+whenRenew :: Handle -> IO () -> IO ()
+whenRenew h f = do
+    now <- getMonotonicTimeNSec
+    lastRenewed <- I.readIORef $ handleLastRenewed h
+    when (now - lastRenewed >= handleMinRenewGap h) f
+
 -- | Unregistering the timeout.
+--
+-- The timeout can not be 'resume'd. To "resume" the timeout, you need to
+-- 'register' again.
 cancel :: Handle -> IO ()
-cancel h@Handle{..} = withNonEmptyHandle h $ do
-    key <- I.readIORef handleKeyRef
-    EV.unregisterTimeout handleTimerManager key
-    I.atomicWriteIORef handleState Stopped
+cancel h@Handle{..} =
+    withNonEmptyHandle h $
+        -- "Dropped Cancel" remedy
+        --
+        -- We can eat a potential mutex pause here to avoid race conditions,
+        -- because we don't expect 'cancel' to be called in hot loops.
+        --
+        -- (The race condition being: the 'Cancelled' state being overwritten
+        -- because the 'cancel' runs JUST after the registered action starts
+        -- running, sets the state to 'Cancelled', and then the registered
+        -- action finishes and overwrites it to 'Stopped')
+        withLock handleLock $ do
+            withTimeoutKey h $ EV.unregisterTimeout handleTimerManager
+            I.atomicWriteIORef handleState Cancelled
 
 -- | Extending the timeout.
 --
@@ -266,39 +382,77 @@ cancel h@Handle{..} = withNonEmptyHandle h $ do
 -- /This also means timeouts of less than one second will not be extended/
 -- /when using 'tickle'./
 tickle :: Handle -> IO ()
-tickle h@Handle{..} = withNonEmptyHandle h $ do
-    now <- getMonotonicTimeNSec
-    lastRenewed <- I.readIORef handleLastRenewed
-    when (now - lastRenewed >= handleMinRenewGap) $ do
-        key <- I.readIORef handleKeyRef
-        I.writeIORef handleLastRenewed now
+tickle h@Handle{..} =
+    withNonEmptyHandle h $
+        whenRenew h $
+            withActiveTimeoutKey h $ \key -> do
+                updateTheTimeout key
+                now <- getMonotonicTimeNSec
+                I.atomicWriteIORef handleLastRenewed now
+  where
+    -- For some reason the Windows implementation of 'updateTimeout' wants
+    -- full seconds, instead of the microseconds that's used when registering...
+    updateTheTimeout key =
+        EV.updateTimeout handleTimerManager key
 #if defined(mingw32_HOST_OS)
-        EV.updateTimeout handleTimerManager key $
-            fromIntegral (handleTimeout `div` 1_000_000)
+            (fromIntegral (handleTimeout `div` 1_000_000))
 #else
-        EV.updateTimeout handleTimerManager key handleTimeout
+            handleTimeout
 #endif
 
--- | This is identical to 'cancel'.
---   To resume timeout with the same 'Handle', 'resume' MUST be called.
---   Don't call 'tickle' for resumption.
+-- | Pauses the timeout so you can 'resume' it later. Does not stop it entirely.
+-- Use 'cancel' if you want to make sure the action will not be resumed.
+--
+-- To resume a timeout with the same 'Handle', 'resume' MUST be called.
+-- Don't call 'tickle' for resumption.
 pause :: Handle -> IO ()
-pause = cancel
+pause h@Handle{..} =
+    withNonEmptyHandle h $
+        withLock handleLock . withActiveTimeoutKey h $
+            I.atomicWriteIORef handleState . Paused
 
 -- | Resuming the timeout.
 --
 -- Works like 'tickle' if the 'Handle' wasn't 'pause'd or 'cancel'ed.
 resume :: Handle -> IO ()
-resume h@Handle{..} = withNonEmptyHandle h $ do
-    state <- I.readIORef handleState
-    case state of
-        Active -> tickle h
-        Stopped -> do
-            key <- EV.registerTimeout handleTimerManager handleTimeout handleAction
-            I.atomicWriteIORef handleKeyRef key
-            I.atomicWriteIORef handleState Active
-            now <- getMonotonicTimeNSec
-            I.writeIORef handleLastRenewed now
+resume h@Handle{..} =
+    withNonEmptyHandle h $
+        -- we ignore the key when paused, because we recheck the state after
+        -- grabbing the lock.
+        checkStateWith (\_ -> onPausedOrStopped) onPausedOrStopped
+  where
+    -- "Dropped Active" remedy
+    --
+    -- Grabbing the lock ensures 'resume' runs either before or after the
+    -- registered action changes the state.
+    onPausedOrStopped =
+        withLock handleLock $ checkStateWith pausedF stoppedF
+    checkStateWith onPaused onStopped = do
+        state <- I.readIORef handleState
+        case state of
+            -- 'tickle' doesn't introduce race conditions, so can always be run.
+            Active{} -> tickle h
+            -- Abort when cancelled.
+            Cancelled -> pure ()
+            Paused k -> onPaused k
+            Stopped -> onStopped
+    pausedF k = do
+        -- Set state to 'Active' before 'tickle'ing, because
+        -- 'tickle' only runs when the state is 'Active'.
+        activateTimeout k
+        tickle h
+    stoppedF = do
+        key <-
+            registerAdjustedTimeout
+                handleTimerManager
+                handleTimeout
+                handleOwnRef
+                handleAction
+        now <- getMonotonicTimeNSec
+        I.atomicWriteIORef handleLastRenewed now
+        activateTimeout key
+    activateTimeout =
+        I.atomicWriteIORef handleState . Active
 
 ----------------------------------------------------------------
 
