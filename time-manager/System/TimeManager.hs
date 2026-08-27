@@ -138,6 +138,72 @@ withHandleKillThread mgr onTimeout action
 
 ----------------------------------------------------------------
 
+-- ============== NOTE ABOUT THREAD SAFETY ==============
+--
+-- The use of 'IORef's are fine in the current situation where
+-- the 'TimeManager' is supposed to be used in a single thread.
+--
+-- The triggered action, though, is run by the IO manager of
+-- the GHC runtime outside of the thread it was registered in.
+-- This will potentially cause race conditions if we implement
+-- anything that depends on the 'Handle's state.
+--
+-- Given the following:
+--   - If run in one thread: 'register/tickle/pause/resume/cancel' never
+--     overlap, making them devoid of race conditions in the general sense.
+--   - We want to hit the IO manager as little as possible.
+--   - We want to keep the 'resume/pause' surface functionality intact, while
+--     not hitting the IO manager when we don't have to. This means not
+--     cancelling the timeout on a pause, but rather mark the timeout paused.
+--   - Not actually stopping the timeout on 'pause' introduces race
+--     conditions, because the registered action will need to check the 'Handle'
+--     state to see whether it should actually run (Active) or if it should
+--     drop the action (Paused/Stopped).
+--   - Not hitting the IO manager on a 'pause' will increase performance on
+--     hot 'resume/pause' loops, like 'warp' has when using a streaming response.
+--   - 'tickle' gets a sort of debounce to avoid repeated updates in hot loops.
+--     - The debounce is 1/4 of the timeout, but we cap it to a maximum of 1 second.
+--     - This means the registered action might run earlier than the timeout
+--       would indicate; that difference going up to a maximum of 'handleMinRenewGap'.
+--   - The following can happen:
+--     - == The "Surprise Active" issue ==
+--        A 'resume' might get called right after a 'Paused' registered action
+--        starts running, and sets the state to 'Active' __before__ the action
+--        inspects the 'Handle' state.
+--     - == The "Dropped Active" issue ==
+--        A 'resume' might get called right after a 'Paused' registered action
+--        starts running, but inspects the state __before__ the action sets the
+--        state to 'Stopped', and the registered action inspects the state
+--        __before__ the 'resume' has set it to 'Active'. Essentially missing
+--        the 'resume' completely.
+--     - == The "Dropped Cancel" issue ==
+--       A 'cancel' getting called right after a 'Paused' registered action
+--       starts running, and cancelling __after__ the action reads the state
+--       will have the registered action overwrite the state to 'Stopped',
+--       when it shouldn't register a new action, but stop everything.
+--     - A 'pause' should technically not be an issue, as it will only run when
+--       the state is 'Active', but it is a function that changes the state, so
+--       just to be cautious, we let it grab the lock.
+--     - A 'tickle' in the same situation doesn't matter, as a 'tickle'
+--       shouldn't activate a 'Paused' state. (and doesn't change any state)
+--   - The "Surprise Active" issue can be mitigated by checking the
+--     'handleLastRenewed' time and reregistering the timeout action with the
+--     remaining amount of microseconds in the case where it has not yet been
+--     'handleTimeout' amount of time.
+--     - A 'tickle' could also cause this if the state was 'Active' all along,
+--       but we'll accept the 'tickle' as being on time to extend the timeout.
+--   - The "Dropped Active" issue is a bit more difficult to mitigate. We'll
+--     need a lock to guarantee that either the activation of 'resume' is seen
+--     by the registered action, or that the termination of the registered
+--     action is seen by the 'resume'.
+--   - The "Dropped Cancel" issue will also be avoided when using a lock.
+--   - The lock will generally never be contested. It is there only for the
+--     off-chance that a state-changing function runs JUST after the registered
+--     action triggers. So in general, we don't expect the lock to reduce
+--     performance noticeably.
+
+----------------------------------------------------------------
+
 -- | Registering a timeout action.
 register :: Manager -> TimeoutAction -> IO Handle
 register mgr@(Manager timeout) onTimeout
