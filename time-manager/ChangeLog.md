@@ -1,5 +1,18 @@
 # ChangeLog for time-manager
 
+## 0.4.0
+
+* New logic of how `System.TimerManager` works.
+    * `cancel` completely stops the timeout, making it un`resume`able.
+    * `resume` will only resume a timeout that has been `pause`d.
+      it still acts as a `tickle` if the timeout is active.
+    * `tickle` now has a debounce, making less calls to the IO manager in hot
+      loops. This debounce is 1/4th of the given timeout, but capped at 1 second.
+      (`min (1 sec) (timeout / 4)`)
+    * This also means a timeout _might_ run a bit earlier than the last `tickle`
+      would indicate, but never more than the maximum debounce period.
+  [#1109](https://github.com/yesodweb/wai/pull/1109)
+
 ## 0.3.3
 
 * `Handle` now caches the system `TimerManager` instead of re-reading the
