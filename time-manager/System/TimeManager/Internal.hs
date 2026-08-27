@@ -5,7 +5,8 @@
 
 module System.TimeManager.Internal where
 
-import Data.IORef (IORef)
+import Control.Concurrent.MVar (MVar, modifyMVarMasked, newMVar)
+import Data.IORef (IORef, readIORef)
 import Data.Word (Word64)
 
 #if defined(mingw32_HOST_OS)
@@ -35,7 +36,6 @@ data Handle = Handle
     , handleTimerManager :: ~TimerManager
     -- ^ The system timer manager the timeout key was registered with.
     --   Cached so that per-request operations don't re-fetch it.
-    , handleKeyRef :: ~(IORef EV.TimeoutKey)
     , handleState :: ~(IORef HandleState)
     , handleLastRenewed :: ~(IORef Word64)
     -- ^ Monotonic time (in nanoseconds) when the timeout was last
@@ -43,11 +43,53 @@ data Handle = Handle
     , handleMinRenewGap :: Word64
     -- ^ 'tickle' is a no-op unless at least this many nanoseconds have
     --   passed since the last renewal.
+    , handleLock :: Lock
+    -- ^ Used by 'resume', 'pause' and 'cancel' to determine race conditions.
+    , handleOwnRef :: ~(IORef Handle)
+    -- ^ Used by 'registerAdjustedTimeout' to have access to all 'Handle' fields.
     }
 
--- | Tracking the state of a handle, to be able to have 'resume'
--- act like a 'register' or 'tickle'.
-data HandleState = Active | Stopped
+-- | This check makes sure the state isn't 'Stopped' and that the
+-- registered action isn't already running.
+withTimeoutKey :: Handle -> (EV.TimeoutKey -> IO ()) -> IO ()
+withTimeoutKey h keyF = do
+    st <- readIORef $ handleState h
+    case st of
+        Paused key -> keyF key
+        Active key -> keyF key
+        _ -> pure ()
+
+-- | Like 'withTimeoutKey', but only when the state is 'Active'
+withActiveTimeoutKey :: Handle -> (EV.TimeoutKey -> IO ()) -> IO ()
+withActiveTimeoutKey h keyF = do
+    st <- readIORef $ handleState h
+    case st of
+        Active key -> keyF key
+        _ -> pure ()
+
+type Lock = MVar ()
+
+newLock :: IO Lock
+newLock = newMVar ()
+
+withLock :: Lock -> IO a -> IO a
+withLock lock action =
+    modifyMVarMasked lock $ \l -> do
+        a <- action
+        pure (l, a)
+
+-- | Tracking the state of a handle.
+data HandleState
+    = -- Timeout is primed to run
+      Active EV.TimeoutKey
+    | -- Timeout is paused, but still running
+      -- ('resume' will set it back to 'Active' and 'tickle')
+      Paused EV.TimeoutKey
+    | -- Action ran, but timeout was paused, so it is resumable
+      -- ('resume' will reregister the action)
+      Stopped
+    | -- Action was cancelled. 'register' is needed to start a new timeout.
+      Cancelled
 
 isEmptyHandle :: Handle -> Bool
 isEmptyHandle Handle{..} = handleTimeout == 0
