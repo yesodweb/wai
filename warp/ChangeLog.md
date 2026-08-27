@@ -1,5 +1,11 @@
 # ChangeLog for warp
 
+## 3.4.16
+
+* Slight performance increase by not blocking on receiving a request if the
+  socket already has bytes waiting. (using `receiveNoWait` from `recv-0.1.2`)
+  [#1107](https://github.com/yesodweb/wai/pull/1107).
+
 ## 3.4.15
 
 * Support `103 Early Hints` over HTTP/2: the HTTP/2 handler installs
