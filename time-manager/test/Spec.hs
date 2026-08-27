@@ -100,7 +100,7 @@ main = hspec $ do
             let runAndWaitForTimeout f =
                     runIt $ \hndl -> do
                         void $ f hndl
-                        threadDelay 20_000
+                        threadDelay 50_000
             -- Doing nothing kills the thread
             throwsTimeoutThread . runAndWaitForTimeout $ \_ -> pure ()
             -- Pausing stops the kill
@@ -111,7 +111,7 @@ main = hspec $ do
             throwsTimeoutThread . runAndWaitForTimeout $ \hndl -> do
                 threadDelay 2500
                 pause hndl
-                threadDelay 20_000
+                threadDelay 50_000
                 resume hndl
 
         -- "resuming" every 2.5ms 20 times
@@ -160,6 +160,5 @@ deriving instance Show Manager
 oldResume :: Handle -> IO ()
 oldResume h | isEmptyHandle h = return ()
 oldResume Handle{..} = do
-    mgr <- getTimerManager
-    key <- EV.registerTimeout mgr handleTimeout handleAction
-    I.writeIORef handleKeyRef key
+    key <- EV.registerTimeout handleTimerManager handleTimeout handleAction
+    I.writeIORef handleState $ Active key
