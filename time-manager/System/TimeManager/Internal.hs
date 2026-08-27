@@ -45,8 +45,6 @@ data Handle = Handle
     --   passed since the last renewal.
     , handleLock :: Lock
     -- ^ Used by 'resume', 'pause' and 'cancel' to determine race conditions.
-    , handleOwnRef :: ~(IORef Handle)
-    -- ^ Used by 'registerAdjustedTimeout' to have access to all 'Handle' fields.
     }
 
 -- | This check makes sure the state isn't 'Stopped' and that the
