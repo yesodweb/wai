@@ -45,3 +45,7 @@ extra-deps:
   - time-hourglass-0.3.0
   - tls-2.4.3
   - tls-session-manager-0.1.0
+allow-newer: true
+allow-newer-deps:
+  - http2
+  - http3
