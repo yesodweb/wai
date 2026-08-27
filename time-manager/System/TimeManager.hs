@@ -77,19 +77,29 @@ emptyHandle =
     Handle
         { handleTimeout = 0
         , handleAction = pure ()
-        , handleTimerManager = error "time-manager: Handle.handleTimerManager not set"
-        , handleKeyRef = error "time-manager: Handle.handleKeyRef not set"
-        , handleState = error "time-manager: Handle.handleState not set"
-        , handleLastRenewed = error "time-manager: Handle.handleLastRenewed not set"
+        , handleTimerManager = mutError "handleTimerManager"
+        , handleState = mutError "handleState"
+        , handleLastRenewed = mutError "handleLastRenewed"
         , handleMinRenewGap = 0
+        , handleLock = mutError "handleLock"
+        , handleOwnRef = mutError "handleOwnRef"
         }
+  where
+    mutError s = error $ "time-manager: Handle." <> s <> " not set"
 
 ----------------------------------------------------------------
 
 -- | Creating timeout manager with a timeout value in microseconds.
 --
---   Setting the timeout to zero or lower (<= 0) will produce a
+--   Setting the timeout to zero or lower @(<= 0)@ will produce a
 --   `defaultManager`.
+--
+--   __WARNING for Windows users:__ /the precision of extending timeouts/
+--   /is only full "seconds". The provided microseconds will be floored/
+--   /to the first full second. (i.e. @initialize 2_500_000@ will get/
+--   /get extended by 2 seconds on a 'tickle')/
+--   /This also means timeouts of less than one second will not be extended/
+--   /when using 'tickle'./
 initialize :: Int -> IO Manager
 initialize = pure . Manager . max 0
 
@@ -181,7 +191,14 @@ cancel h@Handle{..} = withNonEmptyHandle h $ do
 -- skipped unless at least a quarter of the timeout (capped at one
 -- second) has passed since the timeout was last registered or updated.
 --
--- Careful: this does NOT reactivate an already paused 'Handle'!
+-- Careful: this does NOT reactivate an already 'pause'd 'Handle'!
+--
+-- __WARNING for Windows users:__ /the precision of extending timeouts/
+-- /is only full "seconds". The provided microseconds will be floored/
+-- /to the first full second. (i.e. @initialize 2_500_000@ will get/
+-- /extended by 2 seconds on a 'tickle')/
+-- /This also means timeouts of less than one second will not be extended/
+-- /when using 'tickle'./
 tickle :: Handle -> IO ()
 tickle h@Handle{..} = withNonEmptyHandle h $ do
     now <- getMonotonicTimeNSec
