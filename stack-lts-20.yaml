@@ -42,7 +42,7 @@ extra-deps:
   - memory-0.18.0
   - multipart-0.2.1
   - mwc-random-0.15.2.0
-  - network-3.2.7.0
+  - network-3.2.9.0
   - network-byte-order-0.1.7
   - network-control-0.1.7
   - os-string-2.0.8
