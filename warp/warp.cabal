@@ -115,7 +115,7 @@ library
         stm >=2.3,
         streaming-commons >=0.1.10,
         text,
-        time-manager >=0.2 && <0.4,
+        time-manager >=0.2 && <0.5,
         vault >=0.3,
         wai >=3.2.5 && <3.3,
         word8
