@@ -24,9 +24,11 @@ module Network.Socket.BufferPool (
     -- * Recv
     Recv,
     receive,
+    receiveNoWait,
     BufferPool,
     newBufferPool,
     withBufferPool,
+    tryWithBufferPool,
 
     -- * RecvN
     RecvN,

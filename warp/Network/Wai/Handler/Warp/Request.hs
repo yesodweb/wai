@@ -88,7 +88,9 @@ recvRequest firstRequest settings conn ii th addr src transport = do
     -- body producing function which will never produce 100-continue
     rbodyFlush <- timeoutBody remainingRef th rbody (return ())
     let rawPath = if settingsNoParsePath settings then unparsedPath else path
-        vaultValue =
+        -- Lazy on purpose (~ defeats -XStrict): most handlers never touch
+        -- 'vault', so don't pay for the inserts unless somebody looks.
+        ~vaultValue =
             Vault.insert pauseTimeoutKey (Timeout.pause th)
                 . Vault.insert getFileInfoKey (getFileInfo ii)
 #ifdef MIN_VERSION_crypton_x509

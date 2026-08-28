@@ -34,7 +34,7 @@ extra-deps:
   - http-semantics-0.4.0
   - http2-5.4.0
   - http3-0.1.2
-  - network-3.2.7.0
+  - network-3.2.9.0
   - network-control-0.1.7
   - network-udp-0.0.0
   - quic-0.2.21
