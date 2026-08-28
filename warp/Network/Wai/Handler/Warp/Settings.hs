@@ -269,11 +269,15 @@ newServerState = do
 
 -- | Get the currently open connections of the server.
 --
+-- Connections are considered "open" the moment they are accepted by the socket.
+--
 -- @since 3.4.13
 currentOpenConnections :: ServerState -> IO Int
 currentOpenConnections = getCount . serverConnectionCounter
 
 -- | Get the currently open connections of the server in an 'STM' transaction.
+--
+-- Connections are considered "open" the moment they are accepted by the socket.
 --
 -- @since 3.4.13
 currentOpenConnectionsSTM :: ServerState -> STM Int
