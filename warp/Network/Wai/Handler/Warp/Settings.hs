@@ -62,7 +62,7 @@ data Settings = Settings
     --
     -- Default: 500, text/plain, \"Something went wrong\"
     --
-    -- Since 2.0.3
+    -- @since 2.0.3
     , settingsOnOpen :: SockAddr -> IO Bool
     -- ^ What to do when a connection is open. When 'False' is returned, the connection is closed immediately. Otherwise, the connection is going on. Default: always returns 'True'.
     , settingsOnClose :: SockAddr -> IO ()
@@ -82,7 +82,7 @@ data Settings = Settings
     --
     -- Default: do nothing.
     --
-    -- Since 1.3.6
+    -- @since 1.3.6
     , settingsFork :: ((forall a. IO a -> IO a) -> IO ()) -> IO ()
     -- ^ Code to fork a new thread to accept a connection.
     --
@@ -91,7 +91,7 @@ data Settings = Settings
     --
     -- Default: 'defaultFork'
     --
-    -- Since 3.0.4
+    -- @since 3.0.4
     , settingsAccept :: Socket -> IO (Socket, SockAddr)
     -- ^ Code to accept a new connection.
     --
@@ -100,7 +100,7 @@ data Settings = Settings
     --
     -- Default: 'defaultAccept'
     --
-    -- Since 3.3.24
+    -- @since 3.3.24
     , settingsNoParsePath :: Bool
     -- ^ Perform no parsing on the rawPathInfo.
     --
@@ -108,7 +108,7 @@ data Settings = Settings
     --
     -- Default: False
     --
-    -- Since 2.0.3
+    -- @since 2.0.3
     , settingsInstallShutdownHandler :: IO () -> IO ()
     -- ^ An action to install a handler (e.g. Unix signal handler)
     -- to close a listen socket.
@@ -116,27 +116,27 @@ data Settings = Settings
     --
     -- Default: no action
     --
-    -- Since 3.0.1
+    -- @since 3.0.1
     , settingsServerName :: ByteString
     -- ^ Default server name if application does not set one.
     --
-    -- Since 3.0.2
+    -- @since 3.0.2
     , settingsMaximumBodyFlush :: Maybe Int
     -- ^ See @setMaximumBodyFlush@.
     --
-    -- Since 3.0.3
+    -- @since 3.0.3
     , settingsProxyProtocol :: ProxyProtocol
     -- ^ Specify usage of the PROXY protocol.
     --
-    -- Since 3.0.5
+    -- @since 3.0.5
     , settingsSlowlorisSize :: Int
     -- ^ Size of bytes read to prevent Slowloris protection. Default value: 2048
     --
-    -- Since 3.1.2
+    -- @since 3.1.2
     , settingsHTTP2Enabled :: Bool
     -- ^ Whether to enable HTTP2 ALPN/upgrades. Default: True
     --
-    -- Since 3.1.7
+    -- @since 3.1.7
     , settingsLogger :: Request -> H.Status -> Maybe Integer -> IO ()
     -- ^ A log function. Default: no action.
     --
@@ -146,38 +146,38 @@ data Settings = Settings
     -- /after all the headers have been sent. This is 'Nothing' when/
     -- /'responseRaw' is used. (e.g. when using websockets)/
     --
-    -- Since 3.1.10
+    -- @since 3.1.10
     , settingsServerPushLogger :: Request -> ByteString -> Integer -> IO ()
     -- ^ A HTTP/2 server push log function. Default: no action.
     --
-    -- Since 3.2.7
+    -- @since 3.2.7
     , settingsGracefulShutdownTimeout :: Maybe Int
     -- ^ An optional timeout to limit the time (in seconds) waiting for
     -- a graceful shutdown of the web server.
     --
-    -- Since 3.2.8
+    -- @since 3.2.8
     , settingsGracefulCloseTimeout1 :: Int
     -- ^ A timeout to limit the time (in milliseconds) waiting for
     -- FIN for HTTP/1.x. 0 means uses immediate close.
     -- Default: 0.
     --
-    -- Since 3.3.5
+    -- @since 3.3.5
     , settingsGracefulCloseTimeout2 :: Int
     -- ^ A timeout to limit the time (in milliseconds) waiting for
     -- FIN for HTTP/2. 0 means uses immediate close.
     -- Default: 2000.
     --
-    -- Since 3.3.5
+    -- @since 3.3.5
     , settingsMaxTotalHeaderLength :: Int
     -- ^ Determines the maximum header size that Warp will tolerate when using HTTP/1.x.
     --
-    -- Since 3.3.8
+    -- @since 3.3.8
     , settingsAltSvc :: Maybe ByteString
     -- ^ Specify the header value of Alternative Services (AltSvc:).
     --
     -- Default: Nothing
     --
-    -- Since 3.3.11
+    -- @since 3.3.11
     , settingsMaxBuilderResponseBufferSize :: Int
     -- ^ Determines the maxium buffer size when sending `Builder` responses
     -- (See `responseBuilder`).
@@ -191,7 +191,7 @@ data Settings = Settings
     --
     -- Default: 1049_000_000 = 1 MiB.
     --
-    -- Since 3.3.22
+    -- @since 3.3.22
     , settingsConnectionCounter :: Maybe Counter
     -- ^ A counter for tracking open connections.
     -- Use 'makeSettingsAndCounter' to create settings with a counter,
@@ -201,7 +201,7 @@ data Settings = Settings
     --
     -- /DEPRECATED in favor of 'settingsServerState'/
     --
-    -- Since 3.4.11
+    -- @since 3.4.11
     , settingsServerState :: Maybe ServerState
     -- ^ Internal read-only server state.
     -- Use 'makeSettingsAndServerState' to gain access to the state of the server.
@@ -210,7 +210,7 @@ data Settings = Settings
     --
     -- Default: 'Nothing' (warp creates its own internal state)
     --
-    -- Since 3.4.13
+    -- @since 3.4.13
     }
 
 -- | Specify usage of the PROXY protocol.
@@ -224,7 +224,7 @@ data ProxyProtocol
 
 -- | Internal read-only state of the server
 --
--- Since 3.4.13
+-- @since 3.4.13
 data ServerState = ServerState
     { serverConnectionCounter :: Counter
     , serverShuttingDown :: ShuttingDown
@@ -238,7 +238,7 @@ data ServerState = ServerState
 -- This makes it idempotent if care is taken that the @oldSettings@
 -- are not used after using this function.
 --
--- Since 3.4.13
+-- @since 3.4.13
 makeServerState :: Settings -> IO (ServerState, Settings)
 makeServerState oldSettings =
     case settingsServerState oldSettings of
@@ -256,7 +256,7 @@ makeServerState oldSettings =
 
 -- | Initialize a 'ServerState'
 --
--- Since 3.4.13
+-- @since 3.4.13
 newServerState :: IO ServerState
 newServerState = do
     counter <- newCounter
@@ -269,13 +269,13 @@ newServerState = do
 
 -- | Get the currently open connections of the server.
 --
--- Since 3.4.13
+-- @since 3.4.13
 currentOpenConnections :: ServerState -> IO Int
 currentOpenConnections = getCount . serverConnectionCounter
 
 -- | Get the currently open connections of the server in an 'STM' transaction.
 --
--- Since 3.4.13
+-- @since 3.4.13
 currentOpenConnectionsSTM :: ServerState -> STM Int
 currentOpenConnectionsSTM = getCountSTM . serverConnectionCounter
 
@@ -284,7 +284,7 @@ currentOpenConnectionsSTM = getCountSTM . serverConnectionCounter
 -- > False: Server is not shutting down
 -- > True:  Server is shutting down or has shut down.
 --
--- Since 3.4.13
+-- @since 3.4.13
 currentShuttingDownState :: ServerState -> IO Bool
 currentShuttingDownState = readShuttingDown . serverShuttingDown
 
@@ -295,7 +295,7 @@ currentShuttingDownState = readShuttingDown . serverShuttingDown
 -- > False: Server is not shutting down
 -- > True:  Server is shutting down or has shut down.
 --
--- Since 3.4.13
+-- @since 3.4.13
 currentShuttingDownStateSTM :: ServerState -> STM Bool
 currentShuttingDownStateSTM = readShuttingDownSTM . serverShuttingDown
 
@@ -341,7 +341,7 @@ defaultSettings =
 --
 -- /DEPRECATED in favor of 'makeSettingsAndServerState'/
 --
--- Since 3.4.11
+-- @since 3.4.11
 makeSettingsAndCounter :: IO (Counter, Settings)
 makeSettingsAndCounter = do
     (serverState, settings) <- makeSettingsAndServerState
@@ -351,7 +351,7 @@ makeSettingsAndCounter = do
 -- Use functions like 'currentOpenConnections' and 'currentShuttingDownState'
 -- to gain insight into the state of the server.
 --
--- Since 3.4.13
+-- @since 3.4.13
 makeSettingsAndServerState :: IO (ServerState, Settings)
 makeSettingsAndServerState = makeServerState defaultSettings
 
@@ -359,7 +359,7 @@ makeSettingsAndServerState = makeServerState defaultSettings
 -- exception should be shown or not. The goal is to hide exceptions which occur
 -- under the normal course of the web server running.
 --
--- Since 2.1.3
+-- @since 2.1.3
 defaultShouldDisplayException :: SomeException -> Bool
 defaultShouldDisplayException se
     | Just (_ :: InvalidRequest) <- fromException se = False
@@ -372,7 +372,7 @@ defaultShouldDisplayException se
 -- | Printing an exception to standard error
 --   if `defaultShouldDisplayException` returns `True`.
 --
--- Since: 3.1.0
+-- @since: 3.1.0
 defaultOnException :: Maybe Request -> SomeException -> IO ()
 defaultOnException _ e =
     when (defaultShouldDisplayException e) $
@@ -382,10 +382,10 @@ defaultOnException _ e =
 
 -- | Sending 400 for bad requests.
 --   Sending 500 for internal server errors.
--- Since: 3.1.0
+-- @since: 3.1.0
 --   Sending 413 for too large payload.
 --   Sending 431 for too large headers.
--- Since 3.2.27
+-- @since 3.2.27
 defaultOnExceptionResponse :: SomeException -> Response
 defaultOnExceptionResponse e
     | isAsyncException e = throw e
@@ -413,7 +413,7 @@ defaultOnExceptionResponse e
 -- | Exception handler for the debugging purpose.
 --   500, text/plain, a showed exception.
 --
--- Since: 2.0.3.2
+-- @since: 2.0.3.2
 exceptionResponseForDebug :: SomeException -> Response
 exceptionResponseForDebug e =
     responseBuilder
@@ -423,7 +423,7 @@ exceptionResponseForDebug e =
 
 -- | Similar to @forkIOWithUnmask@, but does not set up the default exception handler.
 --
--- Since Warp will always install its own exception handler in forked threads, this provides
+-- @since Warp will always install its own exception handler in forked threads, this provides
 -- a minor optimization.
 --
 -- For inspiration of this function, see @rawForkIO@ in the @async@ package.

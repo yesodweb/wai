@@ -187,7 +187,7 @@ run p = runSettings defaultSettings{settingsPort = p}
 -- environment variable. Uses the 'Port' given when the variable is unset.
 -- This calls 'runSettings' with 'defaultSettings'.
 --
--- Since 3.0.9
+-- @since 3.0.9
 runEnv :: Port -> Application -> IO ()
 runEnv p app = do
     mp <- lookupEnv "PORT"
@@ -248,7 +248,7 @@ runSettingsSocket oldSettings@Settings{settingsAccept = accept'} socket app = do
 -- This allows the expensive computations to be performed
 -- in a separate worker thread instead of the main server loop.
 --
--- Since 1.3.5
+-- @since 1.3.5
 runSettingsConnection
     :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
 runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
@@ -273,7 +273,7 @@ runSettingsConnectionMaker x y =
 -- The connection maker can return a connection of either plain HTTP
 -- or HTTP over TLS.
 --
--- Since 2.1.4
+-- @since 2.1.4
 runSettingsConnectionMakerSecure
     :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
 runSettingsConnectionMakerSecure oldSettings getConnMaker app = do
@@ -285,7 +285,7 @@ runSettingsConnectionMakerSecure oldSettings getConnMaker app = do
 
 -- | Running an action with internal info.
 --
--- Since 3.3.11
+-- @since 3.3.11
 withII :: Settings -> (InternalInfo -> IO a) -> IO a
 withII set action =
     withTimeoutManager $ \tm ->

@@ -38,7 +38,7 @@ import Network.Wai.Handler.Warp.Types
 --   This makes use of the file descriptor cache.
 --   For other OSes, this is identical to 'readSendFile'.
 --
--- Since: 3.1.0
+-- @since 3.1.0
 sendFile :: Socket -> Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 #ifdef SENDFILEFD
 sendFile s _ _ _ fid off len act hdr = case mfid of
@@ -88,7 +88,7 @@ mini i n
 --   This makes use of the file descriptor cache.
 --   For Windows, this is emulated by 'Handle'.
 --
--- Since: 3.1.0
+-- @since 3.1.0
 #ifdef WINDOWS
 readSendFile :: Buffer -> BufSize -> (ByteString -> IO ()) -> SendFile
 readSendFile buf siz send fid off0 len0 hook headers = do

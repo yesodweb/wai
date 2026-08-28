@@ -80,7 +80,7 @@ instance E.Exception ExceptionInsideResponseBody
 --   On Unix, a file descriptor would be specified to make use of
 --   the file descriptor cache.
 --
--- Since: 3.1.0
+-- @since 3.1.0
 data FileId = FileId
     { fileIdPath :: FilePath
     , fileIdFd :: Maybe Fd
@@ -88,7 +88,7 @@ data FileId = FileId
 
 -- |  fileid, offset, length, hook action, HTTP headers
 --
--- Since: 3.1.0
+-- @since 3.1.0
 type SendFile = FileId -> Integer -> Integer -> IO () -> [ByteString] -> IO ()
 
 -- | A write buffer of a specified size
