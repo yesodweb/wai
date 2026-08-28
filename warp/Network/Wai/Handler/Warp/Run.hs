@@ -63,9 +63,8 @@ import Network.Wai.Handler.Warp.HTTP2.Types (isHTTP2)
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.SendFile (sendFile)
 import Network.Wai.Handler.Warp.Settings
-import Network.Wai.Handler.Warp.ShuttingDown (writeShuttingDown)
+import Network.Wai.Handler.Warp.ShuttingDown (readShuttingDown, writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Handler.Warp.ShuttingDown
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
 --
