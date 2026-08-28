@@ -2,6 +2,12 @@
 
 ## 3.4.16
 
+* Graceful shutdown no longer stops while a connection it accepted is
+  unserved. The connection counter it waits on is now raised when the accept
+  loop accepts a connection rather than when the thread serving it is
+  scheduled, closing a window in which an accepted connection was invisible
+  to the shutdown.
+  [#1104](https://github.com/yesodweb/wai/pull/1104).
 * Slight performance increase by not blocking on receiving a request if the
   socket already has bytes waiting. (using `receiveNoWait` from `recv-0.1.2`)
   [#1107](https://github.com/yesodweb/wai/pull/1107).

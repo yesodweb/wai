@@ -411,29 +411,37 @@ fork
     -> Counter
     -> InternalInfo
     -> IO ()
-fork set mkConn addr app counter ii = settingsFork set $ \unmask -> do
-    tid <- myThreadId
-    labelThread tid "Warp just forked"
-    -- Call the user-supplied on exception code if any
-    -- exceptions are thrown.
-    --
-    -- Intentionally using Control.Exception.handle, since we want to
-    -- catch all exceptions and avoid them from propagating, even
-    -- async exceptions. See:
-    -- https://github.com/yesodweb/wai/issues/850
-    E.handle (settingsOnException set Nothing) $
-        -- Run the connection maker to get a new connection, and ensure
-        -- that the connection is closed. If the mkConn call throws an
-        -- exception, we will leak the connection. If the mkConn call is
-        -- vulnerable to attacks (e.g., Slowloris), we do nothing to
-        -- protect the server. It is therefore vital that mkConn is well
-        -- vetted.
-        --
-        -- We grab the connection before registering timeouts since the
-        -- timeouts will be useless during connection creation, due to the
-        -- fact that async exceptions are still masked.
-        E.bracket mkConn cleanUp (serve unmask)
+fork set mkConn addr app counter ii = do
+    -- Count the connection here rather than in the thread below.  The
+    -- accept loop does not wait for that thread to be scheduled, so
+    -- counting there leaves a window in which the connection is accepted
+    -- and not counted, and 'gracefulShutdown' waits on this counter.
+    increase counter
+    settingsFork set $ \unmask -> runConnection unmask `E.finally` decrease counter
   where
+    runConnection unmask = do
+        tid <- myThreadId
+        labelThread tid "Warp just forked"
+        -- Call the user-supplied on exception code if any
+        -- exceptions are thrown.
+        --
+        -- Intentionally using Control.Exception.handle, since we want to
+        -- catch all exceptions and avoid them from propagating, even
+        -- async exceptions. See:
+        -- https://github.com/yesodweb/wai/issues/850
+        E.handle (settingsOnException set Nothing) $
+            -- Run the connection maker to get a new connection, and ensure
+            -- that the connection is closed. If the mkConn call throws an
+            -- exception, we will leak the connection. If the mkConn call is
+            -- vulnerable to attacks (e.g., Slowloris), we do nothing to
+            -- protect the server. It is therefore vital that mkConn is well
+            -- vetted.
+            --
+            -- We grab the connection before registering timeouts since the
+            -- timeouts will be useless during connection creation, due to the
+            -- fact that async exceptions are still masked.
+            E.bracket mkConn cleanUp (serve unmask)
+
     cleanUp (conn, _) =
         connClose conn `E.finally` do
             writeBuffer <- readIORef $ connWriteBuffer conn
@@ -455,8 +463,8 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask -> do
                 -- above ensures the connection is closed.
                 when goingon $ serveConnection conn ii th addr transport set app
 
-    onOpen adr = increase counter >> settingsOnOpen set adr
-    onClose adr _ = decrease counter >> settingsOnClose set adr
+    onOpen adr = settingsOnOpen set adr
+    onClose adr _ = settingsOnClose set adr
 
 serveConnection
     :: Connection
