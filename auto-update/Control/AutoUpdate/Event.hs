@@ -119,6 +119,6 @@ onceOnTimeHasCome UpdateState{..} action = do
 getUpdateResult :: UpdateState a -> IO a
 getUpdateResult us@UpdateState{..} = do
     onceOnTimeHasCome us $ do
-        writeIORef usLastResult_ =<< usUpdateAction_ =<< readIORef usLastResult_
-        writeIORef usDeleteTimeout_ =<< mkDeleteTimeout usTimeHasCome_ usIntervalMicro_
+        atomicWriteIORef usLastResult_ =<< usUpdateAction_ =<< readIORef usLastResult_
+        atomicWriteIORef usDeleteTimeout_ =<< mkDeleteTimeout usTimeHasCome_ usIntervalMicro_
     readIORef usLastResult_
