@@ -2,15 +2,19 @@
 
 ## 0.4.0
 
-* `Handle` now caches the system `TimerManager` instead of re-reading the
-  global `IORef` on every operation, and `tickle` is rate-limited/debounced:
-  the renewal is skipped unless a quarter of the timeout (capped at one second)
-  has passed since the timeout was last registered or updated.
-  This does mean a timeout _might_ run a bit earlier than the last `tickle`
-  would indicate, but never more than the maximum debounce period.
-  [#1097](https://github.com/yesodweb/wai/pull/1097)
-* `cancel` completely stops the timeout, making it un`resume`able.
-  `resume` will only resume a timeout that has been `pause`d.
+* CHANGES IN BEHAVIOUR:
+  * `tickle` is rate-limited/debounced. The renewal is skipped unless a quarter
+    of the timeout (capped at one second) has passed since the timeout was last
+    registered or updated. This does mean a timeout _might_ run a bit earlier
+    than the last `tickle` would indicate, but never more than the maximum
+    debounce period.
+  * `cancel` completely stops the timeout, making it un`resume`able.
+    `resume` will only resume a timeout that has been `pause`d.
+  * Prior to this major version, the `Handle` could be reused to run more
+    timeout actions. Now, a timeout action will only ever run, at most, once.
+    After a timeout action has run, the `Handle` is turned off and won't be
+    `resume`able, necessitating a call to `register` to start a new timeout.
+
   [#1109](https://github.com/yesodweb/wai/pull/1109)
 
 ## 0.3.2
