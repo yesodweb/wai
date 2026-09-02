@@ -548,7 +548,7 @@ readSource (Source f ref) = do
 {- HLint ignore readSource "Use tuple-section" -}
 
 leftover :: Source -> S.ByteString -> IO ()
-leftover (Source _ ref) = writeIORef ref
+leftover (Source _ ref) = atomicWriteIORef ref
 
 -- | @since 3.1.15 : throws 'RequestParseException' if something goes wrong
 parsePiecesEx
@@ -749,7 +749,7 @@ wrapTillBound bound src max' = do
                     _ -> return ()
                 if S.null bs
                     then do
-                        writeIORef ref $ WTBDone False
+                        atomicWriteIORef ref $ WTBDone False
                         return $ front bs
                     else push $ front bs
       where
@@ -758,7 +758,7 @@ wrapTillBound bound src max' = do
                 FoundBound before after -> do
                     let before' = killCRLF before
                     leftover src after
-                    writeIORef ref $ WTBDone True
+                    atomicWriteIORef ref $ WTBDone True
                     return before'
                 NoBound -> do
                     -- don't emit newlines, in case it's part of a bound
@@ -768,12 +768,12 @@ wrapTillBound bound src max' = do
                                     let (x, y) = S.splitAt (S.length bs - 2) bs
                                      in (x, S.append y)
                                 else (bs, id)
-                    writeIORef ref $ WTBWorking front'
+                    atomicWriteIORef ref $ WTBWorking front'
                     if S.null toEmit
                         then go ref sref
                         else return toEmit
                 PartialBound -> do
-                    writeIORef ref $ WTBWorking $ S.append bs
+                    atomicWriteIORef ref $ WTBWorking $ S.append bs
                     go ref sref
 
 sinkTillBound
