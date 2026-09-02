@@ -94,8 +94,8 @@ data HandleState
     | -- Action ran, but timeout was paused, so it is resumable
       -- ('resume' will reregister the action)
       Stopped
-    | -- Action was cancelled. 'register' is needed to start a new timeout.
-      Cancelled
+    | -- Action was cancelled or run. 'register' is needed to start a new timeout.
+      Terminated
 
 isEmptyHandle :: Handle -> Bool
 isEmptyHandle Handle{..} = handleTimeout == 0
