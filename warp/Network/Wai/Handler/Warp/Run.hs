@@ -21,7 +21,7 @@ import Control.Concurrent.STM (
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Functor (($>))
-import Data.IORef (newIORef, readIORef, IORef, writeIORef)
+import Data.IORef (atomicWriteIORef, newIORef, readIORef, IORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
 import GHC.Conc.Sync (labelThread, myThreadId)
@@ -552,7 +552,7 @@ initFdExhaustionRef :: IO (IORef FdExhaustion)
 initFdExhaustionRef = newIORef NoFdIssue
 
 resetFdExhaustion :: IORef FdExhaustion -> IO ()
-resetFdExhaustion = flip writeIORef NoFdIssue
+resetFdExhaustion = flip atomicWriteIORef NoFdIssue
 
 setFdExhaustion :: IORef FdExhaustion -> IO ()
-setFdExhaustion = flip writeIORef FdExhausted
+setFdExhaustion = flip atomicWriteIORef FdExhausted

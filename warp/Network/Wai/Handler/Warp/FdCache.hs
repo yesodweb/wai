@@ -66,10 +66,10 @@ newActiveStatus :: IO MutableStatus
 newActiveStatus = MutableStatus <$> newIORef Active
 
 refresh :: MutableStatus -> Refresh
-refresh (MutableStatus ref) = writeIORef ref Active
+refresh (MutableStatus ref) = atomicWriteIORef ref Active
 
 inactive :: MutableStatus -> IO ()
-inactive (MutableStatus ref) = writeIORef ref Inactive
+inactive (MutableStatus ref) = atomicWriteIORef ref Inactive
 
 ----------------------------------------------------------------
 

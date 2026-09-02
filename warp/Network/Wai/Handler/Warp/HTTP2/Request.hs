@@ -103,7 +103,7 @@ toRequest' ii settings addr ref (reqths, reqvt) bodylen body th transport =
     ~vaultValue =
         Vault.insert getFileInfoKey (getFileInfo ii)
             . Vault.insert getHTTP2DataKey (readIORef ref)
-            . Vault.insert setHTTP2DataKey (writeIORef ref)
+            . Vault.insert setHTTP2DataKey (atomicWriteIORef ref)
             . Vault.insert modifyHTTP2DataKey (modifyIORef' ref)
             . Vault.insert pauseTimeoutKey (T.pause th)
 #ifdef MIN_VERSION_crypton_x509

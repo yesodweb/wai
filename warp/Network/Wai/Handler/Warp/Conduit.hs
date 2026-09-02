@@ -41,7 +41,7 @@ readISource (ISource src ref) = do
                 -- How many bytes will still remain to be sent downstream
                 count' = count - toSend
 
-            I.writeIORef ref count'
+            I.atomicWriteIORef ref count'
 
             if count' > 0
                 then -- The expected count is greater than the size of the
@@ -86,7 +86,7 @@ readCSource (CSource src ref) = do
     withLen len bs
         | S.null bs = do
             -- FIXME should this throw an exception if len > 0?
-            I.writeIORef ref DoneChunking
+            I.atomicWriteIORef ref DoneChunking
             return S.empty
         | otherwise =
             case S.length bs `compare` fromIntegral len of
@@ -98,7 +98,7 @@ readCSource (CSource src ref) = do
                     yield' x NeedLenNewline
 
     yield' bs mlen = do
-        I.writeIORef ref mlen
+        I.atomicWriteIORef ref mlen
         return bs
 
     dropCRLF = do
@@ -124,7 +124,7 @@ readCSource (CSource src ref) = do
     go (HaveLen 0) = do
         -- Drop the final CRLF
         dropCRLF
-        I.writeIORef ref DoneChunking
+        I.atomicWriteIORef ref DoneChunking
         return S.empty
     go (HaveLen len) = do
         bs <- readSource src
@@ -136,7 +136,7 @@ readCSource (CSource src ref) = do
         bs <- readSource src
         if S.null bs
             then do
-                I.writeIORef ref $ assert False $ HaveLen 0
+                I.atomicWriteIORef ref $ assert False $ HaveLen 0
                 return S.empty
             else do
                 (x, y) <-
