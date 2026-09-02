@@ -142,23 +142,23 @@ withHandleKillThread mgr onTimeout action
 -- The use of 'IORef's are fine in the current situation where
 -- the 'TimeManager' is supposed to be used in a single thread.
 --
--- The triggered action, though, is run by the IO manager of
--- the GHC runtime outside of the thread it was registered in.
+-- The triggered action, though, is run by the Timer Manager
+-- outside of the thread it was registered in.
 -- This will potentially cause race conditions if we implement
 -- anything that depends on the 'Handle's state.
 --
 -- Given the following:
 --   - If run in one thread: 'register/tickle/pause/resume/cancel' never
 --     overlap, making them devoid of race conditions in the general sense.
---   - We want to hit the IO manager as little as possible.
+--   - We want to hit the Timer Manager as little as possible.
 --   - We want to keep the 'resume/pause' surface functionality intact, while
---     not hitting the IO manager when we don't have to. This means not
+--     not hitting the Timer Manager when we don't have to. This means not
 --     cancelling the timeout on a pause, but rather mark the timeout paused.
 --   - Not actually stopping the timeout on 'pause' introduces race
 --     conditions, because the registered action will need to check the 'Handle'
 --     state to see whether it should actually run (Active) or if it should
 --     drop the action (Paused/Stopped).
---   - Not hitting the IO manager on a 'pause' will increase performance on
+--   - Not hitting the Timer Manager on a 'pause' will increase performance on
 --     hot 'resume/pause' loops, like 'warp' has when using a streaming response.
 --   - 'tickle' gets a sort of debounce to avoid repeated updates in hot loops.
 --     - The debounce is 1/4 of the timeout, but we cap it to a maximum of 1 second.
