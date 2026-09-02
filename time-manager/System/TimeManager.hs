@@ -282,7 +282,7 @@ adjustOnTimeout originalKeyRef h@Handle{..} = do
                         then do
                             -- We're going to run the action, so set the state
                             -- so that it won't be resumed.
-                            writeState Cancelled
+                            writeState Terminated
                             pure True
                         -- "Surprise Active" situation
                         else do
@@ -298,7 +298,7 @@ adjustOnTimeout originalKeyRef h@Handle{..} = do
                 ifSameKey key $ do
                     writeState Stopped
                     pure False
-            -- 'Stopped' and 'Cancelled' mean the action shouldn't run.
+            -- 'Stopped' and 'Terminated' mean the action shouldn't run.
             _ -> pure False
     when shouldRun handleAction
   where
@@ -347,13 +347,13 @@ cancel h@Handle{..} =
         -- We can eat a potential mutex pause here to avoid race conditions,
         -- because we don't expect 'cancel' to be called in hot loops.
         --
-        -- (The race condition being: the 'Cancelled' state being overwritten
+        -- (The race condition being: the 'Terminated' state being overwritten
         -- because the 'cancel' runs JUST after the registered action starts
-        -- running, sets the state to 'Cancelled', and then the registered
+        -- running, sets the state to 'Terminated', and then the registered
         -- action finishes and overwrites it to 'Stopped')
         withLock handleLock $ do
             withTimeoutKey h $ EV.unregisterTimeout handleTimerManager
-            I.atomicWriteIORef handleState Cancelled
+            I.atomicWriteIORef handleState Terminated
 
 -- | Extending the timeout.
 --
@@ -420,8 +420,8 @@ resume h@Handle{..} =
         case state of
             -- 'tickle' doesn't introduce race conditions, so can always be run.
             Active{} -> tickle h
-            -- Abort when cancelled.
-            Cancelled -> pure ()
+            -- Abort when terminated.
+            Terminated -> pure ()
             Paused k -> onPaused k
             Stopped -> onStopped
     pausedF k = do
