@@ -1,5 +1,22 @@
 # ChangeLog for time-manager
 
+## 0.4.0
+
+* CHANGES IN BEHAVIOUR:
+  * `tickle` is rate-limited/debounced. The renewal is skipped unless a quarter
+    of the timeout (capped at one second) has passed since the timeout was last
+    registered or updated. This does mean a timeout _might_ run a bit earlier
+    than the last `tickle` would indicate, but never more than the maximum
+    debounce period.
+  * `cancel` completely stops the timeout, making it un`resume`able.
+    `resume` will only resume a timeout that has been `pause`d.
+  * Prior to this major version, the `Handle` could be reused to run more
+    timeout actions. Now, a timeout action will only ever run, at most, once.
+    After a timeout action has run, the `Handle` is turned off and won't be
+    `resume`able, necessitating a call to `register` to start a new timeout.
+
+  [#1109](https://github.com/yesodweb/wai/pull/1109)
+
 ## 0.3.2
 
 * Add `stopAfterWithResult`. [#1069](https://github.com/yesodweb/wai/pull/1069)

@@ -23,3 +23,7 @@ nix:
     - fcgi
     - zlib
 extra-deps: []
+allow-newer: true
+allow-newer-deps:
+  - http2
+  - http3
