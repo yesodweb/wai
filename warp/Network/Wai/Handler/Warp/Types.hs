@@ -6,7 +6,7 @@ module Network.Wai.Handler.Warp.Types where
 import Control.Concurrent.STM (TVar)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
@@ -141,7 +141,7 @@ getConnHTTP2 :: Connection -> IO Bool
 getConnHTTP2 = readIORef . connHTTP2
 
 setConnHTTP2 :: Connection -> Bool -> IO ()
-setConnHTTP2 = writeIORef . connHTTP2
+setConnHTTP2 = atomicWriteIORef . connHTTP2
 
 ----------------------------------------------------------------
 
@@ -168,7 +168,7 @@ readSource (Source ref func) = do
     if S.null bs
         then func
         else do
-            writeIORef ref S.empty
+            atomicWriteIORef ref S.empty
             return bs
 
 -- | Read from a Source, ignoring any leftovers.
@@ -176,7 +176,7 @@ readSource' :: Source -> IO ByteString
 readSource' (Source _ func) = func
 
 leftoverSource :: Source -> ByteString -> IO ()
-leftoverSource (Source ref _) = writeIORef ref
+leftoverSource (Source ref _) = atomicWriteIORef ref
 
 readLeftoverSource :: Source -> IO ByteString
 readLeftoverSource (Source ref _) = readIORef ref

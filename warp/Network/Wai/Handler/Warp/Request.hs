@@ -218,7 +218,7 @@ timeoutBody remainingRef timeoutHandle rbody handle100Continue = do
             -- headers. Now we need to resume it to avoid a slowloris
             -- attack during request body sending.
             Timeout.resume timeoutHandle
-            I.writeIORef isFirstRef False
+            I.atomicWriteIORef isFirstRef False
 
         bs <- rbody
 
