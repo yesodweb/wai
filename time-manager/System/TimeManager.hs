@@ -37,11 +37,11 @@ module System.TimeManager (
     tickle,
     pause,
     resume,
+    cancel,
 
     -- ** Low level
     register,
     registerKillThread,
-    cancel,
 
     -- ** Exceptions
     TimeoutThread (..),
