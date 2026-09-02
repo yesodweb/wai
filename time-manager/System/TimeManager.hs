@@ -54,6 +54,7 @@ import Data.Bits (shiftR)
 import qualified Data.IORef as I
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
+import System.IO.Unsafe (unsafePerformIO)
 import System.Mem.Weak (deRefWeak)
 import System.TimeManager.Internal
 
@@ -61,7 +62,6 @@ import System.TimeManager.Internal
 import qualified GHC.Event.Windows as EV
 #else
 import qualified GHC.Event as EV
-import System.IO.Unsafe (unsafePerformIO)
 #endif
 
 ----------------------------------------------------------------
