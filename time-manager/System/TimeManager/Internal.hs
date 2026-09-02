@@ -47,7 +47,7 @@ data Handle = Handle
     , handleMinRenewGap :: Word64
     -- ^ 'tickle' is a no-op unless at least this many nanoseconds have
     --   passed since the last renewal.
-    , handleLock :: ~Lock
+    , handleLock :: Lock
     -- ^ Used by 'resume', 'pause' and 'cancel' to determine race conditions.
     --
     -- /We intentionally do not use an @MVar HandleState@ for performance reasons./
