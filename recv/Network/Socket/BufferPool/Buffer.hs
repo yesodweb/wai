@@ -8,7 +8,7 @@ module Network.Socket.BufferPool.Buffer (
 
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString (..))
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.IORef (atomicWriteIORef, newIORef, readIORef)
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc (finalizerFree, mallocBytes)
 import Foreign.Marshal.Utils (copyBytes)
@@ -37,7 +37,7 @@ newBufferPool l h = BufferPool l h <$> newIORef BS.empty
 withBufferPool :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO ByteString
 withBufferPool pool@(BufferPool _ _ ref) f = do
     (buf, consumed) <- applyBufferPool pool f
-    writeIORef ref $ BS.drop consumed buf
+    atomicWriteIORef ref $ BS.drop consumed buf
     return $ BS.take consumed buf
 
 -- | L ike 'withBufferPool' for fillers that can decline to fill:
@@ -49,10 +49,10 @@ tryWithBufferPool pool@(BufferPool _ _ ref) f = do
     (buf, consumed) <- applyBufferPool pool f
     if consumed < 0
         then do
-            writeIORef ref buf
+            atomicWriteIORef ref buf
             return Nothing
         else do
-            writeIORef ref $ BS.drop consumed buf
+            atomicWriteIORef ref $ BS.drop consumed buf
             return $ Just $ BS.take consumed buf
 
 applyBufferPool

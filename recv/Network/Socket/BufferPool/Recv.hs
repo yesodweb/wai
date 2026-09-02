@@ -60,7 +60,7 @@ recvN :: IORef ByteString -> Recv -> RecvN
 recvN ref recv size = do
     cached <- readIORef ref
     (bs, leftover) <- tryRecvN cached size recv
-    writeIORef ref leftover
+    atomicWriteIORef ref leftover
     return bs
 
 ----------------------------------------------------------------
@@ -112,8 +112,8 @@ _iorefRecv ini = do
         xxs <- readIORef ref
         case xxs of
             [] -> do
-                writeIORef ref $ error "closed"
+                atomicWriteIORef ref $ error "closed"
                 return ""
             x : xs -> do
-                writeIORef ref xs
+                atomicWriteIORef ref xs
                 return x
