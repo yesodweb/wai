@@ -20,7 +20,7 @@ import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import qualified Data.CaseInsensitive as CI
 import Data.Char (toLower)
 import Data.Function (fix)
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.IORef (atomicWriteIORef, newIORef, readIORef)
 import Data.Maybe (fromMaybe)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (mconcat, mempty, mappend)
@@ -210,5 +210,5 @@ requestBodyFunc get count0 = do
             then return B.empty
             else do
                 mbs <- get $ min count defaultChunkSize
-                writeIORef ref $ count - maybe 0 B.length mbs
+                atomicWriteIORef ref $ count - maybe 0 B.length mbs
                 return $ fromMaybe B.empty mbs

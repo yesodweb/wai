@@ -11,7 +11,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import qualified Data.ByteString.Unsafe as S
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Foreign.C (CChar, CInt (..))
 import Foreign.Marshal.Alloc (free, mallocBytes)
@@ -60,7 +60,7 @@ input socket ilen rlen = do
             bs <-
                 readByteString socket $
                     minimum [defaultChunkSize, len, rlen]
-            writeIORef ilen $ len - S.length bs
+            atomicWriteIORef ilen $ len - S.length bs
             return $ Just bs
 
 drain :: CInt -> IORef Int -> IO () -- FIXME do it in chunks
