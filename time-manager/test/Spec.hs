@@ -8,7 +8,13 @@ module Main where
 
 import Control.Concurrent (threadDelay)
 import Control.Monad (forM_, void)
-import Data.IORef as I (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef as I (
+    IORef,
+    atomicModifyIORef',
+    newIORef,
+    readIORef,
+    writeIORef,
+ )
 import System.TimeManager
 import System.TimeManager.Internal
 import Test.HUnit (assertBool)
@@ -44,9 +50,9 @@ main = hspec $ do
 
         it "throws TimeoutThread exception" $
             throwsTimeoutThread $ do
-                mngr <- initialize 1
+                mngr <- initialize timeoutAmount
                 _hndl <- registerKillThread mngr $ pure ()
-                threadDelay 100
+                threadDelay $ timeoutAmount * 2
 
         it "defaultManager doesn't kill thread" $ do
             _hndl <- registerKillThread defaultManager $ pure ()
@@ -67,7 +73,7 @@ main = hspec $ do
         it "withHandleKillThread: registers timeout (and kills)" $ do
             ref <- freshRef
             withHandleKillTest (Just ref) mgr1 $ \_ _ ->
-                throwsTimeoutThread $ threadDelay 100
+                throwsTimeoutThread $ threadDelay 1000
             ref `refShouldBe` True
 
         it "withHandleKillThread: doesn't register timeout" $
@@ -76,50 +82,95 @@ main = hspec $ do
                 check False
 
         it "cancel/pause works as expected" $ do
-            m <- initialize 100
-            let runIt f = do
+            m <- initialize timeoutAmount
+            let killUnless f = do
                     hndl <- registerKillThread m (pure ())
                     _ <- f hndl
-                    threadDelay 1000
-            throwsTimeoutThread $ runIt pure
-            runIt cancel
-            runIt pause
+                    threadDelay $ timeoutAmount * 2
+            throwsTimeoutThread $ killUnless pure
+            killUnless cancel
+            killUnless pause
 
         it "tickle works as expected" $ do
-            m <- initialize 10_000
+            m <- initialize timeoutAmount
             withHandleTest m $ \check hndl -> do
                 forM_ [(1 :: Int) .. 20] $ \_ -> do
-                    threadDelay 1000
+                    threadDelay $ timeoutAmount `div` 10
                     tickle hndl
                 check False
 
-        let runIt f = do
-                m <- initialize 10_000
-                void $ f =<< registerKillThread m (pure ())
-        it "resume works as expected" $ do
-            let runAndWaitForTimeout f =
-                    runIt $ \hndl -> do
-                        void $ f hndl
-                        threadDelay 50_000
+        let runAndWaitForTimeout f =
+                runIt $ \hndl -> do
+                    void $ f hndl
+                    threadDelay $ timeoutAmount * 5
+        it "resume works as expected (nothing)" $ do
             -- Doing nothing kills the thread
             throwsTimeoutThread . runAndWaitForTimeout $ \_ -> pure ()
+        it "resume works as expected (pause)" $ do
             -- Pausing stops the kill
             runAndWaitForTimeout $ \hndl -> do
-                threadDelay 2500
+                threadDelay $ timeoutAmount `div` 4
                 pause hndl
+        it "resume works as expected (pause/resume)" $ do
             -- Resuming kills the thread again
             throwsTimeoutThread . runAndWaitForTimeout $ \hndl -> do
-                threadDelay 2500
+                threadDelay $ timeoutAmount `div` 4
                 pause hndl
-                threadDelay 50_000
+                threadDelay $ timeoutAmount * 5
                 resume hndl
+        it "resume works as expected (cancel/resume)" $ do
+            -- Cancelling is unresumable
+            runAndWaitForTimeout $ \hndl -> do
+                threadDelay $ timeoutAmount `div` 4
+                cancel hndl
+                threadDelay $ timeoutAmount * 5
+                resume hndl
+        it "resume works as expected (cancel/pause/resume)" $ do
+            -- Cancelling and then pausing is still unresumable
+            runAndWaitForTimeout $ \hndl -> do
+                threadDelay $ timeoutAmount `div` 4
+                cancel hndl
+                threadDelay $ timeoutAmount `div` 4
+                pause hndl
+                threadDelay $ timeoutAmount * 5
+                resume hndl
+            -- Pausing, then cancelling doesn't change anything
+            runAndWaitForTimeout $ \hndl -> do
+                threadDelay $ timeoutAmount `div` 4
+                pause hndl
+                threadDelay $ timeoutAmount `div` 4
+                cancel hndl
+                threadDelay $ timeoutAmount * 5
+                resume hndl
+        it "finished timeout won't resume" $ do
+            -- If the timeout action runs, resume shouldn't work
+            counter <- I.newIORef (0 :: Int)
+            m <- initialize timeoutAmount
+            let increase = I.atomicModifyIORef' counter $ \i -> (i + 1, ())
+            withHandle m increase $ \h -> do
+                let checkCount x = do
+                        i <- I.readIORef counter
+                        i `shouldBe` x
+                    timeoutOnlyRanOnce = do
+                        threadDelay $ timeoutAmount * 2
+                        checkCount 1
 
-        -- "resuming" every 2.5ms 20 times
-        let testResume f = do
-                runIt $ \hndl -> do
-                    forM_ [(1 :: Int) .. 20] $ \_ -> do
-                        threadDelay 2500
-                        f hndl
+                checkCount 0
+                -- waiting lets the timeout
+                timeoutOnlyRanOnce
+                -- resuming should not influence the counter
+                resume h
+                timeoutOnlyRanOnce
+                -- pausing after it runs also doesn't re-arm the timeout
+                pause h
+                resume h
+                timeoutOnlyRanOnce
+                -- cancel also doesn't re-arm the timeout
+                cancel h
+                pause h
+                resume h
+                timeoutOnlyRanOnce
+
         it "resume also works as tickle" $
             testResume resume
 
@@ -133,22 +184,33 @@ main = hspec $ do
             throwsTimeoutThread $
                 testResume oldResume
   where
+    timeoutAmount = 10_000
     withHandleTest = withTest withHandle Nothing
     withHandleKillTest = withTest withHandleKillThread
     -- Test that starts with a 'False' IORef and on timeout sets it to true
     withTest withF mRef m f = do
         ref <- maybe freshRef pure mRef
-        withF m (writeIORef ref True) . f $ refShouldBe ref
+        withF m (I.writeIORef ref True) . f $ refShouldBe ref
+    -- run with a 10ms timeout and kill
+    runIt f = do
+        m <- initialize timeoutAmount
+        void $ f =<< registerKillThread m (pure ())
+    -- "resuming" every 2.5ms 20 times
+    testResume f = do
+        runIt $ \hndl -> do
+            forM_ [(1 :: Int) .. 20] $ \_ -> do
+                threadDelay $ timeoutAmount `div` 4
+                f hndl
 
 mgr1 :: Manager
 mgr1 = Manager 1
 
 freshRef :: IO (IORef Bool)
-freshRef = newIORef False
+freshRef = I.newIORef False
 
 refShouldBe :: IORef Bool -> Bool -> IO ()
 refShouldBe ref expected =
-    readIORef ref >>= (`shouldBe` expected)
+    I.readIORef ref >>= (`shouldBe` expected)
 
 throwsTimeoutThread :: IO () -> Expectation
 throwsTimeoutThread t = t `shouldThrow` (const True :: TimeoutThread -> Bool)
