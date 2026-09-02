@@ -5,7 +5,7 @@
 
 module System.TimeManager.Internal where
 
-import Control.Concurrent.MVar (MVar, modifyMVarMasked, newMVar)
+import Control.Concurrent.MVar (MVar, modifyMVar, newMVar)
 import Data.IORef (IORef, readIORef)
 import Data.Word (Word64)
 
@@ -37,6 +37,10 @@ data Handle = Handle
     -- ^ The system timer manager the timeout key was registered with.
     --   Cached so that per-request operations don't re-fetch it.
     , handleState :: ~(IORef HandleState)
+    -- ^ The current state. Used to decide whether a timeout is still going,
+    -- paused, or completely terminated.
+    --
+    -- /We intentionally do not use an @MVar HandleState@ for performance reasons./
     , handleLastRenewed :: ~(IORef Word64)
     -- ^ Monotonic time (in nanoseconds) when the timeout was last
     --   registered or updated.
@@ -45,10 +49,12 @@ data Handle = Handle
     --   passed since the last renewal.
     , handleLock :: ~Lock
     -- ^ Used by 'resume', 'pause' and 'cancel' to determine race conditions.
+    --
+    -- /We intentionally do not use an @MVar HandleState@ for performance reasons./
+    -- /The lock only has to be grabbed to avoid race conditions./
     }
 
--- | This check makes sure the state isn't 'Stopped' and that the
--- registered action isn't already running.
+-- | Makes sure the function is only run when there's a key to act on.
 withTimeoutKey :: Handle -> (EV.TimeoutKey -> IO ()) -> IO ()
 withTimeoutKey h keyF = do
     st <- readIORef $ handleState h
@@ -57,7 +63,7 @@ withTimeoutKey h keyF = do
         Active key -> keyF key
         _ -> pure ()
 
--- | Like 'withTimeoutKey', but only when the state is 'Active'
+-- | Makes sure the function is only run when the state is 'Active'.
 withActiveTimeoutKey :: Handle -> (EV.TimeoutKey -> IO ()) -> IO ()
 withActiveTimeoutKey h keyF = do
     st <- readIORef $ handleState h
@@ -65,6 +71,7 @@ withActiveTimeoutKey h keyF = do
         Active key -> keyF key
         _ -> pure ()
 
+-- | Used to avoid race conditions in situations when the state has to be changed.
 type Lock = MVar ()
 
 newLock :: IO Lock
@@ -72,7 +79,8 @@ newLock = newMVar ()
 
 withLock :: Lock -> IO a -> IO a
 withLock lock action =
-    modifyMVarMasked lock $ \l -> do
+    -- Not sure whether this should be 'modifyMVarMasked' or not.
+    modifyMVar lock $ \l -> do
         a <- action
         pure (l, a)
 
