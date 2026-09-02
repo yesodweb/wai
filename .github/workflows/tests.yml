@@ -78,7 +78,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Cache GHCup Unix
-        if: '${{ matrix.os != "windows-latest" }}'
+        if: "${{ matrix.os != 'windows-latest' }}"
         uses: actions/cache@v6
         id: ghcup-cache
         with:
@@ -93,7 +93,7 @@ jobs:
             ghcup-${{ matrix.os }}-
 
       - name: Cache GHCup Windows
-        if: '${{ matrix.os == "windows-latest" }}'
+        if: "${{ matrix.os == 'windows-latest' }}"
         uses: actions/cache@v6
         id: ghcup-cache
         with:
@@ -115,7 +115,7 @@ jobs:
           stack-setup-ghc: false
 
       - name: Cache Pantry (Stackage package index) Unix
-        if: '${{ matrix.os != "windows-latest" }}'
+        if: "${{ matrix.os != 'windows-latest' }}"
         id: pantry
         uses: actions/cache@v6
         with:
@@ -123,7 +123,7 @@ jobs:
           key: CI-pantry-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
 
       - name: Cache Pantry (Stackage package index) Windows
-        if: '${{ matrix.os == "windows-latest" }}'
+        if: "${{ matrix.os == 'windows-latest' }}"
         id: pantry
         uses: actions/cache@v6
         with:
@@ -135,7 +135,7 @@ jobs:
         run: stack update # populates ~/.stack/pantry
 
       - name: Cache Dependencies Unix
-        if: '${{ matrix.os != "windows-latest" }}'
+        if: "${{ matrix.os != 'windows-latest' }}"
         uses: actions/cache@v6
         with:
           path: |
@@ -144,7 +144,7 @@ jobs:
           key: CI-deps-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
 
       - name: Cache Dependencies Windows
-        if: '${{ matrix.os == "windows-latest" }}'
+        if: "${{ matrix.os == 'windows-latest' }}"
         uses: actions/cache@v6
         with:
           path: |
