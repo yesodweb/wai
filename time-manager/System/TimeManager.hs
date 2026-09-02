@@ -47,7 +47,7 @@ module System.TimeManager (
     TimeoutThread (..),
 ) where
 
-import Control.Concurrent (forkIO, mkWeakThreadId, myThreadId)
+import Control.Concurrent (forkIO, mkWeakThreadId, myThreadId, newMVar)
 import qualified Control.Exception as E
 import Control.Monad (void, when)
 import Data.Bits (shiftR)
@@ -61,6 +61,7 @@ import System.TimeManager.Internal
 import qualified GHC.Event.Windows as EV
 #else
 import qualified GHC.Event as EV
+import System.IO.Unsafe (unsafePerformIO)
 #endif
 
 ----------------------------------------------------------------
@@ -81,10 +82,14 @@ emptyHandle =
         , handleState = mutError "handleState"
         , handleLastRenewed = mutError "handleLastRenewed"
         , handleMinRenewGap = 0
-        , handleLock = mutError "handleLock"
+        , handleLock = emptyLock
         }
   where
     mutError s = error $ "time-manager: Handle." <> s <> " not set"
+
+emptyLock :: Lock
+emptyLock = unsafePerformIO $ newMVar ()
+{-# NOINLINE emptyLock #-}
 
 ----------------------------------------------------------------
 
