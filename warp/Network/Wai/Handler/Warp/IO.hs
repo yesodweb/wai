@@ -4,7 +4,7 @@ import Control.Exception (mask_)
 import qualified Data.ByteString as B (length)
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder.Extra (Next (Chunk, Done, More), runBuilder)
-import Data.IORef (IORef, atomicWriteIORef, readIORef)
+import Data.IORef (IORef, readIORef, writeIORef)
 import Foreign.Ptr (plusPtr)
 import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.Imports
@@ -66,7 +66,11 @@ unsafeToBufIOWithOffset offset0 maxRspBufSize writeBufferRef io builder = do
                     biggerWriteBuffer <- mask_ $ do
                         bufFree writeBuffer
                         biggerWriteBuffer <- createWriteBuffer minSize
-                        atomicWriteIORef writeBufferRef biggerWriteBuffer
+                        -- This doesn't need to be "atomic", since these two
+                        -- functions are only used in 'sendResponse', which is
+                        -- ultimately only used in 'serveConnection', which does
+                        -- not share nor fork the created 'Connection'.
+                        writeIORef writeBufferRef biggerWriteBuffer
                         return biggerWriteBuffer
                     loop biggerWriteBuffer 0 next totalBytesSent
                 | otherwise -> loop writeBuffer 0 next totalBytesSent
