@@ -11,9 +11,9 @@ jobs:
     name: Stack
     runs-on: ${{ matrix.os }}
     env:
-      MANUAL_RESET: "v1"
+      MANUAL_RESET: "v2"
       STACK_PATHS_GLOBAL_WINDOWS: |-
-        C:\\sr
+        C:\sr
         %APPDATA%\stack
         %LOCALAPPDATA%\Programs\stack
       STACK_PATH_GLOBAL_UNIX: "~/.stack"
@@ -86,7 +86,7 @@ jobs:
             ${{ env.GHCUP_PATH_UNIX }}/bin/*
             ${{ env.GHCUP_PATH_UNIX }}/cache/*
             ${{ env.GHCUP_PATH_UNIX }}/config.yaml
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
           key: CI-ghcup-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           restore-keys: |
@@ -101,7 +101,7 @@ jobs:
             ${{ env.GHCUP_PATH_WINDOWS }}\bin\*
             ${{ env.GHCUP_PATH_WINDOWS }}\cache\*
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
           key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
 
@@ -136,10 +136,11 @@ jobs:
         if: >
           (matrix.os == 'windows-latest' && steps.pantry-windows.outputs.cache-hit != 'true')
             || (matrix.os != 'windows-latest' && steps.pantry-unix.outputs.cache-hit != 'true')
-        run: stack update # populates ~/.stack/pantry
+        run: stack update --stack-yaml="${{ env.STACKYAML }}" # populates ~/.stack/pantry
 
       - name: Cache Dependencies Unix
         if: matrix.os != 'windows-latest'
+        id: deps-unix
         uses: actions/cache@v6
         with:
           path: |
@@ -149,15 +150,32 @@ jobs:
 
       - name: Cache Dependencies Windows
         if: matrix.os == 'windows-latest'
+        id: deps-windows
         uses: actions/cache@v6
         with:
           path: |
             C:\sr\stack.sqlite3
             C:\sr\snapshots
-          key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ hashFiles('stack.yaml.lock') }}
+          key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ hashFiles(format('{0}.lock', env.STACKYAML)) }}
           restore-keys: |
             CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-
             CI-deps-windows-${{ env.MANUAL_RESET }}-
+
+      - name: Build dependencies
+        if: >
+          (matrix.os == 'windows-latest' && steps.deps-windows.outputs.cache-hit != 'true')
+            || (matrix.os != 'windows-latest' && steps.deps-unix.outputs.cache-hit != 'true')
+        shell: bash
+        run: |
+          EXTRA=""
+          if [[ ${{ matrix.os }} = "windows-latest" ]]; then
+            EXTRA="--flag=entropy:donotgetentropy"
+          fi
+          stack config set system-ghc true --global
+          stack build --only-dependencies \
+            --resolver=${{ matrix.resolver }} \
+            --ghc-options='-Wall' $EXTRA \
+            --stack-yaml ${{ env.STACKYAML }}
 
       # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
       - name: Cache Local Files
@@ -166,30 +184,28 @@ jobs:
           path: "${{ env.STACK_PATH_LOCAL }}"
           key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
 
-      - name: Build and run tests
+      - name: Build
+        if: >
+          (matrix.os == 'windows-latest' && steps.deps-windows.outputs.cache-hit != 'true')
+            || (matrix.os != 'windows-latest' && steps.deps-unix.outputs.cache-hit != 'true')
         shell: bash
         run: |
-          set -ex
-          EXTRA=""
-          BENCH="--bench"
-          # # Let's try everything again, it's been a while
-          # if [[ ${{ matrix.os }} = "windows-latest" ]]; then
-          #   EXTRA="--no-run-tests"
-          # elif [[ ${{ matrix.os }} = "macos-latest" ]]; then
-          #   BENCH=""
-          # fi
+          stack config set system-ghc true --global
+          stack build \
+            --system-ghc \
+            --resolver=${{ matrix.resolver }} \
+            --test --bench --no-run-tests --no-run-benchmarks \
+            --ghc-options='-Wall' \
+            --stack-yaml ${{ env.STACKYAML }}
 
-          # Windows fails to build 'entropy', let's try with the one
-          # flag that package has.
-          if [[ ${{ matrix.os }} = "windows-latest" ]]; then
-            EXTRA="--flag=entropy:donotgetentropy"
-          fi
-
+      - name: Run tests
+        shell: bash
+        run: |
+          stack config set system-ghc true --global
           stack test \
             --system-ghc \
             --no-terminal \
             --resolver ${{ matrix.resolver }} \
             --haddock --no-haddock-deps \
-            $BENCH --no-run-benchmarks \
-            $EXTRA \
+            --no-run-benchmarks \
             --stack-yaml ${{ env.STACKYAML }}
