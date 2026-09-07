@@ -207,6 +207,8 @@ jobs:
             --stack-yaml ${{ env.STACKYAML }}
 
       - name: Run tests
+        # Remove this after we've had a successful cache run
+        if: matrix.os != 'windows-latest'
         shell: bash
         id: run-tests
         run: |
