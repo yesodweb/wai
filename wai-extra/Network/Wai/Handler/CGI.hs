@@ -20,7 +20,7 @@ import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import qualified Data.CaseInsensitive as CI
 import Data.Char (toLower)
 import Data.Function (fix)
-import Data.IORef (atomicWriteIORef, newIORef, readIORef)
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (fromMaybe)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (mconcat, mempty, mappend)
@@ -200,6 +200,7 @@ requestBodyHandle h = requestBodyFunc $ \i -> do
     bs <- B.hGet h i
     return $ if B.null bs then Nothing else Just bs
 
+-- | This function is designed to be used in one thread only.
 requestBodyFunc
     :: (Int -> IO (Maybe B.ByteString)) -> Int -> IO (IO B.ByteString)
 requestBodyFunc get count0 = do
@@ -210,5 +211,5 @@ requestBodyFunc get count0 = do
             then return B.empty
             else do
                 mbs <- get $ min count defaultChunkSize
-                atomicWriteIORef ref $ count - maybe 0 B.length mbs
+                writeIORef ref $ count - maybe 0 B.length mbs
                 return $ fromMaybe B.empty mbs

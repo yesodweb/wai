@@ -6,7 +6,7 @@ module Network.Wai.Handler.Warp.Types where
 import Control.Concurrent.STM (TVar)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
-import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
+import Data.IORef (IORef, writeIORef, newIORef, readIORef)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
@@ -137,11 +137,14 @@ data Connection = Connection
     -- @since 3.4.13
     }
 
+-- This function isn't used nor exported...
 getConnHTTP2 :: Connection -> IO Bool
 getConnHTTP2 = readIORef . connHTTP2
 
+-- This doesn't need to be "atomic", since it is only really used for
+-- determining how long to wait before closing the socket in 'socketConnection'.
 setConnHTTP2 :: Connection -> Bool -> IO ()
-setConnHTTP2 = atomicWriteIORef . connHTTP2
+setConnHTTP2 = writeIORef . connHTTP2
 
 ----------------------------------------------------------------
 
@@ -155,6 +158,8 @@ data InternalInfo = InternalInfo
 ----------------------------------------------------------------
 
 -- | Type for input streaming.
+--
+-- /Caveat: a 'Source' is meant to be used in one thread only./
 data Source = Source !(IORef ByteString) !(IO ByteString)
 
 mkSource :: IO ByteString -> IO Source
@@ -162,21 +167,25 @@ mkSource func = do
     ref <- newIORef S.empty
     return $! Source ref func
 
+-- | Caveats from 'Source' apply.
 readSource :: Source -> IO ByteString
 readSource (Source ref func) = do
     bs <- readIORef ref
     if S.null bs
         then func
         else do
-            atomicWriteIORef ref S.empty
+            writeIORef ref S.empty
             return bs
 
 -- | Read from a Source, ignoring any leftovers.
+--
+-- /Caveats from 'Source' apply./
 readSource' :: Source -> IO ByteString
 readSource' (Source _ func) = func
 
+-- | Caveats from 'Source' apply.
 leftoverSource :: Source -> ByteString -> IO ()
-leftoverSource (Source ref _) = atomicWriteIORef ref
+leftoverSource (Source ref _) = writeIORef ref
 
 readLeftoverSource :: Source -> IO ByteString
 readLeftoverSource (Source ref _) = readIORef ref

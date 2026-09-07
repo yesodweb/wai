@@ -21,7 +21,7 @@ import Control.Concurrent.STM (
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Functor (($>))
-import Data.IORef (atomicWriteIORef, newIORef, readIORef, IORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
 import GHC.Conc.Sync (labelThread, myThreadId)
@@ -551,8 +551,11 @@ data FdExhaustion = NoFdIssue | FdExhausted
 initFdExhaustionRef :: IO (IORef FdExhaustion)
 initFdExhaustionRef = newIORef NoFdIssue
 
+-- [FD_EXHAUSTION]
+-- No need for "atomic" variants, since this is only used in a tight loop in
+-- 'acceptConnection'.
 resetFdExhaustion :: IORef FdExhaustion -> IO ()
-resetFdExhaustion = flip atomicWriteIORef NoFdIssue
+resetFdExhaustion = flip writeIORef NoFdIssue
 
 setFdExhaustion :: IORef FdExhaustion -> IO ()
-setFdExhaustion = flip atomicWriteIORef FdExhausted
+setFdExhaustion = flip writeIORef FdExhausted -- [FD_EXHAUSTION]

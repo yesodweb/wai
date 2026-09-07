@@ -8,7 +8,7 @@ module Network.Socket.BufferPool.Buffer (
 
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString (..))
-import Data.IORef (atomicWriteIORef, newIORef, readIORef)
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc (finalizerFree, mallocBytes)
 import Foreign.Marshal.Utils (copyBytes)
@@ -34,25 +34,29 @@ newBufferPool l h = BufferPool l h <$> newIORef BS.empty
 --   how many bytes are filled in the buffer.
 --   This function should return non negative 'Int'.
 --   The buffer in the buffer pool is automatically managed.
+--
+-- /Caveats of 'BufferPool' apply./
 withBufferPool :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO ByteString
 withBufferPool pool@(BufferPool _ _ ref) f = do
     (buf, consumed) <- applyBufferPool pool f
-    atomicWriteIORef ref $ BS.drop consumed buf
+    writeIORef ref $ BS.drop consumed buf
     return $ BS.take consumed buf
 
 -- | L ike 'withBufferPool' for fillers that can decline to fill:
 --   a negative return value from the filler leaves the pool untouched
 --   and produces 'Nothing'.
+--
+-- /Caveats of 'BufferPool' apply./
 tryWithBufferPool
     :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO (Maybe ByteString)
 tryWithBufferPool pool@(BufferPool _ _ ref) f = do
     (buf, consumed) <- applyBufferPool pool f
     if consumed < 0
         then do
-            atomicWriteIORef ref buf
+            writeIORef ref buf
             return Nothing
         else do
-            atomicWriteIORef ref $ BS.drop consumed buf
+            writeIORef ref $ BS.drop consumed buf
             return $ Just $ BS.take consumed buf
 
 applyBufferPool

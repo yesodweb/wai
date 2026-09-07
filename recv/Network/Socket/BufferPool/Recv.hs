@@ -18,12 +18,16 @@ import Network.Socket.BufferPool.Types
 
 -- | The receiving function with a buffer pool.
 --   The buffer pool is automatically managed.
+--
+-- /Caveats of 'BufferPool' apply./
 receive :: Socket -> BufferPool -> Recv
 receive sock pool = withBufferPool pool $ \ptr size -> recvBuf sock ptr size
 
 -- | Like 'receive' but never blocks and never involves the IO manager:
 --   'Nothing' means no data was available (or an error occurred, which a
 --   subsequent blocking 'receive' will report properly). @Just \"\"@ is EOF.
+--
+-- /Caveats of 'BufferPool' apply./
 receiveNoWait :: Socket -> BufferPool -> IO (Maybe ByteString)
 receiveNoWait sock pool = tryWithBufferPool pool $ \ptr size ->
     -- Both EAGAIN and real errors map to a negative result, deferring
@@ -49,6 +53,8 @@ receiveNoWait sock pool = tryWithBufferPool pool $ \ptr size ->
 -- ("abc","")
 -- >>> tryRecvN "a" 3 =<< _iorefRecv ["b"]
 -- ("ab","")
+--
+-- /The resulting 'RecvN' is designed to be used in one thread only./
 makeRecvN :: ByteString -> Recv -> IO RecvN
 makeRecvN bs0 recv = do
     ref <- newIORef bs0
@@ -60,7 +66,7 @@ recvN :: IORef ByteString -> Recv -> RecvN
 recvN ref recv size = do
     cached <- readIORef ref
     (bs, leftover) <- tryRecvN cached size recv
-    atomicWriteIORef ref leftover
+    writeIORef ref leftover
     return bs
 
 ----------------------------------------------------------------
@@ -112,8 +118,8 @@ _iorefRecv ini = do
         xxs <- readIORef ref
         case xxs of
             [] -> do
-                atomicWriteIORef ref $ error "closed"
+                writeIORef ref $ error "closed"
                 return ""
             x : xs -> do
-                atomicWriteIORef ref xs
+                writeIORef ref xs
                 return x

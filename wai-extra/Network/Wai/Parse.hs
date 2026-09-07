@@ -4,6 +4,9 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
+-- NOTE: All the 'writeIORef's don't need to be "atomic", because their usage
+-- is on 'IORef's that are created inside 'parsePiecesEx' and don't get forked.
+-- So all of them are used in a single thread.
 
 -- | Some helpers for parsing data out of a raw WAI 'Request'.
 module Network.Wai.Parse (
@@ -436,10 +439,10 @@ sinkRequestBodyEx
     -> IO ([Param], [File y])
 sinkRequestBodyEx o s r body = do
     ref <- newIORef ([], [])
-    let add x = atomicModifyIORef ref $ \(y, z) ->
+    let add x = modifyIORef ref $ \(y, z) ->
             case x of
-                Left y' -> ((y' : y, z), ())
-                Right z' -> ((y, z' : z), ())
+                Left y' -> (y' : y, z)
+                Right z' -> (y, z' : z)
     conduitRequestBodyEx o s r body add
     bimap reverse reverse <$> readIORef ref
 
@@ -540,7 +543,7 @@ mkSource f = do
 
 readSource :: Source -> IO S.ByteString
 readSource (Source f ref) = do
-    bs <- atomicModifyIORef ref $ \bs -> (S.empty, bs)
+    bs <- atomicModifyIORef' ref $ \bs -> (S.empty, bs)
     if S.null bs
         then f
         else return bs
@@ -548,12 +551,15 @@ readSource (Source f ref) = do
 {- HLint ignore readSource "Use tuple-section" -}
 
 leftover :: Source -> S.ByteString -> IO ()
-leftover (Source _ ref) = atomicWriteIORef ref
+leftover (Source _ ref) = writeIORef ref
 
 -- | @since 3.1.15 : throws 'RequestParseException' if something goes wrong
 parsePiecesEx
     :: ParseRequestBodyOptions
     -> BackEnd y
+    -- ^ The provided 'Backend' should not use it's @IO S.ByteString@ function
+    -- in more than one thread as it will introduce race conditions and
+    -- potentially result in undefined behaviour.
     -> S.ByteString
     -> IO S.ByteString
     -> (Either Param (File y) -> IO ())
@@ -749,7 +755,7 @@ wrapTillBound bound src max' = do
                     _ -> return ()
                 if S.null bs
                     then do
-                        atomicWriteIORef ref $ WTBDone False
+                        writeIORef ref $ WTBDone False
                         return $ front bs
                     else push $ front bs
       where
@@ -758,7 +764,7 @@ wrapTillBound bound src max' = do
                 FoundBound before after -> do
                     let before' = killCRLF before
                     leftover src after
-                    atomicWriteIORef ref $ WTBDone True
+                    writeIORef ref $ WTBDone True
                     return before'
                 NoBound -> do
                     -- don't emit newlines, in case it's part of a bound
@@ -768,12 +774,12 @@ wrapTillBound bound src max' = do
                                     let (x, y) = S.splitAt (S.length bs - 2) bs
                                      in (x, S.append y)
                                 else (bs, id)
-                    atomicWriteIORef ref $ WTBWorking front'
+                    writeIORef ref $ WTBWorking front'
                     if S.null toEmit
                         then go ref sref
                         else return toEmit
                 PartialBound -> do
-                    atomicWriteIORef ref $ WTBWorking $ S.append bs
+                    writeIORef ref $ WTBWorking $ S.append bs
                     go ref sref
 
 sinkTillBound

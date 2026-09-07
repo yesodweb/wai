@@ -29,7 +29,7 @@ getManager Settings{..} = do
     unless isInitialized $ do
         let cache = LRU.empty keyLimit valueLimit
             Manager ref = cacheManager
-        atomicWriteIORef ref cache
+        writeIORef ref cache
     return cacheManager
 
 lruInitialized :: IORef Bool

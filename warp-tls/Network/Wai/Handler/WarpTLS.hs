@@ -578,7 +578,7 @@ recvPlain ref fallback = do
     if S.null bs
         then fallback
         else do
-            I.atomicWriteIORef ref S.empty
+            I.writeIORef ref S.empty
             return bs
 
 ----------------------------------------------------------------

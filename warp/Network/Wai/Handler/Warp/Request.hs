@@ -218,7 +218,11 @@ timeoutBody remainingRef timeoutHandle rbody handle100Continue = do
             -- headers. Now we need to resume it to avoid a slowloris
             -- attack during request body sending.
             Timeout.resume timeoutHandle
-            I.atomicWriteIORef isFirstRef False
+            -- This doesn't need to be "atomic", since this is only used in
+            -- 'recvRequest' to create the 'requestBody' function. And getting
+            -- chunks of the request in a concurrent setting is asking for
+            -- trouble anyway.
+            I.writeIORef isFirstRef False
 
         bs <- rbody
 
