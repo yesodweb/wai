@@ -14,7 +14,7 @@ jobs:
       run:
         shell: bash
     env:
-      MANUAL_RESET: "v3"
+      MANUAL_RESET: "v4"
       STACK_PATHS_GLOBAL_WINDOWS: |-
         C:\sr
         %APPDATA%\stack
@@ -146,7 +146,7 @@ jobs:
         id: pantry-install
         run: |
           # FOR DEBUGGING PURPOSES
-          if [[ "${{ matrix.os == 'macos-latest' }}" ]]; then
+          if [[ "${{ matrix.os }}" == 'macos-latest' ]]; then
             echo $PATH
             export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
             echo $PATH
@@ -191,7 +191,7 @@ jobs:
         id: deps-install
         run: |
           # FOR DEBUGGING PURPOSES
-          if [[ "${{ matrix.os == 'macos-latest' }}" ]]; then
+          if [[ "${{ matrix.os }}" == 'macos-latest' ]]; then
             echo $PATH
             export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
             echo $PATH
@@ -228,7 +228,7 @@ jobs:
         id: build-code
         run: |
           # FOR DEBUGGING PURPOSES
-          if [[ "${{ matrix.os == 'macos-latest' }}" ]]; then
+          if [[ "${{ matrix.os }}" == 'macos-latest' ]]; then
             echo $PATH
             export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
             echo $PATH
