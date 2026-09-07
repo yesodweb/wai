@@ -11,7 +11,7 @@ jobs:
     name: Stack
     runs-on: ${{ matrix.os }}
     env:
-      MANUAL_RESET: "v2"
+      MANUAL_RESET: "v3"
       STACK_PATHS_GLOBAL_WINDOWS: |-
         C:\sr
         %APPDATA%\stack
@@ -150,7 +150,7 @@ jobs:
             export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
             echo $PATH
             which stack || echo "which failed"
-            find / -iname stack || echo "find failed"
+            find / -iname stack 2> /dev/null || echo "find failed"
             stack --version
           fi
           stack update --stack-yaml="${{ env.STACKYAML }}" # populates ~/.stack/pantry
@@ -194,7 +194,7 @@ jobs:
             export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
             echo $PATH
             which stack || echo "which failed"
-            find / -iname stack || echo "find failed"
+            find / -iname stack 2> /dev/null || echo "find failed"
             stack --version
           fi
           EXTRA=""
@@ -226,7 +226,7 @@ jobs:
             export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
             echo $PATH
             which stack || echo "which failed"
-            find / -iname stack || echo "find failed"
+            find / -iname stack 2> /dev/null || echo "find failed"
             stack --version
           fi
           stack config set system-ghc true --global
