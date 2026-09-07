@@ -142,7 +142,18 @@ jobs:
           (matrix.os == 'windows-latest' && steps.pantry-windows.outputs.cache-hit != 'true')
             || (matrix.os != 'windows-latest' && steps.pantry-unix.outputs.cache-hit != 'true')
         id: pantry-install
-        run: stack update --stack-yaml="${{ env.STACKYAML }}" # populates ~/.stack/pantry
+        shell: bash
+        run: |
+          # FOR DEBUGGING PURPOSES
+          if [[ "${{ matrix.os == 'macos-latest' }}" ]]; then
+            echo $PATH
+            export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
+            echo $PATH
+            which stack || echo "which failed"
+            find / -iname stack || echo "find failed"
+            stack --version
+          fi
+          stack update --stack-yaml="${{ env.STACKYAML }}" # populates ~/.stack/pantry
 
       - name: Cache Dependencies Unix
         if: matrix.os != 'windows-latest'
@@ -177,6 +188,15 @@ jobs:
         id: deps-install
         shell: bash
         run: |
+          # FOR DEBUGGING PURPOSES
+          if [[ "${{ matrix.os == 'macos-latest' }}" ]]; then
+            echo $PATH
+            export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
+            echo $PATH
+            which stack || echo "which failed"
+            find / -iname stack || echo "find failed"
+            stack --version
+          fi
           EXTRA=""
           if [[ ${{ matrix.os }} = "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
