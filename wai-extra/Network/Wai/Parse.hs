@@ -439,7 +439,7 @@ sinkRequestBodyEx
     -> IO ([Param], [File y])
 sinkRequestBodyEx o s r body = do
     ref <- newIORef ([], [])
-    let add x = modifyIORef ref $ \(y, z) ->
+    let add x = modifyIORef' ref $ \(y, z) ->
             case x of
                 Left y' -> (y' : y, z)
                 Right z' -> (y, z' : z)
