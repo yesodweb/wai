@@ -179,6 +179,12 @@ jobs:
           #   BENCH=""
           # fi
 
+          # Windows fails to build 'entropy', let's try with the one
+          # flag that package has.
+          if [[ ${{ matrix.os }} = "windows-latest" ]]; then
+            EXTRA="--flag=entropy:donotgetentropy"
+          fi
+
           stack test \
             --system-ghc \
             --no-terminal \
