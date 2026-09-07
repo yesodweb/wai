@@ -1,19 +1,19 @@
 resolver: lts-22.43
 packages:
-- ./auto-update
-- ./mime-types
-- ./recv
-- ./time-manager
-- ./wai
-- ./wai-app-static
-- ./wai-conduit
-- ./wai-extra
-- ./wai-frontend-monadcgi
-- ./wai-http2-extra
-- ./wai-websockets
-- ./warp
-- ./warp-quic
-- ./warp-tls
+  - ./auto-update
+  - ./mime-types
+  - ./recv
+  - ./time-manager
+  - ./wai
+  - ./wai-app-static
+  - ./wai-conduit
+  - ./wai-extra
+  - ./wai-frontend-monadcgi
+  - ./wai-http2-extra
+  - ./wai-websockets
+  - ./warp
+  - ./warp-quic
+  - ./warp-tls
 flags:
   wai-extra:
     build-example: true
@@ -22,8 +22,8 @@ flags:
 nix:
   enable: false
   packages:
-  - fcgi
-  - zlib
+    - fcgi
+    - zlib
 extra-deps:
   - crypton-1.0.4
   - crypto-token-0.1.2
@@ -46,3 +46,7 @@ extra-deps:
   - websockets-0.13.0.0
   - zlib-0.7.1.0
   - zlib-clib-1.3.1
+allow-newer: true
+allow-newer-deps:
+  - http2
+  - http3
