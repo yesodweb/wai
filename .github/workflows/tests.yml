@@ -75,6 +75,7 @@ jobs:
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
 
       - name: Clone project
+        id: checkout-code
         uses: actions/checkout@v6
 
       - name: Cache GHCup Unix
@@ -103,9 +104,12 @@ jobs:
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
+            %APPDATA%\stack
+            %LOCALAPPDATA%\Programs\stack
           key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
 
-      - name: Setup Haskell Stack Unix
+      - name: Setup Haskell Stack
+        id: ghcup-install
         uses: haskell-actions/setup@v2
         if: >
           (matrix.os == 'windows-latest' && steps.ghcup-cache-windows.outputs.cache-hit != 'true')
@@ -136,6 +140,7 @@ jobs:
         if: >
           (matrix.os == 'windows-latest' && steps.pantry-windows.outputs.cache-hit != 'true')
             || (matrix.os != 'windows-latest' && steps.pantry-unix.outputs.cache-hit != 'true')
+        id: pantry-install
         run: stack update --stack-yaml="${{ env.STACKYAML }}" # populates ~/.stack/pantry
 
       - name: Cache Dependencies Unix
@@ -165,6 +170,7 @@ jobs:
         if: >
           (matrix.os == 'windows-latest' && steps.deps-windows.outputs.cache-hit != 'true')
             || (matrix.os != 'windows-latest' && steps.deps-unix.outputs.cache-hit != 'true')
+        id: deps-install
         shell: bash
         run: |
           EXTRA=""
@@ -179,6 +185,7 @@ jobs:
 
       # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
       - name: Cache Local Files
+        id: cache-local-files
         uses: actions/cache@v6
         with:
           path: "${{ env.STACK_PATH_LOCAL }}"
@@ -189,6 +196,7 @@ jobs:
           (matrix.os == 'windows-latest' && steps.deps-windows.outputs.cache-hit != 'true')
             || (matrix.os != 'windows-latest' && steps.deps-unix.outputs.cache-hit != 'true')
         shell: bash
+        id: build-code
         run: |
           stack config set system-ghc true --global
           stack build \
@@ -200,6 +208,7 @@ jobs:
 
       - name: Run tests
         shell: bash
+        id: run-tests
         run: |
           stack config set system-ghc true --global
           stack test \
