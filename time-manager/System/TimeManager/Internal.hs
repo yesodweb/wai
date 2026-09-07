@@ -36,6 +36,11 @@ data Handle = Handle
     , handleTimerManager :: ~TimerManager
     -- ^ The system timer manager the timeout key was registered with.
     --   Cached so that per-request operations don't re-fetch it.
+    , handleLock :: Lock
+    -- ^ Used by 'resume', 'pause' and 'cancel' to determine race conditions.
+    --
+    -- /We intentionally do not use an @MVar HandleState@ for performance reasons./
+    -- /The lock only has to be grabbed to avoid race conditions./
     , handleState :: ~(IORef HandleState)
     -- ^ The current state. Used to decide whether a timeout is still going,
     -- paused, or completely terminated.
@@ -47,11 +52,6 @@ data Handle = Handle
     , handleMinRenewGap :: Word64
     -- ^ 'tickle' is a no-op unless at least this many nanoseconds have
     --   passed since the last renewal.
-    , handleLock :: Lock
-    -- ^ Used by 'resume', 'pause' and 'cancel' to determine race conditions.
-    --
-    -- /We intentionally do not use an @MVar HandleState@ for performance reasons./
-    -- /The lock only has to be grabbed to avoid race conditions./
     }
 
 -- | Makes sure the function is only run when there's a key to act on.
