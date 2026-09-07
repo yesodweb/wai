@@ -9,7 +9,6 @@ tarballs/
 cabal.sandbox.config
 .stack-work/
 *~
-stack*.yaml.lock
 dist-newstyle/
 .hie
 *.code-workspace
