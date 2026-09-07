@@ -72,6 +72,7 @@ jobs:
 
           # And then we expose these variables in the 'env'
           echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
+          echo "STACKYAMLLOCK=${STACKYAML}.lock" >> $GITHUB_ENV
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
 
       - name: Clone project
@@ -151,7 +152,10 @@ jobs:
           path: |
             ~/.stack/stack.sqlite3
             ~/.stack/snapshots
-          key: CI-deps-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
+          key: CI-deps-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
+          restore-keys: |
+            CI-deps-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-
+            CI-deps-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-
 
       - name: Cache Dependencies Windows
         if: matrix.os == 'windows-latest'
@@ -161,7 +165,7 @@ jobs:
           path: |
             C:\sr\stack.sqlite3
             C:\sr\snapshots
-          key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ hashFiles(format('{0}.lock', env.STACKYAML)) }}
+          key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-
             CI-deps-windows-${{ env.MANUAL_RESET }}-
@@ -180,6 +184,7 @@ jobs:
           stack config set system-ghc true --global
           stack build --only-dependencies \
             --resolver=${{ matrix.resolver }} \
+            --test --bench --no-run-tests --no-run-benchmarks \
             --ghc-options='-Wall' $EXTRA \
             --stack-yaml ${{ env.STACKYAML }}
 
@@ -201,7 +206,7 @@ jobs:
             export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
             echo $PATH
             which stack || echo "which failed"
-            find . -iname stack || echo "find failed"
+            find / -iname stack || echo "find failed"
             stack --version
           fi
           stack config set system-ghc true --global
