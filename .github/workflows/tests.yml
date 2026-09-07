@@ -127,7 +127,8 @@ jobs:
         id: stack-copy-macos
         if: matrix.os == 'macos-latest' && steps.ghcup-cache-unix.outputs.cache-hit != 'true'
         run: |
-          ghcup whereis stack
+          export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
+          ghcup whereis stack || { echo "ghcup whereis failed"; exit 1 }
           STACKFILE=$(ghcup whereis stack)
           cp "$STACKFILE" "${{ env.GHCUP_PATH_UNIX }}/bin/stack"
 
