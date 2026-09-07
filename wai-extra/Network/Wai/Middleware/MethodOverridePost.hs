@@ -12,7 +12,7 @@ module Network.Wai.Middleware.MethodOverridePost (
 ) where
 
 import Data.ByteString.Lazy (toChunks)
-import Data.IORef (atomicModifyIORef, newIORef)
+import Data.IORef (atomicModifyIORef', newIORef)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (mconcat, mempty)
 #endif
@@ -39,7 +39,7 @@ setPost :: Request -> IO Request
 setPost req = do
     body <- (mconcat . toChunks) `fmap` lazyRequestBody req
     ref <- newIORef body
-    let rb = atomicModifyIORef ref $ \bs -> (mempty, bs)
+    let rb = atomicModifyIORef' ref $ \bs -> (mempty, bs)
         req' = setRequestBodyChunks rb req
     case parseQuery body of
         (("_method", Just newmethod) : _) -> return req'{requestMethod = newmethod}

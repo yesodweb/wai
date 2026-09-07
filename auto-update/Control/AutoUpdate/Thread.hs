@@ -20,7 +20,7 @@ import Control.Exception (
     try,
  )
 import Control.Monad (void)
-import Data.IORef (newIORef, readIORef, writeIORef, atomicWriteIORef)
+import Data.IORef (atomicWriteIORef, newIORef, readIORef, writeIORef)
 import Data.Maybe (fromMaybe)
 import GHC.Conc.Sync (labelThread)
 

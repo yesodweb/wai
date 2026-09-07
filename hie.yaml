@@ -8,6 +8,11 @@ cradle:
     - path: "./mime-types/Network"
       component: "mime-types:lib"
 
+    - path: "./recv/Network"
+      component: "recv:lib"
+    - path: "./recv/test"
+      component: "recv:test:spec"
+
     - path: "./time-manager/System"
       component: "time-manager:lib"
     - path: "./time-manager/test"

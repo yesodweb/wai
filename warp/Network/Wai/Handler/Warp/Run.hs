@@ -21,7 +21,7 @@ import Control.Concurrent.STM (
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Functor (($>))
-import Data.IORef (newIORef, readIORef, IORef, writeIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
 import GHC.Conc.Sync (labelThread, myThreadId)
@@ -91,7 +91,7 @@ socketConnection set s = do
                         if h2
                             then settingsGracefulCloseTimeout2 set
                             else settingsGracefulCloseTimeout1 set
-                if tm == 0
+                if tm <= 0
                     then close s
                     else gracefulClose s tm `E.catch` throughAsync (return ())
 #else
@@ -551,8 +551,11 @@ data FdExhaustion = NoFdIssue | FdExhausted
 initFdExhaustionRef :: IO (IORef FdExhaustion)
 initFdExhaustionRef = newIORef NoFdIssue
 
+-- [FD_EXHAUSTION]
+-- No need for "atomic" variants, since this is only used in a tight loop in
+-- 'acceptConnection'.
 resetFdExhaustion :: IORef FdExhaustion -> IO ()
 resetFdExhaustion = flip writeIORef NoFdIssue
 
 setFdExhaustion :: IORef FdExhaustion -> IO ()
-setFdExhaustion = flip writeIORef FdExhausted
+setFdExhaustion = flip writeIORef FdExhausted -- [FD_EXHAUSTION]

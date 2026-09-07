@@ -18,12 +18,16 @@ import Network.Socket.BufferPool.Types
 
 -- | The receiving function with a buffer pool.
 --   The buffer pool is automatically managed.
+--
+-- /Caveats of 'BufferPool' apply./
 receive :: Socket -> BufferPool -> Recv
 receive sock pool = withBufferPool pool $ \ptr size -> recvBuf sock ptr size
 
 -- | Like 'receive' but never blocks and never involves the IO manager:
 --   'Nothing' means no data was available (or an error occurred, which a
 --   subsequent blocking 'receive' will report properly). @Just \"\"@ is EOF.
+--
+-- /Caveats of 'BufferPool' apply./
 receiveNoWait :: Socket -> BufferPool -> IO (Maybe ByteString)
 receiveNoWait sock pool = tryWithBufferPool pool $ \ptr size ->
     -- Both EAGAIN and real errors map to a negative result, deferring
@@ -49,6 +53,8 @@ receiveNoWait sock pool = tryWithBufferPool pool $ \ptr size ->
 -- ("abc","")
 -- >>> tryRecvN "a" 3 =<< _iorefRecv ["b"]
 -- ("ab","")
+--
+-- /The resulting 'RecvN' is designed to be used in one thread only./
 makeRecvN :: ByteString -> Recv -> IO RecvN
 makeRecvN bs0 recv = do
     ref <- newIORef bs0

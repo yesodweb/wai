@@ -41,6 +41,10 @@ readISource (ISource src ref) = do
                 -- How many bytes will still remain to be sent downstream
                 count' = count - toSend
 
+            -- [WRITE_IOREF_NOTE]
+            -- This doesn't need to be "atomic", since it is only used in
+            -- 'recvRequest', which creates the 'Source' and doesn't fork it,
+            -- so the 'IORef' is not shared outside of 'recvRequest'.
             I.writeIORef ref count'
 
             if count' > 0
@@ -86,7 +90,7 @@ readCSource (CSource src ref) = do
     withLen len bs
         | S.null bs = do
             -- FIXME should this throw an exception if len > 0?
-            I.writeIORef ref DoneChunking
+            I.writeIORef ref DoneChunking -- [WRITE_IOREF_NOTE]
             return S.empty
         | otherwise =
             case S.length bs `compare` fromIntegral len of
@@ -98,7 +102,7 @@ readCSource (CSource src ref) = do
                     yield' x NeedLenNewline
 
     yield' bs mlen = do
-        I.writeIORef ref mlen
+        I.writeIORef ref mlen -- [WRITE_IOREF_NOTE]
         return bs
 
     dropCRLF = do
@@ -124,7 +128,7 @@ readCSource (CSource src ref) = do
     go (HaveLen 0) = do
         -- Drop the final CRLF
         dropCRLF
-        I.writeIORef ref DoneChunking
+        I.writeIORef ref DoneChunking -- [WRITE_IOREF_NOTE]
         return S.empty
     go (HaveLen len) = do
         bs <- readSource src
@@ -136,7 +140,7 @@ readCSource (CSource src ref) = do
         bs <- readSource src
         if S.null bs
             then do
-                I.writeIORef ref $ assert False $ HaveLen 0
+                I.writeIORef ref $ assert False $ HaveLen 0 -- [WRITE_IOREF_NOTE]
                 return S.empty
             else do
                 (x, y) <-

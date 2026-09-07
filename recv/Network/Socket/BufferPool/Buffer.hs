@@ -34,6 +34,8 @@ newBufferPool l h = BufferPool l h <$> newIORef BS.empty
 --   how many bytes are filled in the buffer.
 --   This function should return non negative 'Int'.
 --   The buffer in the buffer pool is automatically managed.
+--
+-- /Caveats of 'BufferPool' apply./
 withBufferPool :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO ByteString
 withBufferPool pool@(BufferPool _ _ ref) f = do
     (buf, consumed) <- applyBufferPool pool f
@@ -43,6 +45,8 @@ withBufferPool pool@(BufferPool _ _ ref) f = do
 -- | L ike 'withBufferPool' for fillers that can decline to fill:
 --   a negative return value from the filler leaves the pool untouched
 --   and produces 'Nothing'.
+--
+-- /Caveats of 'BufferPool' apply./
 tryWithBufferPool
     :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO (Maybe ByteString)
 tryWithBufferPool pool@(BufferPool _ _ ref) f = do
