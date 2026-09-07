@@ -97,6 +97,11 @@ toRequest' ii settings addr ref (reqths, reqvt) bodylen body th transport =
     (unparsedPath, query) = C8.break (== '?') $ fromJust (mPath <|> mAuth)
     !path = H.extractPath unparsedPath
     !rawPath = if S.settingsNoParsePath settings then unparsedPath else path
+    -- We use an "atomic" function here, because we can't influence when it
+    -- will be used.
+    modifyDataKey f = atomicModifyIORef' ref $ \mOldKey ->
+        let !mNewKey = f mOldKey
+         in (mNewKey, ())
     -- fixme: pauseTimeout. th is not available here.
     -- Lazy on purpose (~ defeats -XStrict): most handlers never touch
     -- 'vault', so don't pay for the inserts unless somebody looks.
@@ -106,7 +111,7 @@ toRequest' ii settings addr ref (reqths, reqvt) bodylen body th transport =
             -- We use 'atomicWriteIORef' here, because we don't expect it
             -- to be used often, and it's use is out of our control.
             . Vault.insert setHTTP2DataKey (atomicWriteIORef ref)
-            . Vault.insert modifyHTTP2DataKey (modifyIORef' ref)
+            . Vault.insert modifyHTTP2DataKey modifyDataKey
             . Vault.insert pauseTimeoutKey (T.pause th)
 #ifdef MIN_VERSION_crypton_x509
             . Vault.insert getClientCertificateKey (getTransportClientCertificate transport)

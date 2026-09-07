@@ -194,7 +194,7 @@ extractSetCookieFromSResponse response = do
 srequest :: SRequest -> Session SResponse
 srequest (SRequest req bod) = do
     refChunks <- liftIO $ newIORef $ L.toChunks bod
-    let rbody = atomicModifyIORef refChunks $ \bss ->
+    let rbody = atomicModifyIORef' refChunks $ \bss ->
             case bss of
                 [] -> ([], S.empty)
                 x : y -> (y, x)
@@ -205,7 +205,7 @@ srequest (SRequest req bod) = do
 runResponse :: IORef SResponse -> Response -> IO ResponseReceived
 runResponse ref res = do
     refBuilder <- newIORef mempty
-    let add y = atomicModifyIORef refBuilder $ \x -> (x `mappend` y, ())
+    let add y = atomicModifyIORef' refBuilder $ \x -> (x `mappend` y, ())
     withBody $ \body -> body add (return ())
     builder <- readIORef refBuilder
     let lbs = toLazyByteString builder
