@@ -6,6 +6,7 @@ module Network.Wai.Handler.SCGI (
     runSendfile,
 ) where
 
+import Control.Monad (forever)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
@@ -20,10 +21,10 @@ import Network.Wai (Application)
 import Network.Wai.Handler.CGI (requestBodyFunc, runGeneric)
 
 run :: Application -> IO ()
-run app = runOne Nothing app >> run app
+run = forever . runOne Nothing
 
 runSendfile :: ByteString -> Application -> IO ()
-runSendfile sf app = runOne (Just sf) app >> runSendfile sf app
+runSendfile sf = forever . runOne (Just sf)
 
 runOne :: Maybe ByteString -> Application -> IO ()
 runOne sf app = do
