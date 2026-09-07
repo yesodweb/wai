@@ -56,11 +56,8 @@ lookup' key pairs = fromMaybe "" $ lookup key pairs
 
 -- | Run an application using CGI.
 run :: Application -> IO ()
-run app = do
-    vars <- getEnvironment
-    let input = requestBodyHandle System.IO.stdin
-        output = B.hPut System.IO.stdout
-    runGeneric vars input output Nothing app
+run = run' Nothing
+{-# INLINE run #-}
 
 -- | Some web servers provide an optimization for sending files via a sendfile
 -- system call via a special header. To use this feature, provide that header
@@ -70,11 +67,16 @@ runSendfile
     -- ^ sendfile header
     -> Application
     -> IO ()
-runSendfile sf app = do
+runSendfile = run' . Just
+{-# INLINE runSendfile #-}
+
+-- Run an application with an optional 'sendfile' header.
+run' :: Maybe B.ByteString -> Application -> IO ()
+run' mHdr app = do
     vars <- getEnvironment
     let input = requestBodyHandle System.IO.stdin
         output = B.hPut System.IO.stdout
-    runGeneric vars input output (Just sf) app
+    runGeneric vars input output mHdr app
 
 -- | A generic CGI helper, which allows other backends (FastCGI and SCGI) to
 -- use the same code as CGI. Most users will not need this function, and can
