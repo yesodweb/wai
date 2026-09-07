@@ -123,6 +123,14 @@ jobs:
           enable-stack: true
           stack-setup-ghc: false
 
+      - name: Copy Stack for Mac
+        id: stack-copy-macos
+        if: matrix.os == 'macos-latest' && steps.ghcup-cache-unix.outputs.cache-hit != 'true'
+        run: |
+          ghcup whereis stack
+          STACKFILE=$(ghcup whereis stack)
+          cp "$STACKFILE" "${{ env.GHCUP_PATH_UNIX }}/bin/stack"
+
       - name: Cache Pantry (Stackage package index) Unix
         if: matrix.os != 'windows-latest'
         id: pantry-unix
@@ -153,7 +161,7 @@ jobs:
             which stack || echo "which failed"
             which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
             ls -la ${{ env.GHCUP_PATH_UNIX }}/bin || "ls failed!?"
-            find / -iname stack 2> /dev/null || echo "find failed"
+            find ~ -iname stack 2> /dev/null || echo "find failed"
             stack --version
           fi
           stack update --stack-yaml="${{ env.STACKYAML }}" # populates ~/.stack/pantry
@@ -198,7 +206,7 @@ jobs:
             which stack || echo "which failed"
             which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
             ls -la ${{ env.GHCUP_PATH_UNIX }}/bin
-            find / -iname stack 2> /dev/null || echo "find failed"
+            find ~ -iname stack 2> /dev/null || echo "find failed"
             stack --version
           fi
           EXTRA=""
@@ -235,7 +243,7 @@ jobs:
             which stack || echo "which failed"
             which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
             ls -la ${{ env.GHCUP_PATH_UNIX }}/bin
-            find / -iname stack 2> /dev/null || echo "find failed"
+            find ~ -iname stack 2> /dev/null || echo "find failed"
             stack --version
           fi
           stack config set system-ghc true --global
