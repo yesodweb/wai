@@ -10,6 +10,9 @@ jobs:
   stack:
     name: Stack
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     env:
       MANUAL_RESET: "v3"
       STACK_PATHS_GLOBAL_WINDOWS: |-
@@ -37,7 +40,6 @@ jobs:
     steps:
       - name: "Set ENV vars per LTS"
         id: env-vars
-        shell: bash
         run: |
           # First we decide which GHC and which LTS we build with
 
@@ -142,7 +144,6 @@ jobs:
           (matrix.os == 'windows-latest' && steps.pantry-windows.outputs.cache-hit != 'true')
             || (matrix.os != 'windows-latest' && steps.pantry-unix.outputs.cache-hit != 'true')
         id: pantry-install
-        shell: bash
         run: |
           # FOR DEBUGGING PURPOSES
           if [[ "${{ matrix.os == 'macos-latest' }}" ]]; then
@@ -150,6 +151,8 @@ jobs:
             export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
             echo $PATH
             which stack || echo "which failed"
+            which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
+            ls -la ${{ env.GHCUP_PATH_UNIX }}/bin || "ls failed!?"
             find / -iname stack 2> /dev/null || echo "find failed"
             stack --version
           fi
@@ -186,7 +189,6 @@ jobs:
           (matrix.os == 'windows-latest' && steps.deps-windows.outputs.cache-hit != 'true')
             || (matrix.os != 'windows-latest' && steps.deps-unix.outputs.cache-hit != 'true')
         id: deps-install
-        shell: bash
         run: |
           # FOR DEBUGGING PURPOSES
           if [[ "${{ matrix.os == 'macos-latest' }}" ]]; then
@@ -194,6 +196,8 @@ jobs:
             export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
             echo $PATH
             which stack || echo "which failed"
+            which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
+            ls -la ${{ env.GHCUP_PATH_UNIX }}/bin
             find / -iname stack 2> /dev/null || echo "find failed"
             stack --version
           fi
@@ -214,10 +218,13 @@ jobs:
         uses: actions/cache@v6
         with:
           path: "${{ env.STACK_PATH_LOCAL }}"
-          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
+          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ env.GITHUB_REF_NAME }}
+          restore-keys: |
+            CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
+            CI-locals-${{ env.MANUAL_RESET }}-
+          save-always: true
 
       - name: Build
-        shell: bash
         id: build-code
         run: |
           # FOR DEBUGGING PURPOSES
@@ -226,6 +233,8 @@ jobs:
             export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
             echo $PATH
             which stack || echo "which failed"
+            which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
+            ls -la ${{ env.GHCUP_PATH_UNIX }}/bin
             find / -iname stack 2> /dev/null || echo "find failed"
             stack --version
           fi
@@ -240,7 +249,6 @@ jobs:
       - name: Run tests
         # Remove this after we've had a successful cache run
         if: matrix.os != 'windows-latest'
-        shell: bash
         id: run-tests
         run: |
           stack config set system-ghc true --global
