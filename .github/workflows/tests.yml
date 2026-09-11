@@ -15,11 +15,7 @@ jobs:
         shell: bash
     env:
       MANUAL_RESET: "v4"
-      STACK_PATHS_GLOBAL_WINDOWS: |-
-        C:\sr
-        %APPDATA%\stack
-        %LOCALAPPDATA%\Programs\stack
-      STACK_PATH_GLOBAL_UNIX: "~/.stack"
+      STACK_UNIX: "~/.ghcup/bin/stack"
       STACK_PATH_LOCAL: ".stack-work"
       GHCUP_PATH_WINDOWS: "C:\\ghcup"
       GHCUP_PATH_UNIX: "~/.ghcup"
@@ -27,7 +23,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        # os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        os: ["macos-latest"]
         stack: ["latest"]
         resolver:
           - "nightly" # 9.12
@@ -76,6 +73,7 @@ jobs:
           echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
           echo "STACKYAMLLOCK=${STACKYAML}.lock" >> $GITHUB_ENV
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
+          echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
 
       - name: Clone project
         id: checkout-code
@@ -127,13 +125,13 @@ jobs:
         id: stack-copy-macos
         if: matrix.os == 'macos-latest' && steps.ghcup-cache-unix.outputs.cache-hit != 'true'
         run: |
-          export PATH="$HOME/.ghcup/bin:$PATH"
+          echo "$PATH"
           ghcup whereis stack || {
-            echo "ghcup whereis failed"
+            echo '"ghcup whereis" failed'
             exit 1
           }
           STACKFILE=$(ghcup whereis stack)
-          cp "$STACKFILE" "${{ env.GHCUP_PATH_UNIX }}/bin/stack"
+          cp "$STACKFILE" "${{ env.STACK_UNIX }}"
 
       - name: Cache Pantry (Stackage package index) Unix
         if: matrix.os != 'windows-latest'
