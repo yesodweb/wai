@@ -26,12 +26,12 @@ jobs:
         os: ["macos-latest"]
         stack: ["latest"]
         resolver:
-          - "nightly" # 9.12
-          - "lts-24" #  9.10
-          - "lts-23" #  9.8
-          - "lts-22" #  9.6
+          # - "nightly" # 9.12
+          # - "lts-24" #  9.10
+          # - "lts-23" #  9.8
+          # - "lts-22" #  9.6
           - "lts-21" #  9.4
-          - "lts-20" #  9.2
+          # - "lts-20" #  9.2
 
     steps:
       - name: "Set ENV vars per LTS"
@@ -68,10 +68,18 @@ jobs:
               ;;
           esac
 
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            STACK_ROOT='C:\sr'
+          else
+            STACK_ROOT="$HOME/.stack"
+          fi
+
           # And then we expose these variables in the 'env'
           echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
           echo "STACKYAMLLOCK=${STACKYAML}.lock" >> $GITHUB_ENV
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
+          echo "STACK_ROOT=$STACK_ROOT" >> $GITHUB_ENV
+
           # On MacOS, this is sometimes not in the path after caching
           echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
 
@@ -133,7 +141,7 @@ jobs:
         id: pantry-unix
         uses: actions/cache@v6
         with:
-          path: ~/.stack/pantry
+          path: ${{ env.STACK_ROOT }}/pantry
           key: CI-pantry-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
 
       - name: Cache Pantry (Stackage package index) Windows
@@ -141,7 +149,8 @@ jobs:
         id: pantry-windows
         uses: actions/cache@v6
         with:
-          path: "C:\\sr\\pantry"
+          path: |
+            ${{ env.STACK_ROOT }}\pantry
           key: CI-pantry-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
 
       - name: Recompute Stackage package index
@@ -158,7 +167,10 @@ jobs:
             find ~ -iname stack 2> /dev/null || echo "find failed"
             stack --version
           fi
-          stack update --stack-yaml="${{ env.STACKYAML }}" # populates ~/.stack/pantry
+          # populates $STACK_ROOT/pantry
+          stack update \
+            --resolver="${{ matrix.resolver }}" \
+            --stack-yaml="${{ env.STACKYAML }}"
 
       - name: Cache Dependencies Unix
         if: matrix.os != 'windows-latest'
@@ -166,8 +178,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: |
-            ~/.stack/stack.sqlite3
-            ~/.stack/snapshots
+            ${{ env.STACK_ROOT }}/stack.sqlite3
+            ${{ env.STACK_ROOT }}/snapshots
           key: CI-deps-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-
@@ -179,8 +191,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: |
-            C:\sr\stack.sqlite3
-            C:\sr\snapshots
+            ${{ env.STACK_ROOT }}\stack.sqlite3
+            ${{ env.STACK_ROOT }}\snapshots
           key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-
