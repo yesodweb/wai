@@ -132,7 +132,7 @@ jobs:
           # DEBUGGING PURPOSES
 
           if ! which ghcup > /dev/null; then
-            GHCUP_FILE=$(find "$HOME/hostedtoolcache/ghcup" -iname ghcup -executable | head -1)
+            GHCUP_FILE=$(find "$HOME/hostedtoolcache/ghcup" -iname ghcup -type f | head -1)
             cp "$GHCUP_FILE" "${{ env.GHCUP_BIN_PATH_UNIX }}/ghcup"
           fi
           ghcup whereis stack || {
