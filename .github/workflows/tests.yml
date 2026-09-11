@@ -77,8 +77,8 @@ jobs:
           echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
 
           # DEBUG
-          echo "env:"
-          echo "${{ toJson(env) }}"
+          echo "github:"
+          echo "${{ toJson(github) }}"
 
       - name: Clone project
         id: checkout-code
