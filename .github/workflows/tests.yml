@@ -15,8 +15,7 @@ jobs:
         shell: bash
     env:
       MANUAL_RESET: "v4"
-      GHCUP_BIN_PATH_UNIX: "~/.ghcup/bin"
-      STACK_PATH_LOCAL: ".stack-work"
+      STACK_PATH_LOCAL: "**/.stack-work"
       GHCUP_PATH_WINDOWS: "C:\\ghcup"
       GHCUP_PATH_UNIX: "~/.ghcup"
 
