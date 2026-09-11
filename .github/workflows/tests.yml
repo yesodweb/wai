@@ -73,12 +73,12 @@ jobs:
           echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
           echo "STACKYAMLLOCK=${STACKYAML}.lock" >> $GITHUB_ENV
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
+          echo "GITHUB_REF_NAME=$GITHUB_REF_NAME" >> $GITHUB_ENV
           echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
 
           # DEBUG
-          echo "env: ${{ env }}"
-          echo "env command:"
-          env
+          echo "env:"
+          echo "${{ toJson(env) }}"
 
       - name: Clone project
         id: checkout-code
@@ -217,8 +217,8 @@ jobs:
 
       # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
       - name: Cache Local Files
-        id: cache-local-files
-        uses: actions/cache@v6
+        id: local-files-restore
+        uses: actions/cache/restore@v6
         with:
           path: "${{ env.STACK_PATH_LOCAL }}"
           key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ env.GITHUB_REF_NAME }}
@@ -244,6 +244,13 @@ jobs:
             --test --bench --no-run-tests --no-run-benchmarks \
             --ghc-options='-Wall' \
             --stack-yaml ${{ env.STACKYAML }}
+
+      - name: Cache Local Files
+        id: local-files-save
+        uses: actions/cache/save@v6
+        with:
+          path: "${{ env.STACK_PATH_LOCAL }}"
+          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ env.GITHUB_REF_NAME }}
 
       - name: Run tests
         # Remove this after we've had a successful cache run
