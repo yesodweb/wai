@@ -75,6 +75,11 @@ jobs:
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
           echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
 
+          # DEBUG
+          echo "env: ${{ env }}"
+          echo "env command:"
+          env
+
       - name: Clone project
         id: checkout-code
         uses: actions/checkout@v6
@@ -121,18 +126,10 @@ jobs:
           enable-stack: true
           stack-setup-ghc: false
 
-      - name: Fix binaries for MacOS
-        id: bin-copy-macos
+      - name: Copy Stack for MacOS
+        id: stack-copy-macos
         if: matrix.os == 'macos-latest' && steps.ghcup-cache-unix.outputs.cache-hit != 'true'
         run: |
-          # DEBUGGING PURPOSES
-          # echo "Stack exe: ${{ steps.ghcup-install.outputs.stack-exe }}"
-
-          # echo "$PATH"
-          # ls -la "$HOME/.ghcup/bin" || echo '"list .ghcup" failed'
-          # find "$HOME" -iname ghcup || echo '"find ghcup" failed'
-          # DEBUGGING PURPOSES
-
           cp "${{ steps.ghcup-install.outputs.stack-exe }}" "$HOME/.ghcup/bin"
 
       - name: Cache Pantry (Stackage package index) Unix
@@ -159,9 +156,6 @@ jobs:
         run: |
           # FOR DEBUGGING PURPOSES
           if [[ "${{ matrix.os }}" == 'macos-latest' ]]; then
-            echo $PATH
-            export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
-            echo $PATH
             which stack || echo "which failed"
             which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
             ls -la ${{ env.GHCUP_PATH_UNIX }}/bin || "ls failed!?"
@@ -204,9 +198,6 @@ jobs:
         run: |
           # FOR DEBUGGING PURPOSES
           if [[ "${{ matrix.os }}" == 'macos-latest' ]]; then
-            echo $PATH
-            export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
-            echo $PATH
             which stack || echo "which failed"
             which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
             ls -la ${{ env.GHCUP_PATH_UNIX }}/bin
@@ -234,16 +225,12 @@ jobs:
           restore-keys: |
             CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
             CI-locals-${{ env.MANUAL_RESET }}-
-          save-always: true
 
       - name: Build
         id: build-code
         run: |
           # FOR DEBUGGING PURPOSES
           if [[ "${{ matrix.os }}" == 'macos-latest' ]]; then
-            echo $PATH
-            export PATH="${{ env.GHCUP_PATH_UNIX }}/bin:$PATH"
-            echo $PATH
             which stack || echo "which failed"
             which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
             ls -la ${{ env.GHCUP_PATH_UNIX }}/bin
