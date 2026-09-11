@@ -27,12 +27,12 @@ jobs:
         os: ["macos-latest"]
         stack: ["latest"]
         resolver:
-          # - "nightly" # 9.12
-          # - "lts-24" #  9.10
-          # - "lts-23" #  9.8
-          # - "lts-22" #  9.6
+          - "nightly" # 9.12
+          - "lts-24" #  9.10
+          - "lts-23" #  9.8
+          - "lts-22" #  9.6
           - "lts-21" #  9.4
-          # - "lts-20" #  9.2
+          - "lts-20" #  9.2
 
     steps:
       - name: "Set ENV vars per LTS"
@@ -73,12 +73,8 @@ jobs:
           echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
           echo "STACKYAMLLOCK=${STACKYAML}.lock" >> $GITHUB_ENV
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
-          echo "GITHUB_REF_NAME=$GITHUB_REF_NAME" >> $GITHUB_ENV
+          # On MacOS, this is sometimes not in the path after caching
           echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
-
-          # DEBUG
-          echo "github:"
-          echo "${{ toJson(github) }}"
 
       - name: Clone project
         id: checkout-code
@@ -126,6 +122,7 @@ jobs:
           enable-stack: true
           stack-setup-ghc: false
 
+      # For some reason, GHCup on MacOS runners does not put 'stack' in the '.ghcup' directory
       - name: Copy Stack for MacOS
         id: stack-copy-macos
         if: matrix.os == 'macos-latest' && steps.ghcup-cache-unix.outputs.cache-hit != 'true'
@@ -196,14 +193,6 @@ jobs:
             || (matrix.os != 'windows-latest' && steps.deps-unix.outputs.cache-hit != 'true')
         id: deps-install
         run: |
-          # FOR DEBUGGING PURPOSES
-          if [[ "${{ matrix.os }}" == 'macos-latest' ]]; then
-            which stack || echo "which failed"
-            which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
-            ls -la ${{ env.GHCUP_PATH_UNIX }}/bin
-            find ~ -iname stack 2> /dev/null || echo "find failed"
-            stack --version
-          fi
           EXTRA=""
           if [[ ${{ matrix.os }} = "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
@@ -221,7 +210,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: "${{ env.STACK_PATH_LOCAL }}"
-          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ env.GITHUB_REF_NAME }}
+          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ github.ref_name }}
           restore-keys: |
             CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
             CI-locals-${{ env.MANUAL_RESET }}-
@@ -250,7 +239,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: "${{ env.STACK_PATH_LOCAL }}"
-          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ env.GITHUB_REF_NAME }}
+          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ github.ref_name }}
 
       - name: Run tests
         # Remove this after we've had a successful cache run
