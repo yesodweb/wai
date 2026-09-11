@@ -15,7 +15,7 @@ jobs:
         shell: bash
     env:
       MANUAL_RESET: "v4"
-      STACK_UNIX: "~/.ghcup/bin/stack"
+      GHCUP_BIN_PATH_UNIX: "~/.ghcup/bin"
       STACK_PATH_LOCAL: ".stack-work"
       GHCUP_PATH_WINDOWS: "C:\\ghcup"
       GHCUP_PATH_UNIX: "~/.ghcup"
@@ -121,20 +121,26 @@ jobs:
           enable-stack: true
           stack-setup-ghc: false
 
-      - name: Copy Stack for Mac
-        id: stack-copy-macos
+      - name: Fix binaries for MacOS
+        id: bin-copy-macos
         if: matrix.os == 'macos-latest' && steps.ghcup-cache-unix.outputs.cache-hit != 'true'
         run: |
+          # DEBUGGING PURPOSES
           echo "$PATH"
-          which ghcup || echo '"which ghcup" failed'
           ls -la "$HOME/.ghcup/bin" || echo '"list .ghcup" failed'
           find "$HOME" -iname ghcup || echo '"find ghcup" failed'
+          # DEBUGGING PURPOSES
+
+          if ! which ghcup > /dev/null; then
+            GHCUP_FILE=$(find "$HOME/hostedtoolcache/ghcup" -iname ghcup -executable | head -1)
+            cp "$GHCUP_FILE" "${{ env.GHCUP_BIN_PATH_UNIX }}/ghcup"
+          fi
           ghcup whereis stack || {
             echo '"ghcup whereis" failed'
             exit 1
           }
           STACKFILE=$(ghcup whereis stack)
-          cp "$STACKFILE" "${{ env.STACK_UNIX }}"
+          cp "$STACKFILE" "${{ env.GHCUP_BIN_PATH_UNIX }}/stack"
 
       - name: Cache Pantry (Stackage package index) Unix
         if: matrix.os != 'windows-latest'
