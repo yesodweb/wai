@@ -126,21 +126,16 @@ jobs:
         if: matrix.os == 'macos-latest' && steps.ghcup-cache-unix.outputs.cache-hit != 'true'
         run: |
           # DEBUGGING PURPOSES
+          echo "GHCup exe: ${{ steps.ghcup-install.outputs.ghc-exe }}"
+          echo "Stack exe: ${{ steps.ghcup-install.outputs.stack-exe }}"
+
           echo "$PATH"
           ls -la "$HOME/.ghcup/bin" || echo '"list .ghcup" failed'
           find "$HOME" -iname ghcup || echo '"find ghcup" failed'
           # DEBUGGING PURPOSES
 
-          if ! which ghcup > /dev/null; then
-            GHCUP_FILE=$(find "$HOME/hostedtoolcache/ghcup" -iname ghcup -type f | head -1)
-            cp "$GHCUP_FILE" "${{ env.GHCUP_BIN_PATH_UNIX }}/ghcup"
-          fi
-          ghcup whereis stack || {
-            echo '"ghcup whereis" failed'
-            exit 1
-          }
-          STACKFILE=$(ghcup whereis stack)
-          cp "$STACKFILE" "${{ env.GHCUP_BIN_PATH_UNIX }}/stack"
+          cp "${{ steps.ghcup-install.outputs.ghc-exe }}" "$HOME/.ghcup/bin"
+          cp "${{ steps.ghcup-install.outputs.stack-exe }}" "$HOME/.ghcup/bin"
 
       - name: Cache Pantry (Stackage package index) Unix
         if: matrix.os != 'windows-latest'
