@@ -146,14 +146,6 @@ jobs:
           enable-stack: true
           stack-setup-ghc: false
 
-      - name: DEBUG FOR WINDOWS
-        id: debug-windows
-        run: |
-          echo "APPDATA"
-          ls -la "$APPDATA\stack"
-          echo "LOCALAPPDATA"
-          ls -la "$LOCALAPPDATA\Programs\stack"
-
       # For some reason, GHCup on MacOS runners does not put 'stack' in the '.ghcup' directory
       - name: Copy Stack for MacOS
         id: stack-copy-macos
@@ -290,3 +282,11 @@ jobs:
             --haddock --no-haddock-deps \
             --no-run-benchmarks \
             --stack-yaml="${{ env.STACKYAML }}"
+
+      - name: DEBUG FOR WINDOWS
+        id: debug-windows
+        run: |
+          echo "APPDATA"
+          ls -la "$APPDATA\stack" || echo "APPDATA list failed"
+          echo "LOCALAPPDATA"
+          ls -la "$LOCALAPPDATA\Programs\stack" || echo "LOCALAPPDATA list failed"
