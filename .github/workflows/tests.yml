@@ -14,7 +14,7 @@ jobs:
       run:
         shell: bash
     env:
-      MANUAL_RESET: "v5"
+      MANUAL_RESET: "v6"
       # If you want to cache local files, try this list:
       STACK_PATH_LOCAL: |
         .stack-work/stack.sqlite3
@@ -107,9 +107,13 @@ jobs:
           #   ${{ env.GHCUP_PATH_UNIX }}\cache\*
           path: |
             ${{ env.GHCUP_PATH_UNIX }}/bin/*
+            # We don't need GHCup to run stack, so don't cache it
+            !${{ env.GHCUP_PATH_UNIX }}/bin/ghcup
             ${{ env.GHCUP_PATH_UNIX }}/config.yaml
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/bin
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin
+            # We don't need profile builds of GHC etc
+            !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin/*-iserv-*
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
           key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
           restore-keys: |
@@ -120,27 +124,28 @@ jobs:
         uses: actions/cache@v6
         id: ghcup-cache-windows
         with:
-          # removed lines:
-          #   ${{ env.GHCUP_PATH_WINDOWS }}\cache\*
-          #   ~\Appdata\Local\Programs\stack
           path: |
             ${{ env.GHCUP_PATH_WINDOWS }}\bin\*
+            # We don't need GHCup to run stack, so don't cache it
+            !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin
+            # We don't need profile builds of GHC etc
+            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin\*-iserv-*
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
-            ~\AppData\Local\Programs\stack
           key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           restore-keys: |
             CI-ghcup-unix-${{ env.MANUAL_RESET }}-
 
-      - name: DEBUG FOR WINDOWS
-        id: debug-windows
-        run: |
-          echo "APPDATA"
-          ls -la "~\AppData\Roaming\stack" || echo "APPDATA list failed"
-          echo "LOCALAPPDATA"
-          ls -la "~\AppData\Local\Programs\stack\x86_64-windows" || echo "LOCALAPPDATA list failed"
+      - name: MSYS & 7z [WINDOWS]
+        id: msys-7z
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~\AppData\Local\Programs\stack
+          key: msys-7z-windows
 
       - name: Setup Haskell Stack
         id: ghcup-install
@@ -154,14 +159,6 @@ jobs:
           enable-stack: true
           stack-setup-ghc: false
 
-      - name: DEBUG FOR WINDOWS 2
-        id: debug-windows-2
-        run: |
-          echo "APPDATA"
-          ls -la "~\AppData\Roaming\stack" || echo "APPDATA list failed"
-          echo "LOCALAPPDATA"
-          ls -la "~\AppData\Local\Programs\stack\x86_64-windows" || echo "LOCALAPPDATA list failed"
-
       # For some reason, GHCup on MacOS runners does not put 'stack' in the '.ghcup' directory
       - name: Copy Stack for MacOS
         id: stack-copy-macos
@@ -174,8 +171,11 @@ jobs:
         id: pantry-unix
         uses: actions/cache@v6
         with:
-          path: ${{ env.STACK_ROOT }}/pantry
-          key: CI-pantry-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}
+          path: |
+            ${{ env.STACK_ROOT }}/pantry
+            !${{ env.STACK_ROOT }}/pantry/**/*.tar
+            !${{ env.STACK_ROOT }}/pantry/**/*.tar.gz
+          key: CI-pantry-unix-${{ env.MANUAL_RESET }}
 
       - name: Cache Pantry (Stackage package index) Windows
         if: matrix.os == 'windows-latest'
@@ -184,7 +184,9 @@ jobs:
         with:
           path: |
             ${{ env.STACK_ROOT }}\pantry
-          key: CI-pantry-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
+            !${{ env.STACK_ROOT }}\pantry\**\*.tar
+            !${{ env.STACK_ROOT }}\pantry\**\*.tar.gz
+          key: CI-pantry-windows-${{ env.MANUAL_RESET }}
 
       - name: Recompute Stackage package index
         if: >
@@ -192,7 +194,10 @@ jobs:
             || (matrix.os != 'windows-latest' && steps.pantry-unix.outputs.cache-hit != 'true')
         id: pantry-install
         run: |
-          # populates $STACK_ROOT/pantry
+          # Populates $STACK_ROOT/pantry
+          #
+          # The extra arguments are probably superfluous, but stack's caching
+          # is weird sometimes, so we keep everything equal when possible.
           stack update \
             --system-ghc --no-terminal \
             --resolver="${{ matrix.resolver }}" \
@@ -205,16 +210,9 @@ jobs:
         with:
           path: |
             ${{ env.STACK_ROOT }}/stack.sqlite3
-            ${{ env.STACK_ROOT }}/snapshots/**/*.a
-            ${{ env.STACK_ROOT }}/snapshots/**/*.cache
-            ${{ env.STACK_ROOT }}/snapshots/**/*.conf
-            ${{ env.STACK_ROOT }}/snapshots/**/*.dyn_hi
-            ${{ env.STACK_ROOT }}/snapshots/**/*.dyn_o
-            ${{ env.STACK_ROOT }}/snapshots/**/*.h
-            ${{ env.STACK_ROOT }}/snapshots/**/*.hi
-            ${{ env.STACK_ROOT }}/snapshots/**/*.o
-            ${{ env.STACK_ROOT }}/snapshots/**/*.so
-            ${{ env.STACK_ROOT }}/snapshots/**/hspec-discover
+            ${{ env.STACK_ROOT }}/snapshots
+            # Don't cache any haddocks or other docs
+            !${{ env.STACK_ROOT }}/snapshots/**/doc
           key: CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
@@ -226,16 +224,9 @@ jobs:
         with:
           path: |
             ${{ env.STACK_ROOT }}\stack.sqlite3
-            ${{ env.STACK_ROOT }}\snapshots\**\*.a
-            ${{ env.STACK_ROOT }}\snapshots\**\*.cache
-            ${{ env.STACK_ROOT }}\snapshots\**\*.conf
-            ${{ env.STACK_ROOT }}\snapshots\**\*.dyn_hi
-            ${{ env.STACK_ROOT }}\snapshots\**\*.dyn_o
-            ${{ env.STACK_ROOT }}\snapshots\**\*.h
-            ${{ env.STACK_ROOT }}\snapshots\**\*.hi
-            ${{ env.STACK_ROOT }}\snapshots\**\*.o
-            ${{ env.STACK_ROOT }}\snapshots\**\*.so
-            ${{ env.STACK_ROOT }}\snapshots\**\hspec-discover
+            ${{ env.STACK_ROOT }}\snapshots
+            # Don't cache any haddocks or other docs
+            !${{ env.STACK_ROOT }}\snapshots\**\doc
           key: CI-newtest1-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-newtest1-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
