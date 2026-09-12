@@ -100,7 +100,7 @@ jobs:
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
           key: CI-ghcup-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           restore-keys: |
-            ghcup-${{ matrix.os }}-
+            CI-ghcup-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-
 
       - name: Cache GHCup Windows
         if: matrix.os == 'windows-latest'
@@ -216,7 +216,7 @@ jobs:
             --stack-yaml ${{ env.STACKYAML }}
 
       # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
-      - name: Cache Local Files
+      - name: Cache Local Files Restore
         id: local-files-restore
         uses: actions/cache/restore@v6
         with:
@@ -245,7 +245,7 @@ jobs:
             --ghc-options='-Wall' \
             --stack-yaml ${{ env.STACKYAML }}
 
-      - name: Cache Local Files
+      - name: Cache Local Files Save
         id: local-files-save
         uses: actions/cache/save@v6
         with:
