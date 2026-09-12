@@ -98,7 +98,7 @@ jobs:
         id: checkout-code
         uses: actions/checkout@v6
 
-      - name: Cache GHCup Unix
+      - name: Cache GHCup [UNIX]
         if: matrix.os != 'windows-latest'
         uses: actions/cache@v6
         id: ghcup-cache-unix
@@ -119,7 +119,7 @@ jobs:
           restore-keys: |
             CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
-      - name: Cache GHCup Windows
+      - name: Cache GHCup [WINDOWS]
         if: matrix.os == 'windows-latest'
         uses: actions/cache@v6
         id: ghcup-cache-windows
@@ -166,7 +166,7 @@ jobs:
         run: |
           cp "${{ steps.ghcup-install.outputs.stack-exe }}" "$HOME/.ghcup/bin"
 
-      - name: Cache Pantry (Stackage package index) Unix
+      - name: Cache Pantry (Stackage package index) [UNIX]
         if: matrix.os != 'windows-latest'
         id: pantry-unix
         uses: actions/cache@v6
@@ -177,7 +177,7 @@ jobs:
             !${{ env.STACK_ROOT }}/pantry/**/*.tar.gz
           key: CI-pantry-unix-${{ env.MANUAL_RESET }}
 
-      - name: Cache Pantry (Stackage package index) Windows
+      - name: Cache Pantry (Stackage package index) [WINDOWS]
         if: matrix.os == 'windows-latest'
         id: pantry-windows
         uses: actions/cache@v6
@@ -203,7 +203,7 @@ jobs:
             --resolver="${{ matrix.resolver }}" \
             --stack-yaml="${{ env.STACKYAML }}"
 
-      - name: Cache Dependencies Unix
+      - name: Cache Dependencies [UNIX]
         if: matrix.os != 'windows-latest'
         id: deps-unix
         uses: actions/cache@v6
@@ -212,12 +212,12 @@ jobs:
             ${{ env.STACK_ROOT }}/stack.sqlite3
             ${{ env.STACK_ROOT }}/snapshots
             # Don't cache any haddocks or other docs
-            !${{ env.STACK_ROOT }}/snapshots/**/doc
+            !${{ env.STACK_ROOT }}/snapshots/**/doc/**
           key: CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
 
-      - name: Cache Dependencies Windows
+      - name: Cache Dependencies [WINDOWS]
         if: matrix.os == 'windows-latest'
         id: deps-windows
         uses: actions/cache@v6
@@ -226,10 +226,10 @@ jobs:
             ${{ env.STACK_ROOT }}\stack.sqlite3
             ${{ env.STACK_ROOT }}\snapshots
             # Don't cache any haddocks or other docs
-            !${{ env.STACK_ROOT }}\snapshots\**\doc
-          key: CI-newtest1-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
+            !${{ env.STACK_ROOT }}\snapshots\**\doc\**
+          key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
-            CI-newtest1-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
+            CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
 
       - name: Build dependencies
         if: >
@@ -237,6 +237,11 @@ jobs:
             || (matrix.os != 'windows-latest' && steps.deps-unix.outputs.cache-hit != 'true')
         id: deps-install
         run: |
+          # DEBUG
+          echo "trying to look into the pantry"
+          ll ${{ env.STACK_ROOT }}\pantry || echo "list pantry failed"
+          ll ${{ env.STACK_ROOT }}\pantry\hackage\ || echo "list pantry\hackage failed"
+
           EXTRA=""
           if [[ ${{ matrix.os }} == "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
