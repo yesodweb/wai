@@ -128,7 +128,6 @@ jobs:
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
-            %APPDATA%\stack
             %LOCALAPPDATA%\Programs\stack
           key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           restore-keys: |
@@ -286,7 +285,5 @@ jobs:
       - name: DEBUG FOR WINDOWS
         id: debug-windows
         run: |
-          echo "APPDATA"
-          ls -la "$APPDATA\stack" || echo "APPDATA list failed"
           echo "LOCALAPPDATA"
-          ls -la "$LOCALAPPDATA\Programs\stack" || echo "LOCALAPPDATA list failed"
+          ls -la "$LOCALAPPDATA\Programs\stack\x86_64-windows" || echo "LOCALAPPDATA list failed"
