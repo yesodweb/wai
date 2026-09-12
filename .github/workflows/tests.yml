@@ -201,11 +201,11 @@ jobs:
             EXTRA="--flag=entropy:donotgetentropy"
           fi
           stack config set system-ghc true --global
-          stack build --only-dependencies \
-            --resolver=${{ matrix.resolver }} \
-            --test --bench --no-run-tests --no-run-benchmarks \
+          stack build --test --bench \
+            --resolver="${{ matrix.resolver }}" \
+            --only-dependencies --no-run-tests --no-run-benchmarks \
             --ghc-options='-Wall' $EXTRA \
-            --stack-yaml ${{ env.STACKYAML }}
+            --stack-yaml="${{ env.STACKYAML }}"
 
       # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
       - name: Cache Local Files Restore
@@ -227,7 +227,7 @@ jobs:
             --resolver=${{ matrix.resolver }} \
             --test --bench --no-run-tests --no-run-benchmarks \
             --ghc-options='-Wall' \
-            --stack-yaml ${{ env.STACKYAML }}
+            --stack-yaml="${{ env.STACKYAML }}"
 
       - name: Cache Local Files Save
         id: local-files-save
@@ -245,7 +245,7 @@ jobs:
           stack test \
             --system-ghc \
             --no-terminal \
-            --resolver ${{ matrix.resolver }} \
+            --resolver="${{ matrix.resolver }}" \
             --haddock --no-haddock-deps \
             --no-run-benchmarks \
-            --stack-yaml ${{ env.STACKYAML }}
+            --stack-yaml="${{ env.STACKYAML }}"
