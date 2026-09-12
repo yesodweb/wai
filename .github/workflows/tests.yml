@@ -15,7 +15,17 @@ jobs:
         shell: bash
     env:
       MANUAL_RESET: "v5"
-      STACK_PATH_LOCAL: "**/.stack-work"
+      STACK_PATH_LOCAL: |
+        ".stack-work/stack.sqlite3"
+        "**/.stack-work/**/*.a"
+        "**/.stack-work/**/*.cache"
+        "**/.stack-work/**/*.conf"
+        "**/.stack-work/**/*.dyn_hi"
+        "**/.stack-work/**/*.dyn_o"
+        "**/.stack-work/**/*.h"
+        "**/.stack-work/**/*.hi"
+        "**/.stack-work/**/*.hs"
+        "**/.stack-work/**/*.so"
       GHCUP_PATH_WINDOWS: "C:\\ghcup"
       GHCUP_PATH_UNIX: "~/.ghcup"
 
@@ -115,6 +125,8 @@ jobs:
             %APPDATA%\stack
             %LOCALAPPDATA%\Programs\stack
           key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+          restore-keys: |
+            CI-ghcup-unix-${{ env.MANUAL_RESET }}-
 
       - name: Setup Haskell Stack
         id: ghcup-install
@@ -142,7 +154,6 @@ jobs:
         with:
           path: ${{ env.STACK_ROOT }}/pantry
           key: CI-pantry-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}
-          restore-keys: CI-pantry-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Cache Pantry (Stackage package index) Windows
         if: matrix.os == 'windows-latest'
@@ -176,7 +187,6 @@ jobs:
           key: CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
-            CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Cache Dependencies Windows
         if: matrix.os == 'windows-latest'
@@ -189,7 +199,6 @@ jobs:
           key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
-            CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Build dependencies
         if: >
@@ -198,7 +207,7 @@ jobs:
         id: deps-install
         run: |
           EXTRA=""
-          if [[ ${{ matrix.os }} = "windows-latest" ]]; then
+          if [[ ${{ matrix.os }} == "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
           fi
           stack build --test --bench \
@@ -222,11 +231,15 @@ jobs:
       - name: Build
         id: build-code
         run: |
+          EXTRA=""
+          if [[ ${{ matrix.os }} == "windows-latest" ]]; then
+            EXTRA="--flag=entropy:donotgetentropy"
+          fi
           stack build --test --bench \
             --system-ghc --no-terminal \
             --resolver=${{ matrix.resolver }} \
             --no-run-tests --no-run-benchmarks \
-            --ghc-options='-Wall' \
+            --ghc-options='-Wall' $EXTRA \
             --stack-yaml="${{ env.STACKYAML }}"
 
       - name: Cache Local Files Save
