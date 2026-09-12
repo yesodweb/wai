@@ -150,9 +150,9 @@ jobs:
         id: debug-windows
         run: |
           echo "APPDATA"
-          ls -la "%APPDATA%\stack"
+          ls -la "$APPDATA\stack"
           echo "LOCALAPPDATA"
-          ls -la "%LOCALAPPDATA%\Programs\stack"
+          ls -la "$LOCALAPPDATA\Programs\stack"
 
       # For some reason, GHCup on MacOS runners does not put 'stack' in the '.ghcup' directory
       - name: Copy Stack for MacOS
