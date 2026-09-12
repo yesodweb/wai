@@ -16,16 +16,16 @@ jobs:
     env:
       MANUAL_RESET: "v5"
       STACK_PATH_LOCAL: |
-        ".stack-work/stack.sqlite3"
-        "**/.stack-work/**/*.a"
-        "**/.stack-work/**/*.cache"
-        "**/.stack-work/**/*.conf"
-        "**/.stack-work/**/*.dyn_hi"
-        "**/.stack-work/**/*.dyn_o"
-        "**/.stack-work/**/*.h"
-        "**/.stack-work/**/*.hi"
-        "**/.stack-work/**/*.hs"
-        "**/.stack-work/**/*.so"
+        .stack-work/stack.sqlite3
+        **/.stack-work/**/*.a
+        **/.stack-work/**/*.cache
+        **/.stack-work/**/*.conf
+        **/.stack-work/**/*.dyn_hi
+        **/.stack-work/**/*.dyn_o
+        **/.stack-work/**/*.h
+        **/.stack-work/**/*.hi
+        **/.stack-work/**/*.hs
+        **/.stack-work/**/*.so
       GHCUP_PATH_WINDOWS: "C:\\ghcup"
       GHCUP_PATH_UNIX: "~/.ghcup"
 
@@ -218,15 +218,15 @@ jobs:
             --stack-yaml="${{ env.STACKYAML }}"
 
       # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
-      - name: Cache Local Files Restore
-        id: local-files-restore
-        uses: actions/cache/restore@v6
-        with:
-          path: "${{ env.STACK_PATH_LOCAL }}"
-          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
-          restore-keys: |
-            CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}
-            CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
+      # - name: Cache Local Files Restore
+      #   id: local-files-restore
+      #   uses: actions/cache/restore@v6
+      #   with:
+      #     path: "${{ env.STACK_PATH_LOCAL }}"
+      #     key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
+      #     restore-keys: |
+      #       CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}
+      #       CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Build
         id: build-code
@@ -242,12 +242,12 @@ jobs:
             --ghc-options='-Wall' $EXTRA \
             --stack-yaml="${{ env.STACKYAML }}"
 
-      - name: Cache Local Files Save
-        id: local-files-save
-        uses: actions/cache/save@v6
-        with:
-          path: "${{ env.STACK_PATH_LOCAL }}"
-          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
+      # - name: Cache Local Files Save
+      #   id: local-files-save
+      #   uses: actions/cache/save@v6
+      #   with:
+      #     path: "${{ env.STACK_PATH_LOCAL }}"
+      #     key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
 
       - name: Run tests
         # Remove this after we've had a successful cache run
