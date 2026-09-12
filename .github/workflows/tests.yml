@@ -14,7 +14,7 @@ jobs:
       run:
         shell: bash
     env:
-      MANUAL_RESET: "v4"
+      MANUAL_RESET: "v5"
       STACK_PATH_LOCAL: "**/.stack-work"
       GHCUP_PATH_WINDOWS: "C:\\ghcup"
       GHCUP_PATH_UNIX: "~/.ghcup"
@@ -22,16 +22,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        os: ["macos-latest"]
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         stack: ["latest"]
         resolver:
-          # - "nightly" # 9.12
-          # - "lts-24" #  9.10
-          # - "lts-23" #  9.8
-          # - "lts-22" #  9.6
+          - "nightly" # 9.12
+          - "lts-24" #  9.10
+          - "lts-23" #  9.8
+          - "lts-22" #  9.6
           - "lts-21" #  9.4
-          # - "lts-20" #  9.2
+          - "lts-20" #  9.2
 
     steps:
       - name: "Set ENV vars per LTS"
@@ -98,9 +97,9 @@ jobs:
             ${{ env.GHCUP_PATH_UNIX }}/config.yaml
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
-          key: CI-ghcup-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+          key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
           restore-keys: |
-            CI-ghcup-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-
+            CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Cache GHCup Windows
         if: matrix.os == 'windows-latest'
@@ -142,7 +141,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ env.STACK_ROOT }}/pantry
-          key: CI-pantry-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
+          key: CI-pantry-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}
+          restore-keys: CI-pantry-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Cache Pantry (Stackage package index) Windows
         if: matrix.os == 'windows-latest'
@@ -159,14 +159,6 @@ jobs:
             || (matrix.os != 'windows-latest' && steps.pantry-unix.outputs.cache-hit != 'true')
         id: pantry-install
         run: |
-          # FOR DEBUGGING PURPOSES
-          if [[ "${{ matrix.os }}" == 'macos-latest' ]]; then
-            which stack || echo "which failed"
-            which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
-            ls -la ${{ env.GHCUP_PATH_UNIX }}/bin || "ls failed!?"
-            find ~ -iname stack 2> /dev/null || echo "find failed"
-            stack --version
-          fi
           # populates $STACK_ROOT/pantry
           stack update \
             --resolver="${{ matrix.resolver }}" \
@@ -180,10 +172,10 @@ jobs:
           path: |
             ${{ env.STACK_ROOT }}/stack.sqlite3
             ${{ env.STACK_ROOT }}/snapshots
-          key: CI-deps-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
+          key: CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
-            CI-deps-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-
-            CI-deps-unix-${{ matrix.os }}-${{ env.MANUAL_RESET }}-
+            CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
+            CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Cache Dependencies Windows
         if: matrix.os == 'windows-latest'
@@ -193,10 +185,10 @@ jobs:
           path: |
             ${{ env.STACK_ROOT }}\stack.sqlite3
             ${{ env.STACK_ROOT }}\snapshots
-          key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
+          key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
-            CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-
-            CI-deps-windows-${{ env.MANUAL_RESET }}-
+            CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
+            CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Build dependencies
         if: >
@@ -221,22 +213,14 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: "${{ env.STACK_PATH_LOCAL }}"
-          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ github.ref_name }}
+          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
           restore-keys: |
-            CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}
-            CI-locals-${{ env.MANUAL_RESET }}-
+            CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}
+            CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Build
         id: build-code
         run: |
-          # FOR DEBUGGING PURPOSES
-          if [[ "${{ matrix.os }}" == 'macos-latest' ]]; then
-            which stack || echo "which failed"
-            which ${{ env.GHCUP_PATH_UNIX }}/bin/stack || echo "specific which failed"
-            ls -la ${{ env.GHCUP_PATH_UNIX }}/bin
-            find ~ -iname stack 2> /dev/null || echo "find failed"
-            stack --version
-          fi
           stack config set system-ghc true --global
           stack build \
             --system-ghc \
@@ -250,7 +234,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: "${{ env.STACK_PATH_LOCAL }}"
-          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.resolver }}-${{ github.ref_name }}
+          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
 
       - name: Run tests
         # Remove this after we've had a successful cache run
