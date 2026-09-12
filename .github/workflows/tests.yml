@@ -122,13 +122,13 @@ jobs:
         with:
           # removed lines:
           #   ${{ env.GHCUP_PATH_WINDOWS }}\cache\*
+          #   ~\Appdata\Local\Programs\stack
           path: |
             ${{ env.GHCUP_PATH_WINDOWS }}\bin\*
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
-            %LOCALAPPDATA%\Programs\stack
           key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           restore-keys: |
             CI-ghcup-unix-${{ env.MANUAL_RESET }}-
@@ -197,6 +197,7 @@ jobs:
             ${{ env.STACK_ROOT }}/snapshots/**/*.hi
             ${{ env.STACK_ROOT }}/snapshots/**/*.o
             ${{ env.STACK_ROOT }}/snapshots/**/*.so
+            ${{ env.STACK_ROOT }}/snapshots/**/hspec-discover
           key: CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
@@ -217,9 +218,10 @@ jobs:
             ${{ env.STACK_ROOT }}\snapshots\**\*.hi
             ${{ env.STACK_ROOT }}\snapshots\**\*.o
             ${{ env.STACK_ROOT }}\snapshots\**\*.so
-          key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
+            ${{ env.STACK_ROOT }}\snapshots\**\hspec-discover
+          key: CI-newtest1-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
-            CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
+            CI-newtest1-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
 
       - name: Build dependencies
         if: >
