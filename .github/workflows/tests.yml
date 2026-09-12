@@ -161,6 +161,7 @@ jobs:
         run: |
           # populates $STACK_ROOT/pantry
           stack update \
+            --system-ghc --no-terminal \
             --resolver="${{ matrix.resolver }}" \
             --stack-yaml="${{ env.STACKYAML }}"
 
@@ -200,8 +201,8 @@ jobs:
           if [[ ${{ matrix.os }} = "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
           fi
-          stack config set system-ghc true --global
           stack build --test --bench \
+            --system-ghc --no-terminal \
             --resolver="${{ matrix.resolver }}" \
             --only-dependencies --no-run-tests --no-run-benchmarks \
             --ghc-options='-Wall' $EXTRA \
@@ -221,11 +222,10 @@ jobs:
       - name: Build
         id: build-code
         run: |
-          stack config set system-ghc true --global
-          stack build \
-            --system-ghc \
+          stack build --test --bench \
+            --system-ghc --no-terminal \
             --resolver=${{ matrix.resolver }} \
-            --test --bench --no-run-tests --no-run-benchmarks \
+            --no-run-tests --no-run-benchmarks \
             --ghc-options='-Wall' \
             --stack-yaml="${{ env.STACKYAML }}"
 
@@ -241,10 +241,8 @@ jobs:
         if: matrix.os != 'windows-latest'
         id: run-tests
         run: |
-          stack config set system-ghc true --global
-          stack test \
-            --system-ghc \
-            --no-terminal \
+          stack build --test --bench \
+            --system-ghc --no-terminal \
             --resolver="${{ matrix.resolver }}" \
             --haddock --no-haddock-deps \
             --no-run-benchmarks \
