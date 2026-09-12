@@ -15,6 +15,7 @@ jobs:
         shell: bash
     env:
       MANUAL_RESET: "v5"
+      # If you want to cache local files, try this list:
       STACK_PATH_LOCAL: |
         .stack-work/stack.sqlite3
         **/.stack-work/**/*.a
@@ -32,15 +33,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        # os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        os: ["windows-latest"]
         stack: ["latest"]
         resolver:
-          - "nightly" # 9.12
-          - "lts-24" #  9.10
-          - "lts-23" #  9.8
-          - "lts-22" #  9.6
+          # - "nightly" # 9.12
+          # - "lts-24" #  9.10
+          # - "lts-23" #  9.8
+          # - "lts-22" #  9.6
           - "lts-21" #  9.4
-          - "lts-20" #  9.2
+          # - "lts-20" #  9.2
 
     steps:
       - name: "Set ENV vars per LTS"
@@ -101,11 +103,13 @@ jobs:
         uses: actions/cache@v6
         id: ghcup-cache-unix
         with:
+          # removed lines:
+          #   ${{ env.GHCUP_PATH_UNIX }}\cache\*
           path: |
             ${{ env.GHCUP_PATH_UNIX }}/bin/*
-            ${{ env.GHCUP_PATH_UNIX }}/cache/*
             ${{ env.GHCUP_PATH_UNIX }}/config.yaml
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/bin
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
           key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
           restore-keys: |
@@ -116,11 +120,13 @@ jobs:
         uses: actions/cache@v6
         id: ghcup-cache-windows
         with:
+          # removed lines:
+          #   ${{ env.GHCUP_PATH_WINDOWS }}\cache\*
           path: |
             ${{ env.GHCUP_PATH_WINDOWS }}\bin\*
-            ${{ env.GHCUP_PATH_WINDOWS }}\cache\*
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\bin
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
             %APPDATA%\stack
             %LOCALAPPDATA%\Programs\stack
@@ -139,6 +145,14 @@ jobs:
           ghc-version: ${{ env.GHC_VERSION }}
           enable-stack: true
           stack-setup-ghc: false
+
+      - name: DEBUG FOR WINDOWS
+        id: debug-windows
+        run: |
+          echo "APPDATA"
+          ls -la "%APPDATA%\stack"
+          echo "LOCALAPPDATA"
+          ls -la "%LOCALAPPDATA%\Programs\stack"
 
       # For some reason, GHCup on MacOS runners does not put 'stack' in the '.ghcup' directory
       - name: Copy Stack for MacOS
@@ -183,7 +197,15 @@ jobs:
         with:
           path: |
             ${{ env.STACK_ROOT }}/stack.sqlite3
-            ${{ env.STACK_ROOT }}/snapshots
+            ${{ env.STACK_ROOT }}/snapshots/**/*.a
+            ${{ env.STACK_ROOT }}/snapshots/**/*.cache
+            ${{ env.STACK_ROOT }}/snapshots/**/*.conf
+            ${{ env.STACK_ROOT }}/snapshots/**/*.dyn_hi
+            ${{ env.STACK_ROOT }}/snapshots/**/*.dyn_o
+            ${{ env.STACK_ROOT }}/snapshots/**/*.h
+            ${{ env.STACK_ROOT }}/snapshots/**/*.hi
+            ${{ env.STACK_ROOT }}/snapshots/**/*.o
+            ${{ env.STACK_ROOT }}/snapshots/**/*.so
           key: CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
@@ -195,7 +217,15 @@ jobs:
         with:
           path: |
             ${{ env.STACK_ROOT }}\stack.sqlite3
-            ${{ env.STACK_ROOT }}\snapshots
+            ${{ env.STACK_ROOT }}\snapshots\**\*.a
+            ${{ env.STACK_ROOT }}\snapshots\**\*.cache
+            ${{ env.STACK_ROOT }}\snapshots\**\*.conf
+            ${{ env.STACK_ROOT }}\snapshots\**\*.dyn_hi
+            ${{ env.STACK_ROOT }}\snapshots\**\*.dyn_o
+            ${{ env.STACK_ROOT }}\snapshots\**\*.h
+            ${{ env.STACK_ROOT }}\snapshots\**\*.hi
+            ${{ env.STACK_ROOT }}\snapshots\**\*.o
+            ${{ env.STACK_ROOT }}\snapshots\**\*.so
           key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
