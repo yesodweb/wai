@@ -129,9 +129,18 @@ jobs:
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
+            ~\AppData\Local\Programs\stack
           key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           restore-keys: |
             CI-ghcup-unix-${{ env.MANUAL_RESET }}-
+
+      - name: DEBUG FOR WINDOWS
+        id: debug-windows
+        run: |
+          echo "APPDATA"
+          ls -la "~\AppData\Roaming\stack" || echo "APPDATA list failed"
+          echo "LOCALAPPDATA"
+          ls -la "~\AppData\Local\Programs\stack\x86_64-windows" || echo "LOCALAPPDATA list failed"
 
       - name: Setup Haskell Stack
         id: ghcup-install
@@ -144,6 +153,14 @@ jobs:
           ghc-version: ${{ env.GHC_VERSION }}
           enable-stack: true
           stack-setup-ghc: false
+
+      - name: DEBUG FOR WINDOWS 2
+        id: debug-windows-2
+        run: |
+          echo "APPDATA"
+          ls -la "~\AppData\Roaming\stack" || echo "APPDATA list failed"
+          echo "LOCALAPPDATA"
+          ls -la "~\AppData\Local\Programs\stack\x86_64-windows" || echo "LOCALAPPDATA list failed"
 
       # For some reason, GHCup on MacOS runners does not put 'stack' in the '.ghcup' directory
       - name: Copy Stack for MacOS
@@ -283,9 +300,3 @@ jobs:
             --haddock --no-haddock-deps \
             --no-run-benchmarks \
             --stack-yaml="${{ env.STACKYAML }}"
-
-      - name: DEBUG FOR WINDOWS
-        id: debug-windows
-        run: |
-          echo "LOCALAPPDATA"
-          ls -la "$LOCALAPPDATA\Programs\stack\x86_64-windows" || echo "LOCALAPPDATA list failed"
