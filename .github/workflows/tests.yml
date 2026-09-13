@@ -14,7 +14,7 @@ jobs:
       run:
         shell: bash
     env:
-      MANUAL_RESET: "v6"
+      MANUAL_RESET: "v7"
       # If you want to cache local files, try this list:
       STACK_PATH_LOCAL: |
         .stack-work/stack.sqlite3
@@ -127,7 +127,7 @@ jobs:
           path: |
             ${{ env.GHCUP_PATH_WINDOWS }}\bin\*
             # We don't need GHCup to run stack, so don't cache it
-            !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup
+            !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup.exe
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin
@@ -173,8 +173,8 @@ jobs:
         with:
           path: |
             ${{ env.STACK_ROOT }}/pantry
-            !${{ env.STACK_ROOT }}/pantry/**/*.tar
-            !${{ env.STACK_ROOT }}/pantry/**/*.tar.gz
+            !${{ env.STACK_ROOT }}/pantry/hackage/00-index.tar
+            !${{ env.STACK_ROOT }}/pantry/hackage/00-index.tar.gz
           key: CI-pantry-unix-${{ env.MANUAL_RESET }}
 
       - name: Cache Pantry (Stackage package index) [WINDOWS]
@@ -184,8 +184,8 @@ jobs:
         with:
           path: |
             ${{ env.STACK_ROOT }}\pantry
-            !${{ env.STACK_ROOT }}\pantry\**\*.tar
-            !${{ env.STACK_ROOT }}\pantry\**\*.tar.gz
+            !${{ env.STACK_ROOT }}\pantry\hackage\00-index.tar
+            !${{ env.STACK_ROOT }}\pantry\hackage\00-index.tar.gz
           key: CI-pantry-windows-${{ env.MANUAL_RESET }}
 
       - name: Recompute Stackage package index
