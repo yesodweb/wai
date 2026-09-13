@@ -33,8 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        os: ["windows-latest"]
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         stack: ["latest"]
         resolver:
           # - "nightly" # 9.12
@@ -237,11 +236,6 @@ jobs:
             || (matrix.os != 'windows-latest' && steps.deps-unix.outputs.cache-hit != 'true')
         id: deps-install
         run: |
-          # DEBUG
-          echo "trying to look into the pantry"
-          ls -la ${{ env.STACK_ROOT }}\pantry || echo "list pantry failed"
-          ls -la ${{ env.STACK_ROOT }}\pantry\hackage\ || echo "list pantry\hackage failed"
-
           EXTRA=""
           if [[ ${{ matrix.os }} == "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
