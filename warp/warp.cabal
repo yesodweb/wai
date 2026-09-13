@@ -182,6 +182,7 @@ test-suite spec
         BufferSpec
         ConduitSpec
         ConnectionSpec
+        ConnectionExceptionSpec
         EarlyHintsSpec
         ExceptionSpec
         FdCacheSpec
