@@ -5,7 +5,8 @@
 * Add `setOnConnectionException` and `getOnConnectionException` to expose the
   peer for exceptions escaping connection workers, including TLS setup failures
   before a request exists. The existing exception observer remains the default.
-  [#1113](https://github.com/yesodweb/wai/issues/1113)
+  [#1114](https://github.com/yesodweb/wai/pull/1114)
+  (fixes [#1113](https://github.com/yesodweb/wai/issues/1113))
 
 ## 3.4.16
 
