@@ -247,6 +247,7 @@ jobs:
             EXTRA="--flag=entropy:donotgetentropy"
           fi
           stack config set system-ghc true --global
+          stack config set install-ghc false --global
           stack build --test --bench \
             --system-ghc --no-terminal \
             --resolver="${{ matrix.resolver }}" \
@@ -268,11 +269,17 @@ jobs:
       - name: Build
         id: build-code
         run: |
+          # DEBUG
+          echo "trying to look into the pantry"
+          ls -la ${{ env.STACK_ROOT }}\pantry || echo "list pantry failed"
+          ls -la ${{ env.STACK_ROOT }}\pantry\hackage\ || echo "list pantry\hackage failed"
+
           EXTRA=""
           if [[ ${{ matrix.os }} == "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
           fi
           stack config set system-ghc true --global
+          stack config set install-ghc false --global
           stack build --test --bench \
             --system-ghc --no-terminal \
             --resolver=${{ matrix.resolver }} \
