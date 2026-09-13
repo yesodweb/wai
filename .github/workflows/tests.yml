@@ -239,13 +239,14 @@ jobs:
         run: |
           # DEBUG
           echo "trying to look into the pantry"
-          ll ${{ env.STACK_ROOT }}\pantry || echo "list pantry failed"
-          ll ${{ env.STACK_ROOT }}\pantry\hackage\ || echo "list pantry\hackage failed"
+          ls -la ${{ env.STACK_ROOT }}\pantry || echo "list pantry failed"
+          ls -la ${{ env.STACK_ROOT }}\pantry\hackage\ || echo "list pantry\hackage failed"
 
           EXTRA=""
           if [[ ${{ matrix.os }} == "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
           fi
+          stack config set system-ghc true --global
           stack build --test --bench \
             --system-ghc --no-terminal \
             --resolver="${{ matrix.resolver }}" \
@@ -271,6 +272,7 @@ jobs:
           if [[ ${{ matrix.os }} == "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
           fi
+          stack config set system-ghc true --global
           stack build --test --bench \
             --system-ghc --no-terminal \
             --resolver=${{ matrix.resolver }} \
