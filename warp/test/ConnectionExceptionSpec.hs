@@ -1,15 +1,23 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module ConnectionExceptionSpec (spec) where
 
 import Control.Concurrent (Chan, newChan, readChan, writeChan, newEmptyMVar, putMVar, takeMVar, tryPutMVar)
 import Control.Concurrent.Async (link, withAsync)
-import Control.Exception (Exception, SomeException, finally, fromException, throwIO)
+import Control.Exception (Exception, SomeException, bracket, finally, fromException, throwIO, toException)
 import Control.Monad (forM_, replicateM, void)
-import Network.Socket (SockAddr (SockAddrInet), tupleToHostAddress)
+import Data.IORef (newIORef, readIORef, modifyIORef')
+import Data.Maybe (isJust)
+import qualified Data.Streaming.Network as N
+import Network.HTTP.Types (internalServerError500)
+import Network.Socket (SockAddr (SockAddrInet), close, tupleToHostAddress)
 import Network.Wai (remoteHost)
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (runSettingsConnectionMakerSecure)
 import System.Timeout (timeout)
 import Test.Hspec
+
+import HTTP (responseStatus, sendGET)
 
 -- Regression for https://github.com/yesodweb/wai/issues/1113. A connection
 -- maker can fail before any Request exists, but Warp already owns its peer.
@@ -28,6 +36,50 @@ spec = describe "connection exception peer" $ do
             link server
             writeChan makers (throwIO (ConnectionFailure 1), peer 1)
             timeout 2000000 (readChan events) `shouldReturn` Just (1, Nothing)
+
+    it "gets the current legacy observer as the default connection observer" $ do
+        events <- newChan
+        let settings = setOnException (\request -> record events (remoteHost <$> request)) defaultSettings
+        getOnConnectionException settings (peer 1) (toException (ConnectionFailure 1))
+        timeout 2000000 (readChan events) `shouldReturn` Just (1, Nothing)
+
+    it "uses only the connection observer regardless of setter order" $
+        forM_ [False, True] $ \legacyLast -> do
+            calls <- newIORef ([] :: [String])
+            let legacy _ _ = modifyIORef' calls (++ ["legacy"])
+                connection _ _ = modifyIORef' calls (++ ["connection"])
+                settings = if legacyLast
+                    then setOnException legacy $ setOnConnectionException connection defaultSettings
+                    else setOnConnectionException connection $ setOnException legacy defaultSettings
+            getOnConnectionException settings (peer 1) (toException (ConnectionFailure 1))
+            readIORef calls `shouldReturn` ["connection"]
+
+    it "keeps accept failures on the legacy observer because no peer was obtained" $ do
+        calls <- newIORef ([] :: [(String, Bool)])
+        let legacy request _ = modifyIORef' calls (++ [("legacy", isJust request)])
+            connection _ _ = modifyIORef' calls (++ [("connection", False)])
+            settings = setOnException legacy $ setOnConnectionException connection defaultSettings
+        runSettingsConnectionMakerSecure settings (ioError (userError "accept failed")) unusedApplication
+        readIORef calls `shouldReturn` [("legacy", False)]
+
+    it "keeps application exceptions on the legacy observer with their request" $
+        bracket (N.bindRandomPortTCP "127.0.0.1") (close . snd) $ \(port, listener) -> do
+            events <- newChan
+            connectionCalled <- newIORef False
+            ready <- newEmptyMVar
+            let legacy request exception = writeChan events (isJust request, show exception)
+                connection _ _ = modifyIORef' connectionCalled (const True)
+                settings = setBeforeMainLoop (putMVar ready ())
+                    $ setOnException legacy
+                    $ setOnConnectionException connection defaultSettings
+                application _ _ = throwIO (ConnectionFailure 3)
+            withAsync (runSettingsSocket settings listener application) $ \server -> do
+                link server
+                timeout 2000000 (takeMVar ready) `shouldReturn` Just ()
+                response <- sendGET ("http://127.0.0.1:" ++ show port ++ "/")
+                responseStatus response `shouldBe` internalServerError500
+                timeout 2000000 (readChan events) `shouldReturn` Just (True, "ConnectionFailure 3")
+                readIORef connectionCalled `shouldReturn` False
 
     it "reports each sequential connection maker's own peer" $ do
         events <- newChan
@@ -64,11 +116,10 @@ spec = describe "connection exception peer" $ do
   where
     unusedApplication _ _ = fail "connection maker must fail before the application"
 
--- The existing observer is the only public exception context available in
--- the red commit. The fix replaces this adapter with the peer-aware API;
--- the peer assertions above remain unchanged.
+-- Install the new public observer; the regression assertions are unchanged
+-- from the failing commit, which had to infer peers from Maybe Request.
 observePeer :: (Maybe SockAddr -> SomeException -> IO ()) -> Settings -> Settings
-observePeer report = setOnException (\request -> report (remoteHost <$> request))
+observePeer report = setOnConnectionException (report . Just)
 
 record :: Chan Observation -> Maybe SockAddr -> SomeException -> IO ()
 record events address exception = case fromException exception of

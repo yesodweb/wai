@@ -9,7 +9,6 @@ import Control.Monad (forM_, replicateM, when)
 import Data.Word (Word8)
 import qualified Network.Socket as S
 import qualified Network.Socket.ByteString as B
-import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WarpTLS as TLS
 import System.Info (os)
@@ -76,7 +75,7 @@ exercise hosts concurrent = S.withSocketsDo $
                     timeout 2000000 (readChan events) `shouldReturn` Just expected
 
 observePeer :: (Maybe S.SockAddr -> SomeException -> IO ()) -> Warp.Settings -> Warp.Settings
-observePeer report = Warp.setOnException (\request -> report (Wai.remoteHost <$> request))
+observePeer report = Warp.setOnConnectionException (report . Just)
 
 drain :: S.Socket -> IO ()
 drain client = do

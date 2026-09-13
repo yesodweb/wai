@@ -428,7 +428,7 @@ fork set mkConn addr app counter ii = do
         -- catch all exceptions and avoid them from propagating, even
         -- async exceptions. See:
         -- https://github.com/yesodweb/wai/issues/850
-        E.handle (settingsOnException set Nothing) $
+        E.handle (onConnectionException set addr) $
             -- Run the connection maker to get a new connection, and ensure
             -- that the connection is closed. If the mkConn call throws an
             -- exception, we will leak the connection. If the mkConn call is
