@@ -271,8 +271,13 @@ jobs:
         run: |
           # DEBUG
           echo "trying to look into the pantry"
-          ls -la ${{ env.STACK_ROOT }}\pantry || echo "list pantry failed"
-          ls -la ${{ env.STACK_ROOT }}\pantry\hackage\ || echo "list pantry\hackage failed"
+          ls -la '${{ env.STACK_ROOT }}\pantry' || echo "list pantry failed"
+          ls -la '${{ env.STACK_ROOT }}\pantry\hackage\' || echo "list pantry\hackage failed"
+          which ghc || echo "which ghc failed"
+          ls -la '${{ env.GHCUP_PATH_WINDOWS }}\bin' || echo "list ghcup/bin failed"
+          echo 'PATH'
+          echo "$PATH"
+          echo
 
           EXTRA=""
           if [[ ${{ matrix.os }} == "windows-latest" ]]; then
