@@ -151,6 +151,7 @@ jobs:
         with:
           path: |
             ${{ env.GHCUP_GHC_PATH }}\mingw\*
+            ~\AppData\Local\Programs\stack
           key: CI-test1-mingw-windows-${{ env.MANUAL_RESET }}
 
       - name: Setup Haskell Stack
@@ -280,9 +281,6 @@ jobs:
             ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8" || echo "list ghcup\ghc\9.4.8 failed"
             ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8\lib" || echo "list ghcup\ghc\lib failed"
             ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8\lib\bin" || echo "list ghcup\ghc\lib\bin failed"
-            # find "${{ env.GHCUP_PATH_WINDOWS }}" -iname mingw || echo "find mingw failed"
-            echo 'PATH'
-            echo "$PATH"
             echo
           fi
 
@@ -297,13 +295,6 @@ jobs:
             --no-run-tests --no-run-benchmarks \
             --ghc-options='-Wall' $EXTRA \
             --stack-yaml="${{ env.STACKYAML }}"
-
-      # - name: Cache Local Files Save
-      #   id: local-files-save
-      #   uses: actions/cache/save@v6
-      #   with:
-      #     path: "${{ env.STACK_PATH_LOCAL }}"
-      #     key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
 
       - name: Run tests
         # Remove this after we've had a successful cache run
