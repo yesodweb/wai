@@ -15,18 +15,19 @@ jobs:
         shell: bash
     env:
       MANUAL_RESET: "v8"
+      STACK_PATH_LOCAL: ".stack-work"
       # If you want to cache local files, try this list:
-      STACK_PATH_LOCAL: |
-        .stack-work/stack.sqlite3
-        **/.stack-work/**/*.a
-        **/.stack-work/**/*.cache
-        **/.stack-work/**/*.conf
-        **/.stack-work/**/*.dyn_hi
-        **/.stack-work/**/*.dyn_o
-        **/.stack-work/**/*.h
-        **/.stack-work/**/*.hi
-        **/.stack-work/**/*.hs
-        **/.stack-work/**/*.so
+      # STACK_PATH_LOCAL: |
+      #   .stack-work/stack.sqlite3
+      #   **/.stack-work/**/*.a
+      #   **/.stack-work/**/*.cache
+      #   **/.stack-work/**/*.conf
+      #   **/.stack-work/**/*.dyn_hi
+      #   **/.stack-work/**/*.dyn_o
+      #   **/.stack-work/**/*.h
+      #   **/.stack-work/**/*.hi
+      #   **/.stack-work/**/*.hs
+      #   **/.stack-work/**/*.so
       GHCUP_PATH_WINDOWS: "C:\\ghcup"
       GHCUP_PATH_UNIX: "~/.ghcup"
 
@@ -105,20 +106,16 @@ jobs:
           path: |
             ${{ env.GHCUP_PATH_UNIX }}/bin/*
             ${{ env.GHCUP_PATH_UNIX }}/config.yaml
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/bin
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/lib/**/*.so
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/lib/**/*.dylib
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/lib/package.conf.d
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/lib/settings
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/**/include
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
             #     [EXCLUDES]
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH_UNIX }}/bin/ghcup
             # We don't need profile builds of GHC etc
             !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
-          key: CI-test4-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
+            # Takes up lots of space, not sure if needed
+            !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/**/*.a
+          key: CI-test5-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
@@ -132,20 +129,16 @@ jobs:
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
             # The 'mingw' paths are all the ones stack looks for, just in case.
             ${{ env.GHCUP_PATH_WINDOWS }}\mingw
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\mingw
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\bin
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\mingw
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\bin
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\package.conf.d
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\settings
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\**\include
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
             #     [EXCLUDES]
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup.exe
             # We don't need different builds of GHC
             !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\bin\ghc-iserv*.exe
-          key: CI-test4-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\**\*.a
+            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\**\*.dll
+          key: CI-test5-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-windows-${{ env.MANUAL_RESET }}-
 
@@ -261,15 +254,15 @@ jobs:
             --stack-yaml="${{ env.STACKYAML }}"
 
       # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
-      # - name: Cache Local Files Restore
-      #   id: local-files-restore
-      #   uses: actions/cache/restore@v6
-      #   with:
-      #     path: "${{ env.STACK_PATH_LOCAL }}"
-      #     key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
-      #     restore-keys: |
-      #       CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}
-      #       CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
+      - name: Cache Local Files
+        id: local-files
+        uses: actions/cache@v6
+        with:
+          path: "${{ env.STACK_PATH_LOCAL }}"
+          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
+          restore-keys: |
+            CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
+            CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Build
         id: build-code
