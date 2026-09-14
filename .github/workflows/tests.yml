@@ -240,8 +240,6 @@ jobs:
           if [[ ${{ matrix.os }} == "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
           fi
-          stack config set system-ghc true --global
-          stack config set install-ghc false --global
           stack build --test --bench \
             --system-ghc --no-terminal \
             --resolver="${{ matrix.resolver }}" \
@@ -279,8 +277,6 @@ jobs:
           if [[ ${{ matrix.os }} == "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
           fi
-          stack config set system-ghc true --global
-          stack config set install-ghc false --global
           stack build --test --bench \
             --system-ghc --no-terminal \
             --resolver=${{ matrix.resolver }} \
