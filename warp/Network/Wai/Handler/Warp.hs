@@ -217,13 +217,11 @@ setOnException x y = y{settingsOnException = x}
 -- handshake) and cleanup failures, even when no 'Request' exists. For socket
 -- listeners this is the accepted TCP peer, before any PROXY protocol rewriting.
 --
--- When installed, this handler replaces 'setOnException' with 'Nothing' for
--- these exceptions. Request-specific exceptions still use 'setOnException',
--- as do accept-loop failures for which no peer is available. By default Warp
--- delegates to the current 'setOnException' handler with 'Nothing'.
---
--- This additive hook preserves the existing observer contract without requiring
--- applications to replace the accept/fork machinery or fabricate a request.
+-- When installed, this handler receives these exceptions instead of the
+-- handler configured with 'setOnException'. Request-specific exceptions and
+-- accept-loop failures still use that handler. By default, worker exceptions
+-- go to that handler too, with 'Nothing' as its @Maybe Request@ argument
+-- because no request context is available at this boundary.
 --
 -- @since 3.4.17
 setOnConnectionException :: (SockAddr -> SomeException -> IO ()) -> Settings -> Settings
@@ -353,8 +351,10 @@ getOnClose = settingsOnClose
 getOnException :: Settings -> Maybe Request -> SomeException -> IO ()
 getOnException = settingsOnException
 
--- | Get the connection exception handler, including the fallback to
--- 'getOnException' with 'Nothing' when no connection handler was installed.
+-- | Get the handler installed with 'setOnConnectionException'.
+-- If none was installed, the returned function ignores the peer address and
+-- calls the handler configured with 'setOnException', passing 'Nothing' as
+-- its @Maybe Request@ argument and forwarding the exception.
 --
 -- @since 3.4.17
 getOnConnectionException :: Settings -> SockAddr -> SomeException -> IO ()

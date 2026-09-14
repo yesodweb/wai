@@ -6,7 +6,7 @@ import Control.Concurrent (Chan, newChan, readChan, writeChan, newEmptyMVar, put
 import Control.Concurrent.Async (link, withAsync)
 import Control.Exception (Exception, SomeException, bracket, finally, fromException, throwIO, toException)
 import Control.Monad (forM_, replicateM, void)
-import Data.IORef (newIORef, readIORef, modifyIORef')
+import Data.IORef (newIORef, readIORef, writeIORef, modifyIORef')
 import Data.Maybe (isJust)
 import qualified Data.Streaming.Network as N
 import Network.HTTP.Types (internalServerError500)
@@ -34,14 +34,14 @@ spec = describe "connection exception peer" $ do
         let settings = setOnException (\request -> record events (remoteHost <$> request)) defaultSettings
         withAsync (runSettingsConnectionMakerSecure settings (readChan makers) unusedApplication) $ \server -> do
             link server
-            writeChan makers (throwIO (ConnectionFailure 1), peer 1)
+            writeChan makers (throwIO (ConnectionFailure 1), peer 100)
             timeout 2000000 (readChan events) `shouldReturn` Just (1, Nothing)
 
     it "gets the current legacy observer as the default connection observer" $ do
         events <- newChan
         let settings = setOnException (\request -> record events (remoteHost <$> request)) defaultSettings
-        getOnConnectionException settings (peer 1) (toException (ConnectionFailure 1))
-        timeout 2000000 (readChan events) `shouldReturn` Just (1, Nothing)
+        getOnConnectionException settings (peer 110) (toException (ConnectionFailure 2))
+        timeout 2000000 (readChan events) `shouldReturn` Just (2, Nothing)
 
     it "uses only the connection observer regardless of setter order" $
         forM_ [False, True] $ \legacyLast -> do
@@ -51,7 +51,7 @@ spec = describe "connection exception peer" $ do
                 settings = if legacyLast
                     then setOnException legacy $ setOnConnectionException connection defaultSettings
                     else setOnConnectionException connection $ setOnException legacy defaultSettings
-            getOnConnectionException settings (peer 1) (toException (ConnectionFailure 1))
+            getOnConnectionException settings (peer 120) (toException (ConnectionFailure 3))
             readIORef calls `shouldReturn` ["connection"]
 
     it "keeps accept failures on the legacy observer because no peer was obtained" $ do
@@ -68,17 +68,17 @@ spec = describe "connection exception peer" $ do
             connectionCalled <- newIORef False
             ready <- newEmptyMVar
             let legacy request exception = writeChan events (isJust request, show exception)
-                connection _ _ = modifyIORef' connectionCalled (const True)
+                connection _ _ = writeIORef connectionCalled True
                 settings = setBeforeMainLoop (putMVar ready ())
                     $ setOnException legacy
                     $ setOnConnectionException connection defaultSettings
-                application _ _ = throwIO (ConnectionFailure 3)
+                application _ _ = throwIO (ConnectionFailure 4)
             withAsync (runSettingsSocket settings listener application) $ \server -> do
                 link server
                 timeout 2000000 (takeMVar ready) `shouldReturn` Just ()
                 response <- sendGET ("http://127.0.0.1:" ++ show port ++ "/")
                 responseStatus response `shouldBe` internalServerError500
-                timeout 2000000 (readChan events) `shouldReturn` Just (True, "ConnectionFailure 3")
+                timeout 2000000 (readChan events) `shouldReturn` Just (True, "ConnectionFailure 4")
                 readIORef connectionCalled `shouldReturn` False
 
     it "reports each sequential connection maker's own peer" $ do
@@ -87,9 +87,9 @@ spec = describe "connection exception peer" $ do
         let settings = observePeer (record events) defaultSettings
         withAsync (runSettingsConnectionMakerSecure settings (readChan makers) unusedApplication) $ \server -> do
             link server
-            forM_ [1, 2] $ \i -> do
-                writeChan makers (throwIO (ConnectionFailure i), peer i)
-                timeout 2000000 (readChan events) `shouldReturn` Just (i, Just (peer i))
+            forM_ [(5, 130), (6, 140)] $ \(failureId, peerId) -> do
+                writeChan makers (throwIO (ConnectionFailure failureId), peer peerId)
+                timeout 2000000 (readChan events) `shouldReturn` Just (failureId, Just (peer peerId))
 
     it "reports peers when overlapping connection makers fail in reverse order" $ do
         events <- newChan
@@ -101,8 +101,8 @@ spec = describe "connection exception peer" $ do
             maker i gate = writeChan started i >> takeMVar gate >> throwIO (ConnectionFailure i)
         withAsync (runSettingsConnectionMakerSecure settings (readChan makers) unusedApplication) $ \server -> do
             link server
-            writeChan makers (maker 1 first, peer 1)
-            writeChan makers (maker 2 second, peer 2)
+            writeChan makers (maker 7 first, peer 150)
+            writeChan makers (maker 8 second, peer 160)
             -- Release both workers even when a readiness assertion fails.
             let release = forM_ [first, second] $ \gate -> void (tryPutMVar gate ())
             flip finally release $ do
@@ -112,12 +112,12 @@ spec = describe "connection exception peer" $ do
                 secondEvent <- timeout 2000000 (readChan events)
                 putMVar first ()
                 firstEvent <- timeout 2000000 (readChan events)
-                (secondEvent, firstEvent) `shouldBe` (Just (2, Just (peer 2)), Just (1, Just (peer 1)))
+                (secondEvent, firstEvent) `shouldBe` (Just (8, Just (peer 160)), Just (7, Just (peer 150)))
   where
     unusedApplication _ _ = fail "connection maker must fail before the application"
 
--- Install the new public observer; the regression assertions are unchanged
--- from the failing commit, which had to infer peers from Maybe Request.
+-- Install the peer observer used by the regression assertions. The original
+-- failing commit had to infer peers from Maybe Request.
 observePeer :: (Maybe SockAddr -> SomeException -> IO ()) -> Settings -> Settings
 observePeer report = setOnConnectionException (report . Just)
 
