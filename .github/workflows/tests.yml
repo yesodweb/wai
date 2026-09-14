@@ -82,14 +82,17 @@ jobs:
 
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             STACK_ROOT='C:\sr'
+            GHCUP_GHC_PATH="${{ env.GHCUP_PATH_UNIX }}/ghc/${GHC_VERSION}.*"
           else
             STACK_ROOT="$HOME/.stack"
+            GHCUP_GHC_PATH="${{ env.GHCUP_PATH_WINDOWS }}\ghc\${GHC_VERSION}.*"
           fi
 
           # And then we expose these variables in the 'env'
           echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
           echo "STACKYAMLLOCK=${STACKYAML}.lock" >> $GITHUB_ENV
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
+          echo "GHCUP_GHC_PATH=$GHCUP_GHC_PATH" >> $GITHUB_ENV
           echo "STACK_ROOT=$STACK_ROOT" >> $GITHUB_ENV
 
           # On MacOS, this is sometimes not in the path after caching
@@ -107,16 +110,17 @@ jobs:
           path: |
             ${{ env.GHCUP_PATH_UNIX }}/bin/*
             ${{ env.GHCUP_PATH_UNIX }}/config.yaml
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
+            ${{ env.GHCUP_GHC_PATH }}/bin
+            ${{ env.GHCUP_GHC_PATH }}/lib
             #     [EXCLUDES]
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH_UNIX }}/bin/ghcup
             # We don't need profile builds of GHC etc
-            !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
+            !${{ env.GHCUP_GHC_PATH }}/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
             # Takes up lots of space, not sure if needed
             !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/**/*.a
-          key: CI-test5-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
+          key: CI-test6-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
@@ -128,20 +132,13 @@ jobs:
           path: |
             ${{ env.GHCUP_PATH_WINDOWS }}\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
-            # The 'mingw' paths are all the ones stack looks for, just in case.
-            ${{ env.GHCUP_PATH_WINDOWS }}\mingw
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
+            ${{ env.GHCUP_GHC_PATH }}\bin
+            ${{ env.GHCUP_GHC_PATH }}\lib
             #     [EXCLUDES]
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup.exe
-            # We don't need different builds of GHC
-            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\bin\ghc-iserv*.exe
-            # Don't cache mingw here
-            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\mingw
-            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\**\*.a
-            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\**\*.dll
-          key: CI-test5-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+          key: CI-test6-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-windows-${{ env.MANUAL_RESET }}-
 
@@ -153,15 +150,6 @@ jobs:
           path: |
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\mingw
           key: CI-mingw-windows-${{ env.MANUAL_RESET }}
-
-      - name: MSYS & 7z [WINDOWS]
-        id: msys-7z
-        if: matrix.os == 'windows-latest'
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~\AppData\Local\Programs\stack
-          key: msys-7z-windows
 
       - name: Setup Haskell Stack
         id: ghcup-install
