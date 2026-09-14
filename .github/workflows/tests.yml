@@ -274,10 +274,11 @@ jobs:
             which ghc || echo "which ghc failed"
             ls -la '${{ env.GHCUP_PATH_WINDOWS }}' || echo "list ghcup failed"
             ls -la '${{ env.GHCUP_PATH_WINDOWS }}\bin' || echo "list ghcup/bin failed"
-            ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8" || echo "list ghcup\ghc failed"
+            ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc" || echo "list ghcup\ghc failed"
+            ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8" || echo "list ghcup\ghc\9.4.8 failed"
             ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8\lib" || echo "list ghcup\ghc\lib failed"
             ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8\lib\bin" || echo "list ghcup\ghc\lib\bin failed"
-            find "${{ env.GHCUP_PATH_WINDOWS }}" -iname mingw || echo "find mingw failed"
+            # find "${{ env.GHCUP_PATH_WINDOWS }}" -iname mingw || echo "find mingw failed"
             echo 'PATH'
             echo "$PATH"
             echo
