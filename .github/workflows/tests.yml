@@ -137,11 +137,22 @@ jobs:
             !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup.exe
             # We don't need different builds of GHC
             !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\bin\ghc-iserv*.exe
+            # Don't cache mingw here
+            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\mingw
             !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\**\*.a
             !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\**\*.dll
           key: CI-test5-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-windows-${{ env.MANUAL_RESET }}-
+
+      - name: Cache MSYS (mingw) [WINDOWS]
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@v6
+        id: mingw-cache-windows
+        with:
+          path: |
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\mingw
+          key: CI-mingw-windows-${{ env.MANUAL_RESET }}
 
       - name: MSYS & 7z [WINDOWS]
         id: msys-7z
@@ -255,15 +266,15 @@ jobs:
             --stack-yaml="${{ env.STACKYAML }}"
 
       # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
-      - name: Cache Local Files
-        id: local-files
-        uses: actions/cache@v6
-        with:
-          path: "${{ env.STACK_PATH_LOCAL }}"
-          key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
-          restore-keys: |
-            CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
-            CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
+      # - name: Cache Local Files
+      #   id: local-files
+      #   uses: actions/cache@v6
+      #   with:
+      #     path: "${{ env.STACK_PATH_LOCAL }}"
+      #     key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
+      #     restore-keys: |
+      #       CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
+      #       CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Build
         id: build-code
