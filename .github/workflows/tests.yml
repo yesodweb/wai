@@ -34,7 +34,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        os: ["ubuntu-latest", "windows-latest"]
+        # os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         stack: ["latest"]
         resolver:
           # - "nightly" # 9.12
@@ -273,6 +274,7 @@ jobs:
             ls -la '${{ env.GHCUP_PATH_WINDOWS }}\bin' || echo "list ghcup/bin failed"
             ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8\lib" || echo "list ghcup\ghc\lib failed"
             ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8\lib\bin" || echo "list ghcup\ghc\lib\bin failed"
+            find "${{ env.GHCUP_PATH_WINDOWS }}" -iname mingw || echo "find mingw failed"
             echo 'PATH'
             echo "$PATH"
             echo
