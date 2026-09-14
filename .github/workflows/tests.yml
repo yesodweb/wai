@@ -110,11 +110,12 @@ jobs:
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/bin
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/{bin,include,rts}
             # Is this necessary?
-            # ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/**/package.conf.d
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/package.conf.d
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/settings
             # We don't need profile builds of GHC etc
             !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
-          key: CI-test1-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
+          key: CI-test2-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
@@ -137,7 +138,7 @@ jobs:
             # We don't need different builds of GHC
             !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin\ghc-iserv*
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
-          key: CI-test1-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+          key: CI-test2-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-windows-${{ env.MANUAL_RESET }}-
 
