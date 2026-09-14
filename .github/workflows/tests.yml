@@ -152,13 +152,14 @@ jobs:
           path: |
             ${{ env.GHCUP_GHC_PATH }}\mingw\*
             ~\AppData\Local\Programs\stack
-          key: CI-test1-mingw-windows-${{ env.MANUAL_RESET }}
+          key: CI-test2-mingw-windows-${{ env.MANUAL_RESET }}
 
       - name: Setup Haskell Stack
         id: ghcup-install
         uses: haskell-actions/setup@v2
         if: >
-          (matrix.os == 'windows-latest' && steps.ghcup-cache-windows.outputs.cache-hit != 'true')
+          (matrix.os == 'windows-latest' && (steps.ghcup-cache-windows.outputs.cache-hit != 'true'
+            || steps.mingw-cache-windows.outputs.cache-hit != 'true'))
             || (matrix.os != 'windows-latest' && steps.ghcup-cache-unix.outputs.cache-hit != 'true')
         with:
           stack-version: "${{ matrix.stack }}"
