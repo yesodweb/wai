@@ -14,7 +14,7 @@ jobs:
       run:
         shell: bash
     env:
-      MANUAL_RESET: "v7"
+      MANUAL_RESET: "v8"
       # If you want to cache local files, try this list:
       STACK_PATH_LOCAL: |
         .stack-work/stack.sqlite3
@@ -104,18 +104,18 @@ jobs:
         with:
           path: |
             ${{ env.GHCUP_PATH_UNIX }}/bin/*
-            # We don't need GHCup to run stack, so don't cache it
-            !${{ env.GHCUP_PATH_UNIX }}/bin/ghcup
             ${{ env.GHCUP_PATH_UNIX }}/config.yaml
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/bin
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/{bin,include,rts}
-            # Is this necessary?
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/package.conf.d
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/settings
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/lib/package.conf.d
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/lib/settings
+            ${{ env.GHCUP_PATH_UNIX }}/stack/*
+            #     [EXCLUDES]
+            # We don't need GHCup to run stack, so don't cache it
+            !${{ env.GHCUP_PATH_UNIX }}/bin/ghcup
             # We don't need profile builds of GHC etc
             !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
-            ${{ env.GHCUP_PATH_UNIX }}/stack/*
-          key: CI-test2-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
+          key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
@@ -125,20 +125,22 @@ jobs:
         id: ghcup-cache-windows
         with:
           path: |
-            ${{ env.GHCUP_PATH_WINDOWS }}\bin\*
+            ${{ env.GHCUP_PATH_WINDOWS }}\bin
+            ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
+            # The 'mingw' paths are all the ones stack looks for, just in case.
+            ${{ env.GHCUP_PATH_WINDOWS }}\mingw
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\mingw
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\{bin,mingw}
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\bin
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\package.conf.d
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\settings
+            ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
+            #     [EXCLUDES]
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup.exe
-            ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\bin
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib
-            # These aren't where I think they are... I think.
-            #${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\{bin,include,rts}
-            #${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\**\package.conf.d
-            #${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\settings
             # We don't need different builds of GHC
-            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin\ghc-iserv*
-            ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
-          key: CI-test2-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\bin\ghc-iserv*
+          key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-windows-${{ env.MANUAL_RESET }}-
 
