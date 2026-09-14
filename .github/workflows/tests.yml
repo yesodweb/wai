@@ -102,17 +102,16 @@ jobs:
         uses: actions/cache@v6
         id: ghcup-cache-unix
         with:
-          # removed lines:
-          #   ${{ env.GHCUP_PATH_UNIX }}\cache\*
           path: |
             ${{ env.GHCUP_PATH_UNIX }}/bin/*
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH_UNIX }}/bin/ghcup
             ${{ env.GHCUP_PATH_UNIX }}/config.yaml
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/bin
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/{bin,include,rts}
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/**/package.conf.d
             # We don't need profile builds of GHC etc
-            !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin/*-iserv-*
+            !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
           key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
           restore-keys: |
@@ -129,9 +128,10 @@ jobs:
             !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup.exe
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\bin
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin
-            # We don't need profile builds of GHC etc
-            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin\*-iserv-*
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\{bin,include,rts}
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\**\package.conf.d
+            # We don't need different builds of GHC
+            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin\ghc-iserv*
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
           key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           restore-keys: |
@@ -211,7 +211,7 @@ jobs:
             ${{ env.STACK_ROOT }}/stack.sqlite3
             ${{ env.STACK_ROOT }}/snapshots
             # Don't cache any haddocks or other docs
-            !${{ env.STACK_ROOT }}/snapshots/**/doc/**
+            !${{ env.STACK_ROOT }}/snapshots/**/doc
           key: CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
@@ -225,7 +225,7 @@ jobs:
             ${{ env.STACK_ROOT }}\stack.sqlite3
             ${{ env.STACK_ROOT }}\snapshots
             # Don't cache any haddocks or other docs
-            !${{ env.STACK_ROOT }}\snapshots\**\doc\**
+            !${{ env.STACK_ROOT }}\snapshots\**\doc
           key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
           restore-keys: |
             CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
@@ -264,14 +264,16 @@ jobs:
         id: build-code
         run: |
           # DEBUG
-          echo "trying to look into the pantry"
-          ls -la '${{ env.STACK_ROOT }}\pantry' || echo "list pantry failed"
-          ls -la '${{ env.STACK_ROOT }}\pantry\hackage\' || echo "list pantry\hackage failed"
-          which ghc || echo "which ghc failed"
-          ls -la '${{ env.GHCUP_PATH_WINDOWS }}\bin' || echo "list ghcup/bin failed"
-          echo 'PATH'
-          echo "$PATH"
-          echo
+          if [[ "${{ matrix.os }}" == 'windows-latest' ]]; then
+            echo "trying to look into the pantry"
+            ls -la '${{ env.STACK_ROOT }}\pantry' || echo "list pantry failed"
+            ls -la '${{ env.STACK_ROOT }}\pantry\hackage\' || echo "list pantry\hackage failed"
+            which ghc || echo "which ghc failed"
+            ls -la '${{ env.GHCUP_PATH_WINDOWS }}\bin' || echo "list ghcup/bin failed"
+            echo 'PATH'
+            echo "$PATH"
+            echo
+          fi
 
           EXTRA=""
           if [[ ${{ matrix.os }} == "windows-latest" ]]; then
