@@ -150,7 +150,7 @@ jobs:
         id: mingw-cache-windows
         with:
           path: |
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\mingw
+            ${{ env.GHCUP_GHC_PATH }}\mingw
           key: CI-mingw-windows-${{ env.MANUAL_RESET }}
 
       - name: Setup Haskell Stack
@@ -272,6 +272,8 @@ jobs:
           # DEBUG
           if [[ "${{ matrix.os }}" == 'windows-latest' ]]; then
             which ghc || echo "which ghc failed"
+            ls -la 'C:\tools' || echo "list tools failed"
+            ls -la 'C:\tools\ghc*' || echo "list tools/ghc failed"
             ls -la '${{ env.GHCUP_PATH_WINDOWS }}' || echo "list ghcup failed"
             ls -la '${{ env.GHCUP_PATH_WINDOWS }}\bin' || echo "list ghcup/bin failed"
             ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc" || echo "list ghcup\ghc failed"
