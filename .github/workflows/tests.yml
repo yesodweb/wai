@@ -135,12 +135,12 @@ jobs:
             ${{ env.GHCUP_PATH_WINDOWS }}\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
-            ${{ env.GHCUP_GHC_PATH }}\bin
-            ${{ env.GHCUP_GHC_PATH }}\lib
+            ${{ env.GHCUP_GHC_PATH }}\bin\*
+            ${{ env.GHCUP_GHC_PATH }}\lib\*
             #     [EXCLUDES]
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup.exe
-          key: CI-test9-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+          key: CI-test10-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-windows-${{ env.MANUAL_RESET }}-
 
@@ -150,8 +150,8 @@ jobs:
         id: mingw-cache-windows
         with:
           path: |
-            ${{ env.GHCUP_GHC_PATH }}\mingw
-          key: CI-mingw-windows-${{ env.MANUAL_RESET }}
+            ${{ env.GHCUP_GHC_PATH }}\mingw\*
+          key: CI-test1-mingw-windows-${{ env.MANUAL_RESET }}
 
       - name: Setup Haskell Stack
         id: ghcup-install
