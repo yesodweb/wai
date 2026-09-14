@@ -111,13 +111,14 @@ jobs:
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/lib/**/*.dylib
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/lib/package.conf.d
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/lib/settings
+            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/**/include
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
             #     [EXCLUDES]
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH_UNIX }}/bin/ghcup
             # We don't need profile builds of GHC etc
             !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
-          key: CI-test3-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
+          key: CI-test4-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
@@ -137,13 +138,14 @@ jobs:
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\package.conf.d
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\settings
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\**\include
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
             #     [EXCLUDES]
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup.exe
             # We don't need different builds of GHC
-            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\bin\ghc-iserv*
-          key: CI-test3-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+            !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\bin\ghc-iserv*.exe
+          key: CI-test4-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-windows-${{ env.MANUAL_RESET }}-
 
