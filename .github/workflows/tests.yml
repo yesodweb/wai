@@ -82,10 +82,10 @@ jobs:
 
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             STACK_ROOT='C:\sr'
-            GHCUP_GHC_PATH="${{ env.GHCUP_PATH_UNIX }}/ghc/${GHC_VERSION}.*"
+            GHCUP_GHC_PATH="${{ env.GHCUP_PATH_WINDOWS }}\ghc\${GHC_VERSION}.*"
           else
             STACK_ROOT="$HOME/.stack"
-            GHCUP_GHC_PATH="${{ env.GHCUP_PATH_WINDOWS }}\ghc\${GHC_VERSION}.*"
+            GHCUP_GHC_PATH="${{ env.GHCUP_PATH_UNIX }}/ghc/${GHC_VERSION}.*"
           fi
 
           # And then we expose these variables in the 'env'
@@ -120,7 +120,7 @@ jobs:
             !${{ env.GHCUP_GHC_PATH }}/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
             # Takes up lots of space, not sure if needed
             !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/**/*.a
-          key: CI-test6-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
+          key: CI-test7-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
@@ -138,7 +138,7 @@ jobs:
             #     [EXCLUDES]
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup.exe
-          key: CI-test6-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+          key: CI-test7-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-windows-${{ env.MANUAL_RESET }}-
 
