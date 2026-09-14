@@ -111,6 +111,7 @@ jobs:
         with:
           path: |
             ${{ env.GHCUP_PATH_UNIX }}/bin/*
+            ${{ env.GHCUP_PATH_UNIX }}/cabal/*
             ${{ env.GHCUP_PATH_UNIX }}/config.yaml
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
             ${{ env.GHCUP_GHC_PATH }}/bin
@@ -133,6 +134,7 @@ jobs:
         with:
           path: |
             ${{ env.GHCUP_PATH_WINDOWS }}\bin
+            ${{ env.GHCUP_PATH_WINDOWS }}\cabal\*
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
             ${{ env.GHCUP_GHC_PATH }}\bin\*
