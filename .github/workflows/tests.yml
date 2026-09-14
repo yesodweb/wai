@@ -109,13 +109,14 @@ jobs:
             ${{ env.GHCUP_PATH_UNIX }}/config.yaml
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/bin
             ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/{bin,include,rts}
-            ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/**/package.conf.d
+            # Is this necessary?
+            # ${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/**/package.conf.d
             # We don't need profile builds of GHC etc
             !${{ env.GHCUP_PATH_UNIX }}/ghc/${{ env.GHC_VERSION }}.*/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
             ${{ env.GHCUP_PATH_UNIX }}/stack/*
-          key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
-          restore-keys: |
-            CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
+          key: CI-test1-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
+          # restore-keys: |
+          #   CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Cache GHCup [WINDOWS]
         if: matrix.os == 'windows-latest'
@@ -130,12 +131,13 @@ jobs:
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\bin
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\{bin,include,rts}
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\**\package.conf.d
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\settings
             # We don't need different builds of GHC
             !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin\ghc-iserv*
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
-          key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
-          restore-keys: |
-            CI-ghcup-unix-${{ env.MANUAL_RESET }}-
+          key: CI-test1-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+          # restore-keys: |
+          #   CI-ghcup-windows-${{ env.MANUAL_RESET }}-
 
       - name: MSYS & 7z [WINDOWS]
         id: msys-7z
@@ -263,11 +265,12 @@ jobs:
         run: |
           # DEBUG
           if [[ "${{ matrix.os }}" == 'windows-latest' ]]; then
-            echo "trying to look into the pantry"
-            ls -la '${{ env.STACK_ROOT }}\pantry' || echo "list pantry failed"
-            ls -la '${{ env.STACK_ROOT }}\pantry\hackage\' || echo "list pantry\hackage failed"
+            # echo "trying to look into the pantry"
+            # ls -la '${{ env.STACK_ROOT }}\pantry' || echo "list pantry failed"
+            # ls -la '${{ env.STACK_ROOT }}\pantry\hackage\' || echo "list pantry\hackage failed"
             which ghc || echo "which ghc failed"
             ls -la '${{ env.GHCUP_PATH_WINDOWS }}\bin' || echo "list ghcup/bin failed"
+            ls -la '${{ env.GHCUP_PATH_WINDOWS }}\${{ env.GHC_VERSION }}.*\lib' || echo "list ghcup\ghc\lib failed"
             echo 'PATH'
             echo "$PATH"
             echo
