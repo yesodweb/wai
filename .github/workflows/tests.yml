@@ -272,6 +272,7 @@ jobs:
           # DEBUG
           if [[ "${{ matrix.os }}" == 'windows-latest' ]]; then
             which ghc || echo "which ghc failed"
+            ls -la '${{ env.GHCUP_PATH_WINDOWS }}' || echo "list ghcup failed"
             ls -la '${{ env.GHCUP_PATH_WINDOWS }}\bin' || echo "list ghcup/bin failed"
             ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8" || echo "list ghcup\ghc failed"
             ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8\lib" || echo "list ghcup\ghc\lib failed"
