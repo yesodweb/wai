@@ -129,9 +129,11 @@ jobs:
             !${{ env.GHCUP_PATH_WINDOWS }}\bin\ghcup.exe
             ${{ env.GHCUP_PATH_WINDOWS }}\config.yaml
             ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\bin
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\{bin,include,rts}
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\**\package.conf.d
-            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\settings
+            ${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib
+            # These aren't where I think they are... I think.
+            #${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\{bin,include,rts}
+            #${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\**\package.conf.d
+            #${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\settings
             # We don't need different builds of GHC
             !${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib\ghc-${{ env.GHC_VERSION }}.*\bin\ghc-iserv*
             ${{ env.GHCUP_PATH_WINDOWS }}\stack\*
@@ -270,7 +272,7 @@ jobs:
             # ls -la '${{ env.STACK_ROOT }}\pantry\hackage\' || echo "list pantry\hackage failed"
             which ghc || echo "which ghc failed"
             ls -la '${{ env.GHCUP_PATH_WINDOWS }}\bin' || echo "list ghcup/bin failed"
-            ls -la "${{ env.GHCUP_PATH_WINDOWS }}\${{ env.GHC_VERSION }}.*\lib" || echo "list ghcup\ghc\lib failed"
+            ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.*\lib" || echo "list ghcup\ghc\lib failed"
             echo 'PATH'
             echo "$PATH"
             echo
