@@ -273,7 +273,7 @@ jobs:
       - name: Build
         id: build-code
         run: |
-          # DEBUG
+          # DEBUG (delete this if statement)
           if [[ "${{ matrix.os }}" == 'windows-latest' ]]; then
             which ghc || echo "which ghc failed"
             ls -la 'C:\tools' || echo "list tools failed"
