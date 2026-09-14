@@ -273,6 +273,7 @@ jobs:
             which ghc || echo "which ghc failed"
             ls -la '${{ env.GHCUP_PATH_WINDOWS }}\bin' || echo "list ghcup/bin failed"
             ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8\lib" || echo "list ghcup\ghc\lib failed"
+            ls -la "${{ env.GHCUP_PATH_WINDOWS }}\ghc\${{ env.GHC_VERSION }}.8\lib\bin" || echo "list ghcup\ghc\lib\bin failed"
             echo 'PATH'
             echo "$PATH"
             echo
