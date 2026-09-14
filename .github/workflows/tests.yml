@@ -265,10 +265,12 @@ jobs:
             which ghc || echo "which ghc failed"
             ls -la '${{ env.GHCUP_PATH }}' || echo "list ghcup failed"
             ls -la '${{ env.GHCUP_PATH }}\bin' || echo "list ghcup/bin failed"
-            ls -la "${{ env.GHCUP_PATH }}\ghc" || echo "list ghcup\ghc failed"
-            ls -la "${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.8" || echo "list ghcup\ghc\9.4.8 failed"
-            ls -la "${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.8\lib" || echo "list ghcup\ghc\lib failed"
-            ls -la "${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.8\lib\bin" || echo "list ghcup\ghc\lib\bin failed"
+            ls -la '${{ env.GHCUP_PATH }}\ghc' || echo "list ghcup\ghc failed"
+            ls -la '${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.*' || echo "list ghcup\ghc\VERSION failed"
+            # Only works for 9.4.8
+            # ls -la '${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.8' || echo "list ghcup\ghc\9.4.8 failed"
+            # ls -la '${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.8' || echo "list ghcup\ghc\9.4.8 failed"
+            # ls -la '${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.8\lib' || echo "list ghcup\ghc\lib failed"
             echo
           fi
 
