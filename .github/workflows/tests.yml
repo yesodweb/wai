@@ -287,6 +287,7 @@ jobs:
             EXTRA="--flag=entropy:donotgetentropy"
           fi
           stack build --test --bench \
+            --haddock --no-haddock-deps \
             --system-ghc --no-terminal \
             --resolver=${{ matrix.resolver }} \
             --no-run-tests --no-run-benchmarks \
@@ -305,9 +306,13 @@ jobs:
         if: matrix.os != 'windows-latest'
         id: run-tests
         run: |
+          EXTRA=""
+          if [[ ${{ matrix.os }} == "windows-latest" ]]; then
+            EXTRA="--flag=entropy:donotgetentropy"
+          fi
           stack build --test --bench \
             --system-ghc --no-terminal \
             --resolver="${{ matrix.resolver }}" \
-            --haddock --no-haddock-deps \
             --no-run-benchmarks \
+            --ghc-options='-Wall' $EXTRA \
             --stack-yaml="${{ env.STACKYAML }}"
