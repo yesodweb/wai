@@ -222,6 +222,7 @@ jobs:
           path: |
             ${{ env.STACK_ROOT }}/stack.sqlite3
             ${{ env.STACK_ROOT }}/snapshots
+            #     [EXCLUDES]
             # Don't cache any haddocks or other docs
             !${{ env.STACK_ROOT }}/snapshots/**/doc
           key: CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
