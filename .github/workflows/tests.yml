@@ -14,22 +14,22 @@ jobs:
       run:
         shell: bash
     env:
-      MANUAL_RESET: "v8"
+      # Increase the number to bust all the cache
+      MANUAL_RESET: "v9"
       STACK_PATH_LOCAL: ".stack-work"
 
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "windows-latest"]
-        # os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         stack: ["latest"]
         resolver:
-          # - "nightly" # 9.12
-          # - "lts-24" #  9.10
-          # - "lts-23" #  9.8
-          # - "lts-22" #  9.6
+          - "nightly" # 9.12
+          - "lts-24" #  9.10
+          - "lts-23" #  9.8
+          - "lts-22" #  9.6
           - "lts-21" #  9.4
-          # - "lts-20" #  9.2
+          - "lts-20" #  9.2
 
     steps:
       - name: "Set ENV vars per LTS"
@@ -110,7 +110,7 @@ jobs:
             !${{ env.GHCUP_GHC_PATH }}/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
             # Takes up lots of space, not sure if needed
             !${{ env.GHCUP_PATH }}/ghc/${{ env.GHC_VERSION }}.*/**/*.a
-          key: CI-test9-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
+          key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
@@ -129,7 +129,7 @@ jobs:
             #     [EXCLUDES]
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH }}\bin\ghcup.exe
-          key: CI-test10-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+          key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
           # restore-keys: |
           #   CI-ghcup-windows-${{ env.MANUAL_RESET }}-
 
@@ -141,7 +141,7 @@ jobs:
           path: |
             ${{ env.GHCUP_GHC_PATH }}\mingw\*
             ~\AppData\Local\Programs\stack
-          key: CI-test2-mingw-windows-${{ env.MANUAL_RESET }}
+          key: CI-mingw-windows-${{ env.MANUAL_RESET }}
 
       - name: Setup Haskell Stack
         id: ghcup-install
@@ -263,8 +263,6 @@ jobs:
           # DEBUG (delete this if statement)
           if [[ "${{ matrix.os }}" == 'windows-latest' ]]; then
             which ghc || echo "which ghc failed"
-            ls -la 'C:\tools' || echo "list tools failed"
-            ls -la 'C:\tools\ghc*' || echo "list tools/ghc failed"
             ls -la '${{ env.GHCUP_PATH }}' || echo "list ghcup failed"
             ls -la '${{ env.GHCUP_PATH }}\bin' || echo "list ghcup/bin failed"
             ls -la "${{ env.GHCUP_PATH }}\ghc" || echo "list ghcup\ghc failed"
