@@ -52,6 +52,7 @@ module Network.Wai.Handler.Warp (
     setPort,
     setHost,
     setOnException,
+    setOnConnectionException,
     setOnExceptionResponse,
     setOnOpen,
     setOnClose,
@@ -86,6 +87,7 @@ module Network.Wai.Handler.Warp (
     getOnOpen,
     getOnClose,
     getOnException,
+    getOnConnectionException,
     getGracefulShutdownTimeout,
     getGracefulCloseTimeout1,
     getGracefulCloseTimeout2,
@@ -210,6 +212,21 @@ setOnException
     :: (Maybe Request -> SomeException -> IO ()) -> Settings -> Settings
 setOnException x y = y{settingsOnException = x}
 
+-- | Handle exceptions escaping a connection worker, with the address supplied
+-- by its connection source. This includes connection creation (such as a TLS
+-- handshake) and cleanup failures, even when no 'Request' exists. For socket
+-- listeners this is the accepted TCP peer, before any PROXY protocol rewriting.
+--
+-- When installed, this handler receives these exceptions instead of the
+-- handler configured with 'setOnException'. Request-specific exceptions and
+-- accept-loop failures still use that handler. By default, worker exceptions
+-- go to that handler too, with 'Nothing' as its @Maybe Request@ argument
+-- because no request context is available at this boundary.
+--
+-- @since 3.4.17
+setOnConnectionException :: (SockAddr -> SomeException -> IO ()) -> Settings -> Settings
+setOnConnectionException report settings = settings{settingsOnConnectionException = Just report}
+
 -- | A function to create a `Response` when an exception occurs.
 -- Default: 'defaultOnExceptionResponse'
 --
@@ -333,6 +350,15 @@ getOnClose = settingsOnClose
 -- | Get the exception handler.
 getOnException :: Settings -> Maybe Request -> SomeException -> IO ()
 getOnException = settingsOnException
+
+-- | Get the handler installed with 'setOnConnectionException'.
+-- If none was installed, the returned function ignores the peer address and
+-- calls the handler configured with 'setOnException', passing 'Nothing' as
+-- its @Maybe Request@ argument and forwarding the exception.
+--
+-- @since 3.4.17
+getOnConnectionException :: Settings -> SockAddr -> SomeException -> IO ()
+getOnConnectionException = onConnectionException
 
 -- | Get the graceful shutdown timeout
 --

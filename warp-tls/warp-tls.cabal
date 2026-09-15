@@ -15,7 +15,7 @@ description:         SSLv1 and SSLv2 are obsoleted by IETF.
                      HTTP/2 can be negotiated by ALPN.
                      API docs and the README are available at
                      <http://www.stackage.org/package/warp-tls>.
-extra-source-files:  ChangeLog.md README.md
+extra-source-files:  ChangeLog.md README.md certificate.pem key.pem
 
 Library
   Build-Depends:     base                          >= 4.12     && < 5
@@ -42,3 +42,18 @@ source-repository head
   type:     git
   location: https://github.com/yesodweb/wai.git
   subdir:   warp-tls
+
+Test-Suite spec
+  Type: exitcode-stdio-1.0
+  Main-Is: Spec.hs
+  Hs-Source-Dirs: test
+  Default-Language: Haskell2010
+  Ghc-Options: -Wall -threaded
+  Build-Depends: base >= 4.12 && < 5
+               , async
+               , bytestring
+               , hspec >= 2
+               , network
+               , wai
+               , warp >= 3.4.17 && < 3.5
+               , warp-tls
