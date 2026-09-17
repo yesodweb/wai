@@ -45,7 +45,13 @@ module Control.Reaper (
 import Control.Concurrent (ThreadId, forkIO, killThread, threadDelay)
 import Control.Exception (mask_)
 import Control.Reaper.Internal
-import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
+import Data.IORef (
+    IORef,
+    atomicModifyIORef',
+    atomicWriteIORef,
+    newIORef,
+    readIORef,
+ )
 import GHC.Conc.Sync (labelThread)
 
 -- | Settings for creating a reaper. This type has two parameters:
@@ -190,7 +196,7 @@ spawn
 spawn settings stateRef tidRef = do
     tid <- forkIO $ reaper settings stateRef tidRef
     labelThread tid $ reaperThreadName settings
-    writeIORef tidRef $ Just tid
+    atomicWriteIORef tidRef $ Just tid
 
 reaper
     :: ReaperSettings workload item
@@ -211,7 +217,7 @@ reaper settings@ReaperSettings{..} stateRef tidRef = do
         then
             reaper settings stateRef tidRef
         else
-            writeIORef tidRef Nothing
+            atomicWriteIORef tidRef Nothing
   where
     swapWithEmpty NoReaper = error "Control.Reaper.reaper: unexpected NoReaper (1)"
     swapWithEmpty (Workload wl) = (Workload reaperEmpty, wl)

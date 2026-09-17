@@ -12,6 +12,10 @@ type Buffer = Ptr Word8
 type BufSize = Int
 
 -- | Type for read buffer pool.
+--
+-- /Caveats: designed to be used by one thread only./
+-- /The buffer is not behind a lock, so using a 'BufferPool'/
+-- /in more than one thread might create race conditions./
 data BufferPool = BufferPool
     { minBufSize :: Int
     -- ^ If the buffer is larger than or equal to this size,

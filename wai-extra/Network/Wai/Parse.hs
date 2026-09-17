@@ -4,6 +4,9 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
+-- NOTE: All the 'writeIORef's don't need to be "atomic", because their usage
+-- is on 'IORef's that are created inside 'parsePiecesEx' and don't get forked.
+-- So all of them are used in a single thread.
 
 -- | Some helpers for parsing data out of a raw WAI 'Request'.
 module Network.Wai.Parse (
@@ -436,10 +439,10 @@ sinkRequestBodyEx
     -> IO ([Param], [File y])
 sinkRequestBodyEx o s r body = do
     ref <- newIORef ([], [])
-    let add x = atomicModifyIORef ref $ \(y, z) ->
+    let add x = modifyIORef' ref $ \(y, z) ->
             case x of
-                Left y' -> ((y' : y, z), ())
-                Right z' -> ((y, z' : z), ())
+                Left y' -> (y' : y, z)
+                Right z' -> (y, z' : z)
     conduitRequestBodyEx o s r body add
     bimap reverse reverse <$> readIORef ref
 
@@ -540,7 +543,7 @@ mkSource f = do
 
 readSource :: Source -> IO S.ByteString
 readSource (Source f ref) = do
-    bs <- atomicModifyIORef ref $ \bs -> (S.empty, bs)
+    bs <- atomicModifyIORef' ref $ \bs -> (S.empty, bs)
     if S.null bs
         then f
         else return bs
@@ -554,6 +557,9 @@ leftover (Source _ ref) = writeIORef ref
 parsePiecesEx
     :: ParseRequestBodyOptions
     -> BackEnd y
+    -- ^ The provided 'Backend' should not use it's @IO S.ByteString@ function
+    -- in more than one thread as it will introduce race conditions and
+    -- potentially result in undefined behaviour.
     -> S.ByteString
     -> IO S.ByteString
     -> (Either Param (File y) -> IO ())
