@@ -1,5 +1,12 @@
 # ChangeLog for auto-update
 
+## 0.2.8
+
+* use `atomicWriteIORef` instead of `writeIORef` in the following modules to
+  avoid more issues: [#1112](https://github.com/yesodweb/wai/pull/1112)
+    * `Control.Reaper` (`spawn` & `reaper`)
+    * `Control.AutoUpdate.Event` (`getUpdateResult`)
+
 ## 0.2.7
 
 * Use `atomicModifyIORef` in `mkAutoUpdate(Helper)` to prevent race conditions
