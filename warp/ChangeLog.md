@@ -11,6 +11,10 @@
 * Slight performance increase by not blocking on receiving a request if the
   socket already has bytes waiting. (using `receiveNoWait` from `recv-0.1.2`)
   [#1107](https://github.com/yesodweb/wai/pull/1107).
+* Reviewed when to introduce memory barriers when handling `IORef`s.
+  Documented most usage and introduced memory barriers in situations that might
+  possibly be used in more than one thread.
+  [#1112](https://github.com/yesodweb/wai/pull/1112).
 
 ## 3.4.15
 
