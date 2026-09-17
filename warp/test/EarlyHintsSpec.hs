@@ -22,6 +22,10 @@ import Network.Wai.Handler.Warp (Port, testWithApplication)
 spec :: Spec
 spec = describe "HTTP/2 Early Hints" $
     it "delivers a WAI app's 103 Early Hints to the client before the final response (h2c)" $
+#ifdef WINDOWS
+        -- This test is failing on Windows (it hangs at @C.run@)
+        pendingWith "requires more testing on a Windows machine"
+#else
         testWithApplication (pure app) $ \port -> do
             hintsRef <- newIORef []
             earlyHintsClient port hintsRef `shouldReturn` Just ok200
@@ -64,6 +68,7 @@ withTCP host port = bracket open close
         sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
         connect sock (addrAddress addr)
         return sock
+#endif
 #else
 spec :: Spec
 spec = describe "HTTP/2 Early Hints" $

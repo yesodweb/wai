@@ -6,12 +6,6 @@
 
 module Main where
 
-import Control.Concurrent (threadDelay)
-import Control.Monad (forM_, void)
-import Data.IORef as I (IORef, newIORef, readIORef, writeIORef)
-import System.TimeManager
-import System.TimeManager.Internal
-import Test.HUnit (assertBool)
 import Test.Hspec
 
 #if defined(mingw32_HOST_OS)
@@ -27,6 +21,13 @@ main = hspec $ do
         it "tests don't work on windows" $
             pendingWith "requires more testing on a Windows machine"
 #else
+import Control.Concurrent (threadDelay)
+import Control.Monad (forM_, void)
+import Data.IORef as I (IORef, newIORef, readIORef, writeIORef)
+import System.TimeManager
+import System.TimeManager.Internal
+import Test.HUnit (assertBool)
+
 main :: IO ()
 main = hspec $ do
     describe "TimeManager" $ do

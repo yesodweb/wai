@@ -2,7 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: ["master", "ci"]
+    branches:
+      - "master"
+      - "ci"
   pull_request:
     branches: ["master"]
 
@@ -21,7 +23,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        os:
+          - "ubuntu-latest"
+          - "macos-latest"
+          - "windows-latest"
         stack: ["latest"]
         resolver:
           - "nightly" # 9.12
