@@ -101,7 +101,7 @@ emptyLock = unsafePerformIO $ newMVar ()
 --   __WARNING for Windows users:__ /the precision of extending timeouts/
 --   /is only full "seconds". The provided microseconds will be floored/
 --   /to the first full second. (i.e. @initialize 2_500_000@ will get/
---   /get extended by 2 seconds on a 'tickle')/
+--   /extended by 2 seconds on a 'tickle')/
 --   /This also means timeouts of less than one second will not be extended/
 --   /when using 'tickle'./
 initialize :: Int -> IO Manager
