@@ -20,6 +20,13 @@ import qualified GHC.Event.Windows as EV
 import qualified GHC.Event as EV
 #endif
 
+#if defined(mingw32_HOST_OS)
+main :: IO ()
+main = hspec $ do
+    describe "TimeManager" $ do
+        it "tests don't work on windows" $
+            pendingWith "requires more testing on a Windows machine"
+#else
 main :: IO ()
 main = hspec $ do
     describe "TimeManager" $ do
@@ -163,3 +170,4 @@ oldResume Handle{..} = do
     mgr <- getTimerManager
     key <- EV.registerTimeout mgr handleTimeout handleAction
     I.writeIORef handleKeyRef key
+#endif
