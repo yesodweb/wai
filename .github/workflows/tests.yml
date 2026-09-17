@@ -111,8 +111,6 @@ jobs:
             # Takes up lots of space, not sure if needed
             !${{ env.GHCUP_PATH }}/ghc/${{ env.GHC_VERSION }}.*/**/*.a
           key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
-          # restore-keys: |
-          #   CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
 
       - name: Cache GHCup [WINDOWS]
         if: matrix.os == 'windows-latest'
@@ -130,8 +128,6 @@ jobs:
             # We don't need GHCup to run stack, so don't cache it
             !${{ env.GHCUP_PATH }}\bin\ghcup.exe
           key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
-          # restore-keys: |
-          #   CI-ghcup-windows-${{ env.MANUAL_RESET }}-
 
       - name: Cache MSYS (mingw) [WINDOWS]
         if: matrix.os == 'windows-latest'
@@ -246,7 +242,6 @@ jobs:
             --ghc-options='-Wall' $EXTRA \
             --stack-yaml="${{ env.STACKYAML }}"
 
-      # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
       # - name: Cache Local Files
       #   id: local-files
       #   uses: actions/cache@v6
@@ -266,11 +261,7 @@ jobs:
             ls -la '${{ env.GHCUP_PATH }}' || echo "list ghcup failed"
             ls -la '${{ env.GHCUP_PATH }}\bin' || echo "list ghcup/bin failed"
             ls -la '${{ env.GHCUP_PATH }}\ghc' || echo "list ghcup\ghc failed"
-            ls -la '${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.*' || echo "list ghcup\ghc\VERSION failed"
-            # Only works for 9.4.8
-            # ls -la '${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.8' || echo "list ghcup\ghc\9.4.8 failed"
-            # ls -la '${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.8' || echo "list ghcup\ghc\9.4.8 failed"
-            # ls -la '${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.8\lib' || echo "list ghcup\ghc\lib failed"
+            ls -la "${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.*" || echo "list ghcup\ghc\VERSION failed"
             echo
           fi
 
@@ -287,8 +278,6 @@ jobs:
             --stack-yaml="${{ env.STACKYAML }}"
 
       - name: Run tests
-        # Remove this after we've had a successful cache run
-        if: matrix.os != 'windows-latest'
         id: run-tests
         run: |
           EXTRA=""
