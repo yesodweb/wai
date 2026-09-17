@@ -19,6 +19,8 @@ flags:
     build-example: true
   zlib:
     bundled-c-zlib: true
+  ansi-terminal:
+    win32-2-13-1: false
 nix:
   enable: false
   packages:
