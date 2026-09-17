@@ -19,6 +19,7 @@ category:           Web, Yesod
 build-type:         Simple
 extra-source-files:
     attic/hex
+    bench/compare.sh
     ChangeLog.md
     README.md
     test/head-response
@@ -88,6 +89,7 @@ library
         Network.Wai.Handler.Warp.Settings
         Network.Wai.Handler.Warp.ShuttingDown
         Network.Wai.Handler.Warp.Types
+        Network.Wai.Handler.Warp.Watchdog
         Network.Wai.Handler.Warp.Windows
         Network.Wai.Handler.Warp.WithApplication
 
@@ -196,6 +198,7 @@ test-suite spec
         RunSpec
         SendFileSpec
         ServerStateSpec
+        WatchdogSpec
         WithApplicationSpec
         Network.Wai.Handler.Warp
         Network.Wai.Handler.Warp.Internal
@@ -228,6 +231,7 @@ test-suite spec
         Network.Wai.Handler.Warp.Settings
         Network.Wai.Handler.Warp.ShuttingDown
         Network.Wai.Handler.Warp.Types
+        Network.Wai.Handler.Warp.Watchdog
         Network.Wai.Handler.Warp.Windows
         Network.Wai.Handler.Warp.WithApplication
 
@@ -318,6 +322,7 @@ benchmark parser
         Network.Wai.Handler.Warp.Settings
         Network.Wai.Handler.Warp.ShuttingDown
         Network.Wai.Handler.Warp.Types
+        Network.Wai.Handler.Warp.Watchdog
 
     if flag(include-warp-version)
         other-modules: Paths_warp
@@ -367,6 +372,29 @@ benchmark parser
     if impl(ghc >=8)
         default-extensions: Strict StrictData
 
+benchmark server
+    type:             exitcode-stdio-1.0
+    main-is:          ServerBench.hs
+    hs-source-dirs:   bench
+    default-language: Haskell2010
+    -- The driver must not be the bottleneck, so give it every capability by
+    -- default; the server child is launched with its own explicit +RTS.
+    ghc-options:      -Wall -threaded -rtsopts "-with-rtsopts=-N"
+    build-depends:
+        array,
+        base >=4.8 && <5,
+        bytestring,
+        directory,
+        http-types,
+        network,
+        process,
+        text,
+        wai,
+        warp
+
+    if !os(windows)
+        build-depends: unix
+
 benchmark response
     type:             exitcode-stdio-1.0
     main-is:          ResponseBench.hs
@@ -392,6 +420,7 @@ benchmark response
         Network.Wai.Handler.Warp.Settings
         Network.Wai.Handler.Warp.ShuttingDown
         Network.Wai.Handler.Warp.Types
+        Network.Wai.Handler.Warp.Watchdog
 
     if flag(include-warp-version)
         other-modules: Paths_warp
@@ -401,6 +430,7 @@ benchmark response
     build-depends:
         base >=4.8 && <5,
         array,
+        async,
         auto-update,
         bsb-http-chunked,
         bytestring,

@@ -78,21 +78,33 @@ module Network.Wai.Handler.Warp.Internal (
 
     -- |
     --
-    -- In order to provide slowloris protection, Warp provides timeout handlers. We
-    -- follow these rules:
+    -- In order to provide slowloris protection, every connection is supervised
+    -- by a watchdog: a thread that watches a record of what the connection is
+    -- currently doing and kills it if it stays in one 'Phase' for longer than
+    -- that phase is allowed to take.
     --
-    -- * A timeout is created when a connection is opened.
+    -- The rules are the 'phaseBudget' table plus the 'enter' calls that move
+    -- between phases. In summary:
     --
-    -- * When all request headers are read, the timeout is tickled.
+    -- * Reading the request line and headers, reading the request body, and
+    --   writing a response are each on the clock.
     --
-    -- * Every time at least the slowloris size settings number of bytes of the request
-    --   body are read, the timeout is tickled.
+    -- * Header reading gets a 'Total' budget: it must finish within the
+    --   timeout however the client chunks it. That is what replaces the
+    --   'settingsSlowlorisSize' heuristic on this path.
     --
-    -- * The timeout is paused while executing user code. This will apply to both
-    --   the application itself, and a ResponseSource response. The timeout is
-    --   resumed as soon as we return from user code.
+    -- * User code is not. The connection moves to 'RunningApp' before the
+    --   'Network.Wai.Application' is called, and again between the fragments
+    --   of a streaming response body, so an application may take as long as
+    --   it likes.
     --
-    -- * Every time data is successfully sent to the client, the timeout is tickled.
+    -- * Data successfully sent or received during a timed phase pushes the
+    --   deadline out, via 'tick'.
+    --
+    -- HTTP\/2 connections are still handled by "System.TimeManager" directly,
+    -- both here and per-stream inside the @http2@ library; the watchdog parks
+    -- in the 'Delegated' phase for those.
+    module Network.Wai.Handler.Warp.Watchdog,
     module System.TimeManager,
 
     -- * File descriptor cache
@@ -138,6 +150,7 @@ import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog
 import Network.Wai.Handler.Warp.Windows
 
 type IndexedHeader = IndexedRequestHeader
