@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- | Timeout manager. Since @v0.3.0@, timeout manager is a wrapper of
@@ -48,8 +49,11 @@ module System.TimeManager (
 
 import Control.Concurrent (forkIO, mkWeakThreadId, myThreadId)
 import qualified Control.Exception as E
-import Control.Monad (void)
+import Control.Monad (void, when)
+import Data.Bits (shiftR)
 import qualified Data.IORef as I
+import Data.Word (Word64)
+import GHC.Clock (getMonotonicTimeNSec)
 import System.Mem.Weak (deRefWeak)
 import System.TimeManager.Internal
 
@@ -73,8 +77,11 @@ emptyHandle =
     Handle
         { handleTimeout = 0
         , handleAction = pure ()
+        , handleTimerManager = error "time-manager: Handle.handleTimerManager not set"
         , handleKeyRef = error "time-manager: Handle.handleKeyRef not set"
         , handleState = error "time-manager: Handle.handleState not set"
+        , handleLastRenewed = error "time-manager: Handle.handleLastRenewed not set"
+        , handleMinRenewGap = 0
         }
 
 ----------------------------------------------------------------
@@ -126,38 +133,67 @@ register :: Manager -> TimeoutAction -> IO Handle
 register mgr@(Manager timeout) onTimeout
     | isNoManager mgr = pure emptyHandle
     | otherwise = do
+        -- The system timer manager is stable for the lifetime of the
+        -- process (and even if it were replaced, e.g. around a fork,
+        -- the key registered below would only be meaningful to the
+        -- manager it was registered with). So fetch it once here and
+        -- cache it in the 'Handle' instead of re-reading the global
+        -- IORef on every tickle/pause/resume.
         sysmgr <- getTimerManager
         key <- EV.registerTimeout sysmgr timeout onTimeout
+        now <- getMonotonicTimeNSec
         keyref <- I.newIORef key
         state <- I.newIORef Active
+        lastRenewed <- I.newIORef now
         let h =
                 Handle
                     { handleTimeout = timeout
                     , handleAction = onTimeout
+                    , handleTimerManager = sysmgr
                     , handleKeyRef = keyref
                     , handleState = state
+                    , handleLastRenewed = lastRenewed
+                    , handleMinRenewGap = minRenewGap timeout
                     }
         pure h
+
+-- | How long 'tickle' waits before actually renewing the timeout:
+--   a quarter of the timeout, capped at one second. Skipping a renewal
+--   inside this window only shortens the effective timeout by up to
+--   this gap, but turns hot 'tickle' loops (one per chunk sent or
+--   received) into a clock read and a comparison.
+minRenewGap :: Int -> Word64
+minRenewGap timeout = min oneSecond (microToNano timeout `shiftR` 2)
+  where
+    oneSecond = 1_000_000_000
+    microToNano = (* 1_000) . fromIntegral
 
 -- | Unregistering the timeout.
 cancel :: Handle -> IO ()
 cancel h@Handle{..} = withNonEmptyHandle h $ do
-    mgr <- getTimerManager
     key <- I.readIORef handleKeyRef
-    EV.unregisterTimeout mgr key
+    EV.unregisterTimeout handleTimerManager key
     I.atomicWriteIORef handleState Stopped
 
 -- | Extending the timeout.
 --
+-- To keep frequent callers cheap, the renewal is rate-limited: it is
+-- skipped unless at least a quarter of the timeout (capped at one
+-- second) has passed since the timeout was last registered or updated.
+--
 -- Careful: this does NOT reactivate an already paused 'Handle'!
 tickle :: Handle -> IO ()
 tickle h@Handle{..} = withNonEmptyHandle h $ do
-    mgr <- getTimerManager
-    key <- I.readIORef handleKeyRef
+    now <- getMonotonicTimeNSec
+    lastRenewed <- I.readIORef handleLastRenewed
+    when (now - lastRenewed >= handleMinRenewGap) $ do
+        key <- I.readIORef handleKeyRef
+        I.writeIORef handleLastRenewed now
 #if defined(mingw32_HOST_OS)
-    EV.updateTimeout mgr key $ fromIntegral (handleTimeout `div` 1000000)
+        EV.updateTimeout handleTimerManager key $
+            fromIntegral (handleTimeout `div` 1_000_000)
 #else
-    EV.updateTimeout mgr key handleTimeout
+        EV.updateTimeout handleTimerManager key handleTimeout
 #endif
 
 -- | This is identical to 'cancel'.
@@ -175,10 +211,11 @@ resume h@Handle{..} = withNonEmptyHandle h $ do
     case state of
         Active -> tickle h
         Stopped -> do
-            mgr <- getTimerManager
-            key <- EV.registerTimeout mgr handleTimeout handleAction
+            key <- EV.registerTimeout handleTimerManager handleTimeout handleAction
             I.atomicWriteIORef handleKeyRef key
             I.atomicWriteIORef handleState Active
+            now <- getMonotonicTimeNSec
+            I.writeIORef handleLastRenewed now
 
 ----------------------------------------------------------------
 

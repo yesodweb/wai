@@ -1,5 +1,13 @@
 # ChangeLog for time-manager
 
+## 0.3.3
+
+* `Handle` now caches the system `TimerManager` instead of re-reading the
+  global `IORef` on every operation, and `tickle` is rate-limited: the
+  renewal is skipped unless a quarter of the timeout (capped at one second)
+  has passed since the timeout was last registered or updated.
+  [#1097](https://github.com/yesodweb/wai/pull/1097)
+
 ## 0.3.2
 
 * Add `stopAfterWithResult`. [#1069](https://github.com/yesodweb/wai/pull/1069)
