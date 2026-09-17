@@ -65,6 +65,7 @@ import Network.Wai.Handler.Warp.SendFile (sendFile)
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.ShuttingDown (readShuttingDown, writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
 --
@@ -446,9 +447,15 @@ fork set mkConn addr app counter ii = do
             writeBuffer <- readIORef $ connWriteBuffer conn
             bufFree writeBuffer
 
-    -- We need to register a timeout handler for this thread, and
-    -- cancel that handler as soon as we exit.
-    serve unmask (conn, transport) = T.withHandleKillThread (timeoutManager ii) (return ()) $ \th -> do
+    -- Put the connection under a watchdog for its whole life, and stop the
+    -- watchdog as soon as we exit.
+    --
+    -- This has to be here rather than further in: serveConnection sniffs for
+    -- the HTTP/2 preface with recv4, which blocks until four bytes arrive, so
+    -- supervision that started after the sniff would leave a client that
+    -- connects and sends one byte hanging forever. It also keeps the
+    -- user-supplied open/close callbacks covered, as they have always been.
+    serve unmask (conn, transport) = withConnWatchdog timeoutInMicroseconds $ \cs -> do
         -- We now have fully registered a connection close handler in
         -- the case of all exceptions, so it is safe to once again
         -- allow async exceptions.
@@ -460,7 +467,9 @@ fork set mkConn addr app counter ii = do
             $ \goingon ->
                 -- Actually serve this connection.  bracket with closeConn
                 -- above ensures the connection is closed.
-                when goingon $ serveConnection conn ii th addr transport set app
+                when goingon $ serveConnection conn ii cs addr transport set app
+
+    timeoutInMicroseconds = settingsTimeout set * 1000000
 
     onOpen adr = settingsOnOpen set adr
     onClose adr _ = settingsOnClose set adr
@@ -468,13 +477,13 @@ fork set mkConn addr app counter ii = do
 serveConnection
     :: Connection
     -> InternalInfo
-    -> T.Handle
+    -> ConnState
     -> SockAddr
     -> Transport
     -> Settings
     -> Application
     -> IO ()
-serveConnection conn ii th origAddr transport settings app = do
+serveConnection conn ii cs origAddr transport settings app = do
     -- fixme: Upgrading to HTTP/2 should be supported.
     tid <- myThreadId
     (h2, bs) <-
@@ -494,10 +503,16 @@ serveConnection conn ii th origAddr transport settings app = do
     if settingsHTTP2Enabled settings && h2
         then do
             labelThread tid ("Warp HTTP/2 " ++ show origAddr)
-            http2 settings ii conn transport app' origAddr th bs
+            -- HTTP/2 keeps the timeout manager it has always used, both here
+            -- and per-stream inside the http2 library. Park the watchdog so
+            -- the two cannot both fire; it blocks from here until the
+            -- connection ends.
+            enter cs Delegated
+            T.withHandleKillThread (timeoutManager ii) (return ()) $ \th ->
+                http2 settings ii conn transport app' origAddr th bs
         else do
             labelThread tid ("Warp HTTP/1.1 " ++ show origAddr)
-            http1 settings ii conn transport app' origAddr th bs
+            http1 settings ii conn transport app' origAddr cs bs
   where
     recv4 bs0 = do
         bs1 <- connRecv conn

@@ -29,9 +29,9 @@ import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog
 import Network.Wai.Internal
 import System.IO.Unsafe (unsafePerformIO)
-import qualified System.TimeManager as Timeout
 import Prelude hiding (lines)
 
 import Network.Wai.Handler.Warp.Conduit
@@ -58,7 +58,7 @@ recvRequest
     -> Settings
     -> Connection
     -> InternalInfo
-    -> Timeout.Handle
+    -> ConnState
     -> SockAddr
     -- ^ Peer's address.
     -> Source
@@ -75,7 +75,7 @@ recvRequest
     -- how many bytes remain to be consumed, if known
     -- 'IndexedHeader' of HTTP request for internal use,
     -- Body producing action used for flushing the request body
-recvRequest firstRequest settings conn ii th addr src transport = do
+recvRequest firstRequest settings conn ii cs addr src transport = do
     hdrlines <- headerLines (settingsMaxTotalHeaderLength settings) firstRequest src
     (method, unparsedPath, path, query, httpversion, hdr) <-
         parseHeaderLines hdrlines
@@ -84,14 +84,14 @@ recvRequest firstRequest settings conn ii th addr src transport = do
         handle100Continue = handleExpect conn httpversion expect
     (rbody, remainingRef, bodyLength) <- bodyAndSource src idxhdr
     -- body producing function which will produce '100-continue', if needed
-    rbody' <- timeoutBody remainingRef th rbody handle100Continue
+    rbody' <- timeoutBody remainingRef cs rbody handle100Continue
     -- body producing function which will never produce 100-continue
-    rbodyFlush <- timeoutBody remainingRef th rbody (return ())
+    rbodyFlush <- timeoutBody remainingRef cs rbody (return ())
     let rawPath = if settingsNoParsePath settings then unparsedPath else path
         -- Lazy on purpose (~ defeats -XStrict): most handlers never touch
         -- 'vault', so don't pay for the inserts unless somebody looks.
         ~vaultValue =
-            Vault.insert pauseTimeoutKey (Timeout.pause th)
+            Vault.insert pauseTimeoutKey (enter cs RunningApp)
                 . Vault.insert getFileInfoKey (getFileInfo ii)
 #ifdef MIN_VERSION_crypton_x509
                 . Vault.insert getClientCertificateKey (getTransportClientCertificate transport)
@@ -190,11 +190,11 @@ isChunked _ = False
 timeoutBody
     :: Maybe (I.IORef Int)
     -- ^ remaining
-    -> Timeout.Handle
+    -> ConnState
     -> IO ByteString
     -> IO ()
     -> IO (IO ByteString)
-timeoutBody remainingRef timeoutHandle rbody handle100Continue = do
+timeoutBody remainingRef cs rbody handle100Continue = do
     isFirstRef <- I.newIORef True
 
     let checkEmpty =
@@ -214,20 +214,21 @@ timeoutBody remainingRef timeoutHandle rbody handle100Continue = do
             -- Only check if we need to produce the 100 Continue status
             -- when asking for the first chunk of the body
             handle100Continue
-            -- Timeout handling was paused after receiving the full request
-            -- headers. Now we need to resume it to avoid a slowloris
-            -- attack during request body sending.
-            Timeout.resume timeoutHandle
+            -- The connection moved to 'RunningApp' once the request headers
+            -- were complete. Asking for the body puts Warp back in charge, so
+            -- put it back on the clock: a client that dribbles the body is as
+            -- much a slowloris as one that dribbles the headers.
+            enter cs ReadingBody
             I.writeIORef isFirstRef False
 
         bs <- rbody
 
         -- As soon as we finish receiving the request body, whether
         -- because the application is not interested in more bytes, or
-        -- because there is no more data available, pause the timeout
-        -- handler again.
+        -- because there is no more data available, the application is back
+        -- in control and may take as long as it likes.
         isEmpty <- checkEmpty bs
-        when isEmpty (Timeout.pause timeoutHandle)
+        when isEmpty $ enter cs RunningApp
 
         return bs
 

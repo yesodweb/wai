@@ -17,7 +17,6 @@ import Data.Word8 (_cr, _space)
 import Network.Socket (SockAddr (SockAddrInet, SockAddrInet6))
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (ResponseReceived))
-import qualified System.TimeManager as T
 import "iproute" Data.IP (toHostAddress, toHostAddress6)
 
 import Network.Wai.Handler.Warp.Header
@@ -27,6 +26,7 @@ import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog
 
 http1
     :: Settings
@@ -35,21 +35,25 @@ http1
     -> Transport
     -> Application
     -> SockAddr
-    -> T.Handle
+    -> ConnState
     -> ByteString
     -> IO ()
-http1 settings ii conn transport app origAddr th bs0 = do
+http1 settings ii conn transport app origAddr cs bs0 = do
     istatus <- newIORef True
-    src <- mkSource (wrappedRecv conn istatus (settingsSlowlorisSize settings))
+    src <- mkSource (wrappedRecv conn istatus)
     leftoverSource src bs0
     addr <- getProxyProtocolAddr src
-    http1server settings ii conn transport app addr th istatus src
+    http1server settings ii conn transport app addr cs istatus src
   where
-    wrappedRecv Connection{connRecv = recv} istatus slowlorisSize = do
+    -- Every read counts as progress. There is deliberately no minimum size
+    -- here: 'ReadingHeaders' is a 'Total' budget, so a client that dribbles
+    -- headers runs out of time regardless of how it chunks them, and the
+    -- @settingsSlowlorisSize@ heuristic this used to apply is redundant.
+    wrappedRecv Connection{connRecv = recv} istatus = do
         bs <- recv
         unless (BS.null bs) $ do
             writeIORef istatus True
-            when (BS.length bs >= slowlorisSize) $ T.tickle th
+            tick cs
         return bs
 
     getProxyProtocolAddr src =
@@ -109,11 +113,11 @@ http1server
     -> Transport
     -> Application
     -> SockAddr
-    -> T.Handle
+    -> ConnState
     -> IORef Bool
     -> Source
     -> IO ()
-http1server settings ii conn transport app addr th istatus src =
+http1server settings ii conn transport app addr cs istatus src =
     loop FirstRequest `catch` handler
   where
     handler e
@@ -129,7 +133,7 @@ http1server settings ii conn transport app addr th istatus src =
                     settings
                     ii
                     conn
-                    th
+                    cs
                     istatus
                     defaultRequest{remoteHost = addr}
                     e
@@ -137,14 +141,14 @@ http1server settings ii conn transport app addr th istatus src =
 
     loop firstRequest = do
         (req, mremainingRef, idxhdr, nextBodyFlush) <-
-            recvRequest firstRequest settings conn ii th addr src transport
+            recvRequest firstRequest settings conn ii cs addr src transport
         keepAlive <-
             processRequest
                 settings
                 ii
                 conn
                 app
-                th
+                cs
                 istatus
                 src
                 req
@@ -176,7 +180,7 @@ processRequest
     -> InternalInfo
     -> Connection
     -> Application
-    -> T.Handle
+    -> ConnState
     -> IORef Bool
     -> Source
     -> Request
@@ -184,21 +188,23 @@ processRequest
     -> IndexedRequestHeader
     -> IO ByteString
     -> IO ReuseConnection
-processRequest settings ii conn app th istatus src req mremainingRef idxhdr nextBodyFlush = do
-    -- Let the application run for as long as it wants
-    T.pause th
+processRequest settings ii conn app cs istatus src req mremainingRef idxhdr nextBodyFlush = do
+    -- Let the application run for as long as it wants: 'RunningApp' is not
+    -- subject to a timeout.
+    enter cs RunningApp
 
     -- In the event that some scarce resource was acquired during
     -- creating the request, we need to make sure that we don't get
     -- an async exception before calling the ResponseSource.
     keepAliveRef <- newIORef $ error "keepAliveRef not filled"
     r <- try $ app req $ \res -> do
-        T.resume th
+        -- The application handed us a response; Warp is back on the clock.
+        enter cs SendingResponse
         -- FIXME consider forcing evaluation of the res here to
         -- send more meaningful error messages to the user.
         -- However, it may affect performance.
         writeIORef istatus False
-        keepAlive <- sendResponse settings conn ii th req idxhdr (readSource src) res
+        keepAlive <- sendResponse settings conn ii cs req idxhdr (readSource src) res
         writeIORef keepAliveRef keepAlive
         return ResponseReceived
     case r of
@@ -207,7 +213,7 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
             | Just (ExceptionInsideResponseBody e') <- fromException e -> throwIO e'
             | isAsyncException e -> throwIO e
             | otherwise -> do
-                keepAlive <- sendErrorResponse settings ii conn th istatus req e
+                keepAlive <- sendErrorResponse settings ii conn cs istatus req e
                 settingsOnException settings (Just req) e
                 writeIORef keepAliveRef keepAlive
 
@@ -230,7 +236,7 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
             case settingsMaximumBodyFlush settings of
                 Nothing -> do
                     flushEntireBody nextBodyFlush
-                    T.resume th
+                    enter cs ReadingHeaders
                     return ReuseConnection
                 Just maxToRead -> do
                     let tryKeepAlive = do
@@ -238,7 +244,7 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
                             isComplete <- flushBody nextBodyFlush maxToRead
                             if isComplete
                                 then do
-                                    T.resume th
+                                    enter cs ReadingHeaders
                                     return ReuseConnection
                                 else return CloseConnection
                     case mremainingRef of
@@ -254,20 +260,26 @@ sendErrorResponse
     :: Settings
     -> InternalInfo
     -> Connection
-    -> T.Handle
+    -> ConnState
     -> IORef Bool
     -> Request
     -> SomeException
     -> IO Bool
-sendErrorResponse settings ii conn th istatus req e = do
+sendErrorResponse settings ii conn cs istatus req e = do
     status <- readIORef istatus
     if shouldSendErrorResponse e && status
-        then
+        then do
+            -- We reach here from inside the application, so the connection is
+            -- still in 'RunningApp' and therefore unlimited. Writing the error
+            -- response is Warp's own work and belongs on the clock like any
+            -- other response. (The old code sent it while the timer was
+            -- paused, so this write was unprotected.)
+            enter cs SendingResponse
             sendResponse
                 settings
                 conn
                 ii
-                th
+                cs
                 req
                 defaultIndexRequestHeader
                 (return BS.empty)
