@@ -1,6 +1,6 @@
 # ChangeLog
 
-## Unreleased
+## 3.4.16
 
 * Add regression tests for peer attribution on pre-request TLS failures,
   using the existing certificate fixtures.
