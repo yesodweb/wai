@@ -223,7 +223,7 @@ setOnException x y = y{settingsOnException = x}
 -- go to that handler too, with 'Nothing' as its @Maybe Request@ argument
 -- because no request context is available at this boundary.
 --
--- @since 3.4.17
+-- @since 3.4.16
 setOnConnectionException :: (SockAddr -> SomeException -> IO ()) -> Settings -> Settings
 setOnConnectionException report settings = settings{settingsOnConnectionException = Just report}
 
@@ -356,7 +356,7 @@ getOnException = settingsOnException
 -- calls the handler configured with 'setOnException', passing 'Nothing' as
 -- its @Maybe Request@ argument and forwarding the exception.
 --
--- @since 3.4.17
+-- @since 3.4.16
 getOnConnectionException :: Settings -> SockAddr -> SomeException -> IO ()
 getOnConnectionException = onConnectionException
 
