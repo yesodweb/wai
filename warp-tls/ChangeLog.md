@@ -1,11 +1,5 @@
 # ChangeLog
 
-## 3.4.16
-
-* Add regression tests for peer attribution on pre-request TLS failures,
-  using the existing certificate fixtures.
-  [#1114](https://github.com/yesodweb/wai/pull/1114)
-
 ## 3.4.14
 
 * Build with `warp-3.4.13`.
