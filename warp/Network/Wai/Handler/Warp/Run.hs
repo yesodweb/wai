@@ -126,9 +126,7 @@ socketConnection set s = do
             hook
             headers
 
-    sendall = sendAll' s
-
-    sendAll' sock bs =
+    sendall bs =
         E.handleJust
             ( \e ->
                 if ioeGetErrorType e == ResourceVanished
@@ -136,7 +134,7 @@ socketConnection set s = do
                     else Nothing
             )
             E.throwIO
-            $ Sock.sendAll sock bs
+            $ Sock.sendAll s bs
 
 -- | Create a 'Recv' using 'Network.Socket.BufferPool.Recv.receive', but make
 -- it non-blocking with 'waitReadSocketSTM' /AND/ cut off receiving any bytes
