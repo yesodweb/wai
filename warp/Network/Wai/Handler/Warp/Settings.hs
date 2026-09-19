@@ -44,6 +44,16 @@ import Data.Version (showVersion)
 import qualified Paths_warp
 #endif
 
+-- | Report a worker exception with the address captured for that connection.
+-- An optional callback preserves the existing exception observer's meaning:
+-- setting the ordinary observer later still changes the default fallback.
+-- No shared peer state or synthetic Request is needed (#1113).
+onConnectionException :: Settings -> SockAddr -> SomeException -> IO ()
+onConnectionException settings address =
+    case settingsOnConnectionException settings of
+        Just report -> report address
+        Nothing -> settingsOnException settings Nothing
+
 -- | Various Warp server settings. This is purposely kept as an abstract data
 -- type so that new settings can be added without breaking backwards
 -- compatibility. In order to create a 'Settings' value, use 'defaultSettings'
@@ -57,6 +67,9 @@ data Settings = Settings
     -- ^ Default value: HostIPv4
     , settingsOnException :: Maybe Request -> SomeException -> IO ()
     -- ^ What to do with exceptions thrown by either the application or server. Default: ignore server-generated exceptions (see 'InvalidRequest') and print application-generated applications to stderr.
+    , settingsOnConnectionException :: Maybe (SockAddr -> SomeException -> IO ())
+    -- ^ Optional observer for exceptions escaping a connection worker. Nothing
+    -- delegates to settingsOnException with no request, preserving its defaults.
     , settingsOnExceptionResponse :: SomeException -> Response
     -- ^ A function to create `Response` when an exception occurs.
     --
@@ -311,6 +324,7 @@ defaultSettings =
         { settingsPort = 3000
         , settingsHost = "*4"
         , settingsOnException = defaultOnException
+        , settingsOnConnectionException = Nothing
         , settingsOnExceptionResponse = defaultOnExceptionResponse
         , settingsOnOpen = const $ return True
         , settingsOnClose = const $ return ()
