@@ -15,6 +15,11 @@
   Documented most usage and introduced memory barriers in situations that might
   possibly be used in more than one thread.
   [#1112](https://github.com/yesodweb/wai/pull/1112).
+* Add `setOnConnectionException` and `getOnConnectionException` to expose the
+  peer for exceptions escaping connection workers, including TLS setup failures
+  before a request exists. The existing exception observer remains the default.
+  [#1114](https://github.com/yesodweb/wai/pull/1114)
+  (fixes [#1113](https://github.com/yesodweb/wai/issues/1113))
 
 ## 3.4.15
 
