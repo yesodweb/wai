@@ -1,5 +1,10 @@
 # Changelog for wai-extra
 
+## Unreleased
+
+* Reviewed usage of modifying `IORef`s and default to strict `atomicModifyIORef'`
+  unless decided (and documented) why it is not necessary.
+
 ## 3.1.18
 
 * Fixed handling of quoted strings and semicolons in `parseRequestBodyEx` [#1038](https://github.com/yesodweb/wai/pull/1038).

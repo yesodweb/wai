@@ -86,7 +86,7 @@ http2 settings ii conn transport app peersa th bs = do
 
 -- | Converting WAI application to the server type of http2 library.
 --
--- Since 3.3.11
+-- @since 3.3.11
 http2server
     :: String
     -> S.Settings

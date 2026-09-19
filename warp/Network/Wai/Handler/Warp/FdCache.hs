@@ -46,12 +46,13 @@ withFdCache :: Int -> ((FilePath -> IO (Maybe Fd, Refresh)) -> IO a) -> IO a
 #ifdef WINDOWS
 withFdCache _ action = action getFdNothing
 #else
-withFdCache 0 action = action getFdNothing
-withFdCache duration action =
-    bracket
-        (initialize duration)
-        terminate
-        (action . getFd)
+withFdCache duration action
+    | duration <= 0 = action getFdNothing
+    | otherwise =
+        bracket
+            (initialize duration)
+            terminate
+            (action . getFd)
 
 ----------------------------------------------------------------
 
@@ -66,10 +67,10 @@ newActiveStatus :: IO MutableStatus
 newActiveStatus = MutableStatus <$> newIORef Active
 
 refresh :: MutableStatus -> Refresh
-refresh (MutableStatus ref) = writeIORef ref Active
+refresh (MutableStatus ref) = atomicWriteIORef ref Active
 
 inactive :: MutableStatus -> IO ()
-inactive (MutableStatus ref) = writeIORef ref Inactive
+inactive (MutableStatus ref) = atomicWriteIORef ref Inactive
 
 ----------------------------------------------------------------
 
@@ -146,13 +147,16 @@ terminate (MutableFdCache reaper) = do
 
 -- | Getting 'Fd' and 'Refresh' from the mutable Fd cacher.
 getFd :: MutableFdCache -> FilePath -> IO (Maybe Fd, Refresh)
-getFd mfc@(MutableFdCache reaper) path = look mfc path >>= get
+getFd mfc@(MutableFdCache reaper) path = do
+    mEnt <- look mfc path
+    entryToResult <$> get mEnt
   where
+    entryToResult (FdEntry fd mst) = (Just fd, refresh mst)
     get Nothing = do
-        ent@(FdEntry fd mst) <- newFdEntry path
+        ent <- newFdEntry path
         reaperAdd reaper (path, ent)
-        return (Just fd, refresh mst)
-    get (Just (FdEntry fd mst)) = do
+        pure ent
+    get (Just ent@(FdEntry _ mst)) = do
         refresh mst
-        return (Just fd, refresh mst)
+        pure ent
 #endif

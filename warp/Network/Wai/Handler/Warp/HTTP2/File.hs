@@ -15,7 +15,7 @@ import Network.Wai.Handler.Warp.SendFile (positionRead)
 
 -- | 'PositionReadMaker' based on file descriptor cache.
 --
--- Since 3.3.13
+-- @since 3.3.13
 pReadMaker :: InternalInfo -> PositionReadMaker
 pReadMaker ii path = do
     (mfd, refresh) <- getFd ii path

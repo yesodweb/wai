@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -357,8 +358,16 @@ spec = do
                     check $ count == 2
                 front <- I.readIORef ifront
                 front [] `shouldBe` replicate 2 (S.concat $ replicate 50 "12345")
+#ifndef WINDOWS
         -- For some reason, the following test on Windows causes the socket
         -- to be killed prematurely. Worth investigating in the future if possible.
+        --
+        -- @
+        --   test\RunSpec.hs:362:9:
+        --   1) Run, chunked bodies, in chunks
+        --        uncaught exception: IOException of type InvalidArgument
+        --        Network.Socket.sendBuf: invalid argument (Invalid argument)
+        -- @
         it "in chunks" $ do
             ifront <- I.newIORef id
             countVar <- newTVarIO (0 :: Int)
@@ -384,6 +393,7 @@ spec = do
                     `shouldBe` [ "Hello World\nBye"
                                , "Hello World"
                                ]
+#endif
         it "timeout in request body" $ do
             ifront <- I.newIORef id
             let app req f = do

@@ -460,9 +460,15 @@ ansiStatusCode' c t = case S8.take 1 c of
 recordChunks :: IORef B.Builder -> Response -> IO Response
 recordChunks i (ResponseStream s h sb) =
     return . ResponseStream s h $
+        -- Using @modifyIORef'@ here would force every append of the stream.
+        -- This might result in slow code.
+        -- But not using @modifyIORef'@ might leak memory by thunk-buildup, so
+        -- this is a trade-off.
         (\send flush -> sb (\b -> modifyIORef i (<> b) >> send b) flush)
-recordChunks i (ResponseBuilder s h b) =
-    modifyIORef i (<> b) >> return (ResponseBuilder s h b)
+recordChunks i res@(ResponseBuilder _ _ b) =
+    -- It doesn't matter much if the 'modifyIORef' is strict or not, since it
+    -- will only append to an empty 'ByteString' anyway.
+    modifyIORef i (<> b) >> return res
 recordChunks _ r =
     return r
 
@@ -485,7 +491,7 @@ getRequestBody req = do
     -- implementation ensures that each chunk is only returned
     -- once.
     ichunks <- newIORef body
-    let rbody = atomicModifyIORef ichunks $ \chunks ->
+    let rbody = atomicModifyIORef' ichunks $ \chunks ->
             case chunks of
                 [] -> ([], S8.empty)
                 x : y -> (y, x)
@@ -566,7 +572,7 @@ detailedMiddleware' cb DetailedSettings{..} ansiColor ansiMethod ansiStatusCode 
             Nothing -> return ([], [])
             Just rbt -> do
                 ichunks <- newIORef body
-                let rbody = atomicModifyIORef ichunks $ \chunks ->
+                let rbody = atomicModifyIORef' ichunks $ \chunks ->
                         case chunks of
                             [] -> ([], S8.empty)
                             x : y -> (y, x)

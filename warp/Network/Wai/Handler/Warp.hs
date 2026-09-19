@@ -52,6 +52,7 @@ module Network.Wai.Handler.Warp (
     setPort,
     setHost,
     setOnException,
+    setOnConnectionException,
     setOnExceptionResponse,
     setOnOpen,
     setOnClose,
@@ -86,6 +87,7 @@ module Network.Wai.Handler.Warp (
     getOnOpen,
     getOnClose,
     getOnException,
+    getOnConnectionException,
     getGracefulShutdownTimeout,
     getGracefulCloseTimeout1,
     getGracefulCloseTimeout2,
@@ -192,23 +194,38 @@ import Network.Wai.Handler.Warp.WithApplication
 
 -- | Port to listen on. Default value: 3000
 --
--- Since 2.1.0
+-- @since 2.1.0
 setPort :: Port -> Settings -> Settings
 setPort x y = y{settingsPort = x}
 
 -- | Interface to bind to. Default value: HostIPv4
 --
--- Since 2.1.0
+-- @since 2.1.0
 setHost :: HostPreference -> Settings -> Settings
 setHost x y = y{settingsHost = x}
 
 -- | What to do with exceptions thrown by either the application or server.
 -- Default: 'defaultOnException'
 --
--- Since 2.1.0
+-- @since 2.1.0
 setOnException
     :: (Maybe Request -> SomeException -> IO ()) -> Settings -> Settings
 setOnException x y = y{settingsOnException = x}
+
+-- | Handle exceptions escaping a connection worker, with the address supplied
+-- by its connection source. This includes connection creation (such as a TLS
+-- handshake) and cleanup failures, even when no 'Request' exists. For socket
+-- listeners this is the accepted TCP peer, before any PROXY protocol rewriting.
+--
+-- When installed, this handler receives these exceptions instead of the
+-- handler configured with 'setOnException'. Request-specific exceptions and
+-- accept-loop failures still use that handler. By default, worker exceptions
+-- go to that handler too, with 'Nothing' as its @Maybe Request@ argument
+-- because no request context is available at this boundary.
+--
+-- @since 3.4.16
+setOnConnectionException :: (SockAddr -> SomeException -> IO ()) -> Settings -> Settings
+setOnConnectionException report settings = settings{settingsOnConnectionException = Just report}
 
 -- | A function to create a `Response` when an exception occurs.
 -- Default: 'defaultOnExceptionResponse'
@@ -223,7 +240,7 @@ setOnException x y = y{settingsOnException = x}
 -- > response500 :: Request -> SomeException -> Response
 -- > response500 req someEx = responseLBS status500 -- ...
 --
--- Since 2.1.0
+-- @since 2.1.0
 setOnExceptionResponse :: (SomeException -> Response) -> Settings -> Settings
 setOnExceptionResponse x y = y{settingsOnExceptionResponse = x}
 
@@ -231,13 +248,13 @@ setOnExceptionResponse x y = y{settingsOnExceptionResponse = x}
 -- connection is closed immediately. Otherwise, the connection is going on.
 -- Default: always returns 'True'.
 --
--- Since 2.1.0
+-- @since 2.1.0
 setOnOpen :: (SockAddr -> IO Bool) -> Settings -> Settings
 setOnOpen x y = y{settingsOnOpen = x}
 
 -- | What to do when a connection is closed. Default: do nothing.
 --
--- Since 2.1.0
+-- @since 2.1.0
 setOnClose :: (SockAddr -> IO ()) -> Settings -> Settings
 setOnClose x y = y{settingsOnClose = x}
 
@@ -249,14 +266,14 @@ setOnClose x y = y{settingsOnClose = x}
 --
 -- Default value: 30
 --
--- Since 2.1.0
+-- @since 2.1.0
 setTimeout :: Int -> Settings -> Settings
 setTimeout x y = y{settingsTimeout = x}
 
 -- | Use an existing timeout manager instead of spawning a new one. If used,
 -- 'settingsTimeout' is ignored.
 --
--- Since 2.1.0
+-- @since 2.1.0
 setManager :: Manager -> Settings -> Settings
 setManager x y = y{settingsManager = Just x}
 
@@ -272,7 +289,7 @@ setManager x y = y{settingsManager = Just x}
 --
 -- Default value: 0, was previously 10
 --
--- Since 3.0.13
+-- @since 3.0.13
 setFdCacheDuration :: Int -> Settings -> Settings
 setFdCacheDuration x y = y{settingsFdCacheDuration = x}
 
@@ -296,7 +313,7 @@ setFileInfoCacheDuration x y = y{settingsFileInfoCacheDuration = x}
 --
 -- Default: do nothing.
 --
--- Since 2.1.0
+-- @since 2.1.0
 setBeforeMainLoop :: IO () -> Settings -> Settings
 setBeforeMainLoop x y = y{settingsBeforeMainLoop = x}
 
@@ -306,19 +323,19 @@ setBeforeMainLoop x y = y{settingsBeforeMainLoop = x}
 --
 -- Default: False
 --
--- Since 2.1.0
+-- @since 2.1.0
 setNoParsePath :: Bool -> Settings -> Settings
 setNoParsePath x y = y{settingsNoParsePath = x}
 
 -- | Get the listening port.
 --
--- Since 2.1.1
+-- @since 2.1.1
 getPort :: Settings -> Port
 getPort = settingsPort
 
 -- | Get the interface to bind to.
 --
--- Since 2.1.1
+-- @since 2.1.1
 getHost :: Settings -> HostPreference
 getHost = settingsHost
 
@@ -334,9 +351,18 @@ getOnClose = settingsOnClose
 getOnException :: Settings -> Maybe Request -> SomeException -> IO ()
 getOnException = settingsOnException
 
+-- | Get the handler installed with 'setOnConnectionException'.
+-- If none was installed, the returned function ignores the peer address and
+-- calls the handler configured with 'setOnException', passing 'Nothing' as
+-- its @Maybe Request@ argument and forwarding the exception.
+--
+-- @since 3.4.16
+getOnConnectionException :: Settings -> SockAddr -> SomeException -> IO ()
+getOnConnectionException = onConnectionException
+
 -- | Get the graceful shutdown timeout
 --
--- Since 3.2.8
+-- @since 3.2.8
 getGracefulShutdownTimeout :: Settings -> Maybe Int
 getGracefulShutdownTimeout = settingsGracefulShutdownTimeout
 
@@ -370,7 +396,7 @@ getGracefulShutdownTimeout = settingsGracefulShutdownTimeout
 --
 -- Default: does not install any code.
 --
--- Since 3.0.1
+-- @since 3.0.1
 setInstallShutdownHandler :: (IO () -> IO ()) -> Settings -> Settings
 setInstallShutdownHandler x y = y{settingsInstallShutdownHandler = x}
 
@@ -379,7 +405,7 @@ setInstallShutdownHandler x y = y{settingsInstallShutdownHandler = x}
 --   If an empty string is set, the \"Server:\" header is not sent.
 --   This is true even if an application set one.
 --
--- Since 3.0.2
+-- @since 3.0.2
 setServerName :: ByteString -> Settings -> Settings
 setServerName x y = y{settingsServerName = x}
 
@@ -394,7 +420,7 @@ setServerName x y = y{settingsServerName = x}
 --
 -- Default: 8192 bytes.
 --
--- Since 3.0.3
+-- @since 3.0.3
 setMaximumBodyFlush :: Maybe Int -> Settings -> Settings
 setMaximumBodyFlush x y
     | Just x' <- x, x' < 0 = error "setMaximumBodyFlush: must be positive"
@@ -407,7 +433,7 @@ setMaximumBodyFlush x y
 --
 -- Default: void . forkIOWithUnmask
 --
--- Since 3.0.4
+-- @since 3.0.4
 setFork
     :: (((forall a. IO a -> IO a) -> IO ()) -> IO ()) -> Settings -> Settings
 setFork fork' s = s{settingsFork = fork'}
@@ -419,13 +445,13 @@ setFork fork' s = s{settingsFork = fork'}
 --
 -- Default: 'defaultAccept'
 --
--- Since 3.3.24
+-- @since 3.3.24
 setAccept :: (Socket -> IO (Socket, SockAddr)) -> Settings -> Settings
 setAccept accept' s = s{settingsAccept = accept'}
 
 -- | Do not use the PROXY protocol.
 --
--- Since 3.0.5
+-- @since 3.0.5
 setProxyProtocolNone :: Settings -> Settings
 setProxyProtocolNone y = y{settingsProxyProtocol = ProxyProtocolNone}
 
@@ -441,7 +467,7 @@ setProxyProtocolNone y = y{settingsProxyProtocol = ProxyProtocolNone}
 -- Only the human-readable header format (version 1) is supported. The binary
 -- header format (version 2) is /not/ supported.
 --
--- Since 3.0.5
+-- @since 3.0.5
 setProxyProtocolRequired :: Settings -> Settings
 setProxyProtocolRequired y = y{settingsProxyProtocol = ProxyProtocolRequired}
 
@@ -457,25 +483,25 @@ setProxyProtocolRequired y = y{settingsProxyProtocol = ProxyProtocolRequired}
 -- HTTP without the PROXY header, but proxied
 -- connections /do/ include the PROXY header.
 --
--- Since 3.0.5
+-- @since 3.0.5
 setProxyProtocolOptional :: Settings -> Settings
 setProxyProtocolOptional y = y{settingsProxyProtocol = ProxyProtocolOptional}
 
 -- | Size in bytes read to prevent Slowloris attacks. Default value: 2048
 --
--- Since 3.1.2
+-- @since 3.1.2
 setSlowlorisSize :: Int -> Settings -> Settings
 setSlowlorisSize x y = y{settingsSlowlorisSize = x}
 
 -- | Disable HTTP2.
 --
--- Since 3.1.7
+-- @since 3.1.7
 setHTTP2Disabled :: Settings -> Settings
 setHTTP2Disabled y = y{settingsHTTP2Enabled = False}
 
 -- | Setting a log function.
 --
--- Since 3.X.X
+-- @since 3.X.X
 setLogger
     :: (Request -> H.Status -> Maybe Integer -> IO ())
     -- ^ request, status, maybe file-size
@@ -501,7 +527,7 @@ setServerPushLogger lgr y = y{settingsServerPushLogger = lgr}
 -- 'setInstallShutdownHandler' for an example of how this could be done in
 -- response to a UNIX signal.
 --
--- Since 3.2.8
+-- @since 3.2.8
 setGracefulShutdownTimeout
     :: Maybe Int
     -> Settings
@@ -510,7 +536,7 @@ setGracefulShutdownTimeout time y = y{settingsGracefulShutdownTimeout = time}
 
 -- | Set the maximum header size that Warp will tolerate when using HTTP/1.x.
 --
--- Since 3.3.8
+-- @since 3.3.8
 setMaxTotalHeaderLength :: Int -> Settings -> Settings
 setMaxTotalHeaderLength maxTotalHeaderLength settings =
     settings
@@ -519,13 +545,13 @@ setMaxTotalHeaderLength maxTotalHeaderLength settings =
 
 -- | Setting the header value of Alternative Services (AltSvc:).
 --
--- Since 3.3.11
+-- @since 3.3.11
 setAltSvc :: ByteString -> Settings -> Settings
 setAltSvc altsvc settings = settings{settingsAltSvc = Just altsvc}
 
 -- | Set the maximum buffer size for sending `Builder` responses.
 --
--- Since 3.3.22
+-- @since 3.3.22
 setMaxBuilderResponseBufferSize :: Int -> Settings -> Settings
 setMaxBuilderResponseBufferSize maxRspBufSize settings = settings{settingsMaxBuilderResponseBufferSize = maxRspBufSize}
 
@@ -534,7 +560,7 @@ setMaxBuilderResponseBufferSize maxRspBufSize settings = settings{settingsMaxBui
 -- This is useful for cases where you partially consume a request body. For
 -- more information, see <https://github.com/yesodweb/wai/issues/351>
 --
--- Since 3.0.10
+-- @since 3.0.10
 pauseTimeout :: Request -> IO ()
 pauseTimeout = fromMaybe (return ()) . Vault.lookup pauseTimeoutKey . vault
 
@@ -553,7 +579,7 @@ pauseTimeout = fromMaybe (return ()) . Vault.lookup pauseTimeoutKey . vault
 --   If this function is used an a Request generated by a WAI
 --   backend besides Warp, it also throws an 'IO' exception.
 --
--- Since 3.1.10
+-- @since 3.1.10
 getFileInfo :: Request -> FilePath -> IO FileInfo
 getFileInfo =
     fromMaybe (\_ -> throwIO (userError "getFileInfo"))
@@ -564,14 +590,14 @@ getFileInfo =
 --   FIN for HTTP/1.x. 0 means uses immediate close.
 --   Default: 0.
 --
--- Since 3.3.5
+-- @since 3.3.5
 setGracefulCloseTimeout1 :: Int -> Settings -> Settings
 setGracefulCloseTimeout1 x y = y{settingsGracefulCloseTimeout1 = x}
 
 -- | A timeout to limit the time (in milliseconds) waiting for
 --   FIN for HTTP/1.x. 0 means uses immediate close.
 --
--- Since 3.3.5
+-- @since 3.3.5
 getGracefulCloseTimeout1 :: Settings -> Int
 getGracefulCloseTimeout1 = settingsGracefulCloseTimeout1
 
@@ -579,14 +605,14 @@ getGracefulCloseTimeout1 = settingsGracefulCloseTimeout1
 --   FIN for HTTP/2. 0 means uses immediate close.
 --   Default: 2000.
 --
--- Since 3.3.5
+-- @since 3.3.5
 setGracefulCloseTimeout2 :: Int -> Settings -> Settings
 setGracefulCloseTimeout2 x y = y{settingsGracefulCloseTimeout2 = x}
 
 -- | A timeout to limit the time (in milliseconds) waiting for
 --   FIN for HTTP/2. 0 means uses immediate close.
 --
--- Since 3.3.5
+-- @since 3.3.5
 getGracefulCloseTimeout2 :: Settings -> Int
 getGracefulCloseTimeout2 = settingsGracefulCloseTimeout2
 
@@ -597,7 +623,7 @@ getGracefulCloseTimeout2 = settingsGracefulCloseTimeout2
 --
 -- /DEPRECATED in favor of 'getServerState'/
 --
--- Since 3.4.11
+-- @since 3.4.11
 getOpenConnectionCounter :: Settings -> Maybe Counter
 getOpenConnectionCounter = settingsConnectionCounter
 
@@ -607,14 +633,14 @@ getOpenConnectionCounter = settingsConnectionCounter
 --
 -- See 'makeSettingsAndServerState' to create 'Settings' with a 'ServerState'.
 --
--- Since 3.4.12
+-- @since 3.4.12
 getServerState :: Settings -> Maybe ServerState
 getServerState = settingsServerState
 
 #ifdef MIN_VERSION_crypton_x509
 -- | Getting information of client certificate.
 --
--- Since 3.3.5
+-- @since 3.3.5
 clientCertificate :: Request -> Maybe CertificateChain
 clientCertificate = join . Vault.lookup getClientCertificateKey . vault
 #endif

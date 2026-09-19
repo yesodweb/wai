@@ -44,7 +44,7 @@ import Network.Wai.Handler.Warp.Buffer (toBuilderBuffer)
 import qualified Network.Wai.Handler.Warp.Date as D
 import Network.Wai.Handler.Warp.File
 import Network.Wai.Handler.Warp.Header
-import Network.Wai.Handler.Warp.IO (toBufIOWith)
+import Network.Wai.Handler.Warp.IO (toBufIOWith, unsafeToBufIOWithOffset)
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.ResponseHeader
 import Network.Wai.Handler.Warp.Settings
@@ -289,22 +289,42 @@ sendRsp conn _ _ ver s hs _ _ _ RspNoBody = do
 ----------------------------------------------------------------
 
 sendRsp conn _ th ver s hs rspidxhdr maxRspBufSize _ (RspBuilder body needsChunked) = do
-    (header, hdrLen) <- composeHeaderBuilder ver s hs rspidxhdr needsChunked
-    let hdrBdy
-            | needsChunked =
-                header
-                    <> chunkedTransferEncoding body
-                    <> chunkedTransferTerminator
-            | otherwise = header <> body
-        writeBufferRef = connWriteBuffer conn
+    writeBuffer <- readIORef writeBufferRef
     len <-
-        toBufIOWith
-            maxRspBufSize
-            writeBufferRef
-            (\bs -> connSendAll conn bs >> T.tickle th)
-            hdrBdy
+        -- SAFETY: this check is what makes the unchecked writes below
+        -- memory-safe, do not weaken it. composeHeaderPtr writes hdrLen
+        -- bytes into the write buffer with no bounds checking of its own,
+        -- and unsafeToBufIOWithOffset requires an offset within the
+        -- buffer (it hands the builder buffer + offset with
+        -- bufSize - offset bytes of claimed free space). If hdrLen could
+        -- reach the buffer size, either write would run past the end of
+        -- the allocation and corrupt memory, so oversized headers must
+        -- take the composeHeaderBuilder fallback.
+        if hdrLen < bufSize writeBuffer
+            then do
+                -- Compose the header directly into the connection write
+                -- buffer and run the body builder right after it, saving
+                -- a copy of the header bytes through an intermediate
+                -- ByteString.
+                _ <- composeHeaderPtr (bufBuffer writeBuffer) ver s hs'
+                unsafeToBufIOWithOffset hdrLen maxRspBufSize writeBufferRef send bdy
+            else do
+                -- Huge headers: fall back to composing a separate header
+                -- ByteString and letting the builder machinery copy it.
+                (header, _) <- composeHeaderBuilder ver s hs rspidxhdr needsChunked
+                toBufIOWith maxRspBufSize writeBufferRef send (header <> bdy)
     --              small adjustment to only count the body
     return (Just s, Just $ len - fromIntegral hdrLen)
+  where
+    hs'
+        | needsChunked = addTransferEncoding rspidxhdr hs
+        | otherwise = hs
+    hdrLen = composeHeaderLength s hs'
+    bdy
+        | needsChunked = chunkedTransferEncoding body <> chunkedTransferTerminator
+        | otherwise = body
+    writeBufferRef = connWriteBuffer conn
+    send bs = connSendAll conn bs >> T.tickle th
 
 ----------------------------------------------------------------
 

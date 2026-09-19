@@ -7,6 +7,7 @@
 module Main (main) where
 
 import Control.Concurrent.STM (newTVarIO)
+import Control.Monad (replicateM_)
 import Criterion.Main
 import Data.ByteString.Builder (byteString)
 import Data.IORef (newIORef)
@@ -61,6 +62,7 @@ main = do
             , bench "builder 3 headers chunked" $ whnfIO $ send (rspB hdrs3NoCL)
             , bench "builder 20 headers content-length" $ whnfIO $ send (rspB hdrs20)
             , bench "no body 204" $ whnfIO $ send rsp204
+            , bench "stream 64 fragments" $ whnfIO $ send (rspS 64)
             ]
         , bgroup
             "headers"
@@ -74,6 +76,9 @@ main = do
   where
     body = byteString "Hello, World!"
     rspB hs = ResponseBuilder H.status200 hs body
+    -- One fragment per write/flush pair, the shape an SSE-style body has.
+    rspS n = ResponseStream H.status200 hdrs3NoCL $ \write flush ->
+        replicateM_ n (write body >> flush)
     rsp204 = ResponseBuilder H.status204 [] mempty
     reqHdrs =
         [ (H.hHost, "127.0.0.1:3011")
@@ -94,7 +99,10 @@ main = do
         , ("X-Request-Id", "0123456789abcdef")
         ]
     -- what composeHeader sees after warp added Server and Date
-    hdrs5 = (H.hServer, "Warp/3.4.15") : (H.hDate, "Fri, 18 Jul 2026 12:00:00 GMT") : hdrs3NoCL
+    hdrs5 =
+        (H.hServer, "Warp/3.4.15")
+            : (H.hDate, "Fri, 18 Jul 2026 12:00:00 GMT")
+            : hdrs3NoCL
     hdrs20 =
         hdrs4
             ++ [ (H.hCacheControl, "private, max-age=0")

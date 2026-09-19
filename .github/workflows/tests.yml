@@ -2,44 +2,43 @@ name: Tests
 
 on:
   push:
-    branches: [ 'master', 'ci' ]
+    branches:
+      - "master"
+      - "ci"
   pull_request:
-    branches: [ 'master' ]
+    branches: ["master"]
 
 jobs:
   stack:
     name: Stack
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     env:
-      STACK_PATHS_GLOBAL_WINDOWS: |
-        C:\\sr
-        %APPDATA%\stack
-        %LOCALAPPDATA%\Programs\stack
-      STACK_PATH_GLOBAL_UNIX: "~/.stack"
+      # Increase the number to bust all the cache
+      MANUAL_RESET: "v9"
       STACK_PATH_LOCAL: ".stack-work"
-      GHCUP_PATH_WINDOWS: "C:\\ghcup"
-      GHCUP_PATH_MAC: "/Users/runner/.ghcup"
-      GHCUP_PATH_LINUX: |
-        /usr/local/.ghcup
-        /home/runner/.ghcup
 
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        os:
+          - "ubuntu-latest"
+          - "macos-latest"
+          - "windows-latest"
         stack: ["latest"]
         resolver:
           - "nightly" # 9.12
-          - "lts-24"  # 9.10
-          - "lts-23"  # 9.8
-          - "lts-22"  # 9.6
-          - "lts-21"  # 9.4
-          - "lts-20"  # 9.2
+          - "lts-24" #  9.10
+          - "lts-23" #  9.8
+          - "lts-22" #  9.6
+          - "lts-21" #  9.4
+          - "lts-20" #  9.2
 
     steps:
       - name: "Set ENV vars per LTS"
         id: env-vars
-        shell: bash
         run: |
           # First we decide which GHC and which LTS we build with
 
@@ -72,73 +71,227 @@ jobs:
               ;;
           esac
 
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            STACK_ROOT='C:\sr'
+            GHCUP_PATH='C:\ghcup'
+            GHCUP_GHC_PATH="${GHCUP_PATH}\\ghc\\${GHC_VERSION}.*"
+          else
+            STACK_ROOT="$HOME/.stack"
+            GHCUP_PATH="~/.ghcup"
+            GHCUP_GHC_PATH="${GHCUP_PATH}/ghc/${GHC_VERSION}.*"
+          fi
+
           # And then we expose these variables in the 'env'
           echo "STACKYAML=$STACKYAML" >> $GITHUB_ENV
+          echo "STACKYAMLLOCK=${STACKYAML}.lock" >> $GITHUB_ENV
           echo "GHC_VERSION=$GHC_VERSION" >> $GITHUB_ENV
+          echo "GHCUP_PATH=$GHCUP_PATH" >> $GITHUB_ENV
+          echo "GHCUP_GHC_PATH=$GHCUP_GHC_PATH" >> $GITHUB_ENV
+          echo "STACK_ROOT=$STACK_ROOT" >> $GITHUB_ENV
+
+          # On MacOS, this is sometimes not in the path after caching
+          echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
 
       - name: Clone project
+        id: checkout-code
         uses: actions/checkout@v6
 
-      - name: Cache dependencies
+      - name: Cache GHCup [UNIX]
+        if: matrix.os != 'windows-latest'
         uses: actions/cache@v6
+        id: ghcup-cache-unix
         with:
-          path: |-
-            ${{ case(
-              matrix.os == 'windows-latest', env.STACK_PATHS_GLOBAL_WINDOWS,
-              env.STACK_PATH_GLOBAL_UNIX
-            ) }}
-          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.resolver }}-
+          path: |
+            ${{ env.GHCUP_PATH }}/bin/*
+            ${{ env.GHCUP_PATH }}/cabal/*
+            ${{ env.GHCUP_PATH }}/config.yaml
+            ${{ env.GHCUP_PATH }}/stack/*
+            ${{ env.GHCUP_GHC_PATH }}/bin
+            ${{ env.GHCUP_GHC_PATH }}/lib
+            #     [EXCLUDES]
+            # We don't need GHCup to run stack, so don't cache it
+            !${{ env.GHCUP_PATH }}/bin/ghcup
+            # We don't need profile builds of GHC etc
+            !${{ env.GHCUP_GHC_PATH }}/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
+            # Takes up lots of space, not sure if needed
+            !${{ env.GHCUP_PATH }}/ghc/${{ env.GHC_VERSION }}.*/**/*.a
+          key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
 
-      # Let's also try caching the build artifacts, so that rebuilds might go faster as well.
-      - name: Cache local files
+      - name: Cache GHCup [WINDOWS]
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@v6
+        id: ghcup-cache-windows
+        with:
+          path: |
+            ${{ env.GHCUP_PATH }}\bin
+            ${{ env.GHCUP_PATH }}\cabal\*
+            ${{ env.GHCUP_PATH }}\config.yaml
+            ${{ env.GHCUP_PATH }}\stack\*
+            ${{ env.GHCUP_GHC_PATH }}\bin\*
+            ${{ env.GHCUP_GHC_PATH }}\lib\*
+            #     [EXCLUDES]
+            # We don't need GHCup to run stack, so don't cache it
+            !${{ env.GHCUP_PATH }}\bin\ghcup.exe
+          key: CI-ghcup-windows-${{ env.MANUAL_RESET }}-${{ env.GHC_VERSION }}
+
+      - name: Cache MSYS (mingw) [WINDOWS]
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@v6
+        id: mingw-cache-windows
+        with:
+          path: |
+            ${{ env.GHCUP_GHC_PATH }}\mingw\*
+            ~\AppData\Local\Programs\stack
+          key: CI-mingw-windows-${{ env.MANUAL_RESET }}
+
+      - name: Setup Haskell Stack
+        id: ghcup-install
+        uses: haskell-actions/setup@v2
+        if: >
+          (matrix.os == 'windows-latest' && (steps.ghcup-cache-windows.outputs.cache-hit != 'true'
+            || steps.mingw-cache-windows.outputs.cache-hit != 'true'))
+            || (matrix.os != 'windows-latest' && steps.ghcup-cache-unix.outputs.cache-hit != 'true')
+        with:
+          stack-version: "${{ matrix.stack }}"
+          ghc-version: ${{ env.GHC_VERSION }}
+          enable-stack: true
+          stack-setup-ghc: false
+
+      # For some reason, GHCup on MacOS runners does not put 'stack' in the '.ghcup' directory
+      - name: Copy Stack for MacOS
+        id: stack-copy-macos
+        if: matrix.os == 'macos-latest' && steps.ghcup-cache-unix.outputs.cache-hit != 'true'
+        run: |
+          cp "${{ steps.ghcup-install.outputs.stack-exe }}" "$HOME/.ghcup/bin"
+
+      - name: Cache Pantry (Stackage package index) [UNIX]
+        if: matrix.os != 'windows-latest'
+        id: pantry-unix
         uses: actions/cache@v6
         with:
           path: |
-            ${{ env.STACK_PATH_LOCAL }}
-          key: stack-work-${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}-${{ hashFiles('**/*.hs') }}
-          restore-keys: |
-            stack-work-${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAML) }}-
-            stack-work-${{ runner.os }}-${{ matrix.resolver }}-
+            ${{ env.STACK_ROOT }}/pantry
+            !${{ env.STACK_ROOT }}/pantry/hackage/00-index.tar
+            !${{ env.STACK_ROOT }}/pantry/hackage/00-index.tar.gz
+          key: CI-pantry-unix-${{ env.MANUAL_RESET }}
 
-      - name: Cache GHCUP installs
+      - name: Cache Pantry (Stackage package index) [WINDOWS]
+        if: matrix.os == 'windows-latest'
+        id: pantry-windows
         uses: actions/cache@v6
         with:
-          path: |-
-            ${{ case(
-              matrix.os == 'windows-latest', env.GHCUP_PATH_WINDOWS,
-              matrix.os == 'macos-latest', env.GHCUP_PATH_MAC,
-              env.GHCUP_PATH_LINUX
-            ) }}
-          key: ghcup-${{ runner.os }}-${{ env.GHC_VERSION }}
-          restore-keys: |
-            ghcup-${{ runner.os }}-
+          path: |
+            ${{ env.STACK_ROOT }}\pantry
+            !${{ env.STACK_ROOT }}\pantry\hackage\00-index.tar
+            !${{ env.STACK_ROOT }}\pantry\hackage\00-index.tar.gz
+          key: CI-pantry-windows-${{ env.MANUAL_RESET }}
 
-      - uses: haskell-actions/setup@v2
-        name: Setup Haskell Stack
-        with:
-          ghc-version: "${{ env.GHC_VERSION }}"
-          stack-version: "${{ matrix.stack }}"
-          enable-stack: true
-
-      - name: Build and run tests
-        shell: bash
+      - name: Recompute Stackage package index
+        if: >
+          (matrix.os == 'windows-latest' && steps.pantry-windows.outputs.cache-hit != 'true')
+            || (matrix.os != 'windows-latest' && steps.pantry-unix.outputs.cache-hit != 'true')
+        id: pantry-install
         run: |
-            set -ex
-            EXTRA=""
-            BENCH="--bench"
-            if [[ ${{ matrix.os }} = "windows-latest" ]]; then
-            EXTRA="--no-run-tests"
-            elif [[ ${{ matrix.os }} = "macos-latest" ]]; then
-            BENCH=""
-            fi
+          # Populates $STACK_ROOT/pantry
+          #
+          # The extra arguments are probably superfluous, but stack's caching
+          # is weird sometimes, so we keep everything equal when possible.
+          stack update \
+            --system-ghc --no-terminal \
+            --resolver="${{ matrix.resolver }}" \
+            --stack-yaml="${{ env.STACKYAML }}"
 
-            stack test \
-              --system-ghc \
-              --no-terminal \
-              --resolver ${{ matrix.resolver }} \
-              --haddock --no-haddock-deps \
-              $BENCH --no-run-benchmarks \
-              $EXTRA \
-              --stack-yaml ${{ env.STACKYAML }}
+      - name: Cache Dependencies [UNIX]
+        if: matrix.os != 'windows-latest'
+        id: deps-unix
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ env.STACK_ROOT }}/stack.sqlite3
+            ${{ env.STACK_ROOT }}/snapshots
+            #     [EXCLUDES]
+            # Don't cache any haddocks or other docs
+            !${{ env.STACK_ROOT }}/snapshots/**/doc
+          key: CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
+          restore-keys: |
+            CI-deps-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
+
+      - name: Cache Dependencies [WINDOWS]
+        if: matrix.os == 'windows-latest'
+        id: deps-windows
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ env.STACK_ROOT }}\stack.sqlite3
+            ${{ env.STACK_ROOT }}\snapshots
+            # Don't cache any haddocks or other docs
+            !${{ env.STACK_ROOT }}\snapshots\**\doc
+          key: CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ hashFiles(env.STACKYAMLLOCK) }}
+          restore-keys: |
+            CI-deps-windows-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
+
+      - name: Build dependencies
+        if: >
+          (matrix.os == 'windows-latest' && steps.deps-windows.outputs.cache-hit != 'true')
+            || (matrix.os != 'windows-latest' && steps.deps-unix.outputs.cache-hit != 'true')
+        id: deps-install
+        run: |
+          EXTRA=""
+          if [[ ${{ matrix.os }} == "windows-latest" ]]; then
+            EXTRA="--flag=entropy:donotgetentropy"
+          fi
+          stack build --test --bench \
+            --system-ghc --no-terminal \
+            --resolver="${{ matrix.resolver }}" \
+            --only-dependencies --no-run-tests --no-run-benchmarks \
+            --ghc-options='-Wall' $EXTRA \
+            --stack-yaml="${{ env.STACKYAML }}"
+
+      # - name: Cache Local Files
+      #   id: local-files
+      #   uses: actions/cache@v6
+      #   with:
+      #     path: "${{ env.STACK_PATH_LOCAL }}"
+      #     key: CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-${{ github.ref_name }}
+      #     restore-keys: |
+      #       CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ matrix.resolver }}-
+      #       CI-locals-${{ env.MANUAL_RESET }}-${{ matrix.os }}-
+
+      - name: Build
+        id: build-code
+        run: |
+          # DEBUG (delete this if statement)
+          if [[ "${{ matrix.os }}" == 'windows-latest' ]]; then
+            which ghc || echo "which ghc failed"
+            ls -la '${{ env.GHCUP_PATH }}' || echo "list ghcup failed"
+            ls -la '${{ env.GHCUP_PATH }}\bin' || echo "list ghcup/bin failed"
+            ls -la '${{ env.GHCUP_PATH }}\ghc' || echo "list ghcup\ghc failed"
+            ls -la "${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.*" || echo "list ghcup\ghc\VERSION failed"
+            echo
+          fi
+
+          EXTRA=""
+          if [[ ${{ matrix.os }} == "windows-latest" ]]; then
+            EXTRA="--flag=entropy:donotgetentropy"
+          fi
+          stack build --test --bench \
+            --haddock --no-haddock-deps \
+            --system-ghc --no-terminal \
+            --resolver=${{ matrix.resolver }} \
+            --no-run-tests --no-run-benchmarks \
+            --ghc-options='-Wall' $EXTRA \
+            --stack-yaml="${{ env.STACKYAML }}"
+
+      - name: Run tests
+        id: run-tests
+        run: |
+          EXTRA=""
+          if [[ ${{ matrix.os }} == "windows-latest" ]]; then
+            EXTRA="--flag=entropy:donotgetentropy"
+          fi
+          stack build --test --bench \
+            --system-ghc --no-terminal \
+            --resolver="${{ matrix.resolver }}" \
+            --no-run-benchmarks \
+            --ghc-options='-Wall' $EXTRA \
+            --stack-yaml="${{ env.STACKYAML }}"

@@ -21,7 +21,7 @@ import Control.Concurrent.STM (
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Functor (($>))
-import Data.IORef (newIORef, readIORef, IORef, writeIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno (..), eCONNABORTED, eMFILE)
 import GHC.Conc.Sync (labelThread, myThreadId)
@@ -63,7 +63,7 @@ import Network.Wai.Handler.Warp.HTTP2.Types (isHTTP2)
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.SendFile (sendFile)
 import Network.Wai.Handler.Warp.Settings
-import Network.Wai.Handler.Warp.ShuttingDown (writeShuttingDown)
+import Network.Wai.Handler.Warp.ShuttingDown (readShuttingDown, writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
@@ -91,7 +91,7 @@ socketConnection set s = do
                         if h2
                             then settingsGracefulCloseTimeout2 set
                             else settingsGracefulCloseTimeout1 set
-                if tm == 0
+                if tm <= 0
                     then close s
                     else gracefulClose s tm `E.catch` throughAsync (return ())
 #else
@@ -125,9 +125,7 @@ socketConnection set s = do
             hook
             headers
 
-    sendall = sendAll' s
-
-    sendAll' sock bs =
+    sendall bs =
         E.handleJust
             ( \e ->
                 if ioeGetErrorType e == ResourceVanished
@@ -135,7 +133,7 @@ socketConnection set s = do
                     else Nothing
             )
             E.throwIO
-            $ Sock.sendAll sock bs
+            $ Sock.sendAll s bs
 
 -- | Create a 'Recv' using 'Network.Socket.BufferPool.Recv.receive', but make
 -- it non-blocking with 'waitReadSocketSTM' /AND/ cut off receiving any bytes
@@ -143,6 +141,18 @@ socketConnection set s = do
 -- actively using this 'Socket'.
 makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
 makeGracefulRecv sock pool ss appsInProgress = do
+    tryFastPath <- not <$> readShuttingDown (serverShuttingDown ss)
+    if tryFastPath then do
+        mbs <- receiveNoWait sock pool
+        case mbs of
+          Just bs -> return bs
+          Nothing -> slowPath
+      else slowPath
+  where
+    slowPath = makeGracefulRecvSlow sock pool ss appsInProgress
+
+makeGracefulRecvSlow :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
+makeGracefulRecvSlow sock pool ss appsInProgress = do
     sockWait <-
 #if !WINDOWS && MIN_VERSION_network(3,2,2)
         waitReadSocketSTM sock
@@ -173,7 +183,7 @@ run p = runSettings defaultSettings{settingsPort = p}
 -- environment variable. Uses the 'Port' given when the variable is unset.
 -- This calls 'runSettings' with 'defaultSettings'.
 --
--- Since 3.0.9
+-- @since 3.0.9
 runEnv :: Port -> Application -> IO ()
 runEnv p app = do
     mp <- lookupEnv "PORT"
@@ -234,7 +244,7 @@ runSettingsSocket oldSettings@Settings{settingsAccept = accept'} socket app = do
 -- This allows the expensive computations to be performed
 -- in a separate worker thread instead of the main server loop.
 --
--- Since 1.3.5
+-- @since 1.3.5
 runSettingsConnection
     :: Settings -> IO (Connection, SockAddr) -> Application -> IO ()
 runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMaker app
@@ -259,7 +269,7 @@ runSettingsConnectionMaker x y =
 -- The connection maker can return a connection of either plain HTTP
 -- or HTTP over TLS.
 --
--- Since 2.1.4
+-- @since 2.1.4
 runSettingsConnectionMakerSecure
     :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
 runSettingsConnectionMakerSecure oldSettings getConnMaker app = do
@@ -271,7 +281,7 @@ runSettingsConnectionMakerSecure oldSettings getConnMaker app = do
 
 -- | Running an action with internal info.
 --
--- Since 3.3.11
+-- @since 3.3.11
 withII :: Settings -> (InternalInfo -> IO a) -> IO a
 withII set action =
     withTimeoutManager $ \tm ->
@@ -397,29 +407,37 @@ fork
     -> Counter
     -> InternalInfo
     -> IO ()
-fork set mkConn addr app counter ii = settingsFork set $ \unmask -> do
-    tid <- myThreadId
-    labelThread tid "Warp just forked"
-    -- Call the user-supplied on exception code if any
-    -- exceptions are thrown.
-    --
-    -- Intentionally using Control.Exception.handle, since we want to
-    -- catch all exceptions and avoid them from propagating, even
-    -- async exceptions. See:
-    -- https://github.com/yesodweb/wai/issues/850
-    E.handle (settingsOnException set Nothing) $
-        -- Run the connection maker to get a new connection, and ensure
-        -- that the connection is closed. If the mkConn call throws an
-        -- exception, we will leak the connection. If the mkConn call is
-        -- vulnerable to attacks (e.g., Slowloris), we do nothing to
-        -- protect the server. It is therefore vital that mkConn is well
-        -- vetted.
-        --
-        -- We grab the connection before registering timeouts since the
-        -- timeouts will be useless during connection creation, due to the
-        -- fact that async exceptions are still masked.
-        E.bracket mkConn cleanUp (serve unmask)
+fork set mkConn addr app counter ii = do
+    -- Count the connection here rather than in the thread below.  The
+    -- accept loop does not wait for that thread to be scheduled, so
+    -- counting there leaves a window in which the connection is accepted
+    -- and not counted, and 'gracefulShutdown' waits on this counter.
+    increase counter
+    settingsFork set $ \unmask -> runConnection unmask `E.finally` decrease counter
   where
+    runConnection unmask = do
+        tid <- myThreadId
+        labelThread tid "Warp just forked"
+        -- Call the user-supplied on exception code if any
+        -- exceptions are thrown.
+        --
+        -- Intentionally using Control.Exception.handle, since we want to
+        -- catch all exceptions and avoid them from propagating, even
+        -- async exceptions. See:
+        -- https://github.com/yesodweb/wai/issues/850
+        E.handle (onConnectionException set addr) $
+            -- Run the connection maker to get a new connection, and ensure
+            -- that the connection is closed. If the mkConn call throws an
+            -- exception, we will leak the connection. If the mkConn call is
+            -- vulnerable to attacks (e.g., Slowloris), we do nothing to
+            -- protect the server. It is therefore vital that mkConn is well
+            -- vetted.
+            --
+            -- We grab the connection before registering timeouts since the
+            -- timeouts will be useless during connection creation, due to the
+            -- fact that async exceptions are still masked.
+            E.bracket mkConn cleanUp (serve unmask)
+
     cleanUp (conn, _) =
         connClose conn `E.finally` do
             writeBuffer <- readIORef $ connWriteBuffer conn
@@ -441,8 +459,8 @@ fork set mkConn addr app counter ii = settingsFork set $ \unmask -> do
                 -- above ensures the connection is closed.
                 when goingon $ serveConnection conn ii th addr transport set app
 
-    onOpen adr = increase counter >> settingsOnOpen set adr
-    onClose adr _ = decrease counter >> settingsOnClose set adr
+    onOpen adr = settingsOnOpen set adr
+    onClose adr _ = settingsOnClose set adr
 
 serveConnection
     :: Connection
@@ -530,8 +548,11 @@ data FdExhaustion = NoFdIssue | FdExhausted
 initFdExhaustionRef :: IO (IORef FdExhaustion)
 initFdExhaustionRef = newIORef NoFdIssue
 
+-- [FD_EXHAUSTION]
+-- No need for "atomic" variants, since this is only used in a tight loop in
+-- 'acceptConnection'.
 resetFdExhaustion :: IORef FdExhaustion -> IO ()
 resetFdExhaustion = flip writeIORef NoFdIssue
 
 setFdExhaustion :: IORef FdExhaustion -> IO ()
-setFdExhaustion = flip writeIORef FdExhausted
+setFdExhaustion = flip writeIORef FdExhausted -- [FD_EXHAUSTION]

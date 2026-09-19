@@ -1,5 +1,26 @@
 # ChangeLog for warp
 
+## 3.4.16
+
+* Graceful shutdown no longer stops while a connection it accepted is
+  unserved. The connection counter it waits on is now raised when the accept
+  loop accepts a connection rather than when the thread serving it is
+  scheduled, closing a window in which an accepted connection was invisible
+  to the shutdown.
+  [#1104](https://github.com/yesodweb/wai/pull/1104).
+* Slight performance increase by not blocking on receiving a request if the
+  socket already has bytes waiting. (using `receiveNoWait` from `recv-0.1.2`)
+  [#1107](https://github.com/yesodweb/wai/pull/1107).
+* Reviewed when to introduce memory barriers when handling `IORef`s.
+  Documented most usage and introduced memory barriers in situations that might
+  possibly be used in more than one thread.
+  [#1112](https://github.com/yesodweb/wai/pull/1112).
+* Add `setOnConnectionException` and `getOnConnectionException` to expose the
+  peer for exceptions escaping connection workers, including TLS setup failures
+  before a request exists. The existing exception observer remains the default.
+  [#1114](https://github.com/yesodweb/wai/pull/1114)
+  (fixes [#1113](https://github.com/yesodweb/wai/issues/1113))
+
 ## 3.4.15
 
 * Support `103 Early Hints` over HTTP/2: the HTTP/2 handler installs
