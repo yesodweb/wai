@@ -13,13 +13,17 @@ import Network.Wai.Handler.Warp.Types
 
 ----------------------------------------------------------------
 
+-- | Inspect ALPN only on TLS; TCP uses prior knowledge and QUIC uses HTTP/3.
+-- Matching constructors keeps this dispatch total without partial TLS selectors.
 isHTTP2 :: Transport -> Bool
 isHTTP2 TCP = False
-isHTTP2 tls = useHTTP2
+isHTTP2 TLS{tlsNegotiatedProtocol = protocol} = useHTTP2
   where
-    useHTTP2 = case tlsNegotiatedProtocol tls of
+    useHTTP2 = case protocol of
         Nothing -> False
         Just proto -> "h2" `BS.isPrefixOf` proto
+-- QUIC uses the HTTP/3 entry point, not HTTP/2 ALPN dispatch.
+isHTTP2 QUIC{} = False
 
 ----------------------------------------------------------------
 
