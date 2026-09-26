@@ -190,6 +190,7 @@ test-suite spec
         FileSpec
         GracefulShutdownSpec
         HTTP
+        HTTP2TransportSpec
         PackIntSpec
         ReadIntSpec
         RequestSpec
