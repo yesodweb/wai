@@ -8,6 +8,7 @@ import Test.Hspec
 #define HAS_EARLY_HINTS_SUPPORT (MIN_VERSION_http_semantics(0,4,1) && MIN_VERSION_http2(5,4,2))
 
 #if HAS_EARLY_HINTS_SUPPORT
+#ifndef WINDOWS
 import Control.Exception (bracket)
 import Data.ByteString (ByteString)
 import Data.IORef
@@ -18,6 +19,7 @@ import qualified Network.HTTP2.Client as C
 import Network.Socket
 import Network.Wai
 import Network.Wai.Handler.Warp (Port, testWithApplication)
+#endif
 
 spec :: Spec
 spec = describe "HTTP/2 Early Hints" $

@@ -40,6 +40,9 @@ import qualified Network.HTTP.Types as H
 
 ----------------------------------------------------------------
 
+-- | Serve an HTTP/2 connection. Match TLS fields on their constructor so the
+-- version check stays total as transports are added; QUIC uses the separate
+-- HTTP/3 entry point and establishes TLS 1.3 in that transport.
 http2
     :: S.Settings
     -> InternalInfo
@@ -81,8 +84,10 @@ http2 settings ii conn transport app peersa th bs = do
   where
     checkTLS = case transport of
         TCP -> return () -- direct
-        tls -> unless (tls12orLater tls) $ goaway conn H2.InadequateSecurity "Weak TLS"
-    tls12orLater tls = tlsMajorVersion tls == 3 && tlsMinorVersion tls >= 3
+        TLS{tlsMajorVersion = major, tlsMinorVersion = minor} ->
+            unless (major == 3 && minor >= 3) $ goaway conn H2.InadequateSecurity "Weak TLS"
+        -- QUIC establishes TLS 1.3 itself and calls http2server through HTTP/3.
+        QUIC{} -> return ()
 
 -- | Converting WAI application to the server type of http2 library.
 --

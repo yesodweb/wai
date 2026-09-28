@@ -2,6 +2,10 @@
 
 ## 3.5.0
 
+* Make HTTP/2 transport matching total, avoiding partial TLS record selectors
+  under GHC 9.14 `-Werror`. QUIC is not selected by HTTP/2 ALPN dispatch;
+  existing TCP dispatch and TLS version checks are preserved.
+
 * Breaking change: `runSettings` and friends now rethrow when `accept()` fails
   for a reason the listening socket will keep giving, such as `ENFILE` or
   `ENOMEM`. Previously the accept loop ended and the caller was handed a `()`,
