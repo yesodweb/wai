@@ -23,9 +23,11 @@ import Network.Wai.Handler.Warp.Types
 createWriteBuffer :: BufSize -> IO WriteBuffer
 createWriteBuffer size = do
     bytes <- allocateBuffer size
+    fptr <- newForeignPtr_ bytes
     return
         WriteBuffer
             { bufBuffer = bytes
+            , bufFPtr = fptr
             , bufSize = size
             , bufFree = freeBuffer bytes
             }
@@ -48,12 +50,12 @@ freeBuffer = free
 toBuilderBuffer :: IORef WriteBuffer -> IO B.Buffer
 toBuilderBuffer writeBufferRef = do
     writeBuffer <- readIORef writeBufferRef
-    let ptr = bufBuffer writeBuffer
+    let fptr = bufFPtr writeBuffer
+        ptr = bufBuffer writeBuffer
         size = bufSize writeBuffer
-    fptr <- newForeignPtr_ ptr
     return $ B.Buffer fptr ptr ptr (ptr `plusPtr` size)
 
-bufferIO :: Buffer -> Int -> (ByteString -> IO ()) -> IO ()
-bufferIO ptr siz io = do
-    fptr <- newForeignPtr_ ptr
-    io $ PS fptr 0 siz
+-- | Slice the given number of bytes out of a 'WriteBuffer' using its
+-- cached 'ForeignPtr', without allocating a fresh wrapper.
+bufferIO :: WriteBuffer -> Int -> (ByteString -> IO ()) -> IO ()
+bufferIO writeBuffer siz io = io $ PS (bufFPtr writeBuffer) 0 siz

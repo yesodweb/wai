@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.4.14.1
+
+* Build with `warp-3.5.0`.
+  [#1095](https://github.com/yesodweb/wai/pull/1095)
+
 ## 3.4.14
 
 * Build with `warp-3.4.13`.
