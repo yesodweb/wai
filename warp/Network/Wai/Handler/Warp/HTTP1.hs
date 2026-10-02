@@ -27,6 +27,7 @@ import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog (rxTick)
 
 http1
     :: Settings
@@ -45,11 +46,11 @@ http1 settings ii conn transport app origAddr th bs0 = do
     addr <- getProxyProtocolAddr src
     http1server settings ii conn transport app addr th istatus src
   where
-    wrappedRecv Connection{connRecv = recv} istatus slowlorisSize = do
+    wrappedRecv Connection{connRecv = recv, connWatchdog = wd} istatus slowlorisSize = do
         bs <- recv
         unless (BS.null bs) $ do
             writeIORef istatus True
-            when (BS.length bs >= slowlorisSize) $ T.tickle th
+            when (BS.length bs >= slowlorisSize) $ rxTick wd
         return bs
 
     getProxyProtocolAddr src =
@@ -185,15 +186,14 @@ processRequest
     -> IO ByteString
     -> IO ReuseConnection
 processRequest settings ii conn app th istatus src req mremainingRef idxhdr nextBodyFlush = do
-    -- Let the application run for as long as it wants
-    T.pause th
+    -- The application may run for as long as it wants: the watchdog
+    -- sees it in 'connAppsInProgress'.
 
     -- In the event that some scarce resource was acquired during
     -- creating the request, we need to make sure that we don't get
     -- an async exception before calling the ResponseSource.
     keepAliveRef <- newIORef $ error "keepAliveRef not filled"
     r <- try $ app req $ \res -> do
-        T.resume th
         -- FIXME consider forcing evaluation of the res here to
         -- send more meaningful error messages to the user.
         -- However, it may affect performance.
@@ -230,16 +230,13 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
             case settingsMaximumBodyFlush settings of
                 Nothing -> do
                     flushEntireBody nextBodyFlush
-                    T.resume th
                     return ReuseConnection
                 Just maxToRead -> do
                     let tryKeepAlive = do
                             -- flush the rest of the request body
                             isComplete <- flushBody nextBodyFlush maxToRead
                             if isComplete
-                                then do
-                                    T.resume th
-                                    return ReuseConnection
+                                then return ReuseConnection
                                 else return CloseConnection
                     case mremainingRef of
                         Just ref -> do

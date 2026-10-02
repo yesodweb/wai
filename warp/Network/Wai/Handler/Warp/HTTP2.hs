@@ -15,6 +15,8 @@ import Data.IORef (readIORef)
 import qualified Data.IORef as I
 import GHC.Conc.Sync (labelThread, myThreadId)
 import qualified Network.HTTP2.Frame as H2
+import Network.HTTP.Semantics (InpObj (..))
+import qualified Network.HTTP.Semantics.Server.Internal as H2I
 import qualified Network.HTTP2.Server as H2
 import Network.Socket (SockAddr)
 import Network.Socket.BufferPool
@@ -29,6 +31,7 @@ import Network.Wai.Handler.Warp.HTTP2.Response
 import Network.Wai.Handler.Warp.Imports
 import qualified Network.Wai.Handler.Warp.Settings as S
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog (Watchdog, rxTick, waitingForPeer)
 
 -- Early Hints wiring needs both the http-semantics 'auxSendInformational' field
 -- (0.4.1) and the http2 sender support that actually emits it (5.4.2).
@@ -53,18 +56,20 @@ http2
     -> T.Handle
     -> ByteString
     -> IO ()
-http2 settings ii conn transport app peersa th bs = do
+http2 settings ii conn transport app peersa _th bs = do
     rawRecvN <- makeRecvN bs $ connRecv conn
     writeBuffer <- readIORef $ connWriteBuffer conn
     -- This thread becomes the sender in http2 library.
-    -- In the case of event source, one request comes and one
-    -- worker gets busy. But it is likely that the receiver does
-    -- not receive any data at all while the sender is sending
-    -- output data from the worker. It's not good enough to tickle
-    -- the time handler in the receiver only. So, we should tickle
-    -- the time handler in both the receiver and the sender.
-    let recvN = wrappedRecvN th (S.settingsSlowlorisSize settings) rawRecvN
-        sendBS x = connSendAll conn x >> T.tickle th
+    --
+    -- The connection is supervised by its watchdog (see 'Run.fork') as
+    -- HTTP/1.1 is: writes are reported by 'connSendAll' itself, running
+    -- streams by 'connAppsInProgress', and request bodies being waited
+    -- for by 'watchRequestBody'. The timers of the http2 library are
+    -- disabled by giving it the dummy 'T.defaultManager', which turns
+    -- every 'T.Handle' it creates into 'T.emptyHandle'.
+    let wd = connWatchdog conn
+        recvN = wrappedRecvN wd (S.settingsSlowlorisSize settings) rawRecvN
+        sendBS = connSendAll conn
         conf =
             H2.defaultConfig
                 { H2.confWriteBuffer = bufBuffer writeBuffer
@@ -72,7 +77,7 @@ http2 settings ii conn transport app peersa th bs = do
                 , H2.confSendAll = sendBS
                 , H2.confReadN = recvN
                 , H2.confPositionReadMaker = pReadMaker ii
-                , H2.confTimeoutManager = timeoutManager ii
+                , H2.confTimeoutManager = T.defaultManager
                 , H2.confMySockAddr = connMySockAddr conn
                 , H2.confPeerSockAddr = peersa
                 , H2.confReadNTimeout = True
@@ -80,7 +85,8 @@ http2 settings ii conn transport app peersa th bs = do
     checkTLS
     setConnHTTP2 conn True
     H2.run H2.defaultServerConfig conf $
-        http2server "Warp HTTP/2" settings ii transport peersa app
+        watchRequestBody wd $
+            http2server "Warp HTTP/2" settings ii transport peersa app
   where
     checkTLS = case transport of
         TCP -> return () -- direct
@@ -151,9 +157,15 @@ http2server label settings ii transport addr app h2req0 aux0 response = do
             Nothing -> 0
             Just s -> fromIntegral s
 
+-- | Reporting to the watchdog that a stream waits for its request body.
+--   While it does, the peer has to make progress.
+watchRequestBody :: Watchdog -> H2.Server -> H2.Server
+watchRequestBody wd server (H2I.Request inp) =
+    server $ H2I.Request inp{inpObjBody = waitingForPeer wd $ inpObjBody inp}
+
 wrappedRecvN
-    :: T.Handle -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
-wrappedRecvN th slowlorisSize readN bufsize = do
+    :: Watchdog -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
+wrappedRecvN wd slowlorisSize readN bufsize = do
     bs <- E.handle handler $ readN bufsize
     -- TODO: think about the slowloris protection in HTTP2: current code
     -- might open a slow-loris attack vector. Rather than timing we should
@@ -162,7 +174,7 @@ wrappedRecvN th slowlorisSize readN bufsize = do
     -- deployments with large NATs may be trickier).
     when
         (BS.length bs > 0 && BS.length bs >= slowlorisSize || bufsize <= slowlorisSize)
-        $ T.tickle th
+        $ rxTick wd
     return bs
   where
     handler :: E.SomeException -> IO ByteString

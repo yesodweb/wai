@@ -11,12 +11,14 @@ module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
 import Control.Concurrent.STM (
+    STM,
     TVar,
     atomically,
     check,
     modifyTVar',
     newTVarIO,
     readTVar,
+    retry,
  )
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
@@ -77,6 +79,7 @@ import Network.Wai.Handler.Warp.SendFile (sendFile)
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.ShuttingDown (readShuttingDown, writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
 --
@@ -91,6 +94,7 @@ socketConnection set s = do
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
     appsInProgress <- newTVarIO 0
+    wd <- newWatchdog
     return
         Connection
             { connSendMany = Sock.sendMany s
@@ -109,16 +113,17 @@ socketConnection set s = do
 #else
             , connClose = close s
 #endif
-            , connRecv = receive' bufferPool ss appsInProgress
+            , connRecv = receive' bufferPool ss appsInProgress wd
             , connRecvBuf = \_ _ -> return True -- obsoleted
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
             , connAppsInProgress = appsInProgress
+            , connWatchdog = wd
             }
   where
-    receive' bufferPool ss appsInProgress =
-        E.handle handler $ makeGracefulRecv s bufferPool ss appsInProgress
+    receive' bufferPool ss appsInProgress wd =
+        E.handle handler $ makeWatchedRecv s bufferPool ss appsInProgress wd
       where
         handler :: E.IOException -> IO ByteString
         handler e
@@ -152,7 +157,26 @@ socketConnection set s = do
 -- when the server is shutting down and there are no more 'Application's
 -- actively using this 'Socket'.
 makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
-makeGracefulRecv sock pool ss appsInProgress = do
+makeGracefulRecv sock pool ss appsInProgress =
+    makeGracefulRecvWith sock pool ss appsInProgress retry
+
+-- | 'makeGracefulRecv' which also gives up when the 'Watchdog' decides
+-- that the connection timed out, by throwing 'T.TimeoutThread'.
+--
+-- The timeout is composed with the socket readiness in a single STM
+-- transaction, so a receiving thread is never killed from outside
+-- while it waits for the peer.
+--
+-- @since 3.5.0
+makeWatchedRecv
+    :: Socket -> BufferPool -> ServerState -> TVar Int -> Watchdog -> Recv
+makeWatchedRecv sock pool ss appsInProgress wd = do
+    throwIfTimedOut wd
+    makeGracefulRecvWith sock pool ss appsInProgress (timedOutSTM wd)
+
+makeGracefulRecvWith
+    :: Socket -> BufferPool -> ServerState -> TVar Int -> STM () -> Recv
+makeGracefulRecvWith sock pool ss appsInProgress timedOut = do
     tryFastPath <- not <$> readShuttingDown (serverShuttingDown ss)
     if tryFastPath then do
         mbs <- receiveNoWait sock pool
@@ -161,10 +185,13 @@ makeGracefulRecv sock pool ss appsInProgress = do
           Nothing -> slowPath
       else slowPath
   where
-    slowPath = makeGracefulRecvSlow sock pool ss appsInProgress
+    slowPath = makeGracefulRecvSlow sock pool ss appsInProgress timedOut
 
-makeGracefulRecvSlow :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
-makeGracefulRecvSlow sock pool ss appsInProgress = do
+data RecvEvent = ShuttingDown | TimedOut | Readable
+
+makeGracefulRecvSlow
+    :: Socket -> BufferPool -> ServerState -> TVar Int -> STM () -> Recv
+makeGracefulRecvSlow sock pool ss appsInProgress timedOut = do
     sockWait <-
 #if !WINDOWS && MIN_VERSION_network(3,2,2)
         waitReadSocketSTM sock
@@ -173,13 +200,19 @@ makeGracefulRecvSlow sock pool ss appsInProgress = do
         -- blocks indefinitely, so we fall back to going straight to 'recv'.
         pure (pure ())
 #endif
-    isShuttingDown <- atomically $
+    ev <- atomically $
         -- when shutting down
-        (checkShutdown $> True)
+        (checkShutdown $> ShuttingDown)
+        <|>
+        -- when the watchdog gave up on this connection
+        (timedOut $> TimedOut)
         <|>
         -- else wait for socket readiness and do non-blocking read
-        (sockWait $> False)
-    if isShuttingDown then pure "" else recv
+        (sockWait $> Readable)
+    case ev of
+        ShuttingDown -> pure ""
+        TimedOut -> E.throwIO T.TimeoutThread
+        Readable -> recv
   where
     recv = receive sock pool
     checkShutdown = do
@@ -512,9 +545,13 @@ fork set mkConn addr app counter ii = do
             writeBuffer <- readIORef $ connWriteBuffer conn
             bufFree writeBuffer
 
-    -- We need to register a timeout handler for this thread, and
-    -- cancel that handler as soon as we exit.
-    serve unmask (conn, transport) = T.withHandleKillThread (timeoutManager ii) (return ()) $ \th -> do
+    -- Supervise this connection with its watchdog, for both HTTP/1.1
+    -- and HTTP/2, and stop the watchdog as soon as we exit. Writes are
+    -- wrapped here so that every protocol reports them in the same way.
+    -- The time handle is a dummy, kept for the signatures only.
+    serve unmask (conn0, transport) = withWatchdog timeoutInMicroseconds wd apps $ do
+        let conn = watchSend conn0
+            th = T.emptyHandle
         -- We now have fully registered a connection close handler in
         -- the case of all exceptions, so it is safe to once again
         -- allow async exceptions.
@@ -527,6 +564,11 @@ fork set mkConn addr app counter ii = do
                 -- Actually serve this connection.  bracket with closeConn
                 -- above ensures the connection is closed.
                 when goingon $ serveConnection conn ii th addr transport set app
+      where
+        wd = connWatchdog conn0
+        apps = connAppsInProgress conn0
+
+    timeoutInMicroseconds = settingsTimeout set * 1000000
 
     onOpen adr = settingsOnOpen set adr
     onClose adr _ = settingsOnClose set adr
@@ -576,6 +618,18 @@ serveConnection conn ii th origAddr transport settings app = do
             if S.length bs2 >= 4
                  then return bs2
                  else recv4 bs2
+
+-- | Reporting writes to the 'Watchdog' of the connection.
+watchSend :: Connection -> Connection
+watchSend conn =
+    conn
+        { connSendAll = sending wd . connSendAll conn
+        , connSendMany = sending wd . connSendMany conn
+        , connSendFile = \fid off len hook hdrs ->
+            sending wd $ connSendFile conn fid off len (hook >> txTick wd) hdrs
+        }
+  where
+    wd = connWatchdog conn
 
 -- | Set flag FileCloseOnExec flag on a socket (on Unix)
 --

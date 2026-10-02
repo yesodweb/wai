@@ -24,12 +24,14 @@ import Network.Wai.Handler.Warp.Response (sendResponse)
 import Network.Wai.Handler.Warp.ResponseHeader (composeHeader)
 import Network.Wai.Handler.Warp.Settings (defaultSettings)
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog (newWatchdog)
 
 main :: IO ()
 main = do
     writeBuf <- createWriteBuffer 16384 >>= newIORef
     http2Ref <- newIORef False
     apps <- newTVarIO (0 :: Int)
+    wd <- newWatchdog
     let conn =
             Connection
                 { connSendMany = \_ -> return ()
@@ -42,6 +44,7 @@ main = do
                 , connHTTP2 = http2Ref
                 , connMySockAddr = SockAddrInet 0 0
                 , connAppsInProgress = apps
+                , connWatchdog = wd
                 }
     mgr <- T.initialize 30000000
     th <- T.register mgr (return ())
