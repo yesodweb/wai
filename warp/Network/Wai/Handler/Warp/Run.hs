@@ -10,6 +10,9 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
+#if WINDOWS
+import Control.Concurrent (forkIO)
+#endif
 import Control.Concurrent.STM (
     STM,
     TVar,
@@ -19,6 +22,12 @@ import Control.Concurrent.STM (
     newTVarIO,
     readTVar,
     retry,
+#if WINDOWS
+    newEmptyTMVarIO,
+    putTMVar,
+    takeTMVar,
+    throwSTM,
+#endif
  )
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
@@ -98,8 +107,8 @@ socketConnection set s = do
     return
         Connection
             { connSendMany = Sock.sendMany s
-            , connSendAll = sendall
-            , connSendFile = sendfile writeBufferRef
+            , connSendAll = sendall wd
+            , connSendFile = sendfile wd writeBufferRef
 #if MIN_VERSION_network(3,1,1)
             , connClose = do
                 h2 <- readIORef isH2
@@ -130,19 +139,19 @@ socketConnection set s = do
             | ioeGetErrorType e == InvalidArgument = return ""
             | otherwise = E.throwIO e
 
-    sendfile writeBufferRef fid offset len hook headers = do
+    sendfile wd writeBufferRef fid offset len hook headers = do
         writeBuffer <- readIORef writeBufferRef
         sendFile
             s
             writeBuffer
-            sendall
+            (sendall wd)
             fid
             offset
             len
             hook
             headers
 
-    sendall bs =
+    sendall wd bs =
         E.handleJust
             ( \e ->
                 if ioeGetErrorType e == ResourceVanished
@@ -150,7 +159,30 @@ socketConnection set s = do
                     else Nothing
             )
             E.throwIO
-            $ Sock.sendAll s bs
+            $ send' wd bs
+
+#if WINDOWS
+    -- As with the read: a send that blocks on WINDOWS blocks in a foreign
+    -- call, where neither the watchdog's 'TVar' nor an asynchronous
+    -- exception can reach this thread, so a peer that stops reading is a
+    -- connection that cannot be given up on.  The send is done on a thread
+    -- of its own and this one waits for it alongside the watchdog.
+    --
+    -- The send left behind is left to the socket being closed, which is what
+    -- ends this connection anyway.
+    send' wd bs = do
+        var <- newEmptyTMVarIO
+        void $ forkIO $ do
+            r <- E.try $ Sock.sendAll s bs
+            atomically $ putTMVar var (r :: Either E.SomeException ())
+        done <- atomically $
+            (timedOutSTM wd $> Nothing) <|> (Just <$> takeTMVar var)
+        case done of
+            Nothing -> E.throwIO T.TimeoutThread
+            Just r -> either E.throwIO return r
+#else
+    send' _wd bs = Sock.sendAll s bs
+#endif
 
 -- | Create a 'Recv' using 'Network.Socket.BufferPool.Recv.receive', but make
 -- it non-blocking with 'waitReadSocketSTM' /AND/ cut off receiving any bytes
@@ -187,19 +219,12 @@ makeGracefulRecvWith sock pool ss appsInProgress timedOut = do
   where
     slowPath = makeGracefulRecvSlow sock pool ss appsInProgress timedOut
 
-data RecvEvent = ShuttingDown | TimedOut | Readable
+data RecvEvent = ShuttingDown | TimedOut | Readable | Received ByteString
 
 makeGracefulRecvSlow
     :: Socket -> BufferPool -> ServerState -> TVar Int -> STM () -> Recv
 makeGracefulRecvSlow sock pool ss appsInProgress timedOut = do
-    sockWait <-
-#if !WINDOWS && MIN_VERSION_network(3,2,2)
-        waitReadSocketSTM sock
-#else
-        -- FIXME: 'waitReadSocketSTM' doesn't work on WINDOWS, and actually
-        -- blocks indefinitely, so we fall back to going straight to 'recv'.
-        pure (pure ())
-#endif
+    waitRecv <- waitForSomethingToRead
     ev <- atomically $
         -- when shutting down
         (checkShutdown $> ShuttingDown)
@@ -207,14 +232,37 @@ makeGracefulRecvSlow sock pool ss appsInProgress timedOut = do
         -- when the watchdog gave up on this connection
         (timedOut $> TimedOut)
         <|>
-        -- else wait for socket readiness and do non-blocking read
-        (sockWait $> Readable)
+        -- else wait for the socket, or for the read done on our behalf
+        waitRecv
     case ev of
         ShuttingDown -> pure ""
         TimedOut -> E.throwIO T.TimeoutThread
         Readable -> recv
+        Received bs -> pure bs
   where
     recv = receive sock pool
+
+#if !WINDOWS && MIN_VERSION_network(3,2,2)
+    -- The socket can be waited on, so the read is left where it is and this
+    -- thread waits for it alongside everything else.
+    waitForSomethingToRead = ($> Readable) <$> waitReadSocketSTM sock
+#else
+    -- 'waitReadSocketSTM' does not work on WINDOWS, and a read that cannot
+    -- be waited on is a read that blocks in a foreign call -- where neither
+    -- the watchdog's 'TVar' nor an asynchronous exception can reach this
+    -- thread, so a connection that has to be given up on cannot be.  The
+    -- read is done on a thread of its own instead and hands back what it
+    -- read, which is what 'windowsThreadBlockHack' already does for accept.
+    --
+    -- A read this thread has stopped waiting for is a read whose connection
+    -- is over, so the buffer it fills is nobody's by then.
+    waitForSomethingToRead = do
+        var <- newEmptyTMVarIO
+        void $ forkIO $ do
+            r <- E.try recv
+            atomically $ putTMVar var (r :: Either E.SomeException ByteString)
+        return $ takeTMVar var >>= either throwSTM (return . Received)
+#endif
     checkShutdown = do
        check =<< currentShuttingDownStateSTM ss
        check . (<= 0) =<< readTVar appsInProgress
