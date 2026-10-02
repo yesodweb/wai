@@ -90,6 +90,16 @@ spec = do
                 Right () -> return ()
                 Left e -> expectationFailure $ "graceful shutdown threw: " <> show e
 
+        -- The old way to stop a server, and still how some of them do it:
+        -- mighttpd2 4.0.10 closes its listening sockets rather than running
+        -- what 'setInstallShutdownHandler' hands it.  Waiting on a closed
+        -- descriptor means the same thing as being told to stop.
+        it "ends the accept loop quietly when the caller closes the socket itself" $ do
+            r <- runServerUntil accept $ \sock _ -> close sock
+            case r of
+                Right () -> return ()
+                Left e -> expectationFailure $ "closing the listener threw: " <> show e
+
 #if WINDOWS
         -- Windows cannot tell these apart. network reports every accept()
         -- failure there without an errno, a graceful shutdown's EBADF

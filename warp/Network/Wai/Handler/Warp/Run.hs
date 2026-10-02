@@ -255,7 +255,7 @@ makeListener set socket = do
     settingsInstallShutdownHandler set $ atomically $ writeTVar stopping True
     return
         Listener
-            { waitAcceptable = do
+            { waitAcceptable = handleClosedListener $ do
                 acceptable <- waitReadSocketSTM socket
                 atomically $
                     -- when shutting down
@@ -265,6 +265,20 @@ makeListener set socket = do
                         (acceptable $> True)
             , closeListener = close socket
             }
+
+-- Closing the listening socket is how a server was stopped before there was
+-- anything to tell, and callers that do it are still out there.  Waiting on
+-- a descriptor that has been closed is an EBADF, under whichever name the IO
+-- manager gives it, and it means the same thing the shutdown handler means:
+-- stop accepting.  Ending the loop quietly is what happened before, and
+-- 'closeListener' closing an already-closed socket is no error.
+--
+-- 'acceptNewConnection' says the same of the EBADF from accept() itself.
+handleClosedListener :: IO Bool -> IO Bool
+handleClosedListener = E.handle $ \e ->
+    if ioeGetErrorType e == InvalidArgument
+        then return False
+        else E.throwIO e
 #else
 makeListener set socket = do
     -- As in 'makeGracefulRecvSlow': 'waitReadSocketSTM' doesn't work on
