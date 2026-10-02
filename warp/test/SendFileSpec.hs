@@ -10,9 +10,7 @@ import Network.Wai.Handler.Warp.Buffer
 import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Types
 import System.Directory
-import System.Exit
 import qualified System.IO as IO
-import System.Process (system)
 import Test.Hspec
 
 main :: IO ()
@@ -53,11 +51,11 @@ spec = do
 
     describe "readSendFile" $ do
         it "sends a file correctly (1)" $
-            tryReadSendFile 10 0 1474 ["foo"] `shouldReturn` ExitSuccess
+            tryReadSendFile 10 0 1474 ["foo"] `shouldReturn` True
         it "sends a file correctly (2)" $
-            tryReadSendFile 10 0 1474 ["012345678", "901234"] `shouldReturn` ExitSuccess
+            tryReadSendFile 10 0 1474 ["012345678", "901234"] `shouldReturn` True
         it "sends a file correctly (3)" $
-            tryReadSendFile 10 20 100 ["012345678", "901234"] `shouldReturn` ExitSuccess
+            tryReadSendFile 10 20 100 ["012345678", "901234"] `shouldReturn` True
 
 tryPackHeader :: Int -> [ByteString] -> IO Int
 tryPackHeader siz hdrs = bracket (createWriteBuffer siz) bufFree $ \wbuf ->
@@ -77,7 +75,7 @@ tryPackHeader2 siz hdrs ans = bracket setup teardown $ \wbuf -> do
     send = BS.appendFile outputFile
     hook = return ()
 
-tryReadSendFile :: Int -> Integer -> Integer -> [ByteString] -> IO ExitCode
+tryReadSendFile :: Int -> Integer -> Integer -> [ByteString] -> IO Bool
 tryReadSendFile siz off len hdrs = bracket setup teardown $ \wbuf -> do
     mapM_ (BS.appendFile expectedFile) hdrs
     copyfile inputFile expectedFile off len
@@ -105,8 +103,12 @@ checkFile path bs = do
             return $ bs == bs'
         else return $ bs == ""
 
-compareFiles :: FilePath -> FilePath -> IO ExitCode
-compareFiles file1 file2 = system $ "cmp -s " ++ file1 ++ " " ++ file2
+-- | Whether two files hold the same bytes.
+--
+-- This used to shell out to @cmp@, which Windows does not have, so these
+-- three were the only tests here that could not pass there.
+compareFiles :: FilePath -> FilePath -> IO Bool
+compareFiles file1 file2 = (==) <$> BS.readFile file1 <*> BS.readFile file2
 
 copyfile :: FilePath -> FilePath -> Integer -> Integer -> IO ()
 copyfile src dst off len =
