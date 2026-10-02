@@ -365,6 +365,10 @@ runSettingsConnectionMaker x y =
 runSettingsConnectionMakerSecure
     :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
 runSettingsConnectionMakerSecure set = runSettingsConnectionMakerSecureWith set noListener
+{-# DEPRECATED
+    runSettingsConnectionMakerSecure
+    "use runSettingsConnectionMakerSecureWith instead"
+    #-}
 
 -- | 'runSettingsConnectionMakerSecure' for a caller that has the listening
 --   socket, and so can say how the accept loop waits on it and what becomes
