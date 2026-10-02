@@ -17,6 +17,7 @@ import Control.Concurrent.STM (
     modifyTVar',
     newTVarIO,
     readTVar,
+    writeTVar,
  )
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
@@ -221,11 +222,62 @@ runSettings set app =
                 runSettingsSocket set socket app
             )
 
--- | This installs a shutdown handler for the given socket and
--- calls 'runSettingsConnection' with the default connection setup action
--- which handles plain (non-cipher) HTTP.
--- When the listen socket in the second argument is closed, all live
--- connections are gracefully shut down.
+-- | What the accept loop waits on at the top of each turn, and what it
+--   leaves behind when it stops.
+--
+-- A server used to be stopped by closing the listening socket under the
+-- thread waiting in @accept@ on it.  That takes an IO manager that can wake
+-- a thread out of a wait by closing the file descriptor under it, which is
+-- what 'GHC.Conc.closeFdWith' is for, and the IO manager that provides it
+-- is not the only one there will be.  So the loop waits for the socket and
+-- for the shutdown at once and ends on whichever comes first; the socket is
+-- closed after it, by which time nothing is waiting on it.
+data Listener = Listener
+    { waitAcceptable :: IO Bool
+    -- ^ Waits until there is something to accept.  'False' instead when the
+    -- server has been asked to stop.
+    , closeListener :: IO ()
+    -- ^ Run once the accept loop has ended and before the connections are
+    -- waited for: the port is a successor's to take, and a successor should
+    -- not have to wait out someone else's drain for it.
+    }
+
+-- | For a caller that handed warp a connection maker and no socket.  There
+--   is nothing here to wait on and nothing to close, and such a server ends
+--   the way it always did: by whatever its maker accepts on being closed.
+noListener :: Listener
+noListener = Listener{waitAcceptable = return True, closeListener = return ()}
+
+makeListener :: Settings -> Socket -> IO Listener
+#if !WINDOWS && MIN_VERSION_network(3,2,2)
+makeListener set socket = do
+    stopping <- newTVarIO False
+    settingsInstallShutdownHandler set $ atomically $ writeTVar stopping True
+    return
+        Listener
+            { waitAcceptable = do
+                acceptable <- waitReadSocketSTM socket
+                atomically $
+                    -- when shutting down
+                    ((check =<< readTVar stopping) $> False)
+                        <|>
+                        -- else wait for a connection to accept
+                        (acceptable $> True)
+            , closeListener = close socket
+            }
+#else
+makeListener set socket = do
+    -- As in 'makeGracefulRecvSlow': 'waitReadSocketSTM' doesn't work on
+    -- WINDOWS and blocks indefinitely, so a shutdown there ends the accept
+    -- loop the old way, by closing the listening socket under it.
+    settingsInstallShutdownHandler set $ close socket
+    return noListener
+#endif
+
+-- | This installs a shutdown handler for the given socket and runs the
+-- default connection setup action, which handles plain (non-cipher) HTTP.
+-- Running the handler stops the server accepting, closes the listening
+-- socket, and gracefully shuts the live connections down.
 --
 -- The supplied socket can be a Unix named socket, which
 -- can be used when reverse HTTP proxying into your application.
@@ -234,10 +286,18 @@ runSettings set app =
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket oldSettings@Settings{settingsAccept = accept'} socket app = do
-    settingsInstallShutdownHandler oldSettings closeListenSocket
+    listener <- makeListener oldSettings socket
     (_, newSettings) <- makeServerState oldSettings
-    runSettingsConnection newSettings (getConn newSettings) app
+    runSettingsConnectionMakerSecureWith
+        newSettings
+        listener
+        (first ((,TCP) <$>) <$> getConnMaker newSettings)
+        app
   where
+    getConnMaker set = do
+        (conn, sa) <- getConn set
+        return (return conn, sa)
+
     getConn set = do
         (s, sa) <- accept' socket
         setSocketCloseOnExec s
@@ -245,8 +305,6 @@ runSettingsSocket oldSettings@Settings{settingsAccept = accept'} socket app = do
         setSocketOption s NoDelay 1 `E.catch` throughAsync (return ())
         conn <- socketConnection set s
         return (conn, sa)
-
-    closeListenSocket = close socket
 
 -- | The connection setup action would be expensive. A good example
 -- is initialization of TLS.
@@ -284,12 +342,23 @@ runSettingsConnectionMaker x y =
 -- @since 2.1.4
 runSettingsConnectionMakerSecure
     :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
-runSettingsConnectionMakerSecure oldSettings getConnMaker app = do
+runSettingsConnectionMakerSecure set = runSettingsConnectionMakerSecureWith set noListener
+
+-- | 'runSettingsConnectionMakerSecure' for a caller that has the listening
+--   socket, and so can say how the accept loop waits on it and what becomes
+--   of it when the loop stops.
+runSettingsConnectionMakerSecureWith
+    :: Settings
+    -> Listener
+    -> IO (IO (Connection, Transport), SockAddr)
+    -> Application
+    -> IO ()
+runSettingsConnectionMakerSecureWith oldSettings listener getConnMaker app = do
     settingsBeforeMainLoop oldSettings
     (ServerState{serverConnectionCounter}, newSettings) <- makeServerState oldSettings
     withII newSettings $ \ii ->
         initFdExhaustionRef >>=
-            acceptConnection newSettings getConnMaker app serverConnectionCounter ii
+            acceptConnection newSettings listener getConnMaker app serverConnectionCounter ii
 
 -- | Running an action with internal info.
 --
@@ -329,6 +398,7 @@ withII set action =
 -- Our approach is explained in the comments below.
 acceptConnection
     :: Settings
+    -> Listener
     -> IO (IO (Connection, Transport), SockAddr)
     -> Application
     -> Counter
@@ -338,13 +408,19 @@ acceptConnection
         -- when we hit an 'IOError' with 'eMFILE' in the case that Warp is not
         -- the reason the file descriptors are exhausted.
     -> IO ()
-acceptConnection set getConnMaker app counter ii fdRef = do
+acceptConnection set listener getConnMaker app counter ii fdRef = do
     -- First mask all exceptions in acceptLoop. This is necessary to
     -- ensure that no async exception is throw between the call to
     -- acceptNewConnection and the registering of connClose.
     --
-    -- acceptLoop can be broken by closing the listening socket.
+    -- acceptLoop ends when the listener says the server has been asked to
+    -- stop, or, for a caller that gave us no socket to wait on, when the
+    -- socket it does accept on is closed.
     void $ E.mask_ acceptLoop
+    -- Nothing is waiting on the listening socket any more, so it can be
+    -- closed and the port left to a successor rather than held for as long
+    -- as the connections below take to finish.
+    closeListener listener
     -- In some cases, we want to stop Warp here without graceful shutdown.
     -- So, async exceptions are allowed here.
     -- That's why `finally` is not used.
@@ -354,19 +430,23 @@ acceptConnection set getConnMaker app counter ii fdRef = do
         -- Allow async exceptions before receiving the next connection maker.
         E.allowInterrupt
 
-        -- acceptNewConnection will try to receive the next incoming
-        -- request. It returns a /connection maker/, not a connection,
-        -- since in some circumstances creating a working connection
-        -- from a raw socket may be an expensive operation, and this
-        -- expensive work should not be performed in the main event
-        -- loop. An example of something expensive would be TLS
-        -- negotiation.
-        mx <- acceptNewConnection
-        case mx of
-            Nothing -> return ()
-            Just (mkConn, addr) -> do
-                fork set mkConn addr app counter ii
-                acceptLoop
+        -- Wait for the socket to have something to accept and for the
+        -- server to be asked to stop, whichever comes first.
+        acceptable <- waitAcceptable listener
+        when acceptable $ do
+            -- acceptNewConnection will try to receive the next incoming
+            -- request. It returns a /connection maker/, not a connection,
+            -- since in some circumstances creating a working connection
+            -- from a raw socket may be an expensive operation, and this
+            -- expensive work should not be performed in the main event
+            -- loop. An example of something expensive would be TLS
+            -- negotiation.
+            mx <- acceptNewConnection
+            case mx of
+                Nothing -> return ()
+                Just (mkConn, addr) -> do
+                    fork set mkConn addr app counter ii
+                    acceptLoop
 
     acceptNewConnection = do
         ex <- E.try getConnMaker
