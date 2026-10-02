@@ -17,7 +17,7 @@ jobs:
         shell: bash
     env:
       # Increase the number to bust all the cache
-      MANUAL_RESET: "v9"
+      MANUAL_RESET: "v10"
       STACK_PATH_LOCAL: ".stack-work"
 
     strategy:
@@ -144,12 +144,42 @@ jobs:
             ~\AppData\Local\Programs\stack
           key: CI-mingw-windows-${{ env.MANUAL_RESET }}
 
+      # A GHCup cache does not always restore whole -- the restore step has
+      # been reporting "tar failed with exit code 2" for a while -- and a GHC
+      # whose version directory came back without its bin is one that GHCup
+      # believes is installed and cannot set:
+      #
+      #   ghcup set ghc 9.10.3
+      #   ghcup.exe: C:\ghcup\ghc\9.10.3\bin: does not exist
+      #   ghcup install ghc 9.10.3
+      #   [Warn] ghc-9.10.3 is already installed
+      #
+      # which it answers by trying chocolatey and giving up.  Nothing after
+      # that can succeed, so a half-restored GHC is thrown away here and the
+      # step below installs it as it would on a miss.
+      - name: Discard a half-restored GHC [WINDOWS]
+        id: ghc-discard
+        if: matrix.os == 'windows-latest'
+        run: |
+          shopt -s nullglob
+          discarded=false
+          for dir in /c/ghcup/ghc/*/; do
+            if [[ ! -d "${dir}bin" ]]; then
+              echo "discarding ${dir}: no bin"
+              rm -rf "$dir"
+              discarded=true
+            fi
+          done
+          # Whatever the cache said, there is nothing left to use.
+          echo "discarded=$discarded" >> $GITHUB_OUTPUT
+
       - name: Setup Haskell Stack
         id: ghcup-install
         uses: haskell-actions/setup@v2
         if: >
           (matrix.os == 'windows-latest' && (steps.ghcup-cache-windows.outputs.cache-hit != 'true'
-            || steps.mingw-cache-windows.outputs.cache-hit != 'true'))
+            || steps.mingw-cache-windows.outputs.cache-hit != 'true'
+            || steps.ghc-discard.outputs.discarded == 'true'))
             || (matrix.os != 'windows-latest' && steps.ghcup-cache-unix.outputs.cache-hit != 'true')
         with:
           stack-version: "${{ matrix.stack }}"
