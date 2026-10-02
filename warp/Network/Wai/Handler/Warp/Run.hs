@@ -47,6 +47,7 @@ import Network.Socket (
 #if !WINDOWS
     fdSocket,
 #if MIN_VERSION_network(3,2,2)
+    waitAndCancelReadSocketSTM,
     waitReadSocketSTM,
 #endif
 #endif
@@ -256,13 +257,20 @@ makeListener set socket = do
     return
         Listener
             { waitAcceptable = handleClosedListener $ do
-                acceptable <- waitReadSocketSTM socket
-                atomically $
-                    -- when shutting down
-                    ((check =<< readTVar stopping) $> False)
-                        <|>
-                        -- else wait for a connection to accept
-                        (acceptable $> True)
+                -- Cancelled however this ends, and not only when it ends
+                -- because the socket became readable: an IO manager built on
+                -- an interface like io_uring holds a reference on the socket
+                -- for as long as the poll it was asked for is outstanding,
+                -- so a wait left behind by a server that has stopped is a
+                -- listening socket that does not close.
+                (acceptable, cancelWait) <- waitAndCancelReadSocketSTM socket
+                flip E.finally cancelWait $
+                    atomically $
+                        -- when shutting down
+                        ((check =<< readTVar stopping) $> False)
+                            <|>
+                            -- else wait for a connection to accept
+                            (acceptable $> True)
             , closeListener = close socket
             }
 
