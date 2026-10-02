@@ -29,6 +29,7 @@ import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog (Watchdog, waitingForPeer)
 import Network.Wai.Internal
 import System.IO.Unsafe (unsafePerformIO)
 import qualified System.TimeManager as Timeout
@@ -76,6 +77,7 @@ recvRequest
     -- 'IndexedHeader' of HTTP request for internal use,
     -- Body producing action used for flushing the request body
 recvRequest firstRequest settings conn ii th addr src transport = do
+    let wd = connWatchdog conn
     hdrlines <- headerLines (settingsMaxTotalHeaderLength settings) firstRequest src
     (method, unparsedPath, path, query, httpversion, hdr) <-
         parseHeaderLines hdrlines
@@ -84,9 +86,9 @@ recvRequest firstRequest settings conn ii th addr src transport = do
         handle100Continue = handleExpect conn httpversion expect
     (rbody, remainingRef, bodyLength) <- bodyAndSource src idxhdr
     -- body producing function which will produce '100-continue', if needed
-    rbody' <- timeoutBody remainingRef th rbody handle100Continue
+    rbody' <- timeoutBody wd rbody handle100Continue
     -- body producing function which will never produce 100-continue
-    rbodyFlush <- timeoutBody remainingRef th rbody (return ())
+    rbodyFlush <- timeoutBody wd rbody (return ())
     let rawPath = if settingsNoParsePath settings then unparsedPath else path
         -- Lazy on purpose (~ defeats -XStrict): most handlers never touch
         -- 'vault', so don't pay for the inserts unless somebody looks.
@@ -188,24 +190,12 @@ isChunked _ = False
 ----------------------------------------------------------------
 
 timeoutBody
-    :: Maybe (I.IORef Int)
-    -- ^ remaining
-    -> Timeout.Handle
+    :: Watchdog
     -> IO ByteString
     -> IO ()
     -> IO (IO ByteString)
-timeoutBody remainingRef timeoutHandle rbody handle100Continue = do
+timeoutBody wd rbody handle100Continue = do
     isFirstRef <- I.newIORef True
-
-    let checkEmpty =
-            case remainingRef of
-                Nothing -> return . S.null
-                Just ref -> \bs ->
-                    if S.null bs
-                        then return True
-                        else do
-                            x <- I.readIORef ref
-                            return $! x <= 0
 
     return $ do
         isFirst <- I.readIORef isFirstRef
@@ -214,26 +204,17 @@ timeoutBody remainingRef timeoutHandle rbody handle100Continue = do
             -- Only check if we need to produce the 100 Continue status
             -- when asking for the first chunk of the body
             handle100Continue
-            -- Timeout handling was paused after receiving the full request
-            -- headers. Now we need to resume it to avoid a slowloris
-            -- attack during request body sending.
-            Timeout.resume timeoutHandle
             -- This doesn't need to be "atomic", since this is only used in
             -- 'recvRequest' to create the 'requestBody' function. And getting
             -- chunks of the request in a concurrent setting is asking for
             -- trouble anyway.
             I.writeIORef isFirstRef False
 
-        bs <- rbody
-
-        -- As soon as we finish receiving the request body, whether
-        -- because the application is not interested in more bytes, or
-        -- because there is no more data available, pause the timeout
-        -- handler again.
-        isEmpty <- checkEmpty bs
-        when isEmpty (Timeout.pause timeoutHandle)
-
-        return bs
+        -- Only while Warp waits for the peer on behalf of the
+        -- application is the peer on the clock. This avoids a slowloris
+        -- attack during request body sending, and leaves the
+        -- application the time between chunks.
+        waitingForPeer wd rbody
 
 ----------------------------------------------------------------
 
