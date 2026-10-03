@@ -2,6 +2,10 @@
 
 ## 3.4.14.1
 
+* The accept loop is stopped the way warp's is, by being told rather than by
+  having its socket closed under it.
+  [#1123](https://github.com/yesodweb/wai/pull/1123)
+
 * Build with `warp-3.5.0`.
   [#1095](https://github.com/yesodweb/wai/pull/1095)
 
