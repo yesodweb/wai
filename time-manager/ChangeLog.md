@@ -2,6 +2,12 @@
 
 ## 0.4.0
 
+* New `System.Watchdog`: one timeout supervisor per connection. The
+  connection records its activity in `TVar`s, and the watchdog decides
+  from that state alone whether it has stalled. A timeout is reported
+  through a `TVar` to be composed with what the connection waits for in
+  STM, rather than thrown. Warp and the http2 library share it.
+
 * CHANGES IN BEHAVIOUR:
   * `tickle` is rate-limited/debounced. The renewal is skipped unless a quarter
     of the timeout (capped at one second) has passed since the timeout was last

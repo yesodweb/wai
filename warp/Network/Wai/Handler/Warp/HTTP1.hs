@@ -27,7 +27,7 @@ import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Handler.Warp.Watchdog (rxTick)
+import System.Watchdog (rxTick)
 
 http1
     :: Settings
@@ -187,7 +187,7 @@ processRequest
     -> IO ReuseConnection
 processRequest settings ii conn app th istatus src req mremainingRef idxhdr nextBodyFlush = do
     -- The application may run for as long as it wants: the watchdog
-    -- sees it in 'connAppsInProgress'.
+    -- knows it runs ('runningApp' in 'serveConnection').
 
     -- In the event that some scarce resource was acquired during
     -- creating the request, we need to make sure that we don't get

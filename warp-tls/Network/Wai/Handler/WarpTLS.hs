@@ -391,7 +391,7 @@ httpOverTls TLSSettings{..} set s bs0 params =
         pool <- newBufferPool 2048 16384
 #if MIN_VERSION_warp(3,5,0)
         appsInProgress <- newTVarIO 0
-        wd <- newWatchdog
+        wd <- newWatchdog $ settingsTimeout set * 1000000
         (ss, _) <- makeServerState set
         let recv = makeWatchedRecv s pool ss appsInProgress wd
 #elif MIN_VERSION_warp(3,4,13)
@@ -452,7 +452,9 @@ attachConn
 attachConn mysa ctx appsInProgress =
     -- The receiving function of this context was made without a watchdog,
     -- so a timeout of this connection falls back to killing its thread.
-    newWatchdog >>= attachConn' mysa ctx appsInProgress
+    -- No 'Settings' are given here: the timeout is the default one.
+    newWatchdog (settingsTimeout defaultSettings * 1000000)
+        >>= attachConn' mysa ctx appsInProgress
 
 attachConn'
     :: SockAddr

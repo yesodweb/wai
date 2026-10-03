@@ -88,7 +88,7 @@ import Network.Wai.Handler.Warp.SendFile (sendFile)
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.ShuttingDown (readShuttingDown, writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Handler.Warp.Watchdog
+import System.Watchdog
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
 --
@@ -103,7 +103,7 @@ socketConnection set s = do
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
     appsInProgress <- newTVarIO 0
-    wd <- newWatchdog
+    wd <- newWatchdog $ settingsTimeout set * 1000000
     return
         Connection
             { connSendMany = Sock.sendMany s
@@ -203,7 +203,8 @@ makeGracefulRecv sock pool ss appsInProgress =
 makeWatchedRecv
     :: Socket -> BufferPool -> ServerState -> TVar Int -> Watchdog -> Recv
 makeWatchedRecv sock pool ss appsInProgress wd = do
-    throwIfTimedOut wd
+    timedOut <- isTimedOut wd
+    when timedOut $ E.throwIO T.TimeoutThread
     makeGracefulRecvWith sock pool ss appsInProgress (timedOutSTM wd)
 
 makeGracefulRecvWith
@@ -594,10 +595,16 @@ fork set mkConn addr app counter ii = do
             bufFree writeBuffer
 
     -- Supervise this connection with its watchdog, for both HTTP/1.1
-    -- and HTTP/2, and stop the watchdog as soon as we exit. Writes are
-    -- wrapped here so that every protocol reports them in the same way.
-    -- The time handle is a dummy, kept for the signatures only.
-    serve unmask (conn0, transport) = withWatchdog timeoutInMicroseconds wd apps $ do
+    -- and HTTP/2, and stop the watchdog as soon as we exit. The http2
+    -- library records into the same watchdog. Writes are wrapped here so
+    -- that every protocol reports them in the same way. The time handle
+    -- is a dummy, kept for the signatures only.
+    --
+    -- 'T.TimeoutThread', whether thrown by 'connRecv' or as the last
+    -- resort, does not escape.
+    serve unmask (conn0, transport) = E.handle ignoreTimeout $ do
+      tid <- myThreadId
+      withWatchdog wd (E.throwTo tid T.TimeoutThread) $ do
         let conn = watchSend conn0
             th = T.emptyHandle
         -- We now have fully registered a connection close handler in
@@ -614,9 +621,7 @@ fork set mkConn addr app counter ii = do
                 when goingon $ serveConnection conn ii th addr transport set app
       where
         wd = connWatchdog conn0
-        apps = connAppsInProgress conn0
-
-    timeoutInMicroseconds = settingsTimeout set * 1000000
+        ignoreTimeout T.TimeoutThread = return ()
 
     onOpen adr = settingsOnOpen set adr
     onClose adr _ = settingsOnClose set adr
@@ -653,7 +658,10 @@ serveConnection conn ii th origAddr transport settings app = do
             http2 settings ii conn transport app' origAddr th bs
         else do
             labelThread tid ("Warp HTTP/1.1 " ++ show origAddr)
-            http1 settings ii conn transport app' origAddr th bs
+            -- For HTTP/2, the http2 library tells the watchdog that
+            -- applications run.
+            let app'' req rsp = runningApp (connWatchdog conn) $ app' req rsp
+            http1 settings ii conn transport app'' origAddr th bs
   where
     recv4 bs0 = do
         bs1 <- connRecv conn
