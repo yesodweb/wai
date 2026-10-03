@@ -2,6 +2,17 @@
 
 ## 3.5.0
 
+* The accept loop is stopped by being told, not by having its socket closed
+  under it. `settingsInstallShutdownHandler` is handed an action which stops
+  the server; warp closes the listening socket once the loop has ended and
+  before it waits for the connections, so the port is free for a successor.
+  A caller that closes the listening socket itself still ends the loop, as
+  before. `Network.Wai.Handler.Warp.Internal` gains `Listener`, `noListener`,
+  `makeListener` and `runSettingsConnectionMakerSecureWith`, and
+  `runSettingsConnectionMakerSecure` is deprecated in favour of the last of
+  these.
+  [#1123](https://github.com/yesodweb/wai/pull/1123)
+
 * Make HTTP/2 transport matching total, avoiding partial TLS record selectors
   under GHC 9.14 `-Werror`. QUIC is not selected by HTTP/2 ALPN dispatch;
   existing TCP dispatch and TLS version checks are preserved.
