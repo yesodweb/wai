@@ -62,7 +62,7 @@ http2 settings ii conn transport app peersa _th bs = do
     -- streams and request bodies being waited for into the same watchdog,
     -- and its sender gives up on the connection with GOAWAY when the
     -- watchdog says so. Writes are reported by 'connSendAll' itself.
-    -- Time managers are not used: the dummy 'T.defaultManager' is given.
+    -- Time managers are not used.
     let recvN = wrappedRecvN rawRecvN
         sendBS = connSendAll conn
         conf =
@@ -72,7 +72,6 @@ http2 settings ii conn transport app peersa _th bs = do
                 , H2.confSendAll = sendBS
                 , H2.confReadN = recvN
                 , H2.confPositionReadMaker = pReadMaker ii
-                , H2.confTimeoutManager = T.defaultManager
                 , H2.confMySockAddr = connMySockAddr conn
                 , H2.confPeerSockAddr = peersa
                 , H2.confWatchdog = Just $ connWatchdog conn
