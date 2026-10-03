@@ -489,7 +489,7 @@ sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize method =
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
 --
 -- The watchdog sees the write itself, and sees user code running in
--- between in 'connAppsInProgress', so there is nothing to pause here.
+-- between with 'runningApp', so there is nothing to pause here.
 sendFragment :: Connection -> T.Handle -> ByteString -> IO ()
 sendFragment Connection{connSendAll = send} _ bs = send bs
 

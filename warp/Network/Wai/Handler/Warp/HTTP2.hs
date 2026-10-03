@@ -10,13 +10,10 @@ module Network.Wai.Handler.Warp.HTTP2 (
 ) where
 
 import qualified Control.Exception as E
-import qualified Data.ByteString as BS
 import Data.IORef (readIORef)
 import qualified Data.IORef as I
 import GHC.Conc.Sync (labelThread, myThreadId)
 import qualified Network.HTTP2.Frame as H2
-import Network.HTTP.Semantics (InpObj (..))
-import qualified Network.HTTP.Semantics.Server.Internal as H2I
 import qualified Network.HTTP2.Server as H2
 import Network.Socket (SockAddr)
 import Network.Socket.BufferPool
@@ -31,7 +28,6 @@ import Network.Wai.Handler.Warp.HTTP2.Response
 import Network.Wai.Handler.Warp.Imports
 import qualified Network.Wai.Handler.Warp.Settings as S
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Handler.Warp.Watchdog (Watchdog, rxTick, waitingForPeer)
 
 -- Early Hints wiring needs both the http-semantics 'auxSendInformational' field
 -- (0.4.1) and the http2 sender support that actually emits it (5.4.2).
@@ -61,14 +57,13 @@ http2 settings ii conn transport app peersa _th bs = do
     writeBuffer <- readIORef $ connWriteBuffer conn
     -- This thread becomes the sender in http2 library.
     --
-    -- The connection is supervised by its watchdog (see 'Run.fork') as
-    -- HTTP/1.1 is: writes are reported by 'connSendAll' itself, running
-    -- streams by 'connAppsInProgress', and request bodies being waited
-    -- for by 'watchRequestBody'. The timers of the http2 library are
-    -- disabled by giving it the dummy 'T.defaultManager', which turns
-    -- every 'T.Handle' it creates into 'T.emptyHandle'.
-    let wd = connWatchdog conn
-        recvN = wrappedRecvN wd (S.settingsSlowlorisSize settings) rawRecvN
+    -- The connection is supervised by its watchdog (see 'Run.fork'),
+    -- which is given to the http2 library: it records frames, running
+    -- streams and request bodies being waited for into the same watchdog,
+    -- and its sender gives up on the connection with GOAWAY when the
+    -- watchdog says so. Writes are reported by 'connSendAll' itself.
+    -- Time managers are not used: the dummy 'T.defaultManager' is given.
+    let recvN = wrappedRecvN rawRecvN
         sendBS = connSendAll conn
         conf =
             H2.defaultConfig
@@ -80,13 +75,12 @@ http2 settings ii conn transport app peersa _th bs = do
                 , H2.confTimeoutManager = T.defaultManager
                 , H2.confMySockAddr = connMySockAddr conn
                 , H2.confPeerSockAddr = peersa
-                , H2.confReadNTimeout = True
+                , H2.confWatchdog = Just $ connWatchdog conn
                 }
     checkTLS
     setConnHTTP2 conn True
     H2.run H2.defaultServerConfig conf $
-        watchRequestBody wd $
-            http2server "Warp HTTP/2" settings ii transport peersa app
+        http2server "Warp HTTP/2" settings ii transport peersa app
   where
     checkTLS = case transport of
         TCP -> return () -- direct
@@ -157,25 +151,9 @@ http2server label settings ii transport addr app h2req0 aux0 response = do
             Nothing -> 0
             Just s -> fromIntegral s
 
--- | Reporting to the watchdog that a stream waits for its request body.
---   While it does, the peer has to make progress.
-watchRequestBody :: Watchdog -> H2.Server -> H2.Server
-watchRequestBody wd server (H2I.Request inp) =
-    server $ H2I.Request inp{inpObjBody = waitingForPeer wd $ inpObjBody inp}
-
-wrappedRecvN
-    :: Watchdog -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
-wrappedRecvN wd slowlorisSize readN bufsize = do
-    bs <- E.handle handler $ readN bufsize
-    -- TODO: think about the slowloris protection in HTTP2: current code
-    -- might open a slow-loris attack vector. Rather than timing we should
-    -- consider limiting the per-client connections assuming that in HTTP2
-    -- we should allow only few connections per host (real-world
-    -- deployments with large NATs may be trickier).
-    when
-        (BS.length bs > 0 && BS.length bs >= slowlorisSize || bufsize <= slowlorisSize)
-        $ rxTick wd
-    return bs
+-- | The http2 library tells the watchdog of every frame which arrives.
+wrappedRecvN :: (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
+wrappedRecvN readN bufsize = E.handle handler $ readN bufsize
   where
     handler :: E.SomeException -> IO ByteString
     handler = throughAsync (return "")

@@ -24,14 +24,14 @@ import Network.Wai.Handler.Warp.Response (sendResponse)
 import Network.Wai.Handler.Warp.ResponseHeader (composeHeader)
 import Network.Wai.Handler.Warp.Settings (defaultSettings)
 import Network.Wai.Handler.Warp.Types
-import Network.Wai.Handler.Warp.Watchdog (newWatchdog)
+import System.Watchdog (newWatchdog)
 
 main :: IO ()
 main = do
     writeBuf <- createWriteBuffer 16384 >>= newIORef
     http2Ref <- newIORef False
     apps <- newTVarIO (0 :: Int)
-    wd <- newWatchdog
+    wd <- newWatchdog 0
     let conn =
             Connection
                 { connSendMany = \_ -> return ()

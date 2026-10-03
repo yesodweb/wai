@@ -22,6 +22,7 @@ library
     exposed-modules:
         System.TimeManager
         System.ThreadManager
+        System.Watchdog
     other-modules:
         System.TimeManager.Internal
 

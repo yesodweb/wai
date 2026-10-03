@@ -20,7 +20,7 @@ import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.Imports
-import Network.Wai.Handler.Warp.Watchdog (Watchdog)
+import System.Watchdog (Watchdog)
 
 ----------------------------------------------------------------
 
