@@ -20,6 +20,7 @@ import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.Imports
+import System.Watchdog (Watchdog)
 
 ----------------------------------------------------------------
 
@@ -140,6 +141,13 @@ data Connection = Connection
     -- /HTTP2 can handle more than one request concurrently/
     --
     -- @since 3.4.13
+    , connWatchdog :: Watchdog
+    -- ^ The timeout supervisor of this connection, created with
+    -- 'Network.Wai.Handler.Warp.Internal.newWatchdog'. 'connRecv' should
+    -- throw 'T.TimeoutThread' once it times out; see
+    -- 'Network.Wai.Handler.Warp.Internal.makeWatchedRecv'.
+    --
+    -- @since 3.5.0
     }
 
 -- This function isn't used nor exported...

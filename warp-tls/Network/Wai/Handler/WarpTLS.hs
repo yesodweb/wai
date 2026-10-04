@@ -389,7 +389,12 @@ httpOverTls TLSSettings{..} set s bs0 params =
   where
     makeConn = do
         pool <- newBufferPool 2048 16384
-#if MIN_VERSION_warp(3,4,13)
+#if MIN_VERSION_warp(3,5,0)
+        appsInProgress <- newTVarIO 0
+        wd <- newWatchdog $ settingsTimeout set * 1000000
+        (ss, _) <- makeServerState set
+        let recv = makeWatchedRecv s pool ss appsInProgress wd
+#elif MIN_VERSION_warp(3,4,13)
         appsInProgress <- newTVarIO 0
         (ss, _) <- makeServerState set
         let recv = makeGracefulRecv s pool ss appsInProgress
@@ -404,7 +409,9 @@ httpOverTls TLSSettings{..} set s bs0 params =
         mconn <- timeout tm $ do
             TLS.handshake ctx
             mysa <- getSocketName s
-#if MIN_VERSION_warp(3,4,13)
+#if MIN_VERSION_warp(3,5,0)
+            attachConn' mysa ctx appsInProgress wd
+#elif MIN_VERSION_warp(3,4,13)
             attachConn mysa ctx appsInProgress
 #else
             attachConn mysa ctx
@@ -440,7 +447,23 @@ httpOverTls TLSSettings{..} set s bs0 params =
 attachConn
     :: SockAddr
     -> TLS.Context
-#if MIN_VERSION_warp(3,4,13)
+#if MIN_VERSION_warp(3,5,0)
+    -> TVar Int -> IO (Connection, Transport)
+attachConn mysa ctx appsInProgress =
+    -- The receiving function of this context was made without a watchdog,
+    -- so a timeout of this connection falls back to killing its thread.
+    -- No 'Settings' are given here: the timeout is the default one.
+    newWatchdog (settingsTimeout defaultSettings * 1000000)
+        >>= attachConn' mysa ctx appsInProgress
+
+attachConn'
+    :: SockAddr
+    -> TLS.Context
+    -> TVar Int
+    -> Watchdog
+    -> IO (Connection, Transport)
+attachConn' mysa ctx appsInProgress wd = do
+#elif MIN_VERSION_warp(3,4,13)
     -> TVar Int -> IO (Connection, Transport)
 attachConn mysa ctx appsInProgress = do
 #else
@@ -468,6 +491,9 @@ attachConn mysa ctx = do
             , connMySockAddr = mysa
 #if MIN_VERSION_warp(3,4,13)
             , connAppsInProgress = appsInProgress
+#endif
+#if MIN_VERSION_warp(3,5,0)
+            , connWatchdog = wd
 #endif
             }
       where
