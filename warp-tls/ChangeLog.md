@@ -4,7 +4,8 @@
 
 * The accept loop is stopped the way warp's is, by being told rather than by
   having its socket closed under it.  This needs `warp` 3.5.0 or later; built
-  against an earlier one, warp-tls is as it was.
+  against an earlier one, warp-tls is as it was.  It needs what warp needs,
+  too: not Windows, and `network` 3.2.2 or later.
   [#1123](https://github.com/yesodweb/wai/pull/1123)
 
 * Build with `warp-3.5.0`.

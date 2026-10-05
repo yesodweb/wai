@@ -130,6 +130,10 @@ data Settings = Settings
     -- shuts the live connections down gracefully.  It is not an action
     -- which closes the listening socket, and should not be used as one.
     --
+    -- Except on Windows, and when warp is built against @network@ older
+    -- than 3.2.2, where warp cannot wait on a socket and a shutdown closes
+    -- it directly, as it did before.
+    --
     -- Default: no action
     --
     -- @since 3.0.1

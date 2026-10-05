@@ -5,7 +5,9 @@
 * A QUIC server can be stopped through `settingsInstallShutdownHandler`, as a
   TCP one can, and tells its peers it is going instead of leaving them to wait
   out their idle timeout. Requires `quic` 0.3.15 or later; built against an
-  earlier one, this is as it was.
+  earlier one, this is as it was. Not on Windows: `quic` waits on its socket
+  the way warp does, so it needs the same Windows work warp has had, and that
+  is not written yet.
   [#1123](https://github.com/yesodweb/wai/pull/1123)
 
 ## 0.0.4

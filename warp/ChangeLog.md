@@ -4,7 +4,9 @@
 
 * The accept loop is stopped by being told, not by having its socket closed
   under it. `settingsInstallShutdownHandler` is handed an action which stops
-  the server; warp closes the listening socket once the loop has ended and
+  the server -- except on Windows, and when built against `network` older
+  than 3.2.2, where warp cannot wait on a socket and the socket is still
+  closed directly. Warp closes the listening socket once the loop has ended and
   before it waits for the connections, so the port is free for a successor.
   A caller that closes the listening socket itself still ends the loop, as
   before. `Network.Wai.Handler.Warp.Internal` gains `Listener`, `noListener`,

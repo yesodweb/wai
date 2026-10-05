@@ -379,6 +379,10 @@ getGracefulShutdownTimeout = settingsGracefulShutdownTimeout
 -- socket\" action and should not be used as one: closing the socket is
 -- warp's to do, and when it does it is part of what stopping means.
 --
+-- Except on Windows, and when warp is built against @network@ older than
+-- 3.2.2, where warp cannot wait on a socket and the first argument closes
+-- it directly, as it did before.
+--
 -- Example usage:
 --
 -- @

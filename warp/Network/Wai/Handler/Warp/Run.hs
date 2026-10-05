@@ -289,9 +289,11 @@ handleClosedListener = E.handle $ \e ->
         else E.throwIO e
 #else
 makeListener set socket = do
-    -- As in 'makeGracefulRecvSlow': 'waitReadSocketSTM' doesn't work on
-    -- WINDOWS and blocks indefinitely, so a shutdown there ends the accept
-    -- loop the old way, by closing the listening socket under it.
+    -- Two ways to get here.  As in 'makeGracefulRecvSlow',
+    -- 'waitReadSocketSTM' doesn't work on WINDOWS and blocks indefinitely;
+    -- and before network 3.2.2 there is no 'waitAndCancelReadSocketSTM' to
+    -- call at all.  Either way a shutdown ends the accept loop the old way,
+    -- by closing the listening socket under it.
     settingsInstallShutdownHandler set $ close socket
     return noListener
 #endif
