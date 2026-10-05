@@ -262,27 +262,48 @@ getSessionManager TLSSettings{..} = case tlsSessionManagerConfig of
 --   specified 'Socket'.
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket tlsset set sock app = do
+#if MIN_VERSION_warp(3,5,0)
     -- The accept loop is stopped by being told, not by having this socket
     -- closed under it; the socket is closed once the loop has ended.  See
     -- 'Network.Wai.Handler.Warp.Internal.Listener'.
     listener <- makeListener set sock
+#else
+    settingsInstallShutdownHandler set (close sock)
+#endif
     credentials <- loadCredentials tlsset
     mgr <- getSessionManager tlsset
+#if MIN_VERSION_warp(3,5,0)
     runTLSSocket' tlsset set listener credentials mgr sock app
+#else
+    runTLSSocket' tlsset set credentials mgr sock app
+#endif
 
 runTLSSocket'
     :: TLSSettings
     -> Settings
+#if MIN_VERSION_warp(3,5,0)
     -> Listener
+#endif
     -> TLS.Credentials
     -> TLS.SessionManager
     -> Socket
     -> Application
     -> IO ()
+#if MIN_VERSION_warp(3,5,0)
 runTLSSocket' tlsset@TLSSettings{..} set listener credentials mgr sock app = do
     (_, newSettings) <- makeServerState set
     let get = getter tlsset newSettings sock params
     runSettingsConnectionMakerSecureWith newSettings listener get app
+#elif MIN_VERSION_warp(3,4,13)
+runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock app = do
+    (_, newSettings) <- makeServerState set
+    let get = getter tlsset newSettings sock params
+    runSettingsConnectionMakerSecure newSettings get app
+#else
+runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock app = do
+    let get = getter tlsset set sock params
+    runSettingsConnectionMakerSecure set get app
+#endif
   where
     params =
         TLS.defaultParamsServer
