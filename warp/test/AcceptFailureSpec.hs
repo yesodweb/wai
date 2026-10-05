@@ -70,6 +70,17 @@ runServerUntil accept' end = do
         listen sock 5
         return sock
 
+-- Put one connection on the listening socket's queue and drop it.
+--
+-- The accept loop waits for the socket to have something to accept before it
+-- calls 'settingsAccept', so an accept action that fails without touching the
+-- socket -- which is how these tests make accept() fail -- is never reached
+-- on a socket nobody has connected to.
+nudge :: Socket -> IO ()
+nudge listenSock = do
+    sa <- getSocketName listenSock
+    bracket (socket AF_INET Stream defaultProtocol) close $ \s -> connect s sa
+
 spec :: Spec
 spec = do
     describe "a listener that goes away" $ do
@@ -79,6 +90,16 @@ spec = do
                 Right () -> return ()
                 Left e -> expectationFailure $ "graceful shutdown threw: " <> show e
 
+        -- The old way to stop a server, and still how some of them do it:
+        -- mighttpd2 4.0.10 closes its listening sockets rather than running
+        -- what 'setInstallShutdownHandler' hands it.  Waiting on a closed
+        -- descriptor means the same thing as being told to stop.
+        it "ends the accept loop quietly when the caller closes the socket itself" $ do
+            r <- runServerUntil accept $ \sock _ -> close sock
+            case r of
+                Right () -> return ()
+                Left e -> expectationFailure $ "closing the listener threw: " <> show e
+
 #if WINDOWS
         -- Windows cannot tell these apart. network reports every accept()
         -- failure there without an errno, a graceful shutdown's EBADF
@@ -86,7 +107,7 @@ spec = do
         -- has rather than turning an ordinary shutdown into an exception.
         it "ends the accept loop on Windows whatever accept fails with" $ do
             let failingAccept _ = ioError (errnoToIOError "accept" eNFILE Nothing Nothing)
-            r <- runServerUntil failingAccept $ \_ _ -> return ()
+            r <- runServerUntil failingAccept $ \sock _ -> nudge sock
             case r of
                 Right () -> return ()
                 Left e ->
@@ -103,7 +124,7 @@ spec = do
         -- to stop, so whatever supervises it never learns that it is dead.
         it "rethrows when accept fails for a reason nobody asked for" $ do
             let failingAccept _ = ioError (errnoToIOError "accept" eNFILE Nothing Nothing)
-            r <- runServerUntil failingAccept $ \_ _ -> return ()
+            r <- runServerUntil failingAccept $ \sock _ -> nudge sock
             case r of
                 Left e
                     | failedWith eNFILE e -> return ()
@@ -158,7 +179,7 @@ spec = do
         it "rethrows rather than spinning when the socket cannot accept" $ do
             let unsupportedAccept _ =
                     ioError (errnoToIOError "accept" eOPNOTSUPP Nothing Nothing)
-            r <- timeout 5_000_000 $ runServerUntil unsupportedAccept $ \_ _ -> return ()
+            r <- timeout 5_000_000 $ runServerUntil unsupportedAccept $ \sock _ -> nudge sock
             case r of
                 Nothing -> expectationFailure "the accept loop spun instead of giving up"
                 Just (Left e)

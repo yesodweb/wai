@@ -370,7 +370,18 @@ getGracefulShutdownTimeout = settingsGracefulShutdownTimeout
 --
 -- For instance, this code should set up a UNIX signal
 -- handler. The handler should call the first argument,
--- which closes the listen socket, at shutdown.
+-- which stops the server, at shutdown.
+--
+-- What the first argument does is stop the server accepting. Warp then
+-- closes the listening socket itself -- so that the port is free for a
+-- successor rather than held for as long as the connections take to finish
+-- -- and shuts the live connections down gracefully. It is not a \"close the
+-- socket\" action and should not be used as one: closing the socket is
+-- warp's to do, and when it does it is part of what stopping means.
+--
+-- Except on Windows, and when warp is built against @network@ older than
+-- 3.2.2, where warp cannot wait on a socket and the first argument closes
+-- it directly, as it did before.
 --
 -- Example usage:
 --
@@ -378,8 +389,8 @@ getGracefulShutdownTimeout = settingsGracefulShutdownTimeout
 -- settings :: IO () -> 'Settings'
 -- settings shutdownAction = 'setInstallShutdownHandler' shutdownHandler 'defaultSettings'
 --   __where__
---     shutdownHandler closeSocket =
---       void $ 'System.Posix.Signals.installHandler' 'System.Posix.Signals.sigTERM' ('System.Posix.Signals.Catch' $ shutdownAction >> closeSocket) 'Nothing'
+--     shutdownHandler stopServer =
+--       void $ 'System.Posix.Signals.installHandler' 'System.Posix.Signals.sigTERM' ('System.Posix.Signals.Catch' $ shutdownAction >> stopServer) 'Nothing'
 -- @
 --
 -- Note that by default, the graceful shutdown mode lasts indefinitely

@@ -124,8 +124,15 @@ data Settings = Settings
     -- @since 2.0.3
     , settingsInstallShutdownHandler :: IO () -> IO ()
     -- ^ An action to install a handler (e.g. Unix signal handler)
-    -- to close a listen socket.
-    -- The first argument is an action to close the listen socket.
+    -- to stop the server.
+    -- The first argument is an action which stops the server: it stops
+    -- accepting, after which warp closes the listening socket itself and
+    -- shuts the live connections down gracefully.  It is not an action
+    -- which closes the listening socket, and should not be used as one.
+    --
+    -- Except on Windows, and when warp is built against @network@ older
+    -- than 3.2.2, where warp cannot wait on a socket and a shutdown closes
+    -- it directly, as it did before.
     --
     -- Default: no action
     --
