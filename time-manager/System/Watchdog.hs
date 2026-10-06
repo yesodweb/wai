@@ -31,9 +31,12 @@
 -- at the connection at most once per a quarter of the timeout (capped at
 -- one second), so a timeout may fire up to that much late, never early.
 --
--- A watchdog may be shared by several layers: Warp and the http2 library
--- record into the same one, and only the first 'withWatchdog' runs the
--- thread.
+-- A watchdog belongs to one owner, for as long as that owner has the
+-- connection. When the connection is handed to another layer -- Warp to
+-- the http2 library, say -- the watchdog is handed over with
+-- 'handOver': it stops deciding anything about the connection, and the
+-- new owner supervises what follows with a watchdog of its own. A
+-- connection is never watched by two watchdogs at once.
 module System.Watchdog (
     Watchdog,
     newWatchdog,
@@ -48,6 +51,9 @@ module System.Watchdog (
     -- * Observing a timeout
     timedOutSTM,
     isTimedOut,
+
+    -- * Handing the connection on
+    handOver,
 
     -- * Supervision
     withWatchdog,
@@ -87,6 +93,7 @@ data Watchdog = Watchdog
     , wdActivity :: TVar Activity
     , wdTimedOut :: TVar Bool
     , wdSupervised :: TVar Bool
+    , wdHandedOver :: TVar Bool
     }
 
 -- | Creating the state of a connection with a timeout in microseconds.
@@ -96,6 +103,7 @@ newWatchdog :: Int -> IO Watchdog
 newWatchdog us =
     Watchdog us
         <$> newTVarIO (Activity 0 0 0 0 0)
+        <*> newTVarIO False
         <*> newTVarIO False
         <*> newTVarIO False
 
@@ -149,13 +157,35 @@ runningApp =
 ----------------------------------------------------------------
 
 -- | Succeeding once the watchdog has decided that the connection timed
---   out. Retrying otherwise.
+--   out. Retrying otherwise, and for good once the connection has been
+--   handed over.
 timedOutSTM :: Watchdog -> STM ()
-timedOutSTM wd = readTVar (wdTimedOut wd) >>= check
+timedOutSTM wd = decided wd >>= check
 
 -- | Whether the watchdog has decided that the connection timed out.
 isTimedOut :: Watchdog -> IO Bool
-isTimedOut wd = readTVarIO $ wdTimedOut wd
+isTimedOut wd = atomically $ decided wd
+
+decided :: Watchdog -> STM Bool
+decided wd = do
+    handed <- readTVar $ wdHandedOver wd
+    timedOut <- readTVar $ wdTimedOut wd
+    return $ timedOut && not handed
+
+----------------------------------------------------------------
+
+-- | Handing the connection to another owner, which supervises what
+--   follows with a watchdog of its own.
+--
+--   This watchdog stops: its thread ends, it will not decide that the
+--   connection timed out, and the last resort given to 'withWatchdog'
+--   does not run -- not even if it had decided a moment before, since
+--   the decision was about a connection this watchdog no longer
+--   watches. Recording activity afterwards reaches nobody.
+--
+--   There is no way back. A connection is handed over once.
+handOver :: Watchdog -> IO ()
+handOver wd = atomically $ writeTVar (wdHandedOver wd) True
 
 ----------------------------------------------------------------
 
@@ -255,6 +285,9 @@ watchdog wd lastResort done = loop Nothing
     waitFor mt moved = withTimer mt $ \expired ->
         atomically $
             (readTVar done >>= check >> return Done)
+                -- Handed on: this watchdog is finished with the
+                -- connection, whatever it was about to decide.
+                <|> (readTVar (wdHandedOver wd) >>= check >> return Done)
                 <|> (moved >>= check >> return Moved)
                 <|> (expired >> return Expired)
 
