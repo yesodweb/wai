@@ -1,8 +1,9 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- | One timeout supervisor per connection.
 --
--- A connection records what it is doing in 'TVar's, and a separate
+-- A connection records what it is doing in a context, and a separate
 -- thread, the watchdog, decides whether it has been doing it for too
 -- long. When it has, the watchdog does not throw anything at the
 -- connection: it writes 'True' to a 'TVar'. The threads of the
@@ -13,40 +14,38 @@
 -- 'withWatchdog', for a connection which has not finished by itself in
 -- time: one blocked in a send, for instance.
 --
--- What counts as "too long" is decided from the state alone:
---
--- 1. A write in progress must make progress.
---
--- 2. Otherwise, while a read is waited for on behalf of an application,
---    such as a request body, the peer must make progress.
---
--- 3. Otherwise, while an application is running there is no limit: how
---    long a handler takes is the application's business.
---
--- 4. Otherwise the connection is idle and the peer must make progress.
---
--- Progress is what is reported with 'rxTick' (the peer) and 'sending'
--- or 'txTick' (a write). Under rules 1, 2 and 4, progress restarts the
--- timer, and so does moving from one rule to another. The watchdog looks
--- at the connection at most once per a quarter of the timeout (capped at
--- one second), so a timeout may fire up to that much late, never early.
+-- What the context holds, and what counts as too long, are not decided
+-- here. A layer which supervises connections gives a type of its own to
+-- 'WatchdogFor': 'ContextFor' says what it records, and 'decide' says
+-- what the watchdog should do when the record changes. So one layer can
+-- give reading a request header a shorter leash than writing a response
+-- without every other layer being told about headers.
 --
 -- A watchdog belongs to one owner, for as long as that owner has the
 -- connection. When the connection is handed to another layer -- Warp to
--- the http2 library, say -- the watchdog is handed over with
--- 'handOver': it stops deciding anything about the connection, and the
--- new owner supervises what follows with a watchdog of its own. A
--- connection is never watched by two watchdogs at once.
+-- the http2 library, say -- the watchdog is handed over with 'handOver'
+-- (or by a 'decide' which answers 'Abort'): it stops deciding anything
+-- about the connection, and the new owner supervises what follows with a
+-- watchdog of its own. A connection is never watched by two watchdogs at
+-- once.
+--
+-- The watchdog looks at the connection at most once per a quarter of the
+-- timeout it is waiting out (capped at one second), so a timeout may fire
+-- up to that much late, never early.
 module System.Watchdog (
+    -- * A watchdog, and what it watches
     Watchdog,
     newWatchdog,
+    WatchdogFor (..),
 
-    -- * Recording activity
-    rxTick,
-    txTick,
-    sending,
-    waitingForPeer,
-    runningApp,
+    -- * What the watchdog does next
+    Action (..),
+    Timeout (..),
+    setTimeout,
+
+    -- * Recording what the connection is doing
+    update,
+    updateSTM,
 
     -- * Observing a timeout
     timedOutSTM,
@@ -63,7 +62,7 @@ import Control.Applicative ((<|>))
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
-import Control.Monad (void, when)
+import Control.Monad (void)
 import GHC.Clock (getMonotonicTimeNSec)
 import GHC.Conc.Sync (labelThread, myThreadId)
 
@@ -73,100 +72,96 @@ import qualified GHC.Event as EV
 
 ----------------------------------------------------------------
 
-data Activity = Activity
-    { actRx :: Int
-    -- ^ Progress of the peer.
-    , actTx :: Int
-    -- ^ Completed writes.
-    , actSending :: Int
-    -- ^ Writes in progress.
-    , actWaiting :: Int
-    -- ^ Reads in progress on behalf of applications.
-    , actApps :: Int
-    -- ^ Applications running.
-    }
-    deriving (Eq)
+-- | A layer which supervises connections: @a@ names the layer, not a
+--   connection. Warp's HTTP\/1.1 and the http2 library are two.
+class WatchdogFor a where
+    -- | What a connection of this layer is doing, as the layer records
+    --   it: which phase it is in, how much has gone by, and whatever
+    --   else 'decide' needs, the timeout among it.
+    data ContextFor a
+
+    -- | @decide old new@, where @new@ is what the context has become
+    --   since the watchdog last looked at it and @old@ is what it was
+    --   then. Equal contexts mean the connection ended up where it
+    --   started. 'Nothing' is the watchdog starting, before the
+    --   connection has done anything: answering 'Ignore' there leaves it
+    --   with no timeout until something changes.
+    --
+    --   The watchdog collapses a burst of updates into one call, so this
+    --   is asked about where the connection ended up, not about every
+    --   step on the way.
+    decide :: Maybe (ContextFor a) -> ContextFor a -> IO Action
+
+-- | What the watchdog does with the timeout it is running.
+data Action
+    = -- | Leave it alone. The connection has not done anything that
+      --   counts, so it does not get its time back.
+      Ignore
+    | -- | Start it again with this much time.
+      SetTimeout !Timeout
+    | -- | No limit. The connection may take as long as it likes until the
+      --   context changes again: an application is running, say.
+      Unlimited
+    | -- | Stop watching this connection, for good. The same as
+      --   'handOver'.
+      Abort
+    | -- | Time out now. The same as @'setTimeout' 0@.
+      TimedOut
+
+-- | How long a connection may go on doing what it is doing.
+newtype Timeout = TimeoutInUs Int
+    deriving (Eq, Show)
+
+-- | 'SetTimeout' in microseconds. Zero or less times out at once.
+setTimeout :: Int -> Action
+setTimeout = SetTimeout . TimeoutInUs
+
+----------------------------------------------------------------
+
+-- | The context, with a count of the updates made to it. The watchdog
+--   waits for the count to move rather than compare two contexts, so a
+--   context needs no 'Eq'.
+data Recorded a = Recorded !Int !(ContextFor a)
 
 -- | The supervised state of one connection.
-data Watchdog = Watchdog
-    { wdTimeout :: Int
-    , wdActivity :: TVar Activity
+data Watchdog a = Watchdog
+    { wdRecorded :: TVar (Recorded a)
     , wdTimedOut :: TVar Bool
     , wdSupervised :: TVar Bool
     , wdHandedOver :: TVar Bool
     }
 
--- | Creating the state of a connection with a timeout in microseconds.
---   With zero or less, the connection never times out, recording
---   activity costs nothing, and no thread is started.
-newWatchdog :: Int -> IO Watchdog
-newWatchdog us =
-    Watchdog us
-        <$> newTVarIO (Activity 0 0 0 0 0)
+-- | Creating the state of a connection, with what it is doing now.
+newWatchdog :: ContextFor a -> IO (Watchdog a)
+newWatchdog ctx =
+    Watchdog
+        <$> newTVarIO (Recorded 0 ctx)
         <*> newTVarIO False
         <*> newTVarIO False
         <*> newTVarIO False
 
-enabled :: Watchdog -> Bool
-enabled wd = wdTimeout wd > 0
+-- | Recording what the connection is now doing.
+update :: (ContextFor a -> ContextFor a) -> Watchdog a -> IO ()
+update f = atomically . updateSTM f
 
-modifyActivity :: Watchdog -> (Activity -> Activity) -> IO ()
-modifyActivity wd f =
-    when (enabled wd) $ atomically $ modifyTVar' (wdActivity wd) f
-
--- | The peer made progress.
-rxTick :: Watchdog -> IO ()
-rxTick wd = modifyActivity wd $ \a -> a{actRx = actRx a + 1}
-
--- | A write made progress, such as a part of a file sent.
-txTick :: Watchdog -> IO ()
-txTick wd = modifyActivity wd $ \a -> a{actTx = actTx a + 1}
-
-during :: (Activity -> Activity) -> (Activity -> Activity) -> Watchdog -> IO a -> IO a
-during begin end wd act
-    | enabled wd = E.bracket_ (modifyActivity wd begin) (modifyActivity wd end) act
-    | otherwise = act
-
--- | Running a write. 'txTick' is called when it completes.
-sending :: Watchdog -> IO a -> IO a
-sending wd act = do
-    r <-
-        during
-            (\a -> a{actSending = actSending a + 1})
-            (\a -> a{actSending = actSending a - 1})
-            wd
-            act
-    txTick wd
-    return r
-
--- | Running a read which waits for the peer on behalf of an
---   application, such as reading a request body.
-waitingForPeer :: Watchdog -> IO a -> IO a
-waitingForPeer =
-    during
-        (\a -> a{actWaiting = actWaiting a + 1})
-        (\a -> a{actWaiting = actWaiting a - 1})
-
--- | Running an application.
-runningApp :: Watchdog -> IO a -> IO a
-runningApp =
-    during
-        (\a -> a{actApps = actApps a + 1})
-        (\a -> a{actApps = actApps a - 1})
+-- | 'update' as part of a transaction of the caller's own.
+updateSTM :: (ContextFor a -> ContextFor a) -> Watchdog a -> STM ()
+updateSTM f wd = modifyTVar' (wdRecorded wd) $ \(Recorded n ctx) ->
+    Recorded (n + 1) (f ctx)
 
 ----------------------------------------------------------------
 
 -- | Succeeding once the watchdog has decided that the connection timed
 --   out. Retrying otherwise, and for good once the connection has been
 --   handed over.
-timedOutSTM :: Watchdog -> STM ()
+timedOutSTM :: Watchdog a -> STM ()
 timedOutSTM wd = decided wd >>= check
 
 -- | Whether the watchdog has decided that the connection timed out.
-isTimedOut :: Watchdog -> IO Bool
+isTimedOut :: Watchdog a -> IO Bool
 isTimedOut wd = atomically $ decided wd
 
-decided :: Watchdog -> STM Bool
+decided :: Watchdog a -> STM Bool
 decided wd = do
     handed <- readTVar $ wdHandedOver wd
     timedOut <- readTVar $ wdTimedOut wd
@@ -177,35 +172,19 @@ decided wd = do
 -- | Handing the connection to another owner, which supervises what
 --   follows with a watchdog of its own.
 --
---   This watchdog stops: its thread ends, it will not decide that the
---   connection timed out, and the last resort given to 'withWatchdog'
---   does not run -- not even if it had decided a moment before, since
---   the decision was about a connection this watchdog no longer
---   watches. Recording activity afterwards reaches nobody.
+--   This watchdog stops: its thread ends, 'timedOutSTM' never succeeds
+--   again, and the last resort given to 'withWatchdog' does not run --
+--   not even if it had decided a moment before, because that decision
+--   was about a connection this watchdog no longer watches. Recording
+--   afterwards reaches nobody.
 --
 --   There is no way back. A connection is handed over once.
-handOver :: Watchdog -> IO ()
+handOver :: Watchdog a -> IO ()
 handOver wd = atomically $ writeTVar (wdHandedOver wd) True
 
 ----------------------------------------------------------------
 
--- | What the connection must do to stay alive. Two 'Rule's differ when
---   the connection made progress which counts, or moved on.
-data Rule
-    = Writing Int
-    | ReadingForApp Int
-    | RunningApp
-    | Idle Int
-    deriving (Eq)
-
-rule :: Activity -> Rule
-rule a
-    | actSending a > 0 = Writing $ actTx a
-    | actWaiting a > 0 = ReadingForApp $ actRx a
-    | actApps a > 0 = RunningApp
-    | otherwise = Idle $ actRx a
-
-data Event = Done | Moved | Expired
+data Event = Stop | Changed | Expired
 
 -- | Supervising an action with the watchdog thread.
 --
@@ -213,83 +192,100 @@ data Event = Done | Moved | Expired
 --   out, the second argument is run as the last resort, typically
 --   throwing an exception to the thread running the action.
 --
---   When the watchdog is disabled, or is already supervised by an outer
---   'withWatchdog', this only runs the action.
-withWatchdog :: Watchdog -> IO () -> IO a -> IO a
-withWatchdog wd lastResort action
-    | not (enabled wd) = action
-    | otherwise = do
-        first <- atomically $ do
-            supervised <- readTVar $ wdSupervised wd
-            writeTVar (wdSupervised wd) True
-            return $ not supervised
-        if not first
-            then action
-            else do
-                done <- newTVarIO False
-                finished <- newTVarIO False
-                void $ forkIO $ do
-                    myThreadId >>= \me -> labelThread me "watchdog"
-                    watchdog wd lastResort done
-                        `E.finally` atomically (writeTVar finished True)
-                action `E.finally` do
-                    atomically $ writeTVar done True
-                    -- The last resort may be on its way.
-                    atomically $ readTVar finished >>= check
+--   When the connection has already been handed over, or is already
+--   supervised by an outer 'withWatchdog', this only runs the action.
+withWatchdog :: WatchdogFor a => Watchdog a -> IO () -> IO b -> IO b
+withWatchdog wd lastResort action = do
+    mine <- atomically $ do
+        handed <- readTVar $ wdHandedOver wd
+        supervised <- readTVar $ wdSupervised wd
+        writeTVar (wdSupervised wd) True
+        return $ not handed && not supervised
+    if not mine
+        then action
+        else do
+            done <- newTVarIO False
+            finished <- newTVarIO False
+            void $ forkIO $ do
+                myThreadId >>= \me -> labelThread me "watchdog"
+                watchdog wd lastResort done
+                    `E.finally` atomically (writeTVar finished True)
+            action `E.finally` do
+                atomically $ writeTVar done True
+                -- The last resort may be on its way.
+                atomically $ readTVar finished >>= check
 
-watchdog :: Watchdog -> IO () -> TVar Bool -> IO ()
-watchdog wd lastResort done = loop Nothing
+watchdog :: WatchdogFor a => Watchdog a -> IO () -> TVar Bool -> IO ()
+watchdog wd lastResort done = do
+    Recorded n ctx <- readTVarIO $ wdRecorded wd
+    act <- decide Nothing ctx
+    step n ctx act Nothing Nothing
   where
-    us = wdTimeout wd
+    step seen ctx act budget deadline = case act of
+        Abort -> handOver wd
+        _ -> do
+            (budget', deadline') <- apply act budget deadline
+            loop seen ctx budget' deadline'
 
-    -- The watchdog is woken by any change of the connection, and then
-    -- sleeps for this interval. However busy the connection is, it
-    -- wakes up once per interval at most, and recording activity costs
-    -- a write to a 'TVar' only. It is also how long the connection is
-    -- given to finish by itself after it timed out.
-    interval = max 1 $ min 1000000 $ us `div` 4
-
-    -- In nanoseconds. No limit while an application is running.
-    budget RunningApp = Nothing
-    budget _ = Just $ us * 1000
-
-    snapshot = readTVar $ wdActivity wd
-
-    -- The deadline is kept as long as the rule stays the same, that is,
-    -- as long as the connection makes no progress which counts.
-    loop prev = do
-        act <- atomically snapshot
-        now <- getNow
-        let r = rule act
-            deadline = case prev of
-                Just (r', d) | r' == r -> d
-                _ -> (now +) <$> budget r
-            remaining = (\d -> max 1 $ (d - now) `div` 1000) <$> deadline
-        ev <- waitFor remaining $ (/= act) <$> snapshot
+    loop seen prev budget deadline = do
+        ev <- waitFor seen deadline
         case ev of
-            Done -> return ()
-            Moved -> do
-                ev' <- waitFor (Just interval) (return False)
-                case ev' of
-                    Done -> return ()
-                    _ -> loop $ Just (r, deadline)
+            Stop -> return ()
+            Changed -> do
+                -- However busy the connection is, look at it once per
+                -- interval at most: recording costs a write to a 'TVar'
+                -- and nothing else, and what the connection has settled
+                -- on is what 'decide' is asked about.
+                quiet <- waitFor seen $ Just $ interval budget
+                case quiet of
+                    Stop -> return ()
+                    _ -> do
+                        Recorded n' cur <- readTVarIO $ wdRecorded wd
+                        act <- decide (Just prev) cur
+                        step n' cur act budget deadline
             Expired -> do
                 atomically $ writeTVar (wdTimedOut wd) True
-                ev' <- waitFor (Just interval) (return False)
-                case ev' of
-                    Done -> return ()
+                -- The same interval is how long the connection is given
+                -- to finish by itself before it is given up on.
+                quiet <- waitFor seen $ Just $ interval budget
+                case quiet of
+                    Stop -> return ()
                     _ -> lastResort
+
+    apply act budget deadline = do
+        now <- getNow
+        return $ case act of
+            Ignore -> (budget, deadline)
+            Unlimited -> (budget, Nothing)
+            SetTimeout (TimeoutInUs us) ->
+                let b = max 0 us in (Just b, Just $ now + b * 1000)
+            TimedOut -> (budget, Just now)
+            Abort -> (budget, deadline)
+
+    -- A quarter of what is being waited out, capped at one second, and
+    -- one second when nothing is.
+    interval = maybe 1000000 (max 1 . min 1000000 . (`div` 4))
 
     -- If the connection moved and the timer expired at the same time, it
     -- moved: a connection which turns out to be alive is not given up on.
-    waitFor mt moved = withTimer mt $ \expired ->
-        atomically $
-            (readTVar done >>= check >> return Done)
-                -- Handed on: this watchdog is finished with the
-                -- connection, whatever it was about to decide.
-                <|> (readTVar (wdHandedOver wd) >>= check >> return Done)
-                <|> (moved >>= check >> return Moved)
-                <|> (expired >> return Expired)
+    waitFor seen deadline = do
+        mt <- case deadline of
+            Nothing -> return Nothing
+            Just d -> do
+                now <- getNow
+                return $ Just $ max 1 $ (d - now) `div` 1000
+        withTimer mt $ \expired ->
+            atomically $
+                (readTVar done >>= check >> return Stop)
+                    -- Handed on: this watchdog is finished with the
+                    -- connection, whatever it was about to decide.
+                    <|> (readTVar (wdHandedOver wd) >>= check >> return Stop)
+                    <|> (changed >> return Changed)
+                    <|> (expired >> return Expired)
+      where
+        changed = do
+            Recorded n _ <- readTVar $ wdRecorded wd
+            check $ n /= seen
 
 -- | Monotonic time in nanoseconds.
 getNow :: IO Int

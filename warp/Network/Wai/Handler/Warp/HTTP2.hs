@@ -20,7 +20,7 @@ import Network.Socket.BufferPool
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (..))
 import qualified System.TimeManager as T
-import System.Watchdog (handOver)
+import Network.Wai.Handler.Warp.Watchdog (handOver)
 
 import Network.Wai.Handler.Warp.HTTP2.File
 import Network.Wai.Handler.Warp.HTTP2.PushPromise

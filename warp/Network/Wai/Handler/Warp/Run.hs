@@ -88,7 +88,7 @@ import Network.Wai.Handler.Warp.SendFile (sendFile)
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.ShuttingDown (readShuttingDown, writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
-import System.Watchdog
+import Network.Wai.Handler.Warp.Watchdog
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
 --
@@ -103,7 +103,7 @@ socketConnection set s = do
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
     appsInProgress <- newTVarIO 0
-    wd <- newWatchdog $ settingsTimeout set * 1000000
+    wd <- newConnWatchdog $ settingsTimeout set * 1000000
     return
         Connection
             { connSendMany = Sock.sendMany s
@@ -201,7 +201,7 @@ makeGracefulRecv sock pool ss appsInProgress =
 --
 -- @since 3.5.0
 makeWatchedRecv
-    :: Socket -> BufferPool -> ServerState -> TVar Int -> Watchdog -> Recv
+    :: Socket -> BufferPool -> ServerState -> TVar Int -> ConnWatchdog -> Recv
 makeWatchedRecv sock pool ss appsInProgress wd = do
     timedOut <- isTimedOut wd
     when timedOut $ E.throwIO T.TimeoutThread

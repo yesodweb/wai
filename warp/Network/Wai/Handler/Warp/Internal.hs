@@ -79,26 +79,17 @@ module Network.Wai.Handler.Warp.Internal (
 
     -- |
     --
-    -- In order to provide slowloris protection, every connection, HTTP\/1.1
-    -- or HTTP\/2, is supervised by one 'Watchdog'. We follow these rules:
-    --
-    -- * While data is being sent, the peer must keep reading it.
-    --
-    -- * While Warp waits for a request body on behalf of an application, the
-    --   peer must keep sending it: at least the slowloris size settings
-    --   number of bytes at a time.
-    --
-    -- * Otherwise, while user code runs, there is no timeout.
-    --
-    -- * Otherwise, the connection is idle and the peer must keep sending
-    --   request headers, likewise.
+    -- In order to provide slowloris protection, a connection warp serves
+    -- itself is supervised by one 'ConnWatchdog', whose rules are in
+    -- "Network.Wai.Handler.Warp.Watchdog". An HTTP\/2 connection is handed
+    -- to the http2 library, which supervises it with a watchdog of its own.
     --
     -- On a timeout, 'connRecv' throws 'TimeoutThread' by itself. A
     -- connection which does not notice is killed with 'TimeoutThread'.
     --
     -- 'Handle's passed around are dummies, kept for compatibility.
-    Watchdog,
-    newWatchdog,
+    ConnWatchdog,
+    newConnWatchdog,
     module System.TimeManager,
 
     -- * File descriptor cache
@@ -144,7 +135,7 @@ import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
-import System.Watchdog (Watchdog, newWatchdog)
+import Network.Wai.Handler.Warp.Watchdog (ConnWatchdog, newConnWatchdog)
 import Network.Wai.Handler.Warp.Windows
 
 type IndexedHeader = IndexedRequestHeader

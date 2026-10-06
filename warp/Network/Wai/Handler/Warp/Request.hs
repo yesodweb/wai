@@ -29,7 +29,7 @@ import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import Network.Wai
 import Network.Wai.Handler.Warp.Types
-import System.Watchdog (Watchdog, waitingForPeer)
+import Network.Wai.Handler.Warp.Watchdog (ConnWatchdog, waitingForPeer)
 import Network.Wai.Internal
 import System.IO.Unsafe (unsafePerformIO)
 import qualified System.TimeManager as Timeout
@@ -190,7 +190,7 @@ isChunked _ = False
 ----------------------------------------------------------------
 
 timeoutBody
-    :: Watchdog
+    :: ConnWatchdog
     -> IO ByteString
     -> IO ()
     -> IO (IO ByteString)

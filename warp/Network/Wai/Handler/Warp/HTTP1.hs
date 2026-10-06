@@ -27,7 +27,7 @@ import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
-import System.Watchdog (rxTick)
+import Network.Wai.Handler.Warp.Watchdog (rxTick)
 
 http1
     :: Settings
