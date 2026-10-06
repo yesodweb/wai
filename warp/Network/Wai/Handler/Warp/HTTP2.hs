@@ -20,6 +20,7 @@ import Network.Socket.BufferPool
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (..))
 import qualified System.TimeManager as T
+import System.Watchdog (handOver)
 
 import Network.Wai.Handler.Warp.HTTP2.File
 import Network.Wai.Handler.Warp.HTTP2.PushPromise
@@ -57,12 +58,11 @@ http2 settings ii conn transport app peersa _th bs = do
     writeBuffer <- readIORef $ connWriteBuffer conn
     -- This thread becomes the sender in http2 library.
     --
-    -- The connection is supervised by its watchdog (see 'Run.fork'),
-    -- which is given to the http2 library: it records frames, running
-    -- streams and request bodies being waited for into the same watchdog,
-    -- and its sender gives up on the connection with GOAWAY when the
-    -- watchdog says so. Writes are reported by 'connSendAll' itself.
-    -- Time managers are not used.
+    -- Warp has read the preface and has nothing more to say about this
+    -- connection: what it is doing from here, and what counts as too
+    -- long, are the http2 library's to decide. So warp's watchdog (see
+    -- 'Run.fork') is handed over just below, rather than shared, and
+    -- http2 supervises what follows. Time managers are not used.
     let recvN = wrappedRecvN rawRecvN
         sendBS = connSendAll conn
         conf =
@@ -74,10 +74,11 @@ http2 settings ii conn transport app peersa _th bs = do
                 , H2.confPositionReadMaker = pReadMaker ii
                 , H2.confMySockAddr = connMySockAddr conn
                 , H2.confPeerSockAddr = peersa
-                , H2.confWatchdog = Just $ connWatchdog conn
                 }
     checkTLS
     setConnHTTP2 conn True
+    -- The connection is the http2 library's from here.
+    handOver $ connWatchdog conn
     H2.run H2.defaultServerConfig conf $
         http2server "Warp HTTP/2" settings ii transport peersa app
   where

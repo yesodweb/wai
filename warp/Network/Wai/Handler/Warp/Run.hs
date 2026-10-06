@@ -594,11 +594,12 @@ fork set mkConn addr app counter ii = do
             writeBuffer <- readIORef $ connWriteBuffer conn
             bufFree writeBuffer
 
-    -- Supervise this connection with its watchdog, for both HTTP/1.1
-    -- and HTTP/2, and stop the watchdog as soon as we exit. The http2
-    -- library records into the same watchdog. Writes are wrapped here so
-    -- that every protocol reports them in the same way. The time handle
-    -- is a dummy, kept for the signatures only.
+    -- Supervise this connection with its watchdog, and stop the watchdog
+    -- as soon as we exit. An HTTP/2 connection is handed on to the http2
+    -- library, which supervises it from there ('Warp.HTTP2.http2'), so
+    -- what is watched here is warp's own part of the connection. Writes
+    -- are wrapped here so that every protocol reports them in the same
+    -- way. The time handle is a dummy, kept for the signatures only.
     --
     -- 'T.TimeoutThread', whether thrown by 'connRecv' or as the last
     -- resort, does not escape.
@@ -658,8 +659,8 @@ serveConnection conn ii th origAddr transport settings app = do
             http2 settings ii conn transport app' origAddr th bs
         else do
             labelThread tid ("Warp HTTP/1.1 " ++ show origAddr)
-            -- For HTTP/2, the http2 library tells the watchdog that
-            -- applications run.
+            -- HTTP/2 does not come here: its watchdog is the http2
+            -- library's, and it is the one told that applications run.
             let app'' req rsp = runningApp (connWatchdog conn) $ app' req rsp
             http1 settings ii conn transport app'' origAddr th bs
   where
