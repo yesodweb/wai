@@ -74,10 +74,9 @@ spec = describe "watchdog" $ do
                 mc `shouldBe` Just ()
 
     describe "HTTP/2" $ do
-        it "closes an idle connection" $ do
-            pendingWith
-                "warp hands an HTTP/2 connection to the http2 library, which \
-                \does not supervise it yet: see Warp.HTTP2.http2"
+        it "closes an idle connection" $
+            -- Supervised by the http2 library, which warp hands the
+            -- connection and its timeout to.
             withApp settings okApp $ \port -> withSock port $ \s -> do
                 sendAll s "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
                 sendAll s emptySettingsFrame

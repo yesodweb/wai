@@ -74,6 +74,9 @@ http2 settings ii conn transport app peersa _th bs = do
                 , H2.confPositionReadMaker = pReadMaker ii
                 , H2.confMySockAddr = connMySockAddr conn
                 , H2.confPeerSockAddr = peersa
+                , -- How long warp would have given it, for the library to
+                  -- supervise the connection with from here.
+                  H2.confTimeout = S.settingsTimeout settings * 1000000
                 }
     checkTLS
     setConnHTTP2 conn True
