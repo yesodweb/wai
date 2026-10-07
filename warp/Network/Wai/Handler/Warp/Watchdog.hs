@@ -43,6 +43,7 @@ module Network.Wai.Handler.Warp.Watchdog (
 import Control.Concurrent.STM (STM, retry)
 import qualified Control.Exception as E
 import Control.Monad (when)
+import Data.Word (Word64)
 import System.Watchdog hiding (
     handOver,
     isTimedOut,
@@ -67,7 +68,7 @@ data ConnWatchdog = ConnWatchdog !Bool !(Watchdog Http1)
 --   connection never times out.
 newConnWatchdog :: Int -> IO ConnWatchdog
 newConnWatchdog us = do
-    wd <- W.newWatchdog $ Http1Context us $ Activity 0 0 0 0 0
+    wd <- W.newWatchdog $ Http1Context (fromIntegral $ max 0 us) $ Activity 0 0 0 0 0
     -- Nothing to watch, so no thread watches it.
     when (us <= 0) $ W.handOver wd
     return $ ConnWatchdog (us > 0) wd
@@ -123,7 +124,7 @@ rule a
 
 instance WatchdogFor Http1 where
     data ContextFor Http1 = Http1Context
-        { h1Timeout :: Int
+        { h1Timeout :: Word64
         , h1Activity :: Activity
         }
 

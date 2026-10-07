@@ -63,6 +63,7 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (void)
+import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
 import GHC.Conc.Sync (labelThread, myThreadId)
 
@@ -108,12 +109,17 @@ data Action
     | -- | Time out now. The same as @'setTimeout' 0@.
       TimedOut
 
--- | How long a connection may go on doing what it is doing.
-newtype Timeout = TimeoutInUs Int
+-- | How long a connection may go on doing what it is doing, in
+--   microseconds.
+--
+--   Time is kept in 'Word64' throughout. An 'Int' is 32 bits wide on a
+--   32-bit machine, and monotonic nanoseconds pass 2^31 about two
+--   seconds after the machine starts.
+newtype Timeout = TimeoutInUs Word64
     deriving (Eq, Show)
 
--- | 'SetTimeout' in microseconds. Zero or less times out at once.
-setTimeout :: Int -> Action
+-- | 'SetTimeout' in microseconds. Zero times out at once.
+setTimeout :: Word64 -> Action
 setTimeout = SetTimeout . TimeoutInUs
 
 ----------------------------------------------------------------
@@ -228,7 +234,7 @@ watchdog wd lastResort done = do
             loop seen ctx budget' deadline'
 
     loop seen prev budget deadline = do
-        ev <- waitFor seen deadline
+        ev <- waitFor seen =<< remaining deadline
         case ev of
             Stop -> return ()
             Changed -> do
@@ -257,23 +263,28 @@ watchdog wd lastResort done = do
         return $ case act of
             Ignore -> (budget, deadline)
             Unlimited -> (budget, Nothing)
-            SetTimeout (TimeoutInUs us) ->
-                let b = max 0 us in (Just b, Just $ now + b * 1000)
+            SetTimeout (TimeoutInUs us) -> (Just us, Just $ now + us * 1000)
             TimedOut -> (budget, Just now)
             Abort -> (budget, deadline)
 
     -- A quarter of what is being waited out, capped at one second, and
-    -- one second when nothing is.
-    interval = maybe 1000000 (max 1 . min 1000000 . (`div` 4))
+    -- one second when nothing is.  In microseconds.
+    interval :: Maybe Word64 -> Int
+    interval = maybe 1000000 (fromIntegral . max 1 . min 1000000 . (`div` 4))
+
+    -- How long there is left until the deadline, in microseconds.
+    remaining :: Maybe Word64 -> IO (Maybe Int)
+    remaining Nothing = return Nothing
+    remaining (Just d) = do
+        now <- getNow
+        -- Subtracting 'Word64' wraps, so a deadline already passed is the
+        -- shortest wait there is, not the longest.
+        return $ Just $ if now >= d then 1 else toMicros (d - now)
 
     -- If the connection moved and the timer expired at the same time, it
     -- moved: a connection which turns out to be alive is not given up on.
-    waitFor seen deadline = do
-        mt <- case deadline of
-            Nothing -> return Nothing
-            Just d -> do
-                now <- getNow
-                return $ Just $ max 1 $ (d - now) `div` 1000
+    waitFor :: Int -> Maybe Int -> IO Event
+    waitFor seen mt =
         withTimer mt $ \expired ->
             atomically $
                 (readTVar done >>= check >> return Stop)
@@ -288,8 +299,15 @@ watchdog wd lastResort done = do
             check $ n /= seen
 
 -- | Monotonic time in nanoseconds.
-getNow :: IO Int
-getNow = fromIntegral <$> getMonotonicTimeNSec
+getNow :: IO Word64
+getNow = getMonotonicTimeNSec
+
+-- | Nanoseconds as the microseconds the timer takes, which is an 'Int'.
+--   What does not fit is longer than any timeout worth setting.
+toMicros :: Word64 -> Int
+toMicros ns = fromIntegral $ max 1 $ min cap $ ns `div` 1000
+  where
+    cap = fromIntegral (maxBound :: Int)
 
 ----------------------------------------------------------------
 
