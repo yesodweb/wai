@@ -57,7 +57,7 @@ import Network.Socket (
 #if !WINDOWS
     fdSocket,
 #if MIN_VERSION_network(3,2,2)
-    waitReadSocketSTM,
+    waitAndCancelReadSocketSTM,
 #endif
 #endif
     getSocketName,
@@ -225,8 +225,14 @@ data RecvEvent = ShuttingDown | TimedOut | Readable | Received ByteString
 makeGracefulRecvSlow
     :: Socket -> BufferPool -> ServerState -> TVar Int -> STM () -> Recv
 makeGracefulRecvSlow sock pool ss appsInProgress timedOut = do
-    waitRecv <- waitForSomethingToRead
-    ev <- atomically $
+    -- Cancelled however this ends, and not only when it ends because the
+    -- socket became readable: an IO manager built on an interface like
+    -- io_uring holds a reference on the socket for as long as the poll it
+    -- was asked for is outstanding, so a wait left behind by a connection
+    -- that is shutting down or has timed out is a socket that does not
+    -- close.
+    (waitRecv, cancelWait) <- waitForSomethingToRead
+    ev <- flip E.finally cancelWait $ atomically $
         -- when shutting down
         (checkShutdown $> ShuttingDown)
         <|>
@@ -246,7 +252,9 @@ makeGracefulRecvSlow sock pool ss appsInProgress timedOut = do
 #if !WINDOWS && MIN_VERSION_network(3,2,2)
     -- The socket can be waited on, so the read is left where it is and this
     -- thread waits for it alongside everything else.
-    waitForSomethingToRead = ($> Readable) <$> waitReadSocketSTM sock
+    waitForSomethingToRead = do
+        (readable, cancelWait) <- waitAndCancelReadSocketSTM sock
+        return (readable $> Readable, cancelWait)
 #else
     -- 'waitReadSocketSTM' does not work on WINDOWS, and a read that cannot
     -- be waited on is a read that blocks in a foreign call -- where neither
@@ -257,12 +265,14 @@ makeGracefulRecvSlow sock pool ss appsInProgress timedOut = do
     --
     -- A read this thread has stopped waiting for is a read whose connection
     -- is over, so the buffer it fills is nobody's by then.
+    -- Nothing to cancel: the read is already running on its own thread, and
+    -- the only way to stop it is the one this comment rules out.
     waitForSomethingToRead = do
         var <- newEmptyTMVarIO
         void $ forkIO $ do
             r <- E.try recv
             atomically $ putTMVar var (r :: Either E.SomeException ByteString)
-        return $ takeTMVar var >>= either throwSTM (return . Received)
+        return (takeTMVar var >>= either throwSTM (return . Received), return ())
 #endif
     checkShutdown = do
        check =<< currentShuttingDownStateSTM ss
