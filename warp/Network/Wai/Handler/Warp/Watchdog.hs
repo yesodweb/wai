@@ -68,7 +68,10 @@ data ConnWatchdog = ConnWatchdog !Bool !(Watchdog Http1)
 --   connection never times out.
 newConnWatchdog :: Int -> IO ConnWatchdog
 newConnWatchdog us = do
-    wd <- W.newWatchdog $ Http1Context (fromIntegral $ max 0 us) $ Activity 0 0 0 0 0
+    wd <-
+        W.newWatchdog $
+            Http1Context (fromIntegral $ max 0 us) $
+                Activity 0 0 False False False
     -- Nothing to watch, so no thread watches it.
     when (us <= 0) $ W.handOver wd
     return $ ConnWatchdog (us > 0) wd
@@ -93,17 +96,23 @@ withWatchdog (ConnWatchdog False _) _ action = action
 withWatchdog (ConnWatchdog True wd) lastResort action =
     W.withWatchdog wd lastResort action
 
+-- | The three flags are flags rather than counts because warp serves one
+--   request at a time on an HTTP\/1.1 connection: one application runs,
+--   and it reads or writes.  An application which writes from two threads
+--   of its own -- a hijacked connection, say -- clears the flag when the
+--   first of them is done, and its connection is then watched by whatever
+--   rule comes next rather than by the one for a write in progress.
 data Activity = Activity
     { actRx :: Int
     -- ^ Progress of the peer.
     , actTx :: Int
     -- ^ Completed writes.
-    , actSending :: Int
-    -- ^ Writes in progress.
-    , actWaiting :: Int
-    -- ^ Reads in progress on behalf of applications.
-    , actApps :: Int
-    -- ^ Applications running.
+    , actSending :: Bool
+    -- ^ A write is in progress.
+    , actWaiting :: Bool
+    -- ^ A read on behalf of an application is in progress.
+    , actApps :: Bool
+    -- ^ An application is running.
     }
 
 -- | What the connection must do to stay alive. Two 'Rule's differ when
@@ -117,9 +126,9 @@ data Rule
 
 rule :: Activity -> Rule
 rule a
-    | actSending a > 0 = Writing $ actTx a
-    | actWaiting a > 0 = ReadingForApp $ actRx a
-    | actApps a > 0 = RunningApp
+    | actSending a = Writing $ actTx a
+    | actWaiting a = ReadingForApp $ actRx a
+    | actApps a = RunningApp
     | otherwise = Idling $ actRx a
 
 instance WatchdogFor Http1 where
@@ -154,39 +163,23 @@ rxTick wd = modifyActivity wd $ \a -> a{actRx = actRx a + 1}
 txTick :: ConnWatchdog -> IO ()
 txTick wd = modifyActivity wd $ \a -> a{actTx = actTx a + 1}
 
-during
-    :: (Activity -> Activity)
-    -> (Activity -> Activity)
-    -> ConnWatchdog
-    -> IO a
-    -> IO a
-during _ _ (ConnWatchdog False _) act = act
-during begin end wd act =
-    E.bracket_ (modifyActivity wd begin) (modifyActivity wd end) act
+during :: (Bool -> Activity -> Activity) -> ConnWatchdog -> IO a -> IO a
+during _ (ConnWatchdog False _) act = act
+during set wd act =
+    E.bracket_ (modifyActivity wd $ set True) (modifyActivity wd $ set False) act
 
 -- | Running a write. 'txTick' is called when it completes.
 sending :: ConnWatchdog -> IO a -> IO a
 sending wd act = do
-    r <-
-        during
-            (\a -> a{actSending = actSending a + 1})
-            (\a -> a{actSending = actSending a - 1})
-            wd
-            act
+    r <- during (\b a -> a{actSending = b}) wd act
     txTick wd
     return r
 
 -- | Running a read which waits for the peer on behalf of an
 --   application, such as reading a request body.
 waitingForPeer :: ConnWatchdog -> IO a -> IO a
-waitingForPeer =
-    during
-        (\a -> a{actWaiting = actWaiting a + 1})
-        (\a -> a{actWaiting = actWaiting a - 1})
+waitingForPeer = during $ \b a -> a{actWaiting = b}
 
 -- | Running an application.
 runningApp :: ConnWatchdog -> IO a -> IO a
-runningApp =
-    during
-        (\a -> a{actApps = actApps a + 1})
-        (\a -> a{actApps = actApps a - 1})
+runningApp = during $ \b a -> a{actApps = b}
