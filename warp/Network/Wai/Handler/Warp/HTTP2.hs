@@ -47,13 +47,14 @@ http2
     :: S.Settings
     -> InternalInfo
     -> Connection
+    -> ConnContext
     -> Transport
     -> Application
     -> SockAddr
     -> T.Handle
     -> ByteString
     -> IO ()
-http2 settings ii conn transport app peersa _th bs = do
+http2 settings ii conn cc transport app peersa _th bs = do
     rawRecvN <- makeRecvN bs $ connRecv conn
     writeBuffer <- readIORef $ connWriteBuffer conn
     -- This thread becomes the sender in http2 library.
@@ -81,7 +82,7 @@ http2 settings ii conn transport app peersa _th bs = do
     checkTLS
     setConnHTTP2 conn True
     -- The connection is the http2 library's from here.
-    handOver $ connWatchdog conn
+    handOver $ connWatchdog cc
     H2.run H2.defaultServerConfig conf $
         http2server "Warp HTTP/2" settings ii transport peersa app
   where

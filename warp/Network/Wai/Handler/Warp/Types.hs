@@ -135,19 +135,27 @@ data Connection = Connection
     , connHTTP2 :: IORef Bool
     -- ^ Is this connection HTTP/2?
     , connMySockAddr :: SockAddr
+    }
+
+-- | What warp keeps about a connection, beside the 'Connection' itself.
+--
+-- Warp makes this before it runs the connection maker and hands it to it.
+-- A maker which talks to the peer -- one that performs a TLS handshake,
+-- say -- is therefore supervised like the rest of the connection, rather
+-- than having to protect itself. It also leaves 'Connection' as the
+-- interface a maker provides and nothing besides.
+--
+-- @since 3.5.0
+data ConnContext = ConnContext
+    { connWatchdog :: ConnWatchdog
+    -- ^ The timeout supervisor of this connection, created with
+    -- 'Network.Wai.Handler.Warp.Internal.newConnContext'. 'connRecv'
+    -- should throw 'T.TimeoutThread' once it times out; see
+    -- 'Network.Wai.Handler.Warp.Internal.makeWatchedRecv'.
     , connAppsInProgress :: TVar Int
     -- ^ Amount of apps currently in progress on this connection.
     --
     -- /HTTP2 can handle more than one request concurrently/
-    --
-    -- @since 3.4.13
-    , connWatchdog :: ConnWatchdog
-    -- ^ The timeout supervisor of this connection, created with
-    -- 'Network.Wai.Handler.Warp.Internal.newWatchdog'. 'connRecv' should
-    -- throw 'T.TimeoutThread' once it times out; see
-    -- 'Network.Wai.Handler.Warp.Internal.makeWatchedRecv'.
-    --
-    -- @since 3.5.0
     }
 
 -- This function isn't used nor exported...

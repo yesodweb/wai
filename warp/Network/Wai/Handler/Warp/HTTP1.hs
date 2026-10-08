@@ -33,24 +33,25 @@ http1
     :: Settings
     -> InternalInfo
     -> Connection
+    -> ConnContext
     -> Transport
     -> Application
     -> SockAddr
     -> T.Handle
     -> ByteString
     -> IO ()
-http1 settings ii conn transport app origAddr th bs0 = do
+http1 settings ii conn cc transport app origAddr th bs0 = do
     istatus <- newIORef True
-    src <- mkSource (wrappedRecv conn istatus (settingsSlowlorisSize settings))
+    src <- mkSource (wrappedRecv conn cc istatus (settingsSlowlorisSize settings))
     leftoverSource src bs0
     addr <- getProxyProtocolAddr src
-    http1server settings ii conn transport app addr th istatus src
+    http1server settings ii conn cc transport app addr th istatus src
   where
-    wrappedRecv Connection{connRecv = recv, connWatchdog = wd} istatus slowlorisSize = do
+    wrappedRecv Connection{connRecv = recv} ctx istatus slowlorisSize = do
         bs <- recv
         unless (BS.null bs) $ do
             writeIORef istatus True
-            when (BS.length bs >= slowlorisSize) $ rxTick wd
+            when (BS.length bs >= slowlorisSize) $ rxTick $ connWatchdog ctx
         return bs
 
     getProxyProtocolAddr src =
@@ -107,6 +108,7 @@ http1server
     :: Settings
     -> InternalInfo
     -> Connection
+    -> ConnContext
     -> Transport
     -> Application
     -> SockAddr
@@ -114,7 +116,7 @@ http1server
     -> IORef Bool
     -> Source
     -> IO ()
-http1server settings ii conn transport app addr th istatus src =
+http1server settings ii conn cc transport app addr th istatus src =
     loop FirstRequest `catch` handler
   where
     handler e
@@ -138,7 +140,7 @@ http1server settings ii conn transport app addr th istatus src =
 
     loop firstRequest = do
         (req, mremainingRef, idxhdr, nextBodyFlush) <-
-            recvRequest firstRequest settings conn ii th addr src transport
+            recvRequest firstRequest settings conn cc ii th addr src transport
         keepAlive <-
             processRequest
                 settings

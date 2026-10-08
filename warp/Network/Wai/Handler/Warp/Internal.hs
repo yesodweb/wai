@@ -33,6 +33,8 @@ module Network.Wai.Handler.Warp.Internal (
 
     -- * Connection
     Connection (..),
+    ConnContext (..),
+    newConnContext,
     socketConnection,
 
     -- ** Receive

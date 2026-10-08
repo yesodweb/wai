@@ -58,6 +58,7 @@ recvRequest
     :: FirstRequest
     -> Settings
     -> Connection
+    -> ConnContext
     -> InternalInfo
     -> Timeout.Handle
     -> SockAddr
@@ -76,8 +77,8 @@ recvRequest
     -- how many bytes remain to be consumed, if known
     -- 'IndexedHeader' of HTTP request for internal use,
     -- Body producing action used for flushing the request body
-recvRequest firstRequest settings conn ii th addr src transport = do
-    let wd = connWatchdog conn
+recvRequest firstRequest settings conn cc ii th addr src transport = do
+    let wd = connWatchdog cc
     hdrlines <- headerLines (settingsMaxTotalHeaderLength settings) firstRequest src
     (method, unparsedPath, path, query, httpversion, hdr) <-
         parseHeaderLines hdrlines
