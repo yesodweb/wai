@@ -2,11 +2,11 @@
 
 ## 0.4.1
 
-* `System.ThreadManager` can be told to keep a place for a thread that is
-  about to be forked, with `reserveManaged` and `takeReservation`.  A
-  caller which forks by itself cannot register a thread before it starts,
-  because only a thread can name itself, and what is counted until then is
-  the place kept for it.  `countManaged` says how many there are.
+* Keep a place in `System.ThreadManager` for a thread about to be forked,
+  with `reserveManaged`, `takeReservation` and `countManaged`.
+  [#1126](https://github.com/yesodweb/wai/issues/1126)
+* Say when a managed thread becomes managed.
+  [#1126](https://github.com/yesodweb/wai/issues/1126)
 
 ## 0.4.0
 
