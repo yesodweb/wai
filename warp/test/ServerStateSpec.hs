@@ -3,7 +3,8 @@
 module ServerStateSpec where
 
 import Network.Wai.Handler.Warp (getServerState)
-import Network.Wai.Handler.Warp.Counter (increase)
+import Control.Monad (void)
+import Network.Wai.Handler.Warp.Counter (reserve)
 import Network.Wai.Handler.Warp.Settings (
     ServerState (..),
     currentOpenConnections,
@@ -35,9 +36,9 @@ spec = do
                             a <- currentOpenConnections outerSS
                             b <- currentOpenConnections innerSS
                             (a, b) `shouldBe` (i, i)
-                    increase $ serverConnectionCounter outerSS
+                    void $ reserve $ serverConnectionCounter outerSS
                     bothCount 1
-                    increase $ serverConnectionCounter innerSS
+                    void $ reserve $ serverConnectionCounter innerSS
                     bothCount 2
                     let bothDown bool = do
                             a <- currentShuttingDownState outerSS
@@ -49,7 +50,7 @@ spec = do
                     bothDown False
         it "is idempotent" $ do
             let incAndCheck ss i = do
-                    increase $ serverConnectionCounter ss
+                    void $ reserve $ serverConnectionCounter ss
                     currentOpenConnections ss `shouldReturn` i
             (ss1, set1) <- makeServerState defaultSettings
             incAndCheck ss1 1

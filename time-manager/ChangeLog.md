@@ -1,5 +1,13 @@
 # ChangeLog for time-manager
 
+## 0.4.1
+
+* Keep a place in `System.ThreadManager` for a thread about to be forked,
+  with `reserveManaged`, `takeReservation` and `countManaged`.
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
+* Say when a managed thread becomes managed.
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
+
 ## 0.4.0
 
 * CHANGES IN BEHAVIOUR:

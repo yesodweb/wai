@@ -23,6 +23,9 @@ module System.ThreadManager (
     KilledByThreadManager (..),
 
     -- * Fork
+    Reservation,
+    reserveManaged,
+    takeReservation,
     forkManaged,
     forkManagedFinally,
     forkManagedUnmask,
@@ -32,6 +35,7 @@ module System.ThreadManager (
     -- * Synchronization
     waitUntilAllGone,
     isAllGone,
+    countManaged,
 
     -- * Re-exports
     T.Manager,
@@ -62,7 +66,8 @@ import qualified System.TimeManager as T
 ----------------------------------------------------------------
 
 -- | Manager to manage the thread and the timer.
-data ThreadManager = ThreadManager T.Manager (TVar ManagedThreads)
+data ThreadManager
+    = ThreadManager T.Manager (TVar ManagedThreads) (TVar Int)
 
 type Key = Word64
 type ManagedThreads = Map Key ManagedThread
@@ -84,7 +89,43 @@ data ManagedThread = ManagedThread (Weak ThreadId) (IORef Bool)
 --
 -- You can use either 'System.TimeManager.initialize' or 'System.TimeManager.withManager'.
 newThreadManager :: T.Manager -> IO ThreadManager
-newThreadManager timmgr = ThreadManager timmgr <$> newTVarIO Map.empty
+newThreadManager timmgr =
+    ThreadManager timmgr <$> newTVarIO Map.empty <*> newTVarIO 0
+
+----------------------------------------------------------------
+
+-- | A place kept for a thread that is not running yet.
+--
+--   A caller which forks by itself cannot register the thread before it
+--   starts -- only a thread can name itself -- so until it does, what is
+--   counted is the place kept for it.
+newtype Reservation = Reservation (TVar Int, IORef Bool)
+
+-- | Keeping a place for a thread about to be forked.  It counts towards
+--   'countManaged' from here, so that a manager stopped in between does
+--   not see a connection that has been accepted as one that is gone.
+reserveManaged :: ThreadManager -> IO Reservation
+reserveManaged (ThreadManager _timmgr _var rvar) = do
+    atomically $ modifyTVar' rvar (+ 1)
+    ref <- newIORef False
+    return $ Reservation (rvar, ref)
+
+-- | Running the action of a thread which was reserved for, taking the
+--   place kept for it: the thread records itself, so that 'stopAfter' can
+--   reach it, and gives the reservation back.
+--
+--   The reservation is given back only once the thread is recorded, so
+--   that it is counted throughout.
+takeReservation :: ThreadManager -> Reservation -> IO () -> IO ()
+takeReservation (ThreadManager _timmgr var _rvar) rsv io =
+    E.handle ignore $
+        E.bracket (setup var) (clear var) $ \_ -> do
+            release rsv
+            io
+  where
+    release (Reservation (rvar, ref)) = do
+        taken <- atomicModifyIORef' ref (\b -> (True, b))
+        unless taken $ atomically $ modifyTVar' rvar (subtract 1)
 
 ----------------------------------------------------------------
 
@@ -125,7 +166,7 @@ stopAfter mgr action cleanup =
 -- @since 0.3.2
 stopAfterWithResult
     :: ThreadManager -> IO a -> (Either SomeException a -> IO b) -> IO b
-stopAfterWithResult (ThreadManager _timmgr var) action cleanup = do
+stopAfterWithResult (ThreadManager _timmgr var _rvar) action cleanup = do
     E.mask $ \unmask -> do
         ma <- E.try $ unmask action
         m <- atomically $ do
@@ -142,9 +183,11 @@ stopAfterWithResult (ThreadManager _timmgr var) action cleanup = do
 
 -- | Fork a managed thread.
 --
--- This guarantees that the thread ID is added to the manager's queue before
--- the thread starts, and is removed again when the thread terminates
--- (normally or abnormally).
+-- The thread adds itself to the manager's queue as the first thing it
+-- does, and is removed again when it terminates (normally or abnormally).
+-- This call does not wait for that, so until the thread is scheduled it is
+-- forked and not yet managed.  A caller which cannot afford that window
+-- can keep a place with 'reserveManaged' instead.
 forkManaged
     :: ThreadManager
     -> String
@@ -163,7 +206,7 @@ forkManagedUnmask
     -> ((forall x. IO x -> IO x) -> IO ())
     -- ^ Action with unmask argument
     -> IO ()
-forkManagedUnmask (ThreadManager _timmgr var) label io =
+forkManagedUnmask (ThreadManager _timmgr var _rvar) label io =
     void $ E.mask_ $ forkIOWithUnmask $ \unmask -> E.handle ignore $ do
         labelMe label
         E.bracket (setup var) (clear var) $ \_ -> io unmask
@@ -176,7 +219,7 @@ forkManagedTimeout
     -> (T.Handle -> IO ())
     -- ^ Action with timeout handle
     -> IO ()
-forkManagedTimeout (ThreadManager timmgr var) label io =
+forkManagedTimeout (ThreadManager timmgr var _rvar) label io =
     void $ forkIO $ do
         labelMe label
         E.bracket (setup var) (clear var) $ \(_n, wtid, ref) ->
@@ -248,8 +291,13 @@ waitUntilAllGone tm =
 
 -- | STM action that checks if all managed threads are finished.
 isAllGone :: ThreadManager -> STM Bool
-isAllGone (ThreadManager _timmgr var) =
-    Map.null <$> readTVar var
+isAllGone tm = (== 0) <$> countManaged tm
+
+-- | STM action for how many threads are managed, counting the places
+--   kept by 'reserveManaged' for threads which have not started.
+countManaged :: ThreadManager -> STM Int
+countManaged (ThreadManager _timmgr var rvar) =
+    (+) <$> (Map.size <$> readTVar var) <*> readTVar rvar
 
 ----------------------------------------------------------------
 
@@ -269,7 +317,7 @@ labelMe l = do
 --   when the body action is finished.
 withHandle
     :: ThreadManager -> T.TimeoutAction -> (T.Handle -> IO a) -> IO a
-withHandle (ThreadManager timmgr _) = T.withHandle timmgr
+withHandle (ThreadManager timmgr _ _) = T.withHandle timmgr
 
 #if __GLASGOW_HASKELL__ < 908
 fromThreadId :: ThreadId -> Word64
