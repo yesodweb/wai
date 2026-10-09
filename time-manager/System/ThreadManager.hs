@@ -183,9 +183,11 @@ stopAfterWithResult (ThreadManager _timmgr var _rvar) action cleanup = do
 
 -- | Fork a managed thread.
 --
--- This guarantees that the thread ID is added to the manager's queue before
--- the thread starts, and is removed again when the thread terminates
--- (normally or abnormally).
+-- The thread adds itself to the manager's queue as the first thing it
+-- does, and is removed again when it terminates (normally or abnormally).
+-- This call does not wait for that, so until the thread is scheduled it is
+-- forked and not yet managed.  A caller which cannot afford that window
+-- can keep a place with 'reserveManaged' instead.
 forkManaged
     :: ThreadManager
     -> String
