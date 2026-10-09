@@ -1,5 +1,13 @@
 # ChangeLog for time-manager
 
+## 0.4.1
+
+* `System.ThreadManager` can be told to keep a place for a thread that is
+  about to be forked, with `reserveManaged` and `takeReservation`.  A
+  caller which forks by itself cannot register a thread before it starts,
+  because only a thread can name itself, and what is counted until then is
+  the place kept for it.  `countManaged` says how many there are.
+
 ## 0.4.0
 
 * CHANGES IN BEHAVIOUR:

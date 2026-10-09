@@ -63,6 +63,7 @@ import qualified Network.Socket.ByteString as Sock
 import Network.Wai
 import System.Environment (lookupEnv)
 import System.IO.Error (ioeGetErrorType)
+import qualified System.ThreadManager as T
 import qualified System.TimeManager as T
 import System.Timeout (timeout)
 
@@ -444,15 +445,21 @@ acceptConnection set listener getConnMaker app counter ii fdRef = do
     -- acceptLoop ends when the listener says the server has been asked to
     -- stop, or, for a caller that gave us no socket to wait on, when the
     -- socket it does accept on is closed.
-    void $ E.mask_ acceptLoop
-    -- Nothing is waiting on the listening socket any more, so it can be
-    -- closed and the port left to a successor rather than held for as long
-    -- as the connections below take to finish.
-    closeListener listener
-    -- In some cases, we want to stop Warp here without graceful shutdown.
-    -- So, async exceptions are allowed here.
-    -- That's why `finally` is not used.
-    gracefulShutdown set counter
+    -- Whatever ends the loop, the connections being served do not outlive
+    -- it: 'stopAfter' kills what the manager still owns and rethrows.
+    -- Warp forks a thread per connection and nothing else owns them, so
+    -- without this they go on running after the caller of 'runSettings'
+    -- has been handed its exception back.  See #1126.
+    flip (T.stopAfter (threadManager counter)) (const $ return ()) $ do
+        void $ E.mask_ acceptLoop
+        -- Nothing is waiting on the listening socket any more, so it can be
+        -- closed and the port left to a successor rather than held for as
+        -- long as the connections below take to finish.
+        closeListener listener
+        -- In some cases, we want to stop Warp here without graceful
+        -- shutdown.  So, async exceptions are allowed here.
+        -- That's why `finally` is not used.
+        gracefulShutdown set counter
   where
     acceptLoop = do
         -- Allow async exceptions before receiving the next connection maker.
@@ -585,12 +592,13 @@ fork
     -> InternalInfo
     -> IO ()
 fork set mkConn addr app counter ii = do
-    -- Count the connection here rather than in the thread below.  The
-    -- accept loop does not wait for that thread to be scheduled, so
-    -- counting there leaves a window in which the connection is accepted
-    -- and not counted, and 'gracefulShutdown' waits on this counter.
-    increase counter
-    settingsFork set $ \unmask -> runConnection unmask `E.finally` decrease counter
+    -- Keep the place for the connection here rather than in the thread
+    -- below.  The accept loop does not wait for that thread to be
+    -- scheduled, so counting there leaves a window in which the connection
+    -- is accepted and not counted, and 'gracefulShutdown' waits on this
+    -- counter.  The thread takes the place over when it starts.
+    rsv <- reserve counter
+    settingsFork set $ \unmask -> serving counter rsv $ runConnection unmask
   where
     runConnection unmask = do
         tid <- myThreadId

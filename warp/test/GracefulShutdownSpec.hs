@@ -7,12 +7,14 @@ module GracefulShutdownSpec (spec) where
 
 import Control.Concurrent
 import Control.Concurrent.Async
+import qualified Control.Exception as E
 import Control.Exception (bracket)
 import Control.Monad (void)
 import Data.IORef
 import Network.HTTP.Client
 import Network.HTTP.Types (ok200, status200)
 import Network.Socket
+import Network.Socket.ByteString (sendAll)
 import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp
 import System.Timeout (timeout)
@@ -20,6 +22,29 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "graceful shutdown" $ do
+    it "kills what it is still serving when it is killed itself (#1126)" $ do
+        -- Warp forks a thread per connection, and nothing in the runtime
+        -- makes those the children of the thread running the server.  An
+        -- asynchronous exception to that thread used to leave them running.
+        servingNow <- newEmptyMVar
+        killed <- newEmptyMVar
+        let app _ respond =
+                ( do
+                    putMVar servingNow ()
+                    threadDelay 10_000_000
+                    respond $ responseLBS status200 [] ""
+                )
+                    `E.onException` putMVar killed ()
+        bracket openFreePort (close . snd) $ \(testPort, sock) -> do
+            server <- forkIO $ runSettingsSocket defaultSettings sock app
+            client <- openConnection testPort
+            sendAll client "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
+            -- The application is in the middle of the request.
+            timeout 2_000_000 (takeMVar servingNow) `shouldReturn` Just ()
+            killThread server
+            timeout 2_000_000 (takeMVar killed) `shouldReturn` Just ()
+            close client
+
     it "waits for a connection accepted just before it stopped accepting" $ do
         -- The window is between accepting a connection and the thread
         -- serving it being scheduled. Delaying the thread makes it wide

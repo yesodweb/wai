@@ -2,6 +2,16 @@
 
 ## 3.5.0
 
+* The connections being served are killed when the accept loop ends,
+  rather than left running.  Warp forks a thread per connection and
+  nothing else owns them, so an asynchronous exception to the thread
+  running `runSettings` used to hand the caller its exception back while
+  the applications in flight carried on.  They are owned by a
+  `System.ThreadManager` now, which is also what counts them: the
+  `Counter` is a wrapper over it, so `getOpenConnectionCounter` and
+  `getCount` are as they were.
+  [#1126](https://github.com/yesodweb/wai/issues/1126)
+
 * The accept loop is stopped by being told, not by having its socket closed
   under it. `settingsInstallShutdownHandler` is handed an action which stops
   the server -- except on Windows, and when built against `network` older
