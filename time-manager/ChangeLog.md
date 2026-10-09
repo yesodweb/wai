@@ -4,9 +4,9 @@
 
 * Keep a place in `System.ThreadManager` for a thread about to be forked,
   with `reserveManaged`, `takeReservation` and `countManaged`.
-  [#1126](https://github.com/yesodweb/wai/issues/1126)
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
 * Say when a managed thread becomes managed.
-  [#1126](https://github.com/yesodweb/wai/issues/1126)
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
 
 ## 0.4.0
 

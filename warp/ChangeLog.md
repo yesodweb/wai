@@ -3,7 +3,7 @@
 ## 3.5.0
 
 * Kill the connections being served when the accept loop ends.
-  [#1126](https://github.com/yesodweb/wai/issues/1126)
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
 
 * The accept loop is stopped by being told, not by having its socket closed
   under it. `settingsInstallShutdownHandler` is handed an action which stops
