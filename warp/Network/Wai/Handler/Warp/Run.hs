@@ -333,11 +333,16 @@ acceptConnection set getConnMaker app counter ii fdRef = do
     -- acceptNewConnection and the registering of connClose.
     --
     -- acceptLoop can be broken by closing the listening socket.
-    void $ E.mask_ acceptLoop
-    -- In some cases, we want to stop Warp here without graceful shutdown.
-    -- So, async exceptions are allowed here.
-    -- That's why `finally` is not used.
-    gracefulShutdown set counter
+    -- Whatever ends the loop, the connections being served do not outlive
+    -- it.  Warp forks a thread per connection and nothing else owns them,
+    -- so without this they go on running after the caller of 'runSettings'
+    -- has been handed its exception back.  See #1126.
+    flip E.finally (killAll counter) $ do
+        void $ E.mask_ acceptLoop
+        -- In some cases, we want to stop Warp here without graceful
+        -- shutdown.  So, async exceptions are allowed here.
+        -- That's why `finally` is not used.
+        gracefulShutdown set counter
   where
     acceptLoop = do
         -- Allow async exceptions before receiving the next connection maker.
@@ -414,7 +419,10 @@ fork set mkConn addr app counter ii = do
     -- counting there leaves a window in which the connection is accepted
     -- and not counted, and 'gracefulShutdown' waits on this counter.
     increase counter
-    settingsFork set $ \unmask -> runConnection unmask `E.finally` decrease counter
+    settingsFork set $ \unmask ->
+        -- 'serving' is inside the thread because a thread is the only one
+        -- that can name itself: 'settingsFork' hands back no identity.
+        serving counter (runConnection unmask) `E.finally` decrease counter
   where
     runConnection unmask = do
         tid <- myThreadId
