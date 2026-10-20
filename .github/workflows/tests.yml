@@ -194,6 +194,13 @@ jobs:
         run: |
           cp "${{ steps.ghcup-install.outputs.stack-exe }}" "$HOME/.ghcup/bin"
 
+      # The macOS image selects Xcode 26.6, whose ld cannot read the SDK 27
+      # stubs that clang picks up from the Command Line Tools.  The Command
+      # Line Tools' own ld can, so link with them.
+      - name: Link with the Command Line Tools
+        if: matrix.os == 'macos-latest'
+        run: sudo xcode-select -s /Library/Developer/CommandLineTools
+
       - name: Cache Pantry (Stackage package index) [UNIX]
         if: matrix.os != 'windows-latest'
         id: pantry-unix
