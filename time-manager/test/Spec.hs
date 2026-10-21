@@ -22,7 +22,17 @@ main = hspec $ do
         it "tests don't work on windows" $
             pendingWith "requires more testing on a Windows machine"
 #else
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (
+    MVar,
+    forkIO,
+    newEmptyMVar,
+    putMVar,
+    takeMVar,
+    threadDelay,
+    tryPutMVar,
+ )
+import Control.Concurrent.STM (atomically)
+import Control.Exception (AssertionFailed (..), finally, throwIO)
 import Control.Monad (forM_, void)
 import Data.IORef as I (
     IORef,
@@ -31,12 +41,107 @@ import Data.IORef as I (
     readIORef,
     writeIORef,
  )
+import GHC.Conc.Sync (
+    getUncaughtExceptionHandler,
+    setUncaughtExceptionHandler,
+ )
+import System.ThreadManager (
+    ThreadManager,
+    countManaged,
+    forkManaged,
+    forkManagedFinally,
+    forkManagedTimeout,
+    forkManagedTimeoutFinally,
+    forkManagedUnmaskFinally,
+    newThreadManager,
+    reserveManaged,
+    stopAfter,
+    takeReservation,
+    waitUntilAllGone,
+ )
 import System.TimeManager
 import System.TimeManager.Internal
 import Test.HUnit (assertBool)
 
 main :: IO ()
 main = hspec $ do
+    describe "ThreadManager, once stopped" $ do
+        -- 'setup' refuses to record a thread forked before the stop and
+        -- scheduled after it, by throwing.  That must not escape the fork,
+        -- and must not take the cleanup with it.
+        it "does not let forkManagedTimeout's refusal escape the fork" $ do
+            tm <- newThreadManager defaultManager
+            stopAfter tm (return ()) $ \_ -> return ()
+            ran <- freshRef
+            escaped <- freshRef
+            before <- getUncaughtExceptionHandler
+            setUncaughtExceptionHandler $ \_ -> I.writeIORef escaped True
+            forkManagedTimeout tm "probe" $ \_ -> I.writeIORef ran True
+            threadDelay 200_000
+            setUncaughtExceptionHandler before
+            ran `refShouldBe` False
+            escaped `refShouldBe` False
+
+        itRunsTheCleanupOf "forkManagedFinally" $
+            \tm label -> forkManagedFinally tm label (return ())
+
+        itRunsTheCleanupOf "forkManagedTimeoutFinally" $
+            \tm label -> forkManagedTimeoutFinally tm label (\_ -> return ())
+
+        itRunsTheCleanupOf "forkManagedUnmaskFinally" $
+            \tm label -> forkManagedUnmaskFinally tm label (\_ -> return ())
+
+    describe "ThreadManager, the action of a fork with a cleanup" $ do
+        itLetsTheExceptionOutOf "forkManagedFinally" forkManagedFinally
+
+        itLetsTheExceptionOutOf "forkManagedTimeoutFinally" $
+            \tm label io -> forkManagedTimeoutFinally tm label (\_ -> io)
+
+        itLetsTheExceptionOutOf "forkManagedUnmaskFinally" $
+            \tm label io -> forkManagedUnmaskFinally tm label (\unmask -> unmask io)
+
+    describe "ThreadManager" $ do
+        it "fails loudly when a reservation is taken by another manager" $ do
+            a <- newThreadManager defaultManager
+            b <- newThreadManager defaultManager
+            rsv <- reserveManaged a
+            takeReservation b rsv (return ())
+            atomically (countManaged b)
+                `shouldThrow` (\(AssertionFailed _) -> True)
+
+        it "has none left only once their cleanups are done" $ do
+            tm <- newThreadManager defaultManager
+            ref <- freshRef
+            forkManagedFinally
+                tm
+                "probe"
+                (threadDelay 100_000)
+                (threadDelay 300_000 >> I.writeIORef ref True)
+            -- The action is over and the cleanup is still running.
+            threadDelay 200_000
+            waitUntilAllGone tm
+            ref `refShouldBe` True
+
+        it "still owns a thread it killed until that thread is gone" $ do
+            tm <- newThreadManager defaultManager
+            ref <- freshRef
+            started <- newEmptyMVar
+            -- The cleanup here is the thread's own, not one the manager
+            -- runs for it, so what is tested is an ordinary managed
+            -- thread unwinding.
+            forkManaged tm "probe" $
+                (putMVar started () >> threadDelay 10_000_000)
+                    `finally` (threadDelay 300_000 >> I.writeIORef ref True)
+            takeMVar started
+            threadDelay 50_000
+            -- 'throwTo' waits for the exception to be taken, not for the
+            -- thread to be gone.
+            stopAfter tm (return ()) $ \_ -> return ()
+            threadDelay 50_000
+            atomically (countManaged tm) `shouldReturn` 1
+            waitUntilAllGone tm
+            ref `refShouldBe` True
+
     describe "TimeManager" $ do
         it "defaultManager == no manager" $
             defaultManager `shouldSatisfy` isNoManager
@@ -202,6 +307,48 @@ main = hspec $ do
 
 mgr1 :: Manager
 mgr1 = Manager 1
+
+-- | The cleanup of a fork that takes one runs even when the manager has
+--   been stopped and the thread is refused.
+itRunsTheCleanupOf
+    :: String
+    -> (ThreadManager -> String -> IO () -> IO ())
+    -- ^ The fork, with its action already given and its cleanup to come
+    -> Spec
+itRunsTheCleanupOf name fork =
+    it ("runs the cleanup of " ++ name) $ do
+        tm <- newThreadManager defaultManager
+        stopAfter tm (return ()) $ \_ -> return ()
+        done <- newEmptyMVar
+        fork tm "probe" $ putMVar done ()
+        ranWithin 500_000 done `shouldReturn` True
+
+-- | An exception from the action of a fork that takes a cleanup leaves the
+--   thread, after the cleanup has run.
+itLetsTheExceptionOutOf
+    :: String
+    -> (ThreadManager -> String -> IO () -> IO () -> IO ())
+    -> Spec
+itLetsTheExceptionOutOf name fork =
+    it ("lets an exception from the action of " ++ name ++ " out") $ do
+        tm <- newThreadManager defaultManager
+        escaped <- newEmptyMVar
+        cleaned <- freshRef
+        before <- getUncaughtExceptionHandler
+        setUncaughtExceptionHandler $ \_ -> void $ tryPutMVar escaped ()
+        fork tm "probe" (throwIO $ userError "probe") (I.writeIORef cleaned True)
+        out <- ranWithin 500_000 escaped
+        setUncaughtExceptionHandler before
+        out `shouldBe` True
+        cleaned `refShouldBe` True
+
+-- | Whether the 'MVar' was filled within the time.
+ranWithin :: Int -> MVar () -> IO Bool
+ranWithin us var = do
+    r <- newEmptyMVar
+    void $ forkIO $ takeMVar var >> putMVar r True
+    void $ forkIO $ threadDelay us >> putMVar r False
+    takeMVar r
 
 freshRef :: IO (IORef Bool)
 freshRef = I.newIORef False
