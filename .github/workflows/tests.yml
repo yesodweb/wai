@@ -102,8 +102,9 @@ jobs:
         id: ghcup-cache-unix
         with:
           path: |
+            # Not ~/.ghcup/cabal: the Ubuntu image ships it owned by another
+            # user, so tar cannot restore over it and the whole restore fails.
             ${{ env.GHCUP_PATH }}/bin/*
-            ${{ env.GHCUP_PATH }}/cabal/*
             ${{ env.GHCUP_PATH }}/config.yaml
             ${{ env.GHCUP_PATH }}/stack/*
             ${{ env.GHCUP_GHC_PATH }}/bin
@@ -115,7 +116,7 @@ jobs:
             !${{ env.GHCUP_GHC_PATH }}/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
             # Takes up lots of space, not sure if needed
             !${{ env.GHCUP_PATH }}/ghc/${{ env.GHC_VERSION }}.*/**/*.a
-          key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
+          key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-nocabal-${{ matrix.os }}-${{ env.GHC_VERSION }}
 
       - name: Cache GHCup [WINDOWS]
         if: matrix.os == 'windows-latest'
@@ -157,6 +158,10 @@ jobs:
       # which it answers by trying chocolatey and giving up.  Nothing after
       # that can succeed, so a half-restored GHC is thrown away here and the
       # step below installs it as it would on a miss.
+      #
+      # The same goes for its mingw, which is in the MSYS entry rather than
+      # the GHCup one: when only the GHCup entry hits, GHC is "installed" but
+      # has no C toolchain, and the build hangs at the first Setup.hs.
       - name: Discard a half-restored GHC [WINDOWS]
         id: ghc-discard
         if: matrix.os == 'windows-latest'
@@ -164,11 +169,14 @@ jobs:
           shopt -s nullglob
           discarded=false
           for dir in /c/ghcup/ghc/*/; do
-            if [[ ! -d "${dir}bin" ]]; then
-              echo "discarding ${dir}: no bin"
-              rm -rf "$dir"
-              discarded=true
-            fi
+            for sub in bin mingw; do
+              if [[ ! -d "${dir}${sub}" ]]; then
+                echo "discarding ${dir}: no ${sub}"
+                rm -rf "$dir"
+                discarded=true
+                break
+              fi
+            done
           done
           # Whatever the cache said, there is nothing left to use.
           echo "discarded=$discarded" >> $GITHUB_OUTPUT
