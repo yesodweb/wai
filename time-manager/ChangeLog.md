@@ -2,6 +2,11 @@
 
 ## 0.5.0
 
+* BREAKING CHANGE: a `ThreadManager` no longer carries a `T.Manager`.
+  `newThreadManager` takes no argument, `forkManagedTimeout` and
+  `forkManagedTimeoutFinally` take the caller's, and `withHandle` and the
+  re-exports from `System.TimeManager` are gone.
+  [#1131](https://github.com/yesodweb/wai/pull/1131)
 * Count a thread in `System.ThreadManager` from when it is forked rather
   than from when it starts, with `forkManagedBy`, `reserveManaged`,
   `takeReservation` and `countManaged`.
