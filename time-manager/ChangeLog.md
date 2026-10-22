@@ -1,5 +1,23 @@
 # ChangeLog for time-manager
 
+## 0.5.0
+
+* Count a thread in `System.ThreadManager` from when it is forked rather
+  than from when it starts, with `forkManagedBy`, `reserveManaged`,
+  `takeReservation` and `countManaged`.
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
+* Keep counting the threads `stopAfter` stopped until they end.
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
+* `countManaged` throws `AssertionFailed` when a reservation has been taken
+  by a manager other than its own.
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
+* `forkManagedFinally` and `forkManagedTimeoutFinally` no longer swallow an
+  exception from the action; it ends the thread, after the cleanup has run.
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
+* Add `forkManagedUnmaskFinally`, so that every fork has a variant with a
+  cleanup.
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
+
 ## 0.4.0
 
 * CHANGES IN BEHAVIOUR:
