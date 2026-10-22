@@ -102,8 +102,9 @@ jobs:
         id: ghcup-cache-unix
         with:
           path: |
+            # Not ~/.ghcup/cabal: the Ubuntu image ships it owned by another
+            # user, so tar cannot restore over it and the whole restore fails.
             ${{ env.GHCUP_PATH }}/bin/*
-            ${{ env.GHCUP_PATH }}/cabal/*
             ${{ env.GHCUP_PATH }}/config.yaml
             ${{ env.GHCUP_PATH }}/stack/*
             ${{ env.GHCUP_GHC_PATH }}/bin
@@ -115,7 +116,7 @@ jobs:
             !${{ env.GHCUP_GHC_PATH }}/lib/ghc-${{ env.GHC_VERSION }}.*/bin/ghc-iserv*
             # Takes up lots of space, not sure if needed
             !${{ env.GHCUP_PATH }}/ghc/${{ env.GHC_VERSION }}.*/**/*.a
-          key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-${{ matrix.os }}-${{ env.GHC_VERSION }}
+          key: CI-ghcup-unix-${{ env.MANUAL_RESET }}-nocabal-${{ matrix.os }}-${{ env.GHC_VERSION }}
 
       - name: Cache GHCup [WINDOWS]
         if: matrix.os == 'windows-latest'
