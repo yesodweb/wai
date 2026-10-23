@@ -428,6 +428,7 @@ spec = do
                 threadDelay 1000000
                 front <- I.readIORef ifront
                 S.concat (front []) `shouldBe` bs
+
     describe "header field values" $ do
         let exchange hdrs = do
                 ipaths <- I.newIORef id
@@ -456,6 +457,56 @@ spec = do
             (rsp, paths) <- exchange "X-Foo: a\NULb\r\n"
             rsp `shouldContain` "400"
             paths `shouldNotContain` ["/smuggled"]
+
+    describe "Content-Length framing" $ do
+        -- A Content-Length warp reads as no body at all, while whatever
+        -- is in front of it reads a body, is a request smuggled onto the
+        -- connection: the body is read here as the next request.
+        let exchange hdrs = do
+                ipaths <- I.newIORef id
+                let app req f = do
+                        I.atomicModifyIORef ipaths $ \front ->
+                            (front . (rawPathInfo req :), ())
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms $
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                            , hdrs
+                            , "\r\nGET /smuggled HTTP/1.1\r\nHost: foo\r\n\r\n"
+                            ]
+                    rsp <- msRead ms 17
+                    ipaths' <- I.readIORef ipaths
+                    return (S8.unpack rsp, ipaths' [])
+            refuses name hdrs = it name $ do
+                (rsp, paths) <- exchange hdrs
+                rsp `shouldContain` "400"
+                paths `shouldNotContain` ["/smuggled"]
+        refuses
+            "refuses a Content-Length that is not a number"
+            "Content-Length: abc\r\n"
+        refuses
+            "refuses a Content-Length that overflows"
+            "Content-Length: 9223372036854775808\r\n"
+        refuses
+            "refuses Content-Lengths that disagree"
+            "Content-Length: 0\r\nContent-Length: 36\r\n"
+        it "accepts Content-Lengths that agree" $ do
+            ifront <- I.newIORef id
+            let app req f = do
+                    bss <- consumeBody $ getRequestBodyChunk req
+                    I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
+                    f $ responseLBS status200 [] ""
+            withApp defaultSettings app $ withMySocket $ \ms -> do
+                msWrite ms $
+                    S.concat
+                        [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                        , "Content-Length: 5\r\nContent-Length: 05\r\n\r\n"
+                        , "Hello"
+                        ]
+                _ <- msRead ms 17
+                front <- I.readIORef ifront
+                front [] `shouldBe` ["Hello"]
 
     describe "raw body" $ do
         it "works" $ do

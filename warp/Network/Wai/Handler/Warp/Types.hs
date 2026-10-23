@@ -45,6 +45,9 @@ data InvalidRequest
       PayloadTooLarge
     | -- | Since 3.3.22
       RequestHeaderFieldsTooLarge
+    | -- | The length of the request body cannot be determined
+      --   reliably, so no reading of it can be trusted. Since 3.4.17
+      AmbiguousBodyLength
     | -- | CR or NUL inside a header field line, which one reader
       --   takes for a line terminator where another reads data.
       --   Since 3.4.17
@@ -62,6 +65,7 @@ instance Show InvalidRequest where
     show (BadProxyHeader s) = "Warp: Invalid PROXY protocol header: " ++ show s
     show RequestHeaderFieldsTooLarge = "Request header fields too large"
     show PayloadTooLarge = "Payload too large"
+    show AmbiguousBodyLength = "Warp: Ambiguous request body length"
     show BadHeaderLine = "Warp: CR or NUL in a header field line"
 
 instance E.Exception InvalidRequest
