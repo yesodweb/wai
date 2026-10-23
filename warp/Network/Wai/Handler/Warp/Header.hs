@@ -51,7 +51,9 @@ indexRequestHeader = L.foldl' insert defaultIndexRequestHeader
             | bs == "user-agent" -> ix{reqidxUserAgent = Just val}
             | bs == "connection" -> ix{reqidxConnection = Just val}
         13 | bs == "if-none-match" -> ix{reqidxIfNoneMatch = Just val}
-        14 | bs == "content-length" -> ix{reqidxContentLength = Just val}
+        14
+            | bs == "content-length" ->
+                ix{reqidxContentLength = appendField (reqidxContentLength ix) val}
         17
             | bs == "transfer-encoding" -> ix{reqidxTransferEncoding = Just val}
             | bs == "if-modified-since" -> ix{reqidxIfModifiedSince = Just val}
@@ -59,6 +61,11 @@ indexRequestHeader = L.foldl' insert defaultIndexRequestHeader
         _ -> ix
       where
         bs = foldedCase key
+        -- RFC 9112: repeated field lines are one comma separated list, so
+        -- keep them all. Taking the last line alone would let a second
+        -- Content-Length hide the length of the first.
+        appendField Nothing val' = Just val'
+        appendField (Just prev) val' = Just $ prev <> "," <> val'
 
 -- | 'IndexedRequestHeader' with no headers set.
 defaultIndexRequestHeader :: IndexedRequestHeader

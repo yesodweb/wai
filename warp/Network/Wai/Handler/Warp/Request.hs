@@ -20,7 +20,7 @@ import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
 import qualified Data.IORef as I
 import qualified Data.Vault.Lazy as Vault
-import Data.Word8 (_cr, _lf)
+import Data.Word8 (_0, _comma, _cr, _lf, _space, _tab, isDigit)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
@@ -38,7 +38,6 @@ import Network.Wai.Handler.Warp.Conduit
 import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
-import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.RequestHeader
 import Network.Wai.Handler.Warp.Settings (
     Settings,
@@ -170,16 +169,44 @@ bodyAndSource src idxhdr
         csrc <- mkCSource src
         return (readCSource csrc, Nothing, ChunkedBody)
     | otherwise = do
-        let len = toLength $ reqidxContentLength idxhdr
-            bodyLen = KnownLength $ fromIntegral len
+        len <- contentLength $ reqidxContentLength idxhdr
         isrc@(ISource _ remaining) <- mkISource src len
-        return (readISource isrc, Just remaining, bodyLen)
+        return (readISource isrc, Just remaining, KnownLength $ fromIntegral len)
   where
     chunked = isChunked $ reqidxTransferEncoding idxhdr
 
-toLength :: Maybe HeaderValue -> Int
-toLength Nothing = 0
-toLength (Just bs) = readInt bs
+-- | The length a Content-Length gives, or no body when there is none.
+--
+-- RFC 9112 asks for a value of nothing but digits, and for repeated
+-- Content-Lengths to be refused unless every one of them says the same
+-- thing. Warp used to read the leading digits and take 0 for the rest,
+-- so "abc", a value too large for an 'Int', and a second Content-Length
+-- hiding the first all became a request with no body at all -- and the
+-- bytes that were the body became the next request on the connection.
+contentLength :: Maybe HeaderValue -> IO Int
+contentLength Nothing = return 0
+contentLength (Just bs) = case map (readLength . stripOWS) $ S.split _comma bs of
+    Just len : lens | all (== Just len) lens -> return len
+    _ -> throwIO AmbiguousBodyLength
+  where
+    readLength v
+        | S.null v || not (S.all isDigit v) = Nothing
+        | otherwise = S.foldl' accumulate (Just 0) v
+    accumulate Nothing _ = Nothing
+    accumulate (Just n) w
+        -- A length warp cannot hold is a length warp cannot enforce.
+        | n > (maxBound - d) `div` 10 = Nothing
+        | otherwise = Just $! n * 10 + d
+      where
+        d = fromIntegral (w - _0)
+
+-- | Optional whitespace, which RFC 9112 allows around the elements of a
+--   list and gives no meaning to.
+stripOWS :: ByteString -> ByteString
+stripOWS = fst . S.spanEnd isOWS . S.dropWhile isOWS
+
+isOWS :: Word8 -> Bool
+isOWS w = w == _space || w == _tab
 
 isChunked :: Maybe HeaderValue -> Bool
 isChunked (Just bs) = CI.foldCase bs == "chunked"
