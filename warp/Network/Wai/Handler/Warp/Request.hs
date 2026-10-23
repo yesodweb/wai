@@ -164,16 +164,47 @@ bodyAndSource
         , Maybe (I.IORef Int)
         , RequestBodyLength
         )
-bodyAndSource src idxhdr
-    | chunked = do
-        csrc <- mkCSource src
-        return (readCSource csrc, Nothing, ChunkedBody)
-    | otherwise = do
-        len <- contentLength $ reqidxContentLength idxhdr
-        isrc@(ISource _ remaining) <- mkISource src len
-        return (readISource isrc, Just remaining, KnownLength $ fromIntegral len)
+bodyAndSource src idxhdr = do
+    framing <- bodyFraming idxhdr
+    case framing of
+        FramedByChunks -> do
+            csrc <- mkCSource src
+            return (readCSource csrc, Nothing, ChunkedBody)
+        FramedByLength len -> do
+            isrc@(ISource _ remaining) <- mkISource src len
+            return (readISource isrc, Just remaining, KnownLength $ fromIntegral len)
+
+-- | How the end of the request body is found (RFC 9112, section 6).
+data BodyFraming
+    = FramedByChunks
+    | FramedByLength Int
+
+-- | Deciding how the request body is framed, or refusing the request.
+--
+-- Anything other than one framing this server and every intermediary
+-- agree on is refused rather than read some way of warp's own: whoever
+-- reads it the other way sees one request where warp sees two, which is
+-- how a request is smuggled past a proxy.
+bodyFraming :: IndexedRequestHeader -> IO BodyFraming
+bodyFraming idxhdr = case reqidxTransferEncoding idxhdr of
+    Nothing -> FramedByLength <$> contentLength (reqidxContentLength idxhdr)
+    -- Transfer-Encoding wins over Content-Length, so sending both is a
+    -- way of showing each reader the framing it prefers. Take neither.
+    Just _ | isJust (reqidxContentLength idxhdr) -> throwIO AmbiguousBodyLength
+    Just te -> case reverse $ codings te of
+        -- The only coding warp implements, and the only one it can be
+        -- sure an intermediary passed on undisturbed.
+        ["chunked"] -> return FramedByChunks
+        -- Chunked frames the body, but warp decodes no coding under it.
+        "chunked" : _ -> throwIO UnsupportedTransferEncoding
+        -- Without chunked last, the length cannot be determined at all.
+        _ -> throwIO AmbiguousBodyLength
   where
-    chunked = isChunked $ reqidxTransferEncoding idxhdr
+    -- A comma separated list, each element allowed its own surrounding
+    -- whitespace. RFC 9110 has a recipient ignore empty elements, so
+    -- "chunked", " chunked" and "chunked," are each the one coding.
+    codings =
+        filter (not . S.null) . map (CI.foldCase . stripOWS) . S.split _comma
 
 -- | The length a Content-Length gives, or no body when there is none.
 --
@@ -207,10 +238,6 @@ stripOWS = fst . S.spanEnd isOWS . S.dropWhile isOWS
 
 isOWS :: Word8 -> Bool
 isOWS w = w == _space || w == _tab
-
-isChunked :: Maybe HeaderValue -> Bool
-isChunked (Just bs) = CI.foldCase bs == "chunked"
-isChunked _ = False
 
 ----------------------------------------------------------------
 
