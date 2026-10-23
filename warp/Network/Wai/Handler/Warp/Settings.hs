@@ -404,6 +404,8 @@ defaultOnException _ e =
 --   Sending 413 for too large payload.
 --   Sending 431 for too large headers.
 -- @since 3.2.27
+--   Sending 501 for an unsupported transfer coding.
+-- @since 3.5.0
 defaultOnExceptionResponse :: SomeException -> Response
 defaultOnExceptionResponse e
     | isAsyncException e = throw e
@@ -417,6 +419,11 @@ defaultOnExceptionResponse e
             H.status431
             [(H.hContentType, "text/plain; charset=utf-8")]
             "Request header fields too large"
+    | Just UnsupportedTransferEncoding <- fromException e =
+        responseLBS
+            H.notImplemented501
+            [(H.hContentType, "text/plain; charset=utf-8")]
+            "Unsupported transfer coding"
     | Just (_ :: InvalidRequest) <- fromException e =
         responseLBS
             H.badRequest400

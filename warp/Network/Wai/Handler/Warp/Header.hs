@@ -55,7 +55,8 @@ indexRequestHeader = L.foldl' insert defaultIndexRequestHeader
             | bs == "content-length" ->
                 ix{reqidxContentLength = appendField (reqidxContentLength ix) val}
         17
-            | bs == "transfer-encoding" -> ix{reqidxTransferEncoding = Just val}
+            | bs == "transfer-encoding" ->
+                ix{reqidxTransferEncoding = appendField (reqidxTransferEncoding ix) val}
             | bs == "if-modified-since" -> ix{reqidxIfModifiedSince = Just val}
         19 | bs == "if-unmodified-since" -> ix{reqidxIfUnmodifiedSince = Just val}
         _ -> ix
@@ -63,7 +64,8 @@ indexRequestHeader = L.foldl' insert defaultIndexRequestHeader
         bs = foldedCase key
         -- RFC 9112: repeated field lines are one comma separated list, so
         -- keep them all. Taking the last line alone would let a second
-        -- Content-Length hide the length of the first.
+        -- Content-Length hide the length of the first, or a second
+        -- Transfer-Encoding its chunked coding.
         appendField Nothing val' = Just val'
         appendField (Just prev) val' = Just $ prev <> "," <> val'
 

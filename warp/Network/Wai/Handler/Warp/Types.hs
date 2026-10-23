@@ -45,6 +45,8 @@ data InvalidRequest
       PayloadTooLarge
     | -- | Since 3.3.22
       RequestHeaderFieldsTooLarge
+    | -- | A transfer coding warp does not implement. Since 3.4.17
+      UnsupportedTransferEncoding
     | -- | The length of the request body cannot be determined
       --   reliably, so no reading of it can be trusted. Since 3.4.17
       AmbiguousBodyLength
@@ -65,6 +67,7 @@ instance Show InvalidRequest where
     show (BadProxyHeader s) = "Warp: Invalid PROXY protocol header: " ++ show s
     show RequestHeaderFieldsTooLarge = "Request header fields too large"
     show PayloadTooLarge = "Payload too large"
+    show UnsupportedTransferEncoding = "Warp: Unsupported transfer coding"
     show AmbiguousBodyLength = "Warp: Ambiguous request body length"
     show BadHeaderLine = "Warp: CR or NUL in a header field line"
 

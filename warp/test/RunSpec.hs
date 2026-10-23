@@ -508,6 +508,83 @@ spec = do
                 front <- I.readIORef ifront
                 front [] `shouldBe` ["Hello"]
 
+    describe "ambiguous body framing" $ do
+        -- Each of these frames the body one way for warp and another way
+        -- for anything in front of it. Whichever way warp reads them, the
+        -- smuggled request must not reach the application.
+        let exchange hdrs = do
+                ipaths <- I.newIORef id
+                let app req f = do
+                        I.atomicModifyIORef ipaths $ \front ->
+                            (front . (rawPathInfo req :), ())
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms $
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                            , hdrs
+                            , "\r\nGET /smuggled HTTP/1.1\r\nHost: foo\r\n\r\n"
+                            ]
+                    rsp <- msRead ms 17
+                    ipaths' <- I.readIORef ipaths
+                    return (S8.unpack rsp, ipaths' [])
+            frames name hdrs = it name $ do
+                (rsp, paths) <- exchange hdrs
+                rsp `shouldContain` "200"
+                paths `shouldNotContain` ["/smuggled"]
+            refuses name hdrs status = it name $ do
+                (rsp, paths) <- exchange hdrs
+                rsp `shouldContain` status
+                paths `shouldNotContain` ["/smuggled"]
+        frames
+            "reads a trailing space as part of the chunked coding"
+            "Transfer-Encoding: chunked \r\n"
+        frames
+            "reads a trailing tab as part of the chunked coding"
+            "Transfer-Encoding: chunked\t\r\n"
+        frames
+            "ignores an empty element after the chunked coding"
+            "Transfer-Encoding: chunked,\r\n"
+        frames
+            "ignores an empty element before the chunked coding"
+            "Transfer-Encoding: , chunked\r\n"
+        refuses
+            "refuses a Transfer-Encoding with no coding at all"
+            "Transfer-Encoding: ,\r\n"
+            "400"
+        refuses
+            "refuses a coding it cannot decode under chunked"
+            "Transfer-Encoding: gzip, chunked\r\n"
+            "501"
+        refuses
+            "refuses chunked that is not the final coding"
+            "Transfer-Encoding: chunked, gzip\r\n"
+            "400"
+        refuses
+            "refuses a transfer coding that is not chunked"
+            "Transfer-Encoding: identity\r\n"
+            "400"
+        refuses
+            "joins Transfer-Encoding field lines before reading them"
+            "Transfer-Encoding: chunked\r\nTransfer-Encoding: identity\r\n"
+            "400"
+        refuses
+            "refuses Content-Length together with Transfer-Encoding"
+            "Content-Length: 0\r\nTransfer-Encoding: chunked\r\n"
+            "400"
+        it "still reads an ordinary chunked body" $ do
+            ifront <- I.newIORef id
+            let app req f = do
+                    bss <- consumeBody $ getRequestBodyChunk req
+                    I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
+                    f $ responseLBS status200 [] ""
+            withApp defaultSettings app $ withMySocket $ \ms -> do
+                msWrite ms "POST / HTTP/1.1\r\nTransfer-Encoding: chunked \r\n\r\n"
+                msWrite ms "b\r\nHello World\r\n0\r\n\r\n"
+                _ <- msRead ms 17
+                front <- I.readIORef ifront
+                front [] `shouldBe` ["Hello World"]
+
     describe "raw body" $ do
         it "works" $ do
             let app _req f = do
