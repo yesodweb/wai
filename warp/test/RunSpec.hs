@@ -428,6 +428,35 @@ spec = do
                 threadDelay 1000000
                 front <- I.readIORef ifront
                 S.concat (front []) `shouldBe` bs
+    describe "header field values" $ do
+        let exchange hdrs = do
+                ipaths <- I.newIORef id
+                let app req f = do
+                        I.atomicModifyIORef ipaths $ \front ->
+                            (front . (rawPathInfo req :), ())
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms $
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                            , hdrs
+                            , "\r\nGET /smuggled HTTP/1.1\r\nHost: foo\r\n\r\n"
+                            ]
+                    rsp <- msRead ms 17
+                    ipaths' <- I.readIORef ipaths
+                    return (S8.unpack rsp, ipaths' [])
+        it "refuses a bare CR" $ do
+            -- A recipient which ends a line at the bare CR reads a
+            -- Content-Length here, and so reads a body where warp would
+            -- read the next request.
+            (rsp, paths) <- exchange "X-Foo: a\rContent-Length: 36\r\n"
+            rsp `shouldContain` "400"
+            paths `shouldNotContain` ["/smuggled"]
+        it "refuses a NUL" $ do
+            (rsp, paths) <- exchange "X-Foo: a\NULb\r\n"
+            rsp `shouldContain` "400"
+            paths `shouldNotContain` ["/smuggled"]
+
     describe "raw body" $ do
         it "works" $ do
             let app _req f = do
