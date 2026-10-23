@@ -1,5 +1,25 @@
 # ChangeLog for warp
 
+## 3.4.17
+
+* Security: `Transfer-Encoding` is read as the comma separated list RFC 9112
+  defines, and a framing warp and a proxy could read differently is refused.
+* Security: a `Content-Length` must be digits which fit in an `Int` and
+  repeated ones must agree.
+* Security: a header field name must be a non-empty token, which also refuses
+  obs-fold continuation lines.
+* Security: a bare CR or a NUL in a header field line is refused.
+* Security: the chunked body parser keeps to RFC 9112: chunk sizes, the CRLF
+  after a chunk, size lines split over several reads, and the trailer section.
+* A chunked body cut short by the end of input is now an error rather than a
+  body the application is handed as though it were whole.
+  [#1129](https://github.com/yesodweb/wai/issues/1129).
+* A last chunk must now be followed by the CRLF which ends the trailer
+  section, unless the connection ends there.
+* `InvalidRequest` gains `UnsupportedTransferEncoding`, `AmbiguousBodyLength`,
+  `BadFieldName`, `BadHeaderLine` and `BadChunkedBody`.
+* Allow time-manager 0.5.
+
 ## 3.4.16
 
 * Graceful shutdown no longer stops while a connection it accepted is
