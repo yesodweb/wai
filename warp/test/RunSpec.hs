@@ -200,7 +200,7 @@ singlePostHello = "POST /hello HTTP/1.1\r\nHost: localhost\r\nContent-length: 5\
 singleChunkedPostHello :: [ByteString]
 singleChunkedPostHello =
     [ "POST /hello HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n"
-    , "5\r\nHello\r\n0\r\n"
+    , "5\r\nHello\r\n0\r\n\r\n"
     ]
 
 spec :: Spec
@@ -375,7 +375,7 @@ spec = do
                 let input =
                         S.concat
                             [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                            , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
+                            , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
                             , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
                             , "b\r\nHello World\r\n0\r\n\r\n"
                             ]
@@ -613,6 +613,77 @@ spec = do
         refuses
             "refuses an empty field name"
             ": 36\r\n"
+
+    describe "malformed chunked bodies" $ do
+        -- The body is what the client says it is up to the empty line
+        -- which ends the trailer section. Each of these used to end the
+        -- body early, leaving the rest of it to be read as the next
+        -- request on the connection.
+        let withChunked body = do
+                ipaths <- I.newIORef id
+                let app req f = do
+                        I.atomicModifyIORef ipaths $ \front ->
+                            (front . (rawPathInfo req :), ())
+                        _ <- consumeBody $ getRequestBodyChunk req
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms $
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                            , "Transfer-Encoding: chunked\r\n\r\n"
+                            , body
+                            ]
+                    rsp <- msRead ms 17
+                    ipaths' <- I.readIORef ipaths
+                    return (S8.unpack rsp, ipaths' [])
+            smuggled = "GET /smuggled HTTP/1.1\r\nHost: foo\r\n\r\n"
+            refuses name body = it name $ do
+                (rsp, paths) <- withChunked body
+                rsp `shouldContain` "400"
+                paths `shouldNotContain` ["/smuggled"]
+        refuses "refuses a chunk size that is not a number" smuggled
+        refuses
+            "refuses a chunk that is not closed off by CRLF"
+            (S.concat ["5\r\nHello", smuggled])
+        refuses "refuses a chunk size that overflows" "ffffffffffffffffff\r\n"
+        it "refuses a chunk cut short by the end of input" $ do
+            -- A chunk promising a hundred bytes with ten sent and nothing
+            -- more. The body ended there and the application was handed a
+            -- short one as though it were whole: yesodweb/wai#1129.
+            ref <- I.newIORef Nothing
+            let onExc _ = I.writeIORef ref . Just
+                app req f = do
+                    _ <- consumeBody $ getRequestBodyChunk req
+                    f $ responseLBS status200 [] ""
+            withApp (setOnException onExc defaultSettings) app $ withMySocket $ \ms -> do
+                msWrite ms $
+                    S.concat
+                        [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                        , "Transfer-Encoding: chunked\r\n\r\n"
+                        , "64\r\n"
+                        , S8.pack (replicate 10 'A')
+                        ]
+                msClose ms
+                threadDelay 100000
+                res <- I.readIORef ref
+                show res `shouldBe` show (Just ConnectionClosedByPeer)
+        it "reads the trailer section to its end" $ do
+            (rsp, paths) <- withChunked $ S.concat ["0\r\nX-Trailer: y\r\n", smuggled]
+            rsp `shouldContain` "200"
+            paths `shouldBe` ["/"]
+        it "reads a chunk size split over several reads" $ do
+            ifront <- I.newIORef id
+            let app req f = do
+                    bss <- consumeBody $ getRequestBodyChunk req
+                    I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
+                    f $ responseLBS status200 [] ""
+            withApp defaultSettings app $ withMySocket $ \ms -> do
+                msWrite ms "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"
+                forM_ ["1", "2", "\r\n", S.replicate 0x12 65, "\r\n0\r\n\r\n"] $
+                    \piece -> threadDelay 50000 >> msWrite ms piece
+                _ <- msRead ms 17
+                front <- I.readIORef ifront
+                front [] `shouldBe` [S.replicate 0x12 65]
 
     describe "raw body" $ do
         it "works" $ do
