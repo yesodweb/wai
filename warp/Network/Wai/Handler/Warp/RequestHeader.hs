@@ -131,6 +131,8 @@ parseRequestLine requestLine@(PS fptr off len) = withForeignPtr fptr $ \ptr -> d
 -- ("Host","example.com:8080")
 -- >>> parseHeader "NoSemiColon"
 -- ("NoSemiColon","")
+-- >>> parseHeader "Content-Length : 47"
+-- *** Exception: Warp: Invalid header field name: "Content-Length "
 -- >>> parseHeader "X-Foo: a\rContent-Length: 47"
 -- *** Exception: Warp: CR or NUL in a header field line
 parseHeader :: ByteString -> IO H.Header
@@ -141,13 +143,43 @@ parseHeader s = do
     -- bare CR for a line terminator reads a field, and a framing field
     -- among them, where warp reads only data.
     when (hasControl s) $ throwIO BadHeaderLine
+    -- RFC 9112 asks for 400 here, because a recipient which instead
+    -- repairs the name reads a header where warp reads none: a
+    -- Content-Length hidden that way is a request body warp does not
+    -- know it is being sent.
+    when (S.null k || not (S.all isTchar k)) $ throwIO $ BadFieldName k
     return (CI.mk k, rest')
   where
     (k, rest) = S.break (== _colon) s
-    rest' = S.dropWhile (\c -> c == _space || c == _tab) $ S.drop 1 rest
+    rest' = S.dropWhile isOWS $ S.drop 1 rest
+    isOWS c = c == _space || c == _tab
     -- Two passes of memchr beat one pass of a lambda here by a wide
     -- margin, and 'S.elem' is the way to ask for memchr: measured over
     -- a browser's request headers, this takes a fifth of the time that
     -- @S.any (_cr ==)@ does and a fifteenth of the time that one
     -- @S.any@ with a two-way lambda does.
     hasControl bs = S.elem _cr bs || S.elem _nul bs
+
+-- | The characters RFC 9110 allows in a header field name.
+isTchar :: Word8 -> Bool
+isTchar w =
+    isAsciiUpper w
+        || isAsciiLower w
+        || isDigit w
+        || w
+            `elem` [ _exclam
+                   , _numbersign
+                   , _dollar
+                   , _percent
+                   , _ampersand
+                   , _quotesingle
+                   , _asterisk
+                   , _plus
+                   , _hyphen
+                   , _period
+                   , _circum
+                   , _underscore
+                   , _grave
+                   , _bar
+                   , _tilde
+                   ]

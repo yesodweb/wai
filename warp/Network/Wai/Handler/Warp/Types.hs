@@ -54,6 +54,10 @@ data InvalidRequest
       --   takes for a line terminator where another reads data.
       --   Since 3.4.17
       BadHeaderLine
+    | -- | A header field name which is not a token, which hides the
+      --   field from one reader but not another.
+      --   Since 3.4.17
+      BadFieldName ByteString
     deriving (Eq)
 
 instance Show InvalidRequest where
@@ -70,6 +74,7 @@ instance Show InvalidRequest where
     show UnsupportedTransferEncoding = "Warp: Unsupported transfer coding"
     show AmbiguousBodyLength = "Warp: Ambiguous request body length"
     show BadHeaderLine = "Warp: CR or NUL in a header field line"
+    show (BadFieldName n) = "Warp: Invalid header field name: " ++ show n
 
 instance E.Exception InvalidRequest
 
