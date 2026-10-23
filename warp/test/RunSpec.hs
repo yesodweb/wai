@@ -282,17 +282,14 @@ spec = do
                         respond $ responseLBS status200 [] ""
                 withApp defaultSettings app $ withMySocket $ f iheaders
 
-        it "multiline headers" $ do
+        it "refuses multiline headers" $ do
             appWithSocket $ \iheaders ms -> do
                 let input = "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
                 msWrite ms input
-                threadDelay 5000
+                rsp <- msRead ms 17
                 headers <- I.readIORef iheaders
-                headers
-                    `shouldBe` [ ("foo", "bar")
-                               , (" baz", "")
-                               , ("\tbin", "")
-                               ]
+                S8.unpack rsp `shouldContain` "400"
+                headers `shouldBe` []
         it "no space between colon and value" $ do
             appWithSocket $ \iheaders ms -> do
                 let input = "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
@@ -300,16 +297,14 @@ spec = do
                 threadDelay 5000
                 headers <- I.readIORef iheaders
                 headers `shouldBe` [("foo", "bar")]
-        it "does not recognize multiline headers" $ do
+        it "refuses multiline headers split across writes" $ do
             appWithSocket $ \iheaders ms -> do
                 msWrite ms "GET / HTTP/1.1\r\nfoo: and\r\n"
                 msWrite ms " baz as well\r\n\r\n"
-                threadDelay 5000
+                rsp <- msRead ms 17
                 headers <- I.readIORef iheaders
-                headers
-                    `shouldBe` [ ("foo", "and")
-                               , (" baz as well", "")
-                               ]
+                S8.unpack rsp `shouldContain` "400"
+                headers `shouldBe` []
 
     describe "chunked bodies" $ do
         it "works" $ do
@@ -584,6 +579,40 @@ spec = do
                 _ <- msRead ms 17
                 front <- I.readIORef ifront
                 front [] `shouldBe` ["Hello World"]
+
+    describe "header field names" $ do
+        -- Each of these is refused rather than repaired: a recipient
+        -- which repairs it reads a body of 36 bytes, which warp would
+        -- read as a request of its own.
+        let refuses name hdrs = it name $ do
+                ipaths <- I.newIORef id
+                let app req f = do
+                        I.atomicModifyIORef ipaths $ \front ->
+                            (front . (rawPathInfo req :), ())
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms $
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                            , hdrs
+                            , "\r\nGET /smuggled HTTP/1.1\r\nHost: foo\r\n\r\n"
+                            ]
+                    rsp <- msRead ms 17
+                    paths <- I.readIORef ipaths
+                    S8.unpack rsp `shouldContain` "400"
+                    paths [] `shouldNotContain` ["/smuggled"]
+        refuses
+            "refuses whitespace between a field name and its colon"
+            "Content-Length : 36\r\n"
+        refuses
+            "refuses a control character in a field name"
+            "Content-Length\v: 36\r\n"
+        refuses
+            "refuses a continuation line"
+            "X-Foo: bar\r\n Content-Length: 36\r\n"
+        refuses
+            "refuses an empty field name"
+            ": 36\r\n"
 
     describe "raw body" $ do
         it "works" $ do
