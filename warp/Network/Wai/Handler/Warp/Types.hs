@@ -58,6 +58,9 @@ data InvalidRequest
       --   field from one reader but not another.
       --   Since 3.4.17
       BadFieldName ByteString
+    | -- | A chunked request body that does not keep to the framing
+      --   RFC 9112 gives it. Since 3.4.17
+      BadChunkedBody
     deriving (Eq)
 
 instance Show InvalidRequest where
@@ -75,6 +78,7 @@ instance Show InvalidRequest where
     show AmbiguousBodyLength = "Warp: Ambiguous request body length"
     show BadHeaderLine = "Warp: CR or NUL in a header field line"
     show (BadFieldName n) = "Warp: Invalid header field name: " ++ show n
+    show BadChunkedBody = "Warp: Malformed chunked request body"
 
 instance E.Exception InvalidRequest
 
