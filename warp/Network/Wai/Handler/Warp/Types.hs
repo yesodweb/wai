@@ -45,6 +45,10 @@ data InvalidRequest
       PayloadTooLarge
     | -- | Since 3.3.22
       RequestHeaderFieldsTooLarge
+    | -- | CR or NUL inside a header field line, which one reader
+      --   takes for a line terminator where another reads data.
+      --   Since 3.4.17
+      BadHeaderLine
     deriving (Eq)
 
 instance Show InvalidRequest where
@@ -58,6 +62,7 @@ instance Show InvalidRequest where
     show (BadProxyHeader s) = "Warp: Invalid PROXY protocol header: " ++ show s
     show RequestHeaderFieldsTooLarge = "Request header fields too large"
     show PayloadTooLarge = "Payload too large"
+    show BadHeaderLine = "Warp: CR or NUL in a header field line"
 
 instance E.Exception InvalidRequest
 
