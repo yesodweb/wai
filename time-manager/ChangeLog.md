@@ -4,7 +4,7 @@
 
 * Convert elapsed time to microseconds before checking and rescheduling a renewed timeout.
   Run the action at the deadline without registering a zero-duration timeout.
-  [#1](https://github.com/AlexaDeWit/wai/pull/1)
+  [#1134](https://github.com/yesodweb/wai/pull/1134)
 
 ## 0.5.0
 
