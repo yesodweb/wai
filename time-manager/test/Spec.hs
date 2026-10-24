@@ -41,6 +41,7 @@ import Data.IORef as I (
     readIORef,
     writeIORef,
  )
+import GHC.Clock (getMonotonicTimeNSec)
 import GHC.Conc.Sync (
     getUncaughtExceptionHandler,
     setUncaughtExceptionHandler,
@@ -61,6 +62,7 @@ import System.ThreadManager (
  )
 import System.TimeManager
 import System.TimeManager.Internal
+import qualified System.Timeout as Timeout
 import Test.HUnit (assertBool)
 
 main :: IO ()
@@ -270,6 +272,21 @@ main = hspec $ do
                 pause h
                 resume h
                 timeoutOnlyRanOnce
+
+        it "reschedules an expired callback for the remaining timeout" $ do
+            m <- initialize 1_000_000
+            fired <- newEmptyMVar
+            withHandle m (putMVar fired ()) $ \h -> do
+                threadDelay 500_000
+                -- Model a renewal after GHC has queued the original callback.
+                -- Updating GHC's timer here would remove that stale callback.
+                withLock (handleLock h) $ do
+                    now <- getMonotonicTimeNSec
+                    I.writeIORef (handleLastRenewed h) now
+                Timeout.timeout 750_000 (takeMVar fired)
+                    `shouldReturn` Nothing
+                Timeout.timeout 1_000_000 (takeMVar fired)
+                    `shouldReturn` Just ()
 
         it "resume also works as tickle" $
             testResume resume

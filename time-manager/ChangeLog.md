@@ -1,5 +1,10 @@
 # ChangeLog for time-manager
 
+## 0.5.0.1
+
+* Convert elapsed time to microseconds before checking and rescheduling a renewed timeout.
+  Run the action at the deadline without registering a zero-duration timeout.
+
 ## 0.5.0
 
 * BREAKING CHANGE: a `ThreadManager` no longer carries a `T.Manager`.
