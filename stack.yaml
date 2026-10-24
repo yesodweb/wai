@@ -34,7 +34,10 @@ extra-deps:
   - crypton-x509-validation-1.9.1@rev:3
   - hpke-0.2.1
   - http-semantics-0.4.0
-  - http2-5.4.0
+  # TEMPORARY: http2 with confWatchdog (kazu-yamamoto/http2#213), until it
+  # is released. Revert to a Hackage version before merging.
+  - git: https://github.com/kazu-yamamoto/http2
+    commit: c8f6c7d0ef2c9c3b0bd65ab2484f734de8131ddf
   - http3-0.1.3
   - mlkem-0.2.2.0
   - network-3.2.9.0

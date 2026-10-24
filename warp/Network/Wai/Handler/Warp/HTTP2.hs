@@ -10,7 +10,6 @@ module Network.Wai.Handler.Warp.HTTP2 (
 ) where
 
 import qualified Control.Exception as E
-import qualified Data.ByteString as BS
 import Data.IORef (readIORef)
 import qualified Data.IORef as I
 import GHC.Conc.Sync (labelThread, myThreadId)
@@ -21,6 +20,7 @@ import Network.Socket.BufferPool
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (..))
 import qualified System.TimeManager as T
+import Network.Wai.Handler.Warp.Watchdog (handOver)
 
 import Network.Wai.Handler.Warp.HTTP2.File
 import Network.Wai.Handler.Warp.HTTP2.PushPromise
@@ -47,24 +47,25 @@ http2
     :: S.Settings
     -> InternalInfo
     -> Connection
+    -> ConnContext
     -> Transport
     -> Application
     -> SockAddr
     -> T.Handle
     -> ByteString
     -> IO ()
-http2 settings ii conn transport app peersa th bs = do
+http2 settings ii conn cc transport app peersa _th bs = do
     rawRecvN <- makeRecvN bs $ connRecv conn
     writeBuffer <- readIORef $ connWriteBuffer conn
     -- This thread becomes the sender in http2 library.
-    -- In the case of event source, one request comes and one
-    -- worker gets busy. But it is likely that the receiver does
-    -- not receive any data at all while the sender is sending
-    -- output data from the worker. It's not good enough to tickle
-    -- the time handler in the receiver only. So, we should tickle
-    -- the time handler in both the receiver and the sender.
-    let recvN = wrappedRecvN th (S.settingsSlowlorisSize settings) rawRecvN
-        sendBS x = connSendAll conn x >> T.tickle th
+    --
+    -- Warp has read the preface and has nothing more to say about this
+    -- connection: what it is doing from here, and what counts as too
+    -- long, are the http2 library's to decide. So warp's watchdog (see
+    -- 'Run.fork') is handed over just below, rather than shared, and
+    -- http2 supervises what follows. Time managers are not used.
+    let recvN = wrappedRecvN rawRecvN
+        sendBS = connSendAll conn
         conf =
             H2.defaultConfig
                 { H2.confWriteBuffer = bufBuffer writeBuffer
@@ -72,13 +73,16 @@ http2 settings ii conn transport app peersa th bs = do
                 , H2.confSendAll = sendBS
                 , H2.confReadN = recvN
                 , H2.confPositionReadMaker = pReadMaker ii
-                , H2.confTimeoutManager = timeoutManager ii
                 , H2.confMySockAddr = connMySockAddr conn
                 , H2.confPeerSockAddr = peersa
-                , H2.confReadNTimeout = True
+                , -- How long warp would have given it, for the library to
+                  -- supervise the connection with from here.
+                  H2.confTimeout = S.settingsTimeout settings * 1000000
                 }
     checkTLS
     setConnHTTP2 conn True
+    -- The connection is the http2 library's from here.
+    handOver $ connWatchdog cc
     H2.run H2.defaultServerConfig conf $
         http2server "Warp HTTP/2" settings ii transport peersa app
   where
@@ -151,19 +155,9 @@ http2server label settings ii transport addr app h2req0 aux0 response = do
             Nothing -> 0
             Just s -> fromIntegral s
 
-wrappedRecvN
-    :: T.Handle -> Int -> (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
-wrappedRecvN th slowlorisSize readN bufsize = do
-    bs <- E.handle handler $ readN bufsize
-    -- TODO: think about the slowloris protection in HTTP2: current code
-    -- might open a slow-loris attack vector. Rather than timing we should
-    -- consider limiting the per-client connections assuming that in HTTP2
-    -- we should allow only few connections per host (real-world
-    -- deployments with large NATs may be trickier).
-    when
-        (BS.length bs > 0 && BS.length bs >= slowlorisSize || bufsize <= slowlorisSize)
-        $ T.tickle th
-    return bs
+-- | The http2 library tells the watchdog of every frame which arrives.
+wrappedRecvN :: (BufSize -> IO ByteString) -> (BufSize -> IO ByteString)
+wrappedRecvN readN bufsize = E.handle handler $ readN bufsize
   where
     handler :: E.SomeException -> IO ByteString
     handler = throughAsync (return "")
