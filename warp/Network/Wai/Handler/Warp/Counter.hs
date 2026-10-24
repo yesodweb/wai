@@ -20,8 +20,6 @@ import System.ThreadManager (
     newThreadManager,
     waitUntilAllGone,
  )
-import qualified System.TimeManager as T
-
 
 -- | The connections of a server: how many there are, and which threads
 --   are serving them.
@@ -32,10 +30,8 @@ import qualified System.TimeManager as T
 --   shutdown to notice it.
 newtype Counter = Counter ThreadManager
 
--- | No timeouts are run through this manager, so it is given a dummy
---   time manager rather than one of its own.
 newCounter :: IO Counter
-newCounter = Counter <$> newThreadManager T.defaultManager
+newCounter = Counter <$> newThreadManager
 
 -- | The manager owning the connections, for supervising them.
 threadManager :: Counter -> ThreadManager

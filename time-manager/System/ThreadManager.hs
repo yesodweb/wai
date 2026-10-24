@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | A thread manager including a time manager.
+-- | A thread manager.
 --   The manager has responsibility to kill managed threads.
 --
 -- Because this is based on the accompanying "System.TimeManager" module,
@@ -40,14 +40,6 @@ module System.ThreadManager (
     waitUntilAllGone,
     isAllGone,
     countManaged,
-
-    -- * Re-exports
-    T.Manager,
-    withHandle,
-    T.Handle,
-    T.tickle,
-    T.pause,
-    T.resume,
 ) where
 
 import Control.Concurrent
@@ -73,10 +65,9 @@ import qualified System.TimeManager as T
 
 ----------------------------------------------------------------
 
--- | Manager to manage the thread and the timer.
+-- | Manager to own threads.
 data ThreadManager = ThreadManager
-    { timeoutManager :: T.Manager
-    , managedThreads :: TVar ManagedThreads
+    { managedThreads :: TVar ManagedThreads
     , reservedPlaces :: TVar Int
     -- ^ Places kept by 'reserveManaged' for threads not started yet.
     , managerStopped :: TVar Bool
@@ -101,12 +92,10 @@ data ManagedThread = ManagedThread (Weak ThreadId) (IORef Bool)
 
 -- | Create a thread manager.
 --
--- To create a 'ThreadManager', you will first have to create a
--- 'T.Manager' from the "System.TimeManager" module.
---
--- You can use either 'System.TimeManager.initialize' or 'System.TimeManager.withManager'.
-newThreadManager :: T.Manager -> IO ThreadManager
-newThreadManager timeoutManager = do
+-- A manager owns threads; it does not time them out.  A caller which wants
+-- both passes its own 'T.Manager' to 'forkManagedTimeout'.
+newThreadManager :: IO ThreadManager
+newThreadManager = do
     managedThreads <- newTVarIO Map.empty
     reservedPlaces <- newTVarIO 0
     managerStopped <- newTVarIO False
@@ -328,20 +317,30 @@ forkManagedByFinally mgr fork label io final =
         fork $ \unmask -> managed mgr rsv label final $ \_ -> io unmask
 
 -- | Fork a managed thread with a handle created by a timeout manager.
+--
+--   The time manager is the caller's, since this manager has none: owning a
+--   thread and timing it out are separate things, and only this pair of
+--   functions needs both.  What needs them together is the lock that keeps
+--   the timeout and 'stopAfter' from both throwing at the thread.
 forkManagedTimeout
     :: ThreadManager
+    -> T.Manager
+    -- ^ Time manager
     -> String
     -- ^ Thread name
     -> (T.Handle -> IO ())
     -- ^ Action with timeout handle
     -> IO ()
-forkManagedTimeout mgr label io = forkManagedTimeoutFinally mgr label io $ return ()
+forkManagedTimeout mgr timmgr label io =
+    forkManagedTimeoutFinally mgr timmgr label io $ return ()
 
 -- | Like 'forkManagedTimeout', but with a cleanup function, run regardless of
 --   how the action ends.  An exception from the action is not caught: it
 --   ends the thread as it would under 'forkManagedTimeout'.
 forkManagedTimeoutFinally
     :: ThreadManager
+    -> T.Manager
+    -- ^ Time manager
     -> String
     -- ^ Thread name
     -> (T.Handle -> IO ())
@@ -349,11 +348,11 @@ forkManagedTimeoutFinally
     -> IO ()
     -- ^ Cleanup: will always run, regardless of how the thread ends
     -> IO ()
-forkManagedTimeoutFinally mgr@ThreadManager{..} label io final =
+forkManagedTimeoutFinally mgr timmgr label io final =
     E.bracketOnError (reserveManaged mgr) (release mgr) $ \rsv ->
         void $ forkIO $
             managed mgr rsv label final $ \(_n, ManagedThread wtid ref) ->
-                T.withHandle timeoutManager (lockAndKill wtid ref ex) io
+                T.withHandle timmgr (lockAndKill wtid ref ex) io
   where
     ex = KilledByThreadManager Nothing
 
@@ -490,14 +489,6 @@ labelMe :: String -> IO ()
 labelMe l = do
     tid <- myThreadId
     labelThread tid l
-
--- | Registering a 'T.TimeoutAction' and unregister its 'T.Handle'
---   when the body action is finished.
---
---   Identical to 'T.withHandle', but accepts a 'ThreadManager'.
-withHandle
-    :: ThreadManager -> T.TimeoutAction -> (T.Handle -> IO a) -> IO a
-withHandle ThreadManager{..} = T.withHandle timeoutManager
 
 #if __GLASGOW_HASKELL__ < 908
 fromThreadId :: ThreadId -> Word64

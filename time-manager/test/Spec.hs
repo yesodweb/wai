@@ -70,13 +70,13 @@ main = hspec $ do
         -- scheduled after it, by throwing.  That must not escape the fork,
         -- and must not take the cleanup with it.
         it "does not let forkManagedTimeout's refusal escape the fork" $ do
-            tm <- newThreadManager defaultManager
+            tm <- newThreadManager
             stopAfter tm (return ()) $ \_ -> return ()
             ran <- freshRef
             escaped <- freshRef
             before <- getUncaughtExceptionHandler
             setUncaughtExceptionHandler $ \_ -> I.writeIORef escaped True
-            forkManagedTimeout tm "probe" $ \_ -> I.writeIORef ran True
+            forkManagedTimeout tm defaultManager "probe" $ \_ -> I.writeIORef ran True
             threadDelay 200_000
             setUncaughtExceptionHandler before
             ran `refShouldBe` False
@@ -86,7 +86,7 @@ main = hspec $ do
             \tm label -> forkManagedFinally tm label (return ())
 
         itRunsTheCleanupOf "forkManagedTimeoutFinally" $
-            \tm label -> forkManagedTimeoutFinally tm label (\_ -> return ())
+            \tm label -> forkManagedTimeoutFinally tm defaultManager label (\_ -> return ())
 
         itRunsTheCleanupOf "forkManagedUnmaskFinally" $
             \tm label -> forkManagedUnmaskFinally tm label (\_ -> return ())
@@ -95,22 +95,22 @@ main = hspec $ do
         itLetsTheExceptionOutOf "forkManagedFinally" forkManagedFinally
 
         itLetsTheExceptionOutOf "forkManagedTimeoutFinally" $
-            \tm label io -> forkManagedTimeoutFinally tm label (\_ -> io)
+            \tm label io -> forkManagedTimeoutFinally tm defaultManager label (\_ -> io)
 
         itLetsTheExceptionOutOf "forkManagedUnmaskFinally" $
             \tm label io -> forkManagedUnmaskFinally tm label (\unmask -> unmask io)
 
     describe "ThreadManager" $ do
         it "fails loudly when a reservation is taken by another manager" $ do
-            a <- newThreadManager defaultManager
-            b <- newThreadManager defaultManager
+            a <- newThreadManager
+            b <- newThreadManager
             rsv <- reserveManaged a
             takeReservation b rsv (return ())
             atomically (countManaged b)
                 `shouldThrow` (\(AssertionFailed _) -> True)
 
         it "has none left only once their cleanups are done" $ do
-            tm <- newThreadManager defaultManager
+            tm <- newThreadManager
             ref <- freshRef
             forkManagedFinally
                 tm
@@ -123,7 +123,7 @@ main = hspec $ do
             ref `refShouldBe` True
 
         it "still owns a thread it killed until that thread is gone" $ do
-            tm <- newThreadManager defaultManager
+            tm <- newThreadManager
             ref <- freshRef
             started <- newEmptyMVar
             -- The cleanup here is the thread's own, not one the manager
@@ -317,7 +317,7 @@ itRunsTheCleanupOf
     -> Spec
 itRunsTheCleanupOf name fork =
     it ("runs the cleanup of " ++ name) $ do
-        tm <- newThreadManager defaultManager
+        tm <- newThreadManager
         stopAfter tm (return ()) $ \_ -> return ()
         done <- newEmptyMVar
         fork tm "probe" $ putMVar done ()
@@ -331,7 +331,7 @@ itLetsTheExceptionOutOf
     -> Spec
 itLetsTheExceptionOutOf name fork =
     it ("lets an exception from the action of " ++ name ++ " out") $ do
-        tm <- newThreadManager defaultManager
+        tm <- newThreadManager
         escaped <- newEmptyMVar
         cleaned <- freshRef
         before <- getUncaughtExceptionHandler
