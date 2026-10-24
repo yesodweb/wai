@@ -1,9 +1,10 @@
 # ChangeLog for time-manager
 
-## 0.5.0.1
+## 0.5.1
 
-* Convert elapsed time to microseconds before checking and rescheduling a renewed timeout.
-  Run the action at the deadline without registering a zero-duration timeout.
+* A renewed timeout compared nanoseconds with microseconds, so a timeout
+  renewed after its callback had been queued ran at once instead of being
+  rescheduled for the time it had just been given. Wrong since 0.4.0.
   [#1134](https://github.com/yesodweb/wai/pull/1134)
 
 ## 0.5.0
