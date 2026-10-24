@@ -39,11 +39,14 @@ module Network.Wai.Handler.Warp.Internal (
 
     -- * Connection
     Connection (..),
+    ConnContext (..),
+    newConnContext,
     socketConnection,
 
     -- ** Receive
     Recv,
     makeGracefulRecv,
+    makeWatchedRecv,
     RecvBuf,
 
     -- ** Buffer
@@ -84,21 +87,17 @@ module Network.Wai.Handler.Warp.Internal (
 
     -- |
     --
-    -- In order to provide slowloris protection, Warp provides timeout handlers. We
-    -- follow these rules:
+    -- In order to provide slowloris protection, a connection warp serves
+    -- itself is supervised by one 'ConnWatchdog', whose rules are in
+    -- "Network.Wai.Handler.Warp.Watchdog". An HTTP\/2 connection is handed
+    -- to the http2 library, which supervises it with a watchdog of its own.
     --
-    -- * A timeout is created when a connection is opened.
+    -- On a timeout, 'connRecv' throws 'TimeoutThread' by itself. A
+    -- connection which does not notice is killed with 'TimeoutThread'.
     --
-    -- * When all request headers are read, the timeout is tickled.
-    --
-    -- * Every time at least the slowloris size settings number of bytes of the request
-    --   body are read, the timeout is tickled.
-    --
-    -- * The timeout is paused while executing user code. This will apply to both
-    --   the application itself, and a ResponseSource response. The timeout is
-    --   resumed as soon as we return from user code.
-    --
-    -- * Every time data is successfully sent to the client, the timeout is tickled.
+    -- 'Handle's passed around are dummies, kept for compatibility.
+    ConnWatchdog,
+    newConnWatchdog,
     module System.TimeManager,
 
     -- * File descriptor cache
@@ -144,6 +143,7 @@ import Network.Wai.Handler.Warp.Run
 import Network.Wai.Handler.Warp.SendFile
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog (ConnWatchdog, newConnWatchdog)
 import Network.Wai.Handler.Warp.Windows
 
 type IndexedHeader = IndexedRequestHeader

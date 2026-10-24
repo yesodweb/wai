@@ -153,7 +153,6 @@ sendResponse settings conn ii th req reqidxhdr src response = do
         else do
             _ <- sendRsp conn ii th ver s hs rspidxhdr maxRspBufSize method RspNoBody
             logger req s Nothing
-    T.tickle th
     return shouldPersist
   where
     -- From Settings --
@@ -184,7 +183,7 @@ sendResponse settings conn ii th req reqidxhdr src response = do
     addServerAndDate = addDate getdate rspidxhdr . addServer defServer rspidxhdr
     needsChunked = isHttp11 && not hasLength
     rsp = case response of
-        ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr (T.tickle th)
+        ResponseFile _ _ path mPart -> RspFile path mPart reqidxhdr (return ())
         ResponseBuilder _ _ b
             | isHead -> RspNoBody
             | otherwise -> RspBuilder b needsChunked
@@ -288,7 +287,7 @@ sendRsp conn _ _ ver s hs _ _ _ RspNoBody = do
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th ver s hs rspidxhdr maxRspBufSize _ (RspBuilder body needsChunked) = do
+sendRsp conn _ _ ver s hs rspidxhdr maxRspBufSize _ (RspBuilder body needsChunked) = do
     writeBuffer <- readIORef writeBufferRef
     len <-
         -- SAFETY: this check is what makes the unchecked writes below
@@ -324,7 +323,7 @@ sendRsp conn _ th ver s hs rspidxhdr maxRspBufSize _ (RspBuilder body needsChunk
         | needsChunked = chunkedTransferEncoding body <> chunkedTransferTerminator
         | otherwise = body
     writeBufferRef = connWriteBuffer conn
-    send bs = connSendAll conn bs >> T.tickle th
+    send = connSendAll conn
 
 ----------------------------------------------------------------
 
@@ -368,15 +367,9 @@ sendRsp conn _ th ver s hs rspidxhdr _ _ (RspStream streamingBody needsChunked) 
 
 ----------------------------------------------------------------
 
-sendRsp conn _ th _ _ _ _ _ _ (RspRaw withApp src) = do
-    withApp recv send
+sendRsp conn _ _ _ _ _ _ _ _ (RspRaw withApp src) = do
+    withApp src $ connSendAll conn
     return (Nothing, Nothing)
-  where
-    recv = do
-        bs <- src
-        unless (S.null bs) $ T.tickle th
-        return bs
-    send bs = connSendAll conn bs >> T.tickle th
 
 ----------------------------------------------------------------
 
@@ -494,16 +487,11 @@ sendRspFile404 conn ii th ver hs0 rspidxhdr maxRspBufSize method =
 ----------------------------------------------------------------
 
 -- | Use 'connSendAll' to send this data while respecting timeout rules.
+--
+-- The watchdog sees the write itself, and sees user code running in
+-- between with 'runningApp', so there is nothing to pause here.
 sendFragment :: Connection -> T.Handle -> ByteString -> IO ()
-sendFragment Connection{connSendAll = send} th bs = do
-    T.resume th
-    send bs
-    T.pause th
-
--- We pause timeouts before passing control back to user code. This ensures
--- that a timeout will only ever be executed when Warp is in control. We
--- also make sure to resume the timeout after the completion of user code
--- so that we can kill idle connections.
+sendFragment Connection{connSendAll = send} _ bs = send bs
 
 ----------------------------------------------------------------
 

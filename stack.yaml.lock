@@ -82,12 +82,16 @@ packages:
   original:
     hackage: http-semantics-0.4.0
 - completed:
-    hackage: http2-5.4.0@sha256:2e5e41a4e8a91e7fcf06b02dcd56dd38283edf785607637ec11d7035965e5e23,11047
+    commit: c8f6c7d0ef2c9c3b0bd65ab2484f734de8131ddf
+    git: https://github.com/kazu-yamamoto/http2
+    name: http2
     pantry-tree:
-      sha256: 181856c66e3db92685af3797ceb635f679cd444a300c1f0d0167a37a604b24f4
-      size: 44864
+      sha256: 046abe99971ecbc420e44b60963ddc785023eee266be5bb3838782a982b1d549
+      size: 52446
+    version: 5.4.7
   original:
-    hackage: http2-5.4.0
+    commit: c8f6c7d0ef2c9c3b0bd65ab2484f734de8131ddf
+    git: https://github.com/kazu-yamamoto/http2
 - completed:
     hackage: http3-0.1.3@sha256:8c024d32839b0041088c44d4b1f7c2d7d4b5a3a845873d169c65fd0ac9e550b5,6068
     pantry-tree:

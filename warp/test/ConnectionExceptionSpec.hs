@@ -35,7 +35,7 @@ spec = describe "connection exception peer" $ do
         let settings = setOnException (\request -> record events (remoteHost <$> request)) defaultSettings
         withAsync (runSettingsConnectionMakerSecure settings (readChan makers) unusedApplication) $ \server -> do
             link server
-            writeChan makers (throwIO (ConnectionFailure 1), peer 100)
+            writeChan makers (const $ throwIO (ConnectionFailure 1), peer 100)
             timeout 2000000 (readChan events) `shouldReturn` Just (1, Nothing)
 
     it "gets the current legacy observer as the default connection observer" $ do
@@ -94,7 +94,7 @@ spec = describe "connection exception peer" $ do
         withAsync (runSettingsConnectionMakerSecure settings (readChan makers) unusedApplication) $ \server -> do
             link server
             forM_ [(5, 130), (6, 140)] $ \(failureId, peerId) -> do
-                writeChan makers (throwIO (ConnectionFailure failureId), peer peerId)
+                writeChan makers (const $ throwIO (ConnectionFailure failureId), peer peerId)
                 timeout 2000000 (readChan events) `shouldReturn` Just (failureId, Just (peer peerId))
 
     it "reports peers when overlapping connection makers fail in reverse order" $ do
@@ -104,7 +104,7 @@ spec = describe "connection exception peer" $ do
         first <- newEmptyMVar
         second <- newEmptyMVar
         let settings = observePeer (record events) defaultSettings
-            maker i gate = writeChan started i >> takeMVar gate >> throwIO (ConnectionFailure i)
+            maker i gate _ = writeChan started i >> takeMVar gate >> throwIO (ConnectionFailure i)
         withAsync (runSettingsConnectionMakerSecure settings (readChan makers) unusedApplication) $ \server -> do
             link server
             writeChan makers (maker 7 first, peer 150)
