@@ -276,8 +276,8 @@ adjustOnTimeout originalKeyRef h@Handle{..} = do
                 ifSameKey key $ do
                     lastRenewed <- I.readIORef handleLastRenewed
                     now <- getMonotonicTimeNSec
-                    let diff = fromIntegral $ now - lastRenewed
-                    if diff > handleTimeout
+                    let diff = fromIntegral $ (now - lastRenewed) `div` 1_000
+                    if diff >= handleTimeout
                         -- Valid expiration of the timeout, we run the action
                         then do
                             -- We're going to run the action, so set the state

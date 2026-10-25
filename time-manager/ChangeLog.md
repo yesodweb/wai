@@ -1,5 +1,13 @@
 # ChangeLog for time-manager
 
+## 0.4.1
+
+* BUGFIX:
+  * Fixed a time comparison where a `TimeoutAction` that should be rescheduled
+    wasn't. The monotonic time uses nanoseconds and the difference was compared
+    to the timeout value without converting to microseconds, so it had a high chance
+    of running the `TimeoutAction`, even though it should have been rescheduled.
+
 ## 0.4.0
 
 * CHANGES IN BEHAVIOUR:
