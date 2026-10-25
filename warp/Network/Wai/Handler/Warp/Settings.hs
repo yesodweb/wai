@@ -405,7 +405,7 @@ defaultOnException _ e =
 --   Sending 431 for too large headers.
 -- @since 3.2.27
 --   Sending 501 for an unsupported transfer coding.
--- @since 3.5.0
+-- @since 3.4.17
 defaultOnExceptionResponse :: SomeException -> Response
 defaultOnExceptionResponse e
     | isAsyncException e = throw e
