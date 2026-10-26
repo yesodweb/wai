@@ -8,6 +8,7 @@ module Network.Wai.Handler.Warp.File (
     H.parseByteRanges,
 ) where
 
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8 (pack)
 import Network.HTTP.Date (HTTPDate, parseHTTPDate)
 import qualified Network.HTTP.Types as H
@@ -66,7 +67,7 @@ conditionalRequest finfo hs0 method rspidx reqidx = case condition of
     !mcondition =
         ifunmodified reqidx mtime
             <|> ifmodified reqidx mtime method
-            <|> ifrange reqidx mtime method size
+            <|> ifrange reqidx hs0 mtime method size
     !condition = fromMaybe (unconditional reqidx size) mcondition
 
 ----------------------------------------------------------------
@@ -76,9 +77,6 @@ ifModifiedSince reqidx = reqidxIfModifiedSince reqidx >>= parseHTTPDate
 
 ifUnmodifiedSince :: IndexedRequestHeader -> Maybe HTTPDate
 ifUnmodifiedSince reqidx = reqidxIfUnmodifiedSince reqidx >>= parseHTTPDate
-
-ifRange :: IndexedRequestHeader -> Maybe HTTPDate
-ifRange reqidx = reqidxIfRange reqidx >>= parseHTTPDate
 
 ----------------------------------------------------------------
 
@@ -110,24 +108,36 @@ ifunmodified reqidx mtime = do
     guard $ date /= mtime && date < mtime
     Just $ WithoutBody H.preconditionFailed412
 
--- TODO: Should technically also strongly match on ETags.
 ifrange
     :: IndexedRequestHeader
+    -> H.ResponseHeaders
     -> HTTPDate
     -> H.Method
     -> Integer
     -> Maybe RspFileInfo
-ifrange reqidx mtime method size = do
+ifrange reqidx hs mtime method size = do
     -- According to RFC 9110:
     -- "When the method is GET and both Range and If-Range are
     -- present, evaluate the If-Range precondition:"
-    date <- ifRange reqidx
+    validator <- reqidxIfRange reqidx
     rng <- reqidxRange reqidx
     guard $ method == H.methodGet
+    let matches = case parseHTTPDate validator of
+            Just date -> date == mtime
+            -- An entity-tag only matches the response's own ETag, compared
+            -- strongly. Without an ETag, the Range is ignored: "If the
+            -- validator does not match, then the server MUST ignore the
+            -- Range header field."
+            Nothing -> case lookup H.hETag hs of
+                Just etag -> strongMatch validator etag
+                Nothing -> False
     return $
-        if date == mtime
+        if matches
             then parseRange rng size
             else WithBody H.ok200 [] 0 size
+  where
+    strongMatch a b = a == b && not (isWeak a)
+    isWeak = ("W/" `BS.isPrefixOf`)
 
 unconditional :: IndexedRequestHeader -> Integer -> RspFileInfo
 unconditional reqidx =
