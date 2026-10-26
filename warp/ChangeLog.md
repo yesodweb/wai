@@ -11,6 +11,13 @@
 * Which errno `accept` may be retried on, and which error means the
   socket was closed, come from network's `isTransientAcceptError` and
   `isClosedSocketError` rather than from lists here.
+* A file response to a `Range` that starts at or past the end of the file is
+  a `416 Requested Range Not Satisfiable` with `Content-Range: bytes */<size>`,
+  and a range set is served from its first satisfiable range. A range starting
+  at the end of the file was answered with a `206` carrying
+  `Content-Range: bytes */<size>`, and one starting past it made
+  `packIntegral` fail, so the connection was closed without a response.
+  [#1137](https://github.com/yesodweb/wai/pull/1137)
 
 
 * Kill the connections being served when the accept loop ends.

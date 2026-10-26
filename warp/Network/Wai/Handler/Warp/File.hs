@@ -140,15 +140,25 @@ unconditional reqidx =
 parseRange :: ByteString -> Integer -> RspFileInfo
 parseRange rng size = case H.parseByteRanges rng of
     Nothing -> WithoutBody H.requestedRangeNotSatisfiable416
-    Just [] -> WithoutBody H.requestedRangeNotSatisfiable416
-    Just (r : _) ->
-        let (!beg, !end) = checkRange r size
-            !len = end - beg + 1
-            s =
-                if beg == 0 && end == size - 1
-                    then H.ok200
-                    else H.partialContent206
-         in WithBody s [] beg len
+    Just rs -> case filter satisfiable $ map (`checkRange` size) rs of
+        (beg, end) : _ ->
+            let !len = end - beg + 1
+                s =
+                    if beg == 0 && end == size - 1
+                        then H.ok200
+                        else H.partialContent206
+             in WithBody s [] beg len
+        []
+            -- No byte range of an empty file is satisfiable, but it is
+            -- sent whole rather than refused.
+            | size == 0 -> WithBody H.ok200 [] 0 0
+            -- According to RFC 9110, a 416 response SHOULD carry
+            -- "Content-Range: bytes */<size>", which 'addContentHeaders'
+            -- generates for an empty part.
+            | otherwise -> WithBody H.requestedRangeNotSatisfiable416 [] 0 0
+  where
+    -- A range is satisfiable if it starts before the end of the file.
+    satisfiable (beg, end) = beg <= end
 
 checkRange :: H.ByteRange -> Integer -> (Integer, Integer)
 checkRange (H.ByteRangeFrom beg) size = (beg, size - 1)

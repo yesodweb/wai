@@ -53,6 +53,17 @@ farFuture = "Sun, 05 Oct 3000 00:00:00 GMT"
 regularBody :: RspFileInfo
 regularBody = WithBody ok200 [("Content-Length", "16"), ("Accept-Ranges", "bytes")] 0 16
 
+make416Body :: RspFileInfo
+make416Body =
+    WithBody
+        status416
+        [ ("Content-Range", "bytes */16")
+        , ("Content-Length", "0")
+        , ("Accept-Ranges", "bytes")
+        ]
+        0
+        0
+
 make206Body :: Integer -> Integer -> RspFileInfo
 make206Body start len =
     WithBody status206 [crHeader, lenHeader, ("Accept-Ranges", "bytes")] start len
@@ -78,6 +89,18 @@ spec = do
             "truncates end point of range to file size"
             [("Range", "bytes=10-20")]
             $ make206Body 10 6
+        testFileRange
+            "returns a 416 if the range starts at the end of the file"
+            [("Range", "bytes=16-")]
+            make416Body
+        testFileRange
+            "returns a 416 if the range starts after the end of the file"
+            [("Range", "bytes=20-30")]
+            make416Body
+        testFileRange
+            "skips an unsatisfiable range and returns the first satisfiable one"
+            [("Range", "bytes=20-30,2-5")]
+            $ make206Body 2 4
         testFileRange
             "gets a file size from file system and handles Range and returns OK if Range means the entire"
             [("Range:", "bytes=0-15")]
