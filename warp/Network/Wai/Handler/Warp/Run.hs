@@ -22,7 +22,7 @@ import Control.Concurrent.STM (
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Functor (($>))
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (
     Errno (..),
@@ -46,12 +46,11 @@ import Network.Socket (
     close,
 #if !WINDOWS
     fdSocket,
-#if MIN_VERSION_network(3,2,2)
-    waitAndCancelReadSocketSTM,
-    waitReadSocketSTM,
-#endif
 #endif
     getSocketName,
+    isClosedSocketError,
+    isTransientAcceptError,
+    withReadable,
     setSocketOption,
     withSocketsDo,
  )
@@ -150,44 +149,21 @@ socketConnection set s = do
             E.throwIO
             $ Sock.sendAll s bs
 
--- | Create a 'Recv' using 'Network.Socket.BufferPool.Recv.receive', but make
--- it non-blocking with 'waitReadSocketSTM' /AND/ cut off receiving any bytes
--- when the server is shutting down and there are no more 'Application's
--- actively using this 'Socket'.
+-- | Create a 'Recv' which stops receiving when the server is shutting down
+-- and no 'Application' is still using this 'Socket'.
+--
+-- Nothing is closed and no thread is interrupted to make it return: the
+-- read and the shutdown are waited for at once, inside 'receiveWith'.
 makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
 makeGracefulRecv sock pool ss appsInProgress = do
-    tryFastPath <- not <$> readShuttingDown (serverShuttingDown ss)
-    if tryFastPath then do
-        mbs <- receiveNoWait sock pool
-        case mbs of
-          Just bs -> return bs
-          Nothing -> slowPath
-      else slowPath
+    r <- receiveWith sock pool checkShutdown
+    case r of
+        Left () -> return ""
+        Right bs -> return bs
   where
-    slowPath = makeGracefulRecvSlow sock pool ss appsInProgress
-
-makeGracefulRecvSlow :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
-makeGracefulRecvSlow sock pool ss appsInProgress = do
-    sockWait <-
-#if !WINDOWS && MIN_VERSION_network(3,2,2)
-        waitReadSocketSTM sock
-#else
-        -- FIXME: 'waitReadSocketSTM' doesn't work on WINDOWS, and actually
-        -- blocks indefinitely, so we fall back to going straight to 'recv'.
-        pure (pure ())
-#endif
-    isShuttingDown <- atomically $
-        -- when shutting down
-        (checkShutdown $> True)
-        <|>
-        -- else wait for socket readiness and do non-blocking read
-        (sockWait $> False)
-    if isShuttingDown then pure "" else recv
-  where
-    recv = receive sock pool
     checkShutdown = do
-       check =<< currentShuttingDownStateSTM ss
-       check . (<= 0) =<< readTVar appsInProgress
+        check =<< currentShuttingDownStateSTM ss
+        check . (<= 0) =<< readTVar appsInProgress
 
 -- | Run an 'Application' on the given port.
 -- This calls 'runSettings' with 'defaultSettings'.
@@ -235,9 +211,10 @@ runSettings set app =
 -- for the shutdown at once and ends on whichever comes first; the socket is
 -- closed after it, by which time nothing is waiting on it.
 data Listener = Listener
-    { waitAcceptable :: IO Bool
-    -- ^ Waits until there is something to accept.  'False' instead when the
-    -- server has been asked to stop.
+    { acceptOrStop :: IO (Maybe (Socket, SockAddr))
+    -- ^ Accepts a connection.  'Nothing' instead once the server has been
+    -- asked to stop: giving up has to be composed with the accept itself,
+    -- so the accept belongs here rather than beside it.
     , closeListener :: IO ()
     -- ^ Run once the accept loop has ended and before the connections are
     -- waited for: the port is a successor's to take, and a successor should
@@ -245,35 +222,38 @@ data Listener = Listener
     }
 
 -- | For a caller that handed warp a connection maker and no socket.  There
---   is nothing here to wait on and nothing to close, and such a server ends
+--   is nothing here to accept and nothing to close, and such a server ends
 --   the way it always did: by whatever its maker accepts on being closed.
 noListener :: Listener
-noListener = Listener{waitAcceptable = return True, closeListener = return ()}
+noListener = Listener{acceptOrStop = return Nothing, closeListener = return ()}
+
+-- | Thrown by a connection maker which was told to stop rather than handed
+--   a connection, and caught by the accept loop.  A maker has to return a
+--   connection or throw, so this is how it says that there will not be one.
+data AcceptStopped = AcceptStopped deriving (Show)
+
+instance E.Exception AcceptStopped
 
 makeListener :: Settings -> Socket -> IO Listener
-#if !WINDOWS && MIN_VERSION_network(3,2,2)
 makeListener set socket = do
     stopping <- newTVarIO False
     settingsInstallShutdownHandler set $ atomically $ writeTVar stopping True
     return
         Listener
-            { waitAcceptable = handleClosedListener $ do
-                -- Cancelled however this ends, and not only when it ends
-                -- because the socket became readable: an IO manager built on
-                -- an interface like io_uring holds a reference on the socket
-                -- for as long as the poll it was asked for is outstanding,
-                -- so a wait left behind by a server that has stopped is a
-                -- listening socket that does not close.
-                (acceptable, cancelWait) <- waitAndCancelReadSocketSTM socket
-                flip E.finally cancelWait $
-                    atomically $
-                        -- when shutting down
-                        ((check =<< readTVar stopping) $> False)
-                            <|>
-                            -- else wait for a connection to accept
-                            (acceptable $> True)
+            { acceptOrStop = closedAsStopped $ do
+                r <- withReadable socket (told stopping) $ settingsAccept set socket
+                return $ either (const Nothing) Just r
             , closeListener = close socket
             }
+  where
+    told stopping = check =<< readTVar stopping
+    -- Closing the listening socket is how a server was stopped before there
+    -- was anything to tell, and callers that do it are still out there. It
+    -- means the same thing the shutdown handler means: stop accepting.
+    -- Ending the loop quietly is what happened before, and 'closeListener'
+    -- closing an already-closed socket is no error.
+    closedAsStopped = E.handle $ \e ->
+        if isClosedSocketError e then return Nothing else E.throwIO e
 
 -- Closing the listening socket is how a server was stopped before there was
 -- anything to tell, and callers that do it are still out there.  Waiting on
@@ -283,22 +263,6 @@ makeListener set socket = do
 -- 'closeListener' closing an already-closed socket is no error.
 --
 -- 'acceptNewConnection' says the same of the EBADF from accept() itself.
-handleClosedListener :: IO Bool -> IO Bool
-handleClosedListener = E.handle $ \e ->
-    if ioeGetErrorType e == InvalidArgument
-        then return False
-        else E.throwIO e
-#else
-makeListener set socket = do
-    -- Two ways to get here.  As in 'makeGracefulRecvSlow',
-    -- 'waitReadSocketSTM' doesn't work on WINDOWS and blocks indefinitely;
-    -- and before network 3.2.2 there is no 'waitAndCancelReadSocketSTM' to
-    -- call at all.  Either way a shutdown ends the accept loop the old way,
-    -- by closing the listening socket under it.
-    settingsInstallShutdownHandler set $ close socket
-    return noListener
-#endif
-
 -- | This installs a shutdown handler for the given socket and runs the
 -- default connection setup action, which handles plain (non-cipher) HTTP.
 -- Running the handler stops the server accepting, closes the listening
@@ -316,15 +280,16 @@ runSettingsSocket oldSettings@Settings{settingsAccept = accept'} socket app = do
     runSettingsConnectionMakerSecureWith
         newSettings
         listener
-        (first ((,TCP) <$>) <$> getConnMaker newSettings)
+        (first ((,TCP) <$>) <$> getConnMaker listener newSettings)
         app
   where
-    getConnMaker set = do
-        (conn, sa) <- getConn set
+    getConnMaker listener set = do
+        (conn, sa) <- getConn listener set
         return (return conn, sa)
 
-    getConn set = do
-        (s, sa) <- accept' socket
+    getConn listener set = do
+        macc <- acceptOrStop listener
+        (s, sa) <- maybe (E.throwIO AcceptStopped) return macc
         setSocketCloseOnExec s
         -- NoDelay causes an error for AF_UNIX.
         setSocketOption s NoDelay 1 `E.catch` throughAsync (return ())
@@ -465,25 +430,26 @@ acceptConnection set listener getConnMaker app counter ii fdRef = do
         -- Allow async exceptions before receiving the next connection maker.
         E.allowInterrupt
 
-        -- Wait for the socket to have something to accept and for the
-        -- server to be asked to stop, whichever comes first.
-        acceptable <- waitAcceptable listener
-        when acceptable $ do
-            -- acceptNewConnection will try to receive the next incoming
-            -- request. It returns a /connection maker/, not a connection,
-            -- since in some circumstances creating a working connection
-            -- from a raw socket may be an expensive operation, and this
-            -- expensive work should not be performed in the main event
-            -- loop. An example of something expensive would be TLS
-            -- negotiation.
-            mx <- acceptNewConnection
-            case mx of
-                Nothing -> return ()
-                Just (mkConn, addr) -> do
-                    fork set mkConn addr app counter ii
-                    acceptLoop
+        -- acceptNewConnection will try to receive the next incoming
+        -- request. It returns a /connection maker/, not a connection,
+        -- since in some circumstances creating a working connection
+        -- from a raw socket may be an expensive operation, and this
+        -- expensive work should not be performed in the main event
+        -- loop. An example of something expensive would be TLS
+        -- negotiation.
+        mx <- acceptNewConnection
+        case mx of
+            Nothing -> return ()
+            Just (mkConn, addr) -> do
+                fork set mkConn addr app counter ii
+                acceptLoop
 
-    acceptNewConnection = do
+    -- The maker throws this when the server has been asked to stop, which
+    -- is not a failure to report.
+    acceptNewConnection =
+        acceptNewConnection' `E.catch` \AcceptStopped -> return Nothing
+
+    acceptNewConnection' = do
         ex <- E.try getConnMaker
         case ex of
             Right x -> do
@@ -494,44 +460,22 @@ acceptConnection set listener getConnMaker app counter ii fdRef = do
             Left e -> do
                 let getErrno (Errno cInt) = cInt
                     isErrno err = ioe_errno e == Just (getErrno err)
-                    -- Errors about one queued connection rather than about the
-                    -- listening socket. eCONNABORTED is the familiar one, a
-                    -- peer that went away before it could be accepted. Linux
-                    -- also reports the new socket's already-pending network
-                    -- errors through accept(), and accept(2) asks for those to
-                    -- be treated the same way, retried like EAGAIN. Either
-                    -- way the connection has left the queue, so the retry
-                    -- blocks for a new one rather than spinning on the same
-                    -- failure.
-                    --
-                    -- eOPNOTSUPP is on that list in accept(2) and is left off
-                    -- this one on purpose: it also means the listening socket
-                    -- is not SOCK_STREAM, which is a permanent condition that
-                    -- retrying would spin on forever. Throwing tells whoever
-                    -- passed that socket, which is the only thing that helps.
-                    isQueuedConnectionError =
-                        any
-                            isErrno
-                            [ eCONNABORTED
-                            , eNETDOWN
-                            , ePROTO
-                            , eNOPROTOOPT
-                            , eHOSTDOWN
-                            , eNONET
-                            , eHOSTUNREACH
-                            , eNETUNREACH
-                            ]
                     isFdExhaustion = isErrno eMFILE
                     isIntentionallyClosedSocket = isErrno eBADF
-                if | isQueuedConnectionError -> do
+                -- isTransientAcceptError is about one queued connection
+                -- rather than about the listening socket, and says which
+                -- errno those are. The connection has left the queue by
+                -- then, so the retry blocks for a new one rather than
+                -- spinning on the same failure.
+                if | isTransientAcceptError e -> do
                         -- Important to mark the exhaustion issue to be resolved
                         resetFdExhaustion fdRef
-                        acceptNewConnection
+                        acceptNewConnection'
                      -- Keep in mind to reset the ref when anything other
                      -- than this branch runs
                    | isFdExhaustion -> do
                         handleFdExhaustion e
-                        acceptNewConnection
+                        acceptNewConnection'
                      -- A graceful shutdown ends this loop by closing the
                      -- listening socket, and that always arrives here as
                      -- EBADF: 'close' replaces the descriptor with -1 before

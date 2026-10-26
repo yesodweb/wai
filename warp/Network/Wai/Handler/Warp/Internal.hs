@@ -36,6 +36,7 @@ module Network.Wai.Handler.Warp.Internal (
     Listener (..),
     noListener,
     makeListener,
+    AcceptStopped (..),
 
     -- * Connection
     Connection (..),

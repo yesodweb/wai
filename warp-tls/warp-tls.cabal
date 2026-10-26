@@ -53,7 +53,7 @@ Test-Suite spec
                , async
                , bytestring
                , hspec >= 2
-               , network
+               , network >= 3.2.10
                , wai
-               , warp >= 3.4.16 && < 3.6
+               , warp >= 3.5.0 && < 3.6
                , warp-tls
