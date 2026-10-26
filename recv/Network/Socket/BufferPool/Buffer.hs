@@ -2,6 +2,7 @@ module Network.Socket.BufferPool.Buffer (
     newBufferPool,
     withBufferPool,
     tryWithBufferPool,
+    eitherWithBufferPool,
     mallocBS,
     copy,
 ) where
@@ -59,8 +60,26 @@ tryWithBufferPool pool@(BufferPool _ _ ref) f = do
             writeIORef ref $ BS.drop consumed buf
             return $ Just $ BS.take consumed buf
 
+-- | Like 'withBufferPool' for fillers which can give up: 'Left' leaves
+--   the pool untouched.
+--
+-- /Caveats of 'BufferPool' apply./
+eitherWithBufferPool
+    :: BufferPool
+    -> (Buffer -> BufSize -> IO (Either a Int))
+    -> IO (Either a ByteString)
+eitherWithBufferPool pool@(BufferPool _ _ ref) f = do
+    (buf, r) <- applyBufferPool pool f
+    case r of
+        Left a -> do
+            writeIORef ref buf
+            return $ Left a
+        Right consumed -> do
+            writeIORef ref $ BS.drop consumed buf
+            return $ Right $ BS.take consumed buf
+
 applyBufferPool
-    :: BufferPool -> (Buffer -> BufSize -> IO Int) -> IO (ByteString, Int)
+    :: BufferPool -> (Buffer -> BufSize -> IO r) -> IO (ByteString, r)
 applyBufferPool (BufferPool l h ref) f = do
     buf0 <- readIORef ref
     buf <-
@@ -70,7 +89,7 @@ applyBufferPool (BufferPool l h ref) f = do
     consumed <- withForeignBuffer buf f
     return (buf, consumed)
 
-withForeignBuffer :: ByteString -> (Buffer -> BufSize -> IO Int) -> IO Int
+withForeignBuffer :: ByteString -> (Buffer -> BufSize -> IO r) -> IO r
 withForeignBuffer (PS ps s l) f = withForeignPtr ps $ \p -> f (castPtr p `plusPtr` s) l
 {-# INLINE withForeignBuffer #-}
 

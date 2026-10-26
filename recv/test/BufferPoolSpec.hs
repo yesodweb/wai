@@ -1,5 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
 module BufferPoolSpec where
 
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Control.Concurrent.STM
+import Control.Monad (void)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Internal as B (ByteString (PS))
 import Data.IORef (newIORef, readIORef, writeIORef)
@@ -7,6 +12,8 @@ import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Marshal.Utils (copyBytes)
 import Foreign.Ptr (plusPtr)
 
+import Network.Socket
+import qualified Network.Socket.ByteString as NSB
 import Network.Socket.BufferPool
 import Test.Hspec (Spec, describe, hspec, it, shouldBe, shouldReturn)
 
@@ -64,6 +71,52 @@ spec = do
             tryWithBufferPool pool (\_ _ -> return (-1)) `shouldReturn` Nothing
             tryWithBufferPool pool (blitBuffer wantData)
                 `shouldReturn` Just wantData
+
+    describe "receiveWith" $ do
+        it "gives up while blocked, without closing the socket" $ do
+            withPair $ \_ srv pool -> do
+                stop <- newTVarIO False
+                done <- newEmptyMVar
+                void $ forkIO $ do
+                    r <- receiveWith srv pool $ readTVar stop >>= check
+                    putMVar done r
+                threadDelay 100000
+                atomically $ writeTVar stop True
+                takeMVar done `shouldReturn` Left ()
+                -- The socket is the caller's, and still theirs to read.
+                void $ getSocketName srv
+
+        it "reads nothing once the caller has given up" $ do
+            withPair $ \cli srv pool -> do
+                void $ NSB.send cli "unread"
+                threadDelay 100000
+                gone <- newTVarIO True
+                receiveWith srv pool (readTVar gone >>= check)
+                    `shouldReturn` Left ()
+
+        it "takes what is already there without waiting" $ do
+            withPair $ \cli srv pool -> do
+                void $ NSB.send cli "hello"
+                threadDelay 100000
+                receiveWith srv pool (retry :: STM ()) `shouldReturn` Right "hello"
+
+-- A connected pair on the loopback, and a pool to receive with.
+withPair :: (Socket -> Socket -> BufferPool -> IO a) -> IO a
+withPair action = do
+    lsock <- socket AF_INET Stream defaultProtocol
+    setSocketOption lsock ReuseAddr 1
+    bind lsock $ SockAddrInet 0 $ tupleToHostAddress (127, 0, 0, 1)
+    listen lsock 1
+    port <- socketPort lsock
+    cli <- socket AF_INET Stream defaultProtocol
+    connect cli $ SockAddrInet port $ tupleToHostAddress (127, 0, 0, 1)
+    (srv, _) <- accept lsock
+    close lsock
+    pool <- newBufferPool 2048 16384
+    r <- action cli srv pool
+    close cli
+    close srv
+    return r
 
 -- The 'BufSize' the pool offers to the next filler, leaving the pool as it was.
 offeredSize :: BufferPool -> IO Int
