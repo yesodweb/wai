@@ -114,6 +114,10 @@ data Settings = Settings
     -- Default: 'defaultAccept'
     --
     -- @since 3.3.24
+    , settingsSocketDisconnectMonitor :: Maybe (Socket -> IO ())
+    -- ^ Optional best-effort disconnect detector for non-TLS HTTP/1.x.
+    -- The action should block until it observes a disconnect, and must not
+    -- consume bytes. Default: Nothing (no monitoring thread or signal).
     , settingsNoParsePath :: Bool
     -- ^ Perform no parsing on the rawPathInfo.
     --
@@ -342,6 +346,7 @@ defaultSettings =
         , settingsBeforeMainLoop = return ()
         , settingsFork = defaultFork
         , settingsAccept = defaultAccept
+        , settingsSocketDisconnectMonitor = Nothing
         , settingsNoParsePath = False
         , settingsInstallShutdownHandler = const $ return ()
         , settingsServerName = C8.pack $ "Warp/" ++ warpVersion
