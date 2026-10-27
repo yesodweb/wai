@@ -47,6 +47,7 @@ module Network.Wai.Handler.WarpTLS (
     tlsServerDHEParams,
     tlsSessionManagerConfig,
     tlsSessionManager,
+    tlsEarlyDataSize,
     onInsecure,
     OnInsecure (..),
 
@@ -314,7 +315,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock app = do
             , TLS.serverShared = shared
             , TLS.serverSupported = supported
 #if MIN_VERSION_tls(1,5,0)
-            , TLS.serverEarlyDataSize = 2018
+            , TLS.serverEarlyDataSize = tlsEarlyDataSize
 #endif
             }
     -- Adding alpn to user's tlsServerHooks.

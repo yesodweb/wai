@@ -124,6 +124,16 @@ data TLSSettings = TLSSettings
     -- priority. See the "Network.TLS" module for details
     --
     --   Since 3.3.3
+    , tlsEarlyDataSize :: Int
+    -- ^ The largest TLS 1.3 early data this server accepts, 0 for none.
+    -- A request sent in early data can be replayed by anyone who
+    -- recorded it, and warp-tls does nothing about that: it has no RFC
+    -- 8470 handling and no 425 response. So 0-RTT is off unless this
+    -- says otherwise.
+    --
+    -- Default: 0
+    --
+    --   Since 3.4.16
     }
 
 -- Since 3.3.1
@@ -154,6 +164,7 @@ defaultTlsSettings =
         , tlsCredentials = Nothing
         , tlsSessionManager = Nothing
         , tlsSupportedHashSignatures = TLS.supportedHashSignatures TLS.defaultSupported
+        , tlsEarlyDataSize = 0
         }
 
 -- taken from stunnel example in tls-extra
