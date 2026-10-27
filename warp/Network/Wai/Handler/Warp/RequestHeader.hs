@@ -7,6 +7,7 @@ module Network.Wai.Handler.Warp.RequestHeader (
 import Control.Exception (throwIO)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C8 (unpack)
+import qualified Data.ByteString.Unsafe as SU
 import Data.ByteString.Internal (memchr)
 import qualified Data.CaseInsensitive as CI
 import Data.Word8
@@ -160,26 +161,36 @@ parseHeader s = do
     -- @S.any@ with a two-way lambda does.
     hasControl bs = S.elem _cr bs || S.elem _nul bs
 
--- | The characters RFC 9110 allows in a header field name.
+-- | Whether RFC 9110 allows the character in a header field name.
+--
+-- One lookup, where a chain of ranges and an 'elem' over fifteen bytes
+-- used to be.
 isTchar :: Word8 -> Bool
-isTchar w =
-    isAsciiUpper w
-        || isAsciiLower w
-        || isDigit w
-        || w
-            `elem` [ _exclam
-                   , _numbersign
-                   , _dollar
-                   , _percent
-                   , _ampersand
-                   , _quotesingle
-                   , _asterisk
-                   , _plus
-                   , _hyphen
-                   , _period
-                   , _circum
-                   , _underscore
-                   , _grave
-                   , _bar
-                   , _tilde
-                   ]
+isTchar w = SU.unsafeIndex tchars (fromIntegral w) == 1
+
+-- | 'isTchar' for every byte there is.
+tchars :: ByteString
+tchars = S.pack $ map tchar [minBound .. maxBound]
+  where
+    tchar w
+        | isAsciiUpper w || isAsciiLower w || isDigit w = 1
+        | w `elem` symbols = 1
+        | otherwise = 0
+    symbols =
+        [ _exclam
+        , _numbersign
+        , _dollar
+        , _percent
+        , _ampersand
+        , _quotesingle
+        , _asterisk
+        , _plus
+        , _hyphen
+        , _period
+        , _circum
+        , _underscore
+        , _grave
+        , _bar
+        , _tilde
+        ]
+{-# NOINLINE tchars #-}
