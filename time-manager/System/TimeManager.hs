@@ -3,7 +3,9 @@
 {-# LANGUAGE RecordWildCards #-}
 
 -- | Timeout manager. Since @v0.3.0@, timeout manager is a wrapper of
--- GHC System TimerManager.
+-- GHC System TimerManager, except on Windows, where it has a timer of
+-- its own: the one in @GHC.Event.Windows@ belongs to WinIO and never
+-- runs under the I\/O manager which is still the default there.
 --
 -- Some caveats of using this package:
 --
@@ -59,7 +61,7 @@ import System.Mem.Weak (deRefWeak)
 import System.TimeManager.Internal
 
 #if defined(mingw32_HOST_OS)
-import qualified GHC.Event.Windows as EV
+import qualified System.TimeManager.Windows as EV
 #else
 import qualified GHC.Event as EV
 #endif
@@ -97,13 +99,6 @@ emptyLock = unsafePerformIO $ newMVar ()
 --
 --   Setting the timeout to zero or lower @(<= 0)@ will produce a
 --   `defaultManager`.
---
---   __WARNING for Windows users:__ /the precision of extending timeouts/
---   /is only full "seconds". The provided microseconds will be floored/
---   /to the first full second. (i.e. @initialize 2_500_000@ will get/
---   /extended by 2 seconds on a 'tickle')/
---   /This also means timeouts of less than one second will not be extended/
---   /when using 'tickle'./
 initialize :: Int -> IO Manager
 initialize = pure . Manager . max 0
 
@@ -363,12 +358,6 @@ cancel h@Handle{..} =
 --
 -- Careful: this does NOT reactivate an already 'pause'd 'Handle'!
 --
--- __WARNING for Windows users:__ /the precision of extending timeouts/
--- /is only full "seconds". The provided microseconds will be floored/
--- /to the first full second. (i.e. @initialize 2_500_000@ will get/
--- /extended by 2 seconds on a 'tickle')/
--- /This also means timeouts of less than one second will not be extended/
--- /when using 'tickle'./
 tickle :: Handle -> IO ()
 tickle h@Handle{..} =
     withNonEmptyHandle h $
@@ -378,15 +367,8 @@ tickle h@Handle{..} =
                 now <- getMonotonicTimeNSec
                 I.atomicWriteIORef handleLastRenewed now
   where
-    -- For some reason the Windows implementation of 'updateTimeout' wants
-    -- full seconds, instead of the microseconds that's used when registering...
     updateTheTimeout key =
-        EV.updateTimeout handleTimerManager key
-#if defined(mingw32_HOST_OS)
-            (fromIntegral (handleTimeout `div` 1_000_000))
-#else
-            handleTimeout
-#endif
+        EV.updateTimeout handleTimerManager key handleTimeout
 
 -- | Pauses the timeout so you can 'resume' it later. Does not stop it entirely.
 -- Use 'cancel' if you want to make sure the action will not be resumed.

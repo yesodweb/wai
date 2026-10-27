@@ -10,7 +10,7 @@ import Data.IORef (IORef, readIORef)
 import Data.Word (Word64)
 
 #if defined(mingw32_HOST_OS)
-import qualified GHC.Event.Windows as EV
+import qualified System.TimeManager.Windows as EV
 #else
 import qualified GHC.Event as EV
 #endif
