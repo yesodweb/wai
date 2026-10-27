@@ -12,6 +12,7 @@ module Network.Wai.Handler.Warp.Header (
 import qualified Data.ByteString as BS
 import Data.CaseInsensitive (foldedCase)
 import Data.List as L (foldl')
+import Data.Maybe (isJust)
 import Network.HTTP.Types
 
 import Network.Wai.Handler.Warp.Types
@@ -27,6 +28,8 @@ data IndexedRequestHeader = IndexedRequestHeader
     , reqidxConnection :: Maybe HeaderValue
     , reqidxRange :: Maybe HeaderValue
     , reqidxHost :: Maybe HeaderValue
+    , reqidxHostRepeated :: Bool
+    -- ^ Whether more than one @Host@ field line was sent.
     , reqidxIfModifiedSince :: Maybe HeaderValue
     , reqidxIfUnmodifiedSince :: Maybe HeaderValue
     , reqidxIfRange :: Maybe HeaderValue
@@ -40,7 +43,12 @@ indexRequestHeader :: RequestHeaders -> IndexedRequestHeader
 indexRequestHeader = L.foldl' insert defaultIndexRequestHeader
   where
     insert ix (key, val) = case BS.length bs of
-        4 | bs == "host" -> ix{reqidxHost = Just val}
+        4
+            | bs == "host" ->
+                ix
+                    { reqidxHost = Just val
+                    , reqidxHostRepeated = isJust (reqidxHost ix)
+                    }
         5 | bs == "range" -> ix{reqidxRange = Just val}
         6 | bs == "expect" -> ix{reqidxExpect = Just val}
         7 | bs == "referer" -> ix{reqidxReferer = Just val}
@@ -79,6 +87,7 @@ defaultIndexRequestHeader =
         , reqidxConnection = Nothing
         , reqidxRange = Nothing
         , reqidxHost = Nothing
+        , reqidxHostRepeated = False
         , reqidxIfModifiedSince = Nothing
         , reqidxIfUnmodifiedSince = Nothing
         , reqidxIfRange = Nothing

@@ -81,6 +81,7 @@ recvRequest firstRequest settings conn ii th addr src transport = do
     let idxhdr = indexRequestHeader hdr
         expect = reqidxExpect idxhdr
         handle100Continue = handleExpect conn httpversion expect
+    checkHost httpversion idxhdr
     (rbody, remainingRef, bodyLength) <- bodyAndSource src idxhdr
     -- body producing function which will produce '100-continue', if needed
     rbody' <- timeoutBody remainingRef th rbody handle100Continue
@@ -137,6 +138,19 @@ headerLines maxTotalHeaderLength firstRequest src = do
 data NoKeepAliveRequest = NoKeepAliveRequest
     deriving (Show)
 instance Exception NoKeepAliveRequest
+
+----------------------------------------------------------------
+
+-- | Refusing a request whose @Host@ RFC 9112 section 3.2 refuses.
+--
+-- A proxy routes on the first @Host@ and an application reads
+-- 'requestHeaderHost', the last of them: a repeated one is a way to
+-- reach a virtual host the proxy would not have routed to.
+checkHost :: H.HttpVersion -> IndexedRequestHeader -> IO ()
+checkHost httpversion idxhdr
+    | reqidxHostRepeated idxhdr = throwIO BadHost
+    | httpversion >= H.http11, isNothing (reqidxHost idxhdr) = throwIO BadHost
+    | otherwise = return ()
 
 ----------------------------------------------------------------
 
