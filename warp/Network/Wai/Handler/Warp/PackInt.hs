@@ -16,8 +16,10 @@ packIntegral 0 = "0"
 packIntegral n | n < 0 = error "packIntegral"
 packIntegral n = unsafeCreate len go0
   where
-    n' = fromIntegral n + 1 :: Double
-    len = ceiling $ logBase 10 n'
+    -- Counted by division: @ceiling (logBase 10 ...)@ in a 'Double' is
+    -- one short from 10^15 up, and 'go' then writes its last digit
+    -- before the buffer it was given.
+    !len = numDigits n
     go0 p = go n $ p `plusPtr` (len - 1)
     go :: Integral a => a -> Ptr Word8 -> IO ()
     go i p = do
@@ -26,6 +28,16 @@ packIntegral n = unsafeCreate len go0
         when (d /= 0) $ go d (p `plusPtr` (-1))
 {-# SPECIALIZE packIntegral :: Int -> ByteString #-}
 {-# SPECIALIZE packIntegral :: Integer -> ByteString #-}
+
+-- | How many digits a non-negative number is written with.
+numDigits :: Integral a => a -> Int
+numDigits = go 1
+  where
+    go !acc i = case i `quot` 10 of
+        0 -> acc
+        q -> go (acc + 1) q
+{-# SPECIALIZE numDigits :: Int -> Int #-}
+{-# SPECIALIZE numDigits :: Integer -> Int #-}
 
 -- |
 --
