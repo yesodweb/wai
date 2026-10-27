@@ -21,22 +21,9 @@ import Control.Concurrent.STM (
  )
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
-import Data.Functor (($>))
-import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
-import Foreign.C.Error (
-    Errno (..),
-    eBADF,
-    eCONNABORTED,
-    eHOSTDOWN,
-    eHOSTUNREACH,
-    eMFILE,
-    eNETDOWN,
-    eNETUNREACH,
-    eNONET,
-    eNOPROTOOPT,
-    ePROTO,
- )
+import Foreign.C.Error (Errno (..), eBADF, eMFILE)
 import GHC.Conc.Sync (labelThread, myThreadId)
 import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Network.Socket (
@@ -77,7 +64,7 @@ import Network.Wai.Handler.Warp.HTTP2.Types (isHTTP2)
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.SendFile (sendFile)
 import Network.Wai.Handler.Warp.Settings
-import Network.Wai.Handler.Warp.ShuttingDown (readShuttingDown, writeShuttingDown)
+import Network.Wai.Handler.Warp.ShuttingDown (writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
@@ -274,7 +261,7 @@ makeListener set socket = do
 -- Note that the 'settingsPort' will still be passed to 'Application's via the
 -- 'serverPort' record.
 runSettingsSocket :: Settings -> Socket -> Application -> IO ()
-runSettingsSocket oldSettings@Settings{settingsAccept = accept'} socket app = do
+runSettingsSocket oldSettings socket app = do
     listener <- makeListener oldSettings socket
     (_, newSettings) <- makeServerState oldSettings
     runSettingsConnectionMakerSecureWith
@@ -499,17 +486,7 @@ acceptConnection set listener getConnMaker app counter ii fdRef = do
                         -- as resolved here, but just for completeness' sake.
                         resetFdExhaustion fdRef
                         settingsOnException set Nothing $ E.toException e
-#if WINDOWS
-                        -- None of the guards above can match on Windows, where
-                        -- network reports a socket error with no errno on it,
-                        -- so every accept() failure arrives here including the
-                        -- EBADF of a deliberate shutdown. Throwing would turn
-                        -- an ordinary shutdown into an exception, so Windows
-                        -- keeps ending the loop the way it always has.
-                        return Nothing
-#else
                         E.throwIO e
-#endif
 
     handleFdExhaustion e = do
         fdExhaustion <- readIORef fdRef
