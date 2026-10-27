@@ -30,6 +30,7 @@ module Network.Wai.Handler.Warp.Internal (
     runSettingsConnectionMaker,
     runSettingsConnectionMakerSecure,
     runSettingsConnectionMakerSecureWith,
+    runSettingsConnectionMakerSecureWithMonitor,
     Transport (..),
 
     -- ** Stopping the accept loop

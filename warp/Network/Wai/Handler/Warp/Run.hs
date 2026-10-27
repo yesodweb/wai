@@ -10,6 +10,11 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
+#if MIN_VERSION_network(3,1,2)
+import Control.Concurrent (threadDelay)
+#endif
+import Control.Concurrent.Async (withAsync)
+import Control.Concurrent.MVar (newEmptyMVar, readMVar, tryPutMVar)
 import Control.Concurrent.STM (
     TVar,
     atomically,
@@ -28,6 +33,7 @@ import Foreign.C.Error (
     Errno (..),
     eBADF,
     eCONNABORTED,
+    eCONNRESET,
     eHOSTDOWN,
     eHOSTUNREACH,
     eMFILE,
@@ -58,6 +64,9 @@ import Network.Socket (
 #if MIN_VERSION_network(3,1,1)
 import Network.Socket (gracefulClose)
 #endif
+#if MIN_VERSION_network(3,1,2)
+import qualified Network.Socket as Socket
+#endif
 import Network.Socket.BufferPool
 import qualified Network.Socket.ByteString as Sock
 import Network.Wai
@@ -77,6 +86,7 @@ import Network.Wai.Handler.Warp.HTTP2 (http2)
 import Network.Wai.Handler.Warp.HTTP2.Types (isHTTP2)
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
 import Network.Wai.Handler.Warp.SendFile (sendFile)
+import Network.Wai.Handler.Warp.Request (insertDisconnectWaiter)
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.ShuttingDown (readShuttingDown, writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
@@ -313,15 +323,15 @@ runSettingsSocket :: Settings -> Socket -> Application -> IO ()
 runSettingsSocket oldSettings@Settings{settingsAccept = accept'} socket app = do
     listener <- makeListener oldSettings socket
     (_, newSettings) <- makeServerState oldSettings
-    runSettingsConnectionMakerSecureWith
+    runSettingsConnectionMakerSecureWithMonitor
         newSettings
         listener
-        (first ((,TCP) <$>) <$> getConnMaker newSettings)
+        (getConnMaker newSettings)
         app
   where
     getConnMaker set = do
-        (conn, sa) <- getConn set
-        return (return conn, sa)
+        (conn, sa, monitor) <- getConn set
+        return (return (conn, TCP, monitor), sa)
 
     getConn set = do
         (s, sa) <- accept' socket
@@ -329,7 +339,8 @@ runSettingsSocket oldSettings@Settings{settingsAccept = accept'} socket app = do
         -- NoDelay causes an error for AF_UNIX.
         setSocketOption s NoDelay 1 `E.catch` throughAsync (return ())
         conn <- socketConnection set s
-        return (conn, sa)
+        let monitor = ($ s) <$> settingsSocketDisconnectMonitor set
+        return (conn, sa, monitor)
 
 -- | The connection setup action would be expensive. A good example
 -- is initialization of TLS.
@@ -382,7 +393,29 @@ runSettingsConnectionMakerSecureWith
     -> IO (IO (Connection, Transport), SockAddr)
     -> Application
     -> IO ()
-runSettingsConnectionMakerSecureWith oldSettings listener getConnMaker app = do
+runSettingsConnectionMakerSecureWith oldSettings listener getConnMaker app =
+    runSettingsConnectionMakerSecureWithMonitor
+        oldSettings
+        listener
+        (fmap (first (fmap withNoMonitor)) getConnMaker)
+        app
+  where
+    withNoMonitor (conn, transport) = (conn, transport, Nothing)
+
+-- | Internal extension point for connection providers that can supply their
+-- own detector. The maker runs outside the connection worker, and its
+-- returned action runs within that worker as usual.
+--
+-- 'Nothing' means no monitoring. Detectors should block until disconnection
+-- must not consume request data, and must be interruptible so the serving
+-- connection can cancel it. Only HTTP/1.x executes the detector.
+runSettingsConnectionMakerSecureWithMonitor
+    :: Settings
+    -> Listener
+    -> IO (IO (Connection, Transport, Maybe (IO ())), SockAddr)
+    -> Application
+    -> IO ()
+runSettingsConnectionMakerSecureWithMonitor oldSettings listener getConnMaker app = do
     settingsBeforeMainLoop oldSettings
     (ServerState{serverConnectionCounter}, newSettings) <- makeServerState oldSettings
     withII newSettings $ \ii ->
@@ -428,7 +461,7 @@ withII set action =
 acceptConnection
     :: Settings
     -> Listener
-    -> IO (IO (Connection, Transport), SockAddr)
+    -> IO (IO (Connection, Transport, Maybe (IO ())), SockAddr)
     -> Application
     -> Counter
     -> InternalInfo
@@ -585,7 +618,7 @@ acceptConnection set listener getConnMaker app counter ii fdRef = do
 -- function to unmask (i.e., allow async exceptions to be thrown).
 fork
     :: Settings
-    -> IO (Connection, Transport)
+    -> IO (Connection, Transport, Maybe (IO ()))
     -> SockAddr
     -> Application
     -> Counter
@@ -620,14 +653,14 @@ fork set mkConn addr app counter ii = do
             -- fact that async exceptions are still masked.
             E.bracket mkConn cleanUp (serve unmask)
 
-    cleanUp (conn, _) =
+    cleanUp (conn, _, _) =
         connClose conn `E.finally` do
             writeBuffer <- readIORef $ connWriteBuffer conn
             bufFree writeBuffer
 
     -- We need to register a timeout handler for this thread, and
     -- cancel that handler as soon as we exit.
-    serve unmask (conn, transport) = T.withHandleKillThread (timeoutManager ii) (return ()) $ \th -> do
+    serve unmask (conn, transport, monitor) = T.withHandleKillThread (timeoutManager ii) (return ()) $ \th -> do
         -- We now have fully registered a connection close handler in
         -- the case of all exceptions, so it is safe to once again
         -- allow async exceptions.
@@ -639,7 +672,7 @@ fork set mkConn addr app counter ii = do
             $ \goingon ->
                 -- Actually serve this connection.  bracket with closeConn
                 -- above ensures the connection is closed.
-                when goingon $ serveConnection conn ii th addr transport set app
+                when goingon $ serveConnectionWithMonitor conn ii th addr transport set app monitor
 
     onOpen adr = settingsOnOpen set adr
     onClose adr _ = settingsOnClose set adr
@@ -653,7 +686,23 @@ serveConnection
     -> Settings
     -> Application
     -> IO ()
-serveConnection conn ii th origAddr transport settings app = do
+serveConnection conn ii th origAddr transport settings app =
+    serveConnectionWithMonitor conn ii th origAddr transport settings app Nothing
+
+-- | This entrypoint leaves 'serveConnection' and 'Connection' source-compatible.
+-- The monitor is owned by this connection's HTTP/1.x serving lifetime, not
+-- by the WAI application. HTTP/2 currently ignores it.
+serveConnectionWithMonitor
+    :: Connection
+    -> InternalInfo
+    -> T.Handle
+    -> SockAddr
+    -> Transport
+    -> Settings
+    -> Application
+    -> Maybe (IO ())
+    -> IO ()
+serveConnectionWithMonitor conn ii th origAddr transport settings app monitor = do
     -- fixme: Upgrading to HTTP/2 should be supported.
     tid <- myThreadId
     (h2, bs) <-
@@ -676,7 +725,20 @@ serveConnection conn ii th origAddr transport settings app = do
             http2 settings ii conn transport app' origAddr th bs
         else do
             labelThread tid ("Warp HTTP/1.1 " ++ show origAddr)
-            http1 settings ii conn transport app' origAddr th bs
+            case monitor of
+                Nothing -> http1 settings ii conn transport app' origAddr th bs
+                Just waitForDisconnect -> do
+                    disconnected <- newEmptyMVar
+                    let watch =
+                            (waitForDisconnect >> void (tryPutMVar disconnected ()))
+                                `E.catch` \(e :: E.SomeException) ->
+                                    if isAsyncException e
+                                        then E.throwIO e
+                                        else settingsOnException settings Nothing e
+                        appWithDisconnect req rsp =
+                            app' (insertDisconnectWaiter (readMVar disconnected) req) rsp
+                    withAsync watch $ \_ ->
+                        http1 settings ii conn transport appWithDisconnect origAddr th bs
   where
     recv4 bs0 = do
         bs1 <- connRecv conn
@@ -689,6 +751,39 @@ serveConnection conn ii th origAddr transport settings app = do
             if S.length bs2 >= 4
                  then return bs2
                  else recv4 bs2
+
+-- | An opt-in detector for a non-TLS HTTP/1.x stream socket. It waits until a
+-- peeking receive sees EOF, without consuming request bytes. Note that EOF
+-- only means the peer has closed its sending side: a TCP half-close can still
+-- leave the client able to receive the response. Pipelined bytes can delay
+-- detection, and disconnects are never guaranteed to be detected promptly.
+--
+-- On network < 3.1.2 this function raises an unsupported-operation error;
+-- application-supplied monitors can still be used.
+waitForSocketDisconnect :: Socket -> IO ()
+#if MIN_VERSION_network(3,1,2)
+waitForSocketDisconnect sock = loop `E.catch` onSocketError
+  where
+    loop = do
+        (_, bytes, _, _) <- Sock.recvMsg sock 1 0 Socket.MSG_PEEK
+        unless (S.null bytes) $ do
+            -- Avoid spinning if an unread byte remains queued on the socket.
+            threadDelay 200000
+            loop
+
+    -- A TCP RST may surface as an exception instead of EOF. Treat only
+    -- connection-reset errors as a detected disconnect; propagate other
+    -- exceptions so the monitor's failure can be reported to the caller.
+    onSocketError :: E.IOException -> IO ()
+    onSocketError e
+        | ioeGetErrorType e == ResourceVanished = return ()
+        | ioe_errno e == Just reset = return ()
+        | otherwise = E.throwIO e
+    Errno reset = eCONNRESET
+#else
+waitForSocketDisconnect _ =
+    ioError $ userError "waitForSocketDisconnect requires network >= 3.1.2"
+#endif
 
 -- | Set flag FileCloseOnExec flag on a socket (on Unix)
 --
