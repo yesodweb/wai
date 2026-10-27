@@ -12,7 +12,6 @@ packages:
   - ./wai-http2-extra
   - ./wai-websockets
   - ./warp
-  - ./warp-quic
   - ./warp-tls
 flags:
   wai-extra:
@@ -32,14 +31,10 @@ extra-deps:
   - ech-config-0.0.1
   - hpke-0.0.0
   - http-semantics-0.4.0
-  - http2-5.4.0
-  - http3-0.1.2
+  - http2-5.4.10
   - network-3.2.9.0
   - network-control-0.1.7
-  - network-udp-0.0.0
-  - quic-0.2.21
   - random-1.3.1
-  - sockaddr-0.0.1
   - tls-2.1.11
   - tls-session-manager-0.0.7
   - uuid-types-1.0.6

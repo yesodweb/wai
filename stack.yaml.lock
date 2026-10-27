@@ -12,6 +12,13 @@ packages:
   original:
     hackage: crypto-token-0.2.0@rev:2
 - completed:
+    hackage: fast-logger-3.2.8@sha256:d13df58f2cb38fdcaa988b2af62c0c12e8ca4232da39b2c1f5bc0f5af0941665,2176
+    pantry-tree:
+      sha256: 51b45605ee83445deb69b919a983306e7eda2ff658b350ffa7806e1789124387
+      size: 1303
+  original:
+    hackage: fast-logger-3.2.8
+- completed:
     hackage: crypton-asn1-encoding-0.10.0@sha256:45494a1723a047a815d0d620481c1028dca28a4ea5cf2554868687da90753961,2497
     pantry-tree:
       sha256: c2ff6c426e6910075a971ee2801d200c8dc0f88cfcb8619534097902e6e655a8
@@ -82,19 +89,19 @@ packages:
   original:
     hackage: http-semantics-0.4.0
 - completed:
-    hackage: http2-5.4.0@sha256:2e5e41a4e8a91e7fcf06b02dcd56dd38283edf785607637ec11d7035965e5e23,11047
+    hackage: http2-5.4.10@sha256:723b0f41d7414ee4ca18d758a5494fb91267e56fca4a4a53489e77adcb077ce0,10669
     pantry-tree:
-      sha256: 181856c66e3db92685af3797ceb635f679cd444a300c1f0d0167a37a604b24f4
-      size: 44864
+      sha256: 38083710ba751bd229a191dbb5ef2b7b23b306655f0e9b3452769c338d20176a
+      size: 44944
   original:
-    hackage: http2-5.4.0
+    hackage: http2-5.4.10
 - completed:
-    hackage: http3-0.1.3@sha256:8c024d32839b0041088c44d4b1f7c2d7d4b5a3a845873d169c65fd0ac9e550b5,6068
+    hackage: http3-0.1.9@sha256:3b6ebc31286d9c1c67438df8278f56a9716e9729f5441890f4a756234aca5fc8,5971
     pantry-tree:
-      sha256: f1759da4b273e427d234aa27b0eec6c9060a54cb9cf4c15dca40c1a29618dc9b
-      size: 52542
+      sha256: 1d2618c2863bdb4eecaf9c74e1023f8a1ea98936c035e8f7ae6e8c2d7b46832f
+      size: 52881
   original:
-    hackage: http3-0.1.3
+    hackage: http3-0.1.9
 - completed:
     hackage: mlkem-0.2.2.0@sha256:c16cb61190e915593767e716dd08957607f6045a01d7c3a1313fbd74eb31c75d,4759
     pantry-tree:
@@ -110,12 +117,12 @@ packages:
   original:
     hackage: network-3.2.9.0
 - completed:
-    hackage: quic-0.3.15@sha256:971fcf85aa8eac5cf2035d0445499ed97ee7bc3e0349becb87f2b752dd9422db,7164
+    hackage: quic-0.3.18@sha256:6863c08dd7945f69df3cdc839ffa7c2c4b0c8e44e68ebbdcff95dced385319a5,7222
     pantry-tree:
-      sha256: cb5603b61db8510c60d06a4626998fb31cbf26379325f795edfa036205010eb4
-      size: 7925
+      sha256: 7eb678a2914491154bf1472b7c225e556c0e0e3c009befb64152053da288a45c
+      size: 7990
   original:
-    hackage: quic-0.3.15
+    hackage: quic-0.3.18
 - completed:
     hackage: ram-0.22.0@sha256:f6ce64a025929eb6ce42deeb80d072960a9ea2d83b9b9b28de668cc2b623127c,2814
     pantry-tree:
