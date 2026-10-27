@@ -122,22 +122,31 @@ http2server label settings ii transport addr app h2req0 aux0 response = do
         I.writeIORef ref $ Just (h2rsp, pps, st)
         _ <- response h2rsp pps
         return ResponseReceived
-    case eResponseReceived of
-        Right ResponseReceived -> do
-            Just (h2rsp, pps, st) <- I.readIORef ref
+    msent <- I.readIORef ref
+    let logSent (h2rsp, pps, st) = do
             let msiz = fromIntegral <$> H2.responseBodySize h2rsp
             logResponse req st msiz
             mapM_ (logPushPromise req) pps
+    case eResponseReceived of
+        Right ResponseReceived -> case msent of
+            Just sent -> logSent sent
+            -- Reachable only through Network.Wai.Internal: the
+            -- application said it had answered without answering.
+            Nothing -> E.throwIO $ userError "no response from the application"
         Left e
             | isAsyncException e -> E.throwIO e
             | otherwise -> do
                 S.settingsOnException settings (Just req) e
-                let ersp = S.settingsOnExceptionResponse settings e
-                    st = responseStatus ersp
-                (h2rsp', _, _) <- fromResponse settings ii req ersp
-                let msiz = fromIntegral <$> H2.responseBodySize h2rsp'
-                _ <- response h2rsp' []
-                logResponse req st msiz
+                case msent of
+                    -- The response has gone out, so this exception
+                    -- cannot replace it, which is what istatus keeps
+                    -- HTTP/1 from doing.
+                    Just sent -> logSent sent
+                    Nothing -> do
+                        let ersp = S.settingsOnExceptionResponse settings e
+                        (h2rsp, _, _) <- fromResponse settings ii req ersp
+                        _ <- response h2rsp []
+                        logSent (h2rsp, [], responseStatus ersp)
     return ()
   where
     toWAIRequest h2req aux = toRequest ii settings addr hdr bdylen bdy th transport
