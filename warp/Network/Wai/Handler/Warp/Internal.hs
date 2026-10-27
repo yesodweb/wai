@@ -29,7 +29,14 @@ module Network.Wai.Handler.Warp.Internal (
     runSettingsConnection,
     runSettingsConnectionMaker,
     runSettingsConnectionMakerSecure,
+    runSettingsConnectionMakerSecureWith,
     Transport (..),
+
+    -- ** Stopping the accept loop
+    Listener (..),
+    noListener,
+    makeListener,
+    AcceptStopped (..),
 
     -- * Connection
     Connection (..),

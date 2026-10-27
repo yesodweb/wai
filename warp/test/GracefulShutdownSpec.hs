@@ -25,27 +25,23 @@ spec = describe "graceful shutdown" $ do
         -- serving it being scheduled. Delaying the thread makes it wide
         -- enough to test; in a running server it is however long the RTS
         -- takes to get to the new thread.
-        accepted <- newIORef (0 :: Int)
+        accepted <- newEmptyMVar
+        stopSlot <- newEmptyMVar
         closed <- newIORef (0 :: Int)
 
         let slowFork :: ((forall a. IO a -> IO a) -> IO ()) -> IO ()
-            slowFork act = void $ forkIOWithUnmask $ \unmask -> do
-                threadDelay 200_000
-                act unmask
-
-            -- Take one connection, then stop accepting by closing the
-            -- listening socket, which is what a graceful shutdown does. The
-            -- close happens here rather than from another thread so that it
-            -- cannot land while the accept loop is parked inside accept().
-            acceptOnlyOne sock = do
-                taken <- atomicModifyIORef' accepted $ \n -> (n + 1, n)
-                if taken == 0
-                    then accept sock
-                    else close sock >> accept sock
+            slowFork act = do
+                -- A connection has been accepted.  Said here, where the
+                -- accept loop still is, rather than in the thread below,
+                -- which is the one being kept from running.
+                void $ tryPutMVar accepted ()
+                void $ forkIOWithUnmask $ \unmask -> do
+                    threadDelay 200_000
+                    act unmask
 
             settings =
                 setFork slowFork $
-                    setAccept acceptOnlyOne $
+                    setInstallShutdownHandler (putMVar stopSlot) $
                         setOnClose (\_ -> atomicModifyIORef' closed $ \n -> (n + 1, ())) $
                             setGracefulShutdownTimeout (Just 5) $
                                 setOnException (\_ _ -> pure ()) defaultSettings
@@ -64,6 +60,11 @@ spec = describe "graceful shutdown" $ do
             bracket (openConnection testPort) close $ \_ -> pure ()
 
             withAsync (runSettingsSocket settings sock app) $ \server -> do
+                stopAccepting <- takeMVar stopSlot
+                -- The connection is accepted and the thread serving it is
+                -- still parked, which is the window this is about.
+                takeMVar accepted
+                stopAccepting
                 timeout 30_000_000 (wait server)
                     >>= maybe (expectationFailure "Timeout waiting for server shutdown") pure
                 -- Returning is what lets the process exit, so a connection
