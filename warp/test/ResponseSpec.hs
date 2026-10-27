@@ -16,6 +16,22 @@ import Test.Hspec
 main :: IO ()
 main = hspec spec
 
+testUnsatisfiable
+    :: S.ByteString
+    -- ^ range value
+    -> Spec
+testUnsatisfiable range = it title $ withApp defaultSettings app $ withMySocket $ \ms -> do
+    msWrite ms "GET / HTTP/1.0\r\n"
+    msWrite ms "Range: bytes="
+    msWrite ms range
+    msWrite ms "\r\n\r\n"
+    threadDelay 10000
+    bss <- fmap (lines . filter (/= '\r') . S8.unpack) $ msRead ms 1024
+    head bss `shouldContain` "416"
+  where
+    app _ = ($ responseFile status200 [] "attic/hex" Nothing)
+    title = show range ++ " is not satisfiable"
+
 testRange
     :: S.ByteString
     -- ^ range value
@@ -88,7 +104,11 @@ spec = do
         testRange "5-" "56789abcdef" $ Just "5-15/16"
         testRange "5-8" "5678" $ Just "5-8/16"
         testRange "-3" "def" $ Just "13-15/16"
-        testRange "16-" "" $ Just "*/16"
+        -- A range which asks for nothing the file holds is 416, not a
+        -- 206 of no bytes.  "bytes */16" is the 416 form of the header.
+        testUnsatisfiable "16-"
+        testUnsatisfiable "100-"
+        testUnsatisfiable "-0"
         testRange "-17" "0123456789abcdef" Nothing
 
     describe "partial files" $ do

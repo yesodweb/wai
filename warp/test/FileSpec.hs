@@ -130,3 +130,18 @@ spec = do
             "gives the entire body and ignores the Range header if the condition isn't met"
             [("If-Range", farPast), ("Range", "bytes=2-7")]
             regularBody
+        -- A range which asks for nothing the file holds.  The first
+        -- of these used to be a negative length, which left the
+        -- request answered with nothing at all.
+        testFileRange
+            "returns a 416 for a range which begins past the end"
+            [("Range", "bytes=100-")]
+            $ WithoutBody status416
+        testFileRange
+            "returns a 416 for a range which begins at the end"
+            [("Range", "bytes=16-")]
+            $ WithoutBody status416
+        testFileRange
+            "returns a 416 for a suffix of no bytes"
+            [("Range", "bytes=-0")]
+            $ WithoutBody status416

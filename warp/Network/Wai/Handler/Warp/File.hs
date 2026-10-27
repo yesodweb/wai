@@ -139,21 +139,28 @@ unconditional reqidx =
 
 parseRange :: ByteString -> Integer -> RspFileInfo
 parseRange rng size = case H.parseByteRanges rng of
-    Nothing -> WithoutBody H.requestedRangeNotSatisfiable416
-    Just [] -> WithoutBody H.requestedRangeNotSatisfiable416
-    Just (r : _) ->
-        let (!beg, !end) = checkRange r size
-            !len = end - beg + 1
+    Just (r : _) | Just (!beg, !end) <- checkRange r size ->
+        let !len = end - beg + 1
             s =
                 if beg == 0 && end == size - 1
                     then H.ok200
                     else H.partialContent206
          in WithBody s [] beg len
+    _ -> WithoutBody H.requestedRangeNotSatisfiable416
 
-checkRange :: H.ByteRange -> Integer -> (Integer, Integer)
-checkRange (H.ByteRangeFrom beg) size = (beg, size - 1)
-checkRange (H.ByteRangeFromTo beg end) size = (beg, min (size - 1) end)
-checkRange (H.ByteRangeSuffix count) size = (max 0 (size - count), size - 1)
+-- | The first and last byte a range asks for, or 'Nothing' when it asks
+--   for nothing the file holds, which RFC 9110 section 14.4 answers with
+--   416.
+checkRange :: H.ByteRange -> Integer -> Maybe (Integer, Integer)
+checkRange (H.ByteRangeFrom beg) size
+    | beg < 0 || beg >= size = Nothing
+    | otherwise = Just (beg, size - 1)
+checkRange (H.ByteRangeFromTo beg end) size
+    | beg < 0 || beg > end || beg >= size = Nothing
+    | otherwise = Just (beg, min (size - 1) end)
+checkRange (H.ByteRangeSuffix count) size
+    | count <= 0 || size <= 0 = Nothing
+    | otherwise = Just (max 0 (size - count), size - 1)
 
 ----------------------------------------------------------------
 
