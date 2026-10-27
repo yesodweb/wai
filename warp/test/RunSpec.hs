@@ -292,11 +292,11 @@ spec = do
                 headers `shouldBe` []
         it "no space between colon and value" $ do
             appWithSocket $ \iheaders ms -> do
-                let input = "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
+                let input = "GET / HTTP/1.1\r\nHost: foo\r\nfoo:bar\r\n\r\n"
                 msWrite ms input
                 threadDelay 5000
                 headers <- I.readIORef iheaders
-                headers `shouldBe` [("foo", "bar")]
+                headers `shouldBe` [("Host", "foo"), ("foo", "bar")]
         it "refuses multiline headers split across writes" $ do
             appWithSocket $ \iheaders ms -> do
                 msWrite ms "GET / HTTP/1.1\r\nfoo: and\r\n"
@@ -318,9 +318,9 @@ spec = do
             withApp defaultSettings app $ withMySocket $ \ms -> do
                 let input =
                         S.concat
-                            [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: Chunked\r\n\r\n"
                             , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
-                            , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            , "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: Chunked\r\n\r\n"
                             , "b\r\nHello World\r\n0\r\n\r\n"
                             ]
                 msWrite ms input
@@ -344,7 +344,7 @@ spec = do
                 let input =
                         concat $
                             replicate 2 $
-                                ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"]
+                                ["POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: Chunked\r\n\r\n"]
                                     ++ replicate 50 "5\r\n12345\r\n"
                                     ++ ["0\r\n\r\n"]
                 mapM_ (msWrite ms) input
@@ -374,9 +374,9 @@ spec = do
             withApp defaultSettings app $ withMySocket $ \ms -> do
                 let input =
                         S.concat
-                            [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: Chunked\r\n\r\n"
                             , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
-                            , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            , "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: Chunked\r\n\r\n"
                             , "b\r\nHello World\r\n0\r\n\r\n"
                             ]
                 mapM_ (msWrite ms . S.singleton) $ S.unpack input
@@ -412,7 +412,7 @@ spec = do
                 let bs1 = S.replicate 2048 88
                     bs2 = "This is short"
                     bs = S.append bs1 bs2
-                msWrite ms "POST / HTTP/1.1\r\n"
+                msWrite ms "POST / HTTP/1.1\r\nHost: foo\r\n"
                 msWrite ms "content-length: "
                 msWrite ms $ S8.pack $ show $ S.length bs
                 msWrite ms "\r\n\r\n"
@@ -574,7 +574,7 @@ spec = do
                     I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ withMySocket $ \ms -> do
-                msWrite ms "POST / HTTP/1.1\r\nTransfer-Encoding: chunked \r\n\r\n"
+                msWrite ms "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: chunked \r\n\r\n"
                 msWrite ms "b\r\nHello World\r\n0\r\n\r\n"
                 _ <- msRead ms 17
                 front <- I.readIORef ifront
@@ -613,6 +613,34 @@ spec = do
         refuses
             "refuses an empty field name"
             ": 36\r\n"
+
+    describe "Host" $ do
+        -- A proxy routes on the first Host and the application reads the
+        -- last, so a request they can read differently is refused rather
+        -- than served to whichever host warp happens to pick.
+        let send req = do
+                ihosts <- I.newIORef id
+                let app r f = do
+                        I.atomicModifyIORef ihosts $ \front ->
+                            (front . (requestHeaderHost r :), ())
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms req
+                    rsp <- msRead ms 17
+                    hosts <- I.readIORef ihosts
+                    return (S8.unpack rsp, hosts [])
+        it "refuses a HTTP/1.1 request without one" $ do
+            (rsp, hosts) <- send "GET /nohost HTTP/1.1\r\n\r\n"
+            rsp `shouldContain` "400"
+            hosts `shouldBe` []
+        it "refuses more than one" $ do
+            (rsp, hosts) <- send "GET /dup HTTP/1.1\r\nHost: a\r\nHost: b\r\n\r\n"
+            rsp `shouldContain` "400"
+            hosts `shouldBe` []
+        it "serves a HTTP/1.0 request without one" $ do
+            (rsp, hosts) <- send "GET /nohost HTTP/1.0\r\n\r\n"
+            rsp `shouldContain` "200"
+            hosts `shouldBe` [Nothing]
 
     describe "malformed chunked bodies" $ do
         -- The body is what the client says it is up to the empty line
@@ -678,7 +706,7 @@ spec = do
                     I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
                     f $ responseLBS status200 [] ""
             withApp defaultSettings app $ withMySocket $ \ms -> do
-                msWrite ms "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"
+                msWrite ms "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: chunked\r\n\r\n"
                 forM_ ["1", "2", "\r\n", S.replicate 0x12 65, "\r\n0\r\n\r\n"] $
                     \piece -> threadDelay 50000 >> msWrite ms piece
                 _ <- msRead ms 17
@@ -698,7 +726,7 @@ spec = do
                         loop
                 doubleBS = S.concatMap $ \w -> S.pack [w, w]
             withApp defaultSettings app $ withMySocket $ \ms -> do
-                msWrite ms "POST / HTTP/1.1\r\n\r\n12345"
+                msWrite ms "POST / HTTP/1.1\r\nHost: foo\r\n\r\n12345"
                 timeout 100000 (msRead ms 10) `shouldReturn` Just "1122334455"
                 msWrite ms "67890"
                 timeout 100000 (msRead ms 10) `shouldReturn` Just "6677889900"
@@ -731,7 +759,7 @@ spec = do
                             loop
                 loop
         withApp defaultSettings app $ withMySocket $ \ms -> do
-            msWrite ms "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"
+            msWrite ms "POST / HTTP/1.1\r\nHost: foo\r\ntransfer-encoding: chunked\r\n\r\n"
             threadDelay 10000
             msWrite ms "5\r\nhello\r\n0\r\n\r\n"
             atomically $ do
