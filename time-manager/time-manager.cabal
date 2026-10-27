@@ -43,6 +43,10 @@ test-suite spec
         System.ThreadManager,
         System.TimeManager,
         System.TimeManager.Internal
+
+    if os(windows)
+        other-modules: System.TimeManager.Windows
+
     build-depends:    base
     default-language: Haskell2010
     ghc-options:      -Wall -threaded
