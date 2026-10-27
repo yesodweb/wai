@@ -74,14 +74,21 @@ http2 settings ii conn transport app peersa th bs = do
                 , H2.confPeerSockAddr = peersa
                 , H2.confReadNTimeout = True
                 }
-    checkTLS
+    ok <- checkTLS
     setConnHTTP2 conn True
-    H2.run H2.defaultServerConfig conf $
-        http2server "Warp HTTP/2" settings ii transport peersa app
+    when ok $
+        H2.run H2.defaultServerConfig conf $
+            http2server "Warp HTTP/2" settings ii transport peersa app
   where
+    -- A GOAWAY ends the connection, so there is nothing left to serve
+    -- on it.
     checkTLS = case transport of
-        TCP -> return () -- direct
-        tls -> unless (tls12orLater tls) $ goaway conn H2.InadequateSecurity "Weak TLS"
+        TCP -> return True -- direct
+        tls
+            | tls12orLater tls -> return True
+            | otherwise -> do
+                goaway conn H2.InadequateSecurity "Weak TLS"
+                return False
     tls12orLater tls = tlsMajorVersion tls == 3 && tlsMinorVersion tls >= 3
 
 -- | Converting WAI application to the server type of http2 library.
@@ -164,9 +171,13 @@ wrappedRecvN th slowlorisSize readN bufsize = do
     handler = throughAsync (return "")
 
 -- connClose must not be called here since Run:fork calls it
+--
+-- The SETTINGS frame is this server's half of the connection preface,
+-- which RFC 9113 has it send before anything else, GOAWAY included.
 goaway :: Connection -> H2.ErrorCode -> ByteString -> IO ()
-goaway Connection{..} etype debugmsg = connSendAll bytestream
+goaway Connection{..} etype debugmsg = connSendAll $ preface <> bytestream
   where
     einfo = H2.encodeInfo id 0
+    preface = H2.encodeFrame einfo $ H2.SettingsFrame []
     frame = H2.GoAwayFrame 0 etype debugmsg
     bytestream = H2.encodeFrame einfo frame
