@@ -8,7 +8,6 @@ import Test.Hspec
 #define HAS_EARLY_HINTS_SUPPORT (MIN_VERSION_http_semantics(0,4,1) && MIN_VERSION_http2(5,4,2))
 
 #if HAS_EARLY_HINTS_SUPPORT
-#ifndef WINDOWS
 import Control.Exception (bracket)
 import Data.ByteString (ByteString)
 import Data.IORef
@@ -18,17 +17,20 @@ import Network.HTTP.Types (Status, methodGet, ok200, status200, status404)
 import qualified Network.HTTP2.Client as C
 import Network.Socket
 import Network.Wai
-import Network.Wai.Handler.Warp (Port, testWithApplication)
-#endif
+import Network.Wai.Handler.Warp (
+    Port,
+    defaultSettings,
+    setTimeout,
+    testWithApplicationSettings,
+ )
 
 spec :: Spec
 spec = describe "HTTP/2 Early Hints" $
     it "delivers a WAI app's 103 Early Hints to the client before the final response (h2c)" $
-#ifdef WINDOWS
-        -- This test is failing on Windows (it hangs at @C.run@)
-        pendingWith "requires more testing on a Windows machine"
-#else
-        testWithApplication (pure app) $ \port -> do
+        -- A short timeout rather than the default thirty seconds: on
+        -- Windows nothing can give up on the connection's blocked read,
+        -- so this is what the teardown waits for.  See wai#1136.
+        testWithApplicationSettings (setTimeout 5 defaultSettings) (pure app) $ \port -> do
             hintsRef <- newIORef []
             earlyHintsClient port hintsRef `shouldReturn` Just ok200
             hints <- readIORef hintsRef
@@ -70,7 +72,6 @@ withTCP host port = bracket open close
         sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
         connect sock (addrAddress addr)
         return sock
-#endif
 #else
 spec :: Spec
 spec = describe "HTTP/2 Early Hints" $
