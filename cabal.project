@@ -10,6 +10,5 @@ packages:
     wai-app-static
     wai-websockets
     wai-conduit
-    time-manager
 
 benchmarks: True

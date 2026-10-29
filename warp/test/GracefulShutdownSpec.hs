@@ -8,18 +8,73 @@ module GracefulShutdownSpec (spec) where
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Exception (bracket)
+import qualified Control.Exception as E
 import Control.Monad (void)
 import Data.IORef
 import Network.HTTP.Client
 import Network.HTTP.Types (ok200, status200)
 import Network.Socket
+import Network.Socket.ByteString (sendAll)
 import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp
+import System.ThreadManager (KilledByThreadManager (..))
 import System.Timeout (timeout)
 import Test.Hspec
 
 spec :: Spec
 spec = describe "graceful shutdown" $ do
+    it "kills what it is still serving when it is killed itself (#1126)" $ do
+        -- Warp forks a thread per connection, and nothing in the runtime
+        -- makes those the children of the thread running the server.  An
+        -- asynchronous exception to that thread used to leave them running.
+        servingNow <- newEmptyMVar
+        killed <- newEmptyMVar
+        let app _ respond =
+                ( do
+                    putMVar servingNow ()
+                    threadDelay 10_000_000
+                    respond $ responseLBS status200 [] ""
+                )
+                    `E.catch` \e -> putMVar killed e >> E.throwIO e
+        bracket openFreePort (close . snd) $ \(testPort, sock) -> do
+            server <- forkIO $ runSettingsSocket defaultSettings sock app
+            client <- openConnection testPort
+            sendAll client "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
+            -- The application is in the middle of the request.
+            timeout 2_000_000 (takeMVar servingNow) `shouldReturn` Just ()
+            killThread server
+            timeout 2_000_000 (byManager <$> takeMVar killed) `shouldReturn` Just True
+            close client
+
+    it "kills a connection forked but not yet scheduled (#1126)" $ do
+        -- The thread records itself, so between the accept loop keeping a
+        -- place for it and the thread being scheduled there is nothing to
+        -- kill.  A 'settingsFork' which does not schedule at once -- what
+        -- the reporter of #1126 sets -- makes the window wide.
+        servingNow <- newEmptyMVar
+        forked <- newEmptyMVar
+        let app _ respond = do
+                putMVar servingNow ()
+                threadDelay 10_000_000
+                respond $ responseLBS status200 [] ""
+            set =
+                setFork
+                    ( \io -> void $ forkIOWithUnmask $ \unmask -> do
+                        -- Forked, with its place kept and not yet taken.
+                        putMVar forked ()
+                        threadDelay 300_000
+                        io unmask
+                    )
+                    defaultSettings
+        bracket openFreePort (close . snd) $ \(testPort, sock) -> do
+            server <- forkIO $ runSettingsSocket set sock app
+            client <- openConnection testPort
+            sendAll client "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
+            timeout 2_000_000 (takeMVar forked) `shouldReturn` Just ()
+            killThread server
+            timeout 2_000_000 (takeMVar servingNow) `shouldReturn` Nothing
+            close client
+
     it "waits for a connection accepted just before it stopped accepting" $ do
         -- The window is between accepting a connection and the thread
         -- serving it being scheduled. Delaying the thread makes it wide
@@ -140,3 +195,9 @@ spec = describe "graceful shutdown" $ do
     connectionRefused = \case
         (HttpExceptionRequest _ (ConnectionFailure _)) -> True
         _ -> False
+
+-- | Whether the exception is the one the thread manager kills a thread with.
+byManager :: E.SomeException -> Bool
+byManager e = case E.fromException e of
+    Just (KilledByThreadManager _) -> True
+    Nothing -> False

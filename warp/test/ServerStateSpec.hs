@@ -3,7 +3,7 @@
 module ServerStateSpec where
 
 import Network.Wai.Handler.Warp (getServerState)
-import Network.Wai.Handler.Warp.Counter (increase)
+import Network.Wai.Handler.Warp.Counter (Counter, forkConnection)
 import Network.Wai.Handler.Warp.Settings (
     ServerState (..),
     currentOpenConnections,
@@ -17,6 +17,12 @@ import Test.Hspec
 
 main :: IO ()
 main = hspec spec
+
+-- | One more connection on the counter, through a fork which makes no
+--   thread: the place is kept and never taken, which is all these tests
+--   ask of the counter.
+countOneMore :: Counter -> IO ()
+countOneMore counter = forkConnection counter (\_ -> return ()) (\_ -> return ())
 
 spec :: Spec
 spec = do
@@ -35,9 +41,9 @@ spec = do
                             a <- currentOpenConnections outerSS
                             b <- currentOpenConnections innerSS
                             (a, b) `shouldBe` (i, i)
-                    increase $ serverConnectionCounter outerSS
+                    countOneMore $ serverConnectionCounter outerSS
                     bothCount 1
-                    increase $ serverConnectionCounter innerSS
+                    countOneMore $ serverConnectionCounter innerSS
                     bothCount 2
                     let bothDown bool = do
                             a <- currentShuttingDownState outerSS
@@ -49,7 +55,7 @@ spec = do
                     bothDown False
         it "is idempotent" $ do
             let incAndCheck ss i = do
-                    increase $ serverConnectionCounter ss
+                    countOneMore $ serverConnectionCounter ss
                     currentOpenConnections ss `shouldReturn` i
             (ss1, set1) <- makeServerState defaultSettings
             incAndCheck ss1 1
