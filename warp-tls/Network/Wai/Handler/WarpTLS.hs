@@ -59,7 +59,7 @@ module Network.Wai.Handler.WarpTLS (
 
 import Control.Applicative ((<|>))
 #if MIN_VERSION_warp(3,4,13)
-import Control.Concurrent.STM (newTVarIO, TVar)
+import Control.Concurrent.STM (TVar, check, newTVarIO, readTVar, registerDelay)
 #endif
 import Control.Exception (
     Exception,
@@ -79,7 +79,7 @@ import Control.Monad (guard, void)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.IORef as I
-import Data.Streaming.Network (bindPortTCP, safeRecv)
+import Data.Streaming.Network (bindPortTCP)
 import GHC.IO.Exception (IOErrorType (..))
 import Network.Socket (
     SockAddr,
@@ -92,7 +92,7 @@ import Network.Socket (
     withSocketsDo,
  )
 import Network.Socket.BufferPool
-import Network.Socket.ByteString (sendAll)
+import Network.Socket.ByteString (recvWith, sendAll)
 import qualified Network.TLS as TLS
 import qualified Network.TLS.SessionManager as SM
 import Network.Wai (Application)
@@ -262,7 +262,7 @@ getSessionManager TLSSettings{..} = case tlsSessionManagerConfig of
 --   specified 'Socket'.
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket tlsset set sock app = do
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
     -- The accept loop is stopped by being told, not by having this socket
     -- closed under it; the socket is closed once the loop has ended.  See
     -- 'Network.Wai.Handler.Warp.Internal.Listener'.
@@ -272,7 +272,7 @@ runTLSSocket tlsset set sock app = do
 #endif
     credentials <- loadCredentials tlsset
     mgr <- getSessionManager tlsset
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
     runTLSSocket' tlsset set listener credentials mgr sock app
 #else
     runTLSSocket' tlsset set credentials mgr sock app
@@ -281,7 +281,7 @@ runTLSSocket tlsset set sock app = do
 runTLSSocket'
     :: TLSSettings
     -> Settings
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
     -> Listener
 #endif
     -> TLS.Credentials
@@ -289,10 +289,10 @@ runTLSSocket'
     -> Socket
     -> Application
     -> IO ()
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
 runTLSSocket' tlsset@TLSSettings{..} set listener credentials mgr sock app = do
     (_, newSettings) <- makeServerState set
-    let get = getter tlsset newSettings sock params
+    let get = getter tlsset newSettings listener sock params
     runSettingsConnectionMakerSecureWith newSettings listener get app
 #elif MIN_VERSION_warp(3,4,13)
 runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock app = do
@@ -355,13 +355,24 @@ getter
     :: TLS.TLSParams params
     => TLSSettings
     -> Settings
+#if MIN_VERSION_warp(3,4,18)
+    -> Listener
+#endif
     -> Socket
     -> params
     -> IO (IO (Connection, Transport), SockAddr)
+#if MIN_VERSION_warp(3,4,18)
+getter tlsset set listener _sock params = do
+    macc <- acceptOrStop listener
+    (s, sa) <- maybe (throwIO AcceptStopped) return macc
+    setSocketCloseOnExec s
+    return (mkConn tlsset set s params, sa)
+#else
 getter tlsset set@Settings{settingsAccept = accept'} sock params = do
     (s, sa) <- accept' sock
     setSocketCloseOnExec s
     return (mkConn tlsset set s params, sa)
+#endif
 
 mkConn
     :: TLS.TLSParams params
@@ -372,12 +383,23 @@ mkConn
     -> IO (Connection, Transport)
 mkConn tlsset set s params = do
     let tm = settingsTimeout set * 1000000
-    mbs <- timeout tm recvFirstBS
-    case mbs of
-      Nothing -> throwIO IncompleteHeaders
-      Just bs -> switch bs
+    -- The first read is given up on when the deadline passes, rather than
+    -- interrupted by 'timeout': an asynchronous exception does not reach a
+    -- thread blocked in a socket call on Windows.
+    expired <- registerDelay tm
+    ebs <- recvFirstBS expired
+    case ebs of
+      Left () -> throwIO IncompleteHeaders
+      Right bs -> switch bs
   where
-    recvFirstBS = safeRecv s 4096 `onException` close s
+    recvFirstBS expired =
+        (recvWith s 4096 (check =<< readTVar expired) `E.catch` resetIsEOF)
+            `onException` close s
+    -- What streaming-commons' safeRecv did for us: a connection reset is
+    -- the end of the connection, not an error to report.
+    resetIsEOF e
+        | ioeGetErrorType e == ResourceVanished = return $ Right ""
+        | otherwise = E.throwIO (e :: E.IOException)
     switch firstBS
         | S.null firstBS = close s >> throwIO ClientClosedConnectionPrematurely
         | S.head firstBS == 0x16 = httpOverTls tlsset set s firstBS params
@@ -505,7 +527,7 @@ attachConn mysa ctx = do
         sendfile fid offset len hook headers = do
             writeBuffer <- I.readIORef writeBufferRef
             readSendFile
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
                 writeBuffer
 #else
                 (bufBuffer writeBuffer)

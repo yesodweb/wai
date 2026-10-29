@@ -2,6 +2,17 @@
 
 ## 3.5.0
 
+* The accept loop and the graceful shutdown's receive are given up on
+  rather than interrupted.  `Listener` accepts through network's
+  `withReadable`, and the receive is one `receiveWith`, so neither
+  depends on `closeFdWith` waking a blocked thread, and both work on
+  Windows, where an asynchronous exception does not reach a socket call.
+  The CPP fallbacks for Windows and for network < 3.2.2 are gone.
+* Which errno `accept` may be retried on, and which error means the
+  socket was closed, come from network's `isTransientAcceptError` and
+  `isClosedSocketError` rather than from lists here.
+
+
 * Kill the connections being served when the accept loop ends.
   [#1128](https://github.com/yesodweb/wai/pull/1128)
 

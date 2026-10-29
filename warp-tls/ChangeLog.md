@@ -1,5 +1,11 @@
 # ChangeLog
 
+## 3.4.15
+
+* The first read of a connection is given up on when the handshake
+  deadline passes, rather than interrupted by `timeout`, which does not
+  reach a socket call on Windows.
+
 ## 3.4.14.1
 
 * The accept loop is stopped the way warp's is, by being told rather than by
