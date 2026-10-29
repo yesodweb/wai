@@ -16,21 +16,28 @@ import System.Timeout (timeout)
 import Test.Hspec
 
 main :: IO ()
-main = hspec $ describe "pre-TLS exception peer (#1113)" $ do
-    it "attributes sequential plaintext and premature-close failures to their sockets" $
-        exercise [1, 1] False
-    it "attributes concurrent plaintext and premature-close failures to their sockets" $
-        exercise [1, 1] True
+main = hspec $ do
+    describe "early data" $
+        -- A request in early data is replayable and warp-tls has no RFC
+        -- 8470 handling, so 0-RTT is off until a server asks for it.
+        it "is not accepted unless asked for" $
+            TLS.tlsEarlyDataSize TLS.defaultTlsSettings `shouldBe` 0
 
-    -- Linux provides the whole 127/8 loopback range without interface aliases.
-    -- Keep the original two-IP regression there; other platforms still check
-    -- exact socket addresses (including source ports) above. The maker tests
-    -- additionally check distinct IPs without binding sockets on every platform.
-    when (os == "linux") $ do
-        it "attributes sequential failures from distinct loopback IPs" $
-            exercise [1, 2] False
-        it "attributes concurrent failures from distinct loopback IPs" $
-            exercise [1, 2] True
+    describe "pre-TLS exception peer (#1113)" $ do
+        it "attributes sequential plaintext and premature-close failures to their sockets" $
+            exercise [1, 1] False
+        it "attributes concurrent plaintext and premature-close failures to their sockets" $
+            exercise [1, 1] True
+
+        -- Linux provides the whole 127/8 loopback range without interface aliases.
+        -- Keep the original two-IP regression there; other platforms still check
+        -- exact socket addresses (including source ports) above. The maker tests
+        -- additionally check distinct IPs without binding sockets on every platform.
+        when (os == "linux") $ do
+            it "attributes sequential failures from distinct loopback IPs" $
+                exercise [1, 2] False
+            it "attributes concurrent failures from distinct loopback IPs" $
+                exercise [1, 2] True
 
 -- These regressions deliberately leave Warp's accept and fork hooks alone.
 -- Keep both peers and failure kinds when changing the exception observer.
