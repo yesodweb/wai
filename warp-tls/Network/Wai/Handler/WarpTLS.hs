@@ -262,7 +262,7 @@ getSessionManager TLSSettings{..} = case tlsSessionManagerConfig of
 --   specified 'Socket'.
 runTLSSocket :: TLSSettings -> Settings -> Socket -> Application -> IO ()
 runTLSSocket tlsset set sock app = do
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
     -- The accept loop is stopped by being told, not by having this socket
     -- closed under it; the socket is closed once the loop has ended.  See
     -- 'Network.Wai.Handler.Warp.Internal.Listener'.
@@ -272,7 +272,7 @@ runTLSSocket tlsset set sock app = do
 #endif
     credentials <- loadCredentials tlsset
     mgr <- getSessionManager tlsset
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
     runTLSSocket' tlsset set listener credentials mgr sock app
 #else
     runTLSSocket' tlsset set credentials mgr sock app
@@ -281,7 +281,7 @@ runTLSSocket tlsset set sock app = do
 runTLSSocket'
     :: TLSSettings
     -> Settings
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
     -> Listener
 #endif
     -> TLS.Credentials
@@ -289,7 +289,7 @@ runTLSSocket'
     -> Socket
     -> Application
     -> IO ()
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
 runTLSSocket' tlsset@TLSSettings{..} set listener credentials mgr sock app = do
     (_, newSettings) <- makeServerState set
     let get = getter tlsset newSettings listener sock params
@@ -355,13 +355,13 @@ getter
     :: TLS.TLSParams params
     => TLSSettings
     -> Settings
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
     -> Listener
 #endif
     -> Socket
     -> params
     -> IO (IO (Connection, Transport), SockAddr)
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
 getter tlsset set listener _sock params = do
     macc <- acceptOrStop listener
     (s, sa) <- maybe (throwIO AcceptStopped) return macc
@@ -527,7 +527,7 @@ attachConn mysa ctx = do
         sendfile fid offset len hook headers = do
             writeBuffer <- I.readIORef writeBufferRef
             readSendFile
-#if MIN_VERSION_warp(3,5,0)
+#if MIN_VERSION_warp(3,4,18)
                 writeBuffer
 #else
                 (bufBuffer writeBuffer)
