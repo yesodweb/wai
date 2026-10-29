@@ -145,31 +145,30 @@ spec = describe "mkDebounce" $ do
 
         it "works for multiple events" $ do
             (ref, debounced, _baton, _returnFromWait) <- getDebounce' True trailingDelayEdge
+            let triggerAndWait = do
+                    debounced
+                    threadDelay 300_000
 
             start <- getMonotonicTime
+            -- waits 0.3 sec
+            triggerAndWait
+            -- waits 0.3 sec
+            triggerAndWait
+            -- waits 0.3 sec
+            triggerAndWait
+            -- Time between last 'triggerAndWait' and
+            -- 'waitUntil' check should be >= 1 sec.
+            triggerAndWait
 
-            debounced
-            readIORef ref `shouldReturn` 0
-            -- Asserts at end check that this timing gets added to the cooldown time
-            threadDelay 500_000
-
-            readIORef ref `shouldReturn` 0
-            before2nd <- getMonotonicTime
-            debounced
-            readIORef ref `shouldReturn` 0
-            threadDelay 500_000
-
-            readIORef ref `shouldReturn` 0
-            threadDelay 250_000
-
+            -- Even after waitin 1.2 secs now, it should
+            -- have been kept being delayed.
             readIORef ref `shouldReturn` 0
 
+            -- After about 0.8 secs this should return 1
             waitUntil 1 $ readIORef ref `shouldReturn` 1
             end <- getMonotonicTime
-            assertBool "Took less than 1 sec after retrigger" $
-                end - before2nd > 1
-            assertBool "Took less than 1.5 sec total" $
-                end - start > 1.5
+            assertBool "Took less than 1.9 sec total" $
+                end - start > 1.9
 
 -- | Make a controllable delay function
 getWaitAction :: IO (p -> IO (), IO ())
