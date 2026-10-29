@@ -40,7 +40,7 @@ extra-deps:
   - http3-0.1.9
   - http-semantics-0.4.0
   - mlkem-0.2.2.0
-  - network-3.2.9.0
+  - network-3.2.10.0
   - quic-0.3.18
   - ram-0.22.0
   - sockaddr-0.0.1
