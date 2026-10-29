@@ -67,6 +67,7 @@ module Network.Wai.Handler.Warp (
     setMaximumBodyFlush,
     setFork,
     setAccept,
+    setSocketDisconnectMonitor,
     setProxyProtocolNone,
     setProxyProtocolRequired,
     setProxyProtocolOptional,
@@ -132,6 +133,8 @@ module Network.Wai.Handler.Warp (
 
     -- * Utilities
     pauseTimeout,
+    requestWaitForDisconnect,
+    waitForSocketDisconnect,
     FileInfo (..),
     getFileInfo,
 #ifdef MIN_VERSION_crypton_x509
@@ -459,6 +462,21 @@ setFork fork' s = s{settingsFork = fork'}
 -- @since 3.3.24
 setAccept :: (Socket -> IO (Socket, SockAddr)) -> Settings -> Settings
 setAccept accept' s = s{settingsAccept = accept'}
+
+-- | Install an opt-in detector for non-TLS HTTP/1.x stream sockets created
+-- by runSettings/runSettingsSocket. The detector should block until it
+-- observes a disconnect, must not consume request bytes, and must remain
+-- interruptible so Warp can stop it at connection shutdown. Warp runs it
+-- in a child thread for the lifetime of the HTTP/1.x connection. No extra
+-- thread is created when this setter is not used.
+--
+-- The detector runs independently of request body reads: implementations
+-- such as MSG_PEEK are best-effort and cannot distinguish TCP half-close
+-- from abandonment, nor guarantee detection under pipelining.
+-- TLS and custom connection makers are not covered by this setting.
+setSocketDisconnectMonitor :: (Socket -> IO ()) -> Settings -> Settings
+setSocketDisconnectMonitor monitor settings =
+    settings{settingsSocketDisconnectMonitor = Just monitor}
 
 -- | Do not use the PROXY protocol.
 --

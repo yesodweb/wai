@@ -8,6 +8,8 @@ module Network.Wai.Handler.Warp.Request (
     headerLines,
     pauseTimeoutKey,
     getFileInfoKey,
+    requestWaitForDisconnect,
+    insertDisconnectWaiter,
 #ifdef MIN_VERSION_crypton_x509
     getClientCertificateKey,
 #endif
@@ -333,6 +335,24 @@ push maxTotalHeaderLength src (THStatus totalLen chunkLen reqLines prepend) bs
         in THStatus newTotal 0 (reqLines . (newLine:)) id
 {- HLint ignore push "Use unless" -}
 
+
+-- | Wait until the transport-specific detector reports a disconnect.
+-- Repeated waits are safe: the action is backed by a non-consuming MVar read.
+-- Returns Nothing when the backend has no detector configured.
+-- The signal is best-effort and does not mean that the peer could not still
+-- receive a response (TCP half-close is possible). HTTP/1.x requests on
+-- the same connection share the transport-level event.
+requestWaitForDisconnect :: Request -> Maybe (IO ())
+requestWaitForDisconnect req = Vault.lookup disconnectWaiterKey (vault req)
+
+-- | Inject the connection's persistent signal into the current WAI request.
+insertDisconnectWaiter :: IO () -> Request -> Request
+insertDisconnectWaiter waiter req =
+    req{vault = Vault.insert disconnectWaiterKey waiter (vault req)}
+
+disconnectWaiterKey :: Vault.Key (IO ())
+disconnectWaiterKey = unsafePerformIO Vault.newKey
+{-# NOINLINE disconnectWaiterKey #-}
 
 pauseTimeoutKey :: Vault.Key (IO ())
 pauseTimeoutKey = unsafePerformIO Vault.newKey
