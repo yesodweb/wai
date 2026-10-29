@@ -37,6 +37,7 @@ import Network.Socket (
     getSocketName,
     isClosedSocketError,
     isTransientAcceptError,
+    unsafeClose,
     withReadable,
     setSocketOption,
     withSocketsDo,
@@ -230,7 +231,7 @@ makeListener set socket = do
             { acceptOrStop = closedAsStopped $ do
                 r <- withReadable socket (told stopping) $ settingsAccept set socket
                 return $ either (const Nothing) Just r
-            , closeListener = close socket
+            , closeListener = unsafeClose socket
             }
   where
     told stopping = check =<< readTVar stopping
