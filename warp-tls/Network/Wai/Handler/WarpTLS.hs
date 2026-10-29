@@ -527,7 +527,9 @@ attachConn mysa ctx = do
         sendfile fid offset len hook headers = do
             writeBuffer <- I.readIORef writeBufferRef
             readSendFile
-#if MIN_VERSION_warp(3,4,18)
+-- readSendFile takes the WriteBuffer itself from 3.5.0, not from 3.4.18:
+-- the Listener work went out as 3.4.18 and this did not.
+#if MIN_VERSION_warp(3,5,0)
                 writeBuffer
 #else
                 (bufBuffer writeBuffer)
