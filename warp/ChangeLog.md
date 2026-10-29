@@ -1,5 +1,26 @@
 # ChangeLog for warp
 
+## 3.4.18
+
+* The accept loop is stopped by being told, through the new
+  `settingsInstallShutdownHandler`, rather than by having the listening
+  socket closed under it, and the graceful shutdown's receive is one
+  `receiveWith`.  Nothing is closed and no thread is interrupted to make
+  either of them return: a close ends a thread blocked on a descriptor
+  only because the event manager says so, which GHC is removing, and an
+  asynchronous exception does not reach a thread blocked in a socket call
+  on Windows -- where, before this, a server could not be stopped at all.
+  [#1136](https://github.com/yesodweb/wai/issues/1136)
+* The threads serving connections are owned by a thread manager, so a
+  killed server no longer leaves them running, and a connection which has
+  been accepted but not yet scheduled is counted by `gracefulShutdown`
+  rather than being invisible to it.
+  [#1126](https://github.com/yesodweb/wai/issues/1126)
+  [#1132](https://github.com/yesodweb/wai/issues/1132)
+* `Internal` exports `Listener (..)`, `noListener`, `makeListener`,
+  `AcceptStopped (..)` and `runSettingsConnectionMakerSecureWith`.
+* Requires network 3.2.10, recv 0.1.3 and time-manager 0.5.
+
 ## 3.4.17
 
 * Security: `Transfer-Encoding` is read as the comma separated list RFC 9112
