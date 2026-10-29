@@ -1,5 +1,12 @@
 # ChangeLog
 
+## 3.4.16
+
+* `TLSSettings` gains `tlsEarlyDataSize`, which was a fixed 2018 bytes
+  with no way to change it.  It defaults to 0, so 0-RTT is off unless a
+  server asks for it: a request in early data is replayable and warp-tls
+  has no RFC 8470 handling.
+
 ## 3.4.15
 
 * The first read of a connection is given up on when the handshake
