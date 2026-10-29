@@ -2,10 +2,12 @@
 
 ## 3.4.16
 
-* `TLSSettings` gains `tlsEarlyDataSize`, which was a fixed 2018 bytes
-  with no way to change it.  It defaults to 0, so 0-RTT is off unless a
-  server asks for it: a request in early data is replayable and warp-tls
-  has no RFC 8470 handling.
+`tlsEarlyDataSize` defaults to 0, so 0-RTT is off unless a server asks for
+it: a request in early data is replayable and warp-tls has no RFC 8470
+handling.
+
+* Let a server say how much TLS early data it accepts.
+  [#1145](https://github.com/yesodweb/wai/pull/1145)
 
 ## 3.4.15
 
