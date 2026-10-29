@@ -3,13 +3,15 @@
 module Network.Socket.BufferPool.Recv (
     receive,
     receiveNoWait,
+    receiveWith,
     makeRecvN,
 ) where
 
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString (..), unsafeCreate)
 import Data.IORef
-import Network.Socket (Socket, recvBuf, recvBufNoWait)
+import Control.Concurrent.STM (STM)
+import Network.Socket (Socket, recvBuf, recvBufNoWait, recvBufWith)
 
 import Network.Socket.BufferPool.Buffer
 import Network.Socket.BufferPool.Types
@@ -34,6 +36,24 @@ receiveNoWait sock pool = tryWithBufferPool pool $ \ptr size ->
     -- to the blocking path so errors surface there with their errno
     -- intact.
     fromIntegral <$> recvBufNoWait sock ptr size
+
+-- | Like 'receive' but the caller can give up on it: whichever settles
+--   first decides, 'Left' when the 'STM' action fires, 'Right' when data
+--   arrives.  Data already waiting is taken without blocking at all and
+--   so wins over a caller which has given up, as a completed operation
+--   does in 'Network.Socket.withReadable'; the give-up is read there
+--   and nowhere else.
+--
+--   Nothing is closed and no thread is interrupted to make this return.
+--
+-- /Caveats of 'BufferPool' apply./
+receiveWith :: Socket -> BufferPool -> STM a -> IO (Either a ByteString)
+receiveWith sock pool giveUp = do
+    early <- receiveNoWait sock pool
+    case early of
+        Just bs -> return $ Right bs
+        Nothing -> eitherWithBufferPool pool $ \ptr size ->
+            recvBufWith sock ptr size giveUp
 
 ----------------------------------------------------------------
 
