@@ -10,7 +10,7 @@ module Network.Socket.BufferPool.Recv (
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString (..), unsafeCreate)
 import Data.IORef
-import Control.Concurrent.STM (STM, atomically, orElse)
+import Control.Concurrent.STM (STM)
 import Network.Socket (Socket, recvBuf, recvBufNoWait, recvBufWith)
 
 import Network.Socket.BufferPool.Buffer
@@ -39,23 +39,21 @@ receiveNoWait sock pool = tryWithBufferPool pool $ \ptr size ->
 
 -- | Like 'receive' but the caller can give up on it: whichever settles
 --   first decides, 'Left' when the 'STM' action fires, 'Right' when data
---   arrives.  A caller which has already given up reads nothing;
---   otherwise data already waiting is taken without blocking at all.
+--   arrives.  Data already waiting is taken without blocking at all and
+--   so wins over a caller which has given up, as a completed operation
+--   does in 'Network.Socket.withReadable'; the give-up is read there
+--   and nowhere else.
 --
 --   Nothing is closed and no thread is interrupted to make this return.
 --
 -- /Caveats of 'BufferPool' apply./
 receiveWith :: Socket -> BufferPool -> STM a -> IO (Either a ByteString)
 receiveWith sock pool giveUp = do
-    gaveUp <- atomically $ (Just <$> giveUp) `orElse` return Nothing
-    case gaveUp of
-        Just a -> return $ Left a
-        Nothing -> do
-            early <- receiveNoWait sock pool
-            case early of
-                Just bs -> return $ Right bs
-                Nothing -> eitherWithBufferPool pool $ \ptr size ->
-                    recvBufWith sock ptr size giveUp
+    early <- receiveNoWait sock pool
+    case early of
+        Just bs -> return $ Right bs
+        Nothing -> eitherWithBufferPool pool $ \ptr size ->
+            recvBufWith sock ptr size giveUp
 
 ----------------------------------------------------------------
 

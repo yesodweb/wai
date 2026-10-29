@@ -86,10 +86,18 @@ spec = do
                 -- The socket is the caller's, and still theirs to read.
                 void $ getSocketName srv
 
-        it "reads nothing once the caller has given up" $ do
+        -- Data already there wins over a give-up, as it does in
+        -- withReadable: answering Left would leave it unread.
+        it "takes what is there even once the caller has given up" $ do
             withPair $ \cli srv pool -> do
                 void $ NSB.send cli "unread"
                 threadDelay 100000
+                gone <- newTVarIO True
+                receiveWith srv pool (readTVar gone >>= check)
+                    `shouldReturn` Right "unread"
+
+        it "reads nothing once the caller has given up and none is there" $ do
+            withPair $ \_cli srv pool -> do
                 gone <- newTVarIO True
                 receiveWith srv pool (readTVar gone >>= check)
                     `shouldReturn` Left ()
