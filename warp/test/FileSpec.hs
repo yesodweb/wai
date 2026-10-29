@@ -145,3 +145,14 @@ spec = do
             "returns a 416 for a suffix of no bytes"
             [("Range", "bytes=-0")]
             $ WithoutBody status416
+        -- RFC 9110, section 14.1.2: a suffix longer than the file asks
+        -- for the whole of it, which is not a range at all and so is a
+        -- 200 rather than a 206.
+        testFileRange
+            "gives the whole file for a suffix longer than it is"
+            [("Range", "bytes=-100")]
+            regularBody
+        testFileRange
+            "gives the whole file for a suffix exactly as long as it is"
+            [("Range", "bytes=-16")]
+            regularBody
