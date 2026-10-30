@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               time-manager
-version:            0.5.2
+version:            0.5.3
 license:            MIT
 license-file:       LICENSE
 maintainer:         kazu@iij.ad.jp
@@ -22,6 +22,7 @@ library
     exposed-modules:
         System.TimeManager
         System.ThreadManager
+        System.Watchdog
     other-modules:
         System.TimeManager.Internal
 

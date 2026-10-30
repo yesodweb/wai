@@ -10,7 +10,11 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
+#if WINDOWS
+import Control.Concurrent (forkIO)
+#endif
 import Control.Concurrent.STM (
+    STM,
     TVar,
     atomically,
     check,
@@ -18,9 +22,16 @@ import Control.Concurrent.STM (
     newTVarIO,
     readTVar,
     writeTVar,
+    retry,
+#if WINDOWS
+    newEmptyTMVarIO,
+    putTMVar,
+    takeTMVar,
+#endif
  )
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
+import Data.Functor (($>))
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Streaming.Network (bindPortTCP)
 import Foreign.C.Error (Errno (..), eBADF, eMFILE)
@@ -66,25 +77,27 @@ import Network.Wai.Handler.Warp.SendFile (sendFile)
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.ShuttingDown (writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
 --
 -- (N.B. make sure the 'Settings' have an initialized 'ServerState' to guarantee
 -- a graceful shutdown)
-socketConnection :: Settings -> Socket -> IO Connection
-socketConnection set s = do
+socketConnection :: Settings -> ConnContext -> Socket -> IO Connection
+socketConnection set cc s = do
     (ss, _) <- makeServerState set
     bufferPool <- newBufferPool 2048 16384
     writeBuffer <- createWriteBuffer 16384
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
-    appsInProgress <- newTVarIO 0
+    let appsInProgress = connAppsInProgress cc
+        wd = connWatchdog cc
     return
         Connection
             { connSendMany = Sock.sendMany s
-            , connSendAll = sendall
-            , connSendFile = sendfile writeBufferRef
+            , connSendAll = sendall wd
+            , connSendFile = sendfile wd writeBufferRef
 #if MIN_VERSION_network(3,1,1)
             , connClose = do
                 h2 <- readIORef isH2
@@ -98,35 +111,34 @@ socketConnection set s = do
 #else
             , connClose = close s
 #endif
-            , connRecv = receive' bufferPool ss appsInProgress
+            , connRecv = receive' bufferPool ss appsInProgress wd
             , connRecvBuf = \_ _ -> return True -- obsoleted
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
-            , connAppsInProgress = appsInProgress
             }
   where
-    receive' bufferPool ss appsInProgress =
-        E.handle handler $ makeGracefulRecv s bufferPool ss appsInProgress
+    receive' bufferPool ss appsInProgress wd =
+        E.handle handler $ makeWatchedRecv s bufferPool ss appsInProgress wd
       where
         handler :: E.IOException -> IO ByteString
         handler e
             | ioeGetErrorType e == InvalidArgument = return ""
             | otherwise = E.throwIO e
 
-    sendfile writeBufferRef fid offset len hook headers = do
+    sendfile wd writeBufferRef fid offset len hook headers = do
         writeBuffer <- readIORef writeBufferRef
         sendFile
             s
             writeBuffer
-            sendall
+            (sendall wd)
             fid
             offset
             len
             hook
             headers
 
-    sendall bs =
+    sendall wd bs =
         E.handleJust
             ( \e ->
                 if ioeGetErrorType e == ResourceVanished
@@ -134,7 +146,47 @@ socketConnection set s = do
                     else Nothing
             )
             E.throwIO
-            $ Sock.sendAll s bs
+            $ send' wd bs
+
+#if WINDOWS
+    -- As with the read: a send that blocks on WINDOWS blocks in a foreign
+    -- call, where neither the watchdog's 'TVar' nor an asynchronous
+    -- exception can reach this thread, so a peer that stops reading is a
+    -- connection that cannot be given up on.  The send is done on a thread
+    -- of its own and this one waits for it alongside the watchdog.
+    --
+    -- The send left behind is left to the socket being closed, which is what
+    -- ends this connection anyway.
+    send' wd bs = do
+        var <- newEmptyTMVarIO
+        void $ forkIO $ do
+            r <- E.try $ Sock.sendAll s bs
+            atomically $ putTMVar var (r :: Either E.SomeException ())
+        done <- atomically $
+            (timedOutSTM wd $> Nothing) <|> (Just <$> takeTMVar var)
+        case done of
+            Nothing -> E.throwIO T.TimeoutThread
+            Just r -> either E.throwIO return r
+#else
+    send' _wd bs = Sock.sendAll s bs
+#endif
+
+
+-- | The state warp keeps for one connection.  It is made before the
+--   connection maker runs, so that a maker which talks to the peer -- one
+--   that performs a TLS handshake, say -- is supervised like the rest of
+--   the connection.
+--
+-- @since 3.5.0
+newConnContext :: Settings -> IO ConnContext
+newConnContext set = do
+    wd <- newConnWatchdog $ settingsTimeout set * 1000000
+    appsInProgress <- newTVarIO 0
+    return
+        ConnContext
+            { connWatchdog = wd
+            , connAppsInProgress = appsInProgress
+            }
 
 -- | Create a 'Recv' which stops receiving when the server is shutting down
 -- and no 'Application' is still using this 'Socket'.
@@ -142,11 +194,37 @@ socketConnection set s = do
 -- Nothing is closed and no thread is interrupted to make it return: the
 -- read and the shutdown are waited for at once, inside 'receiveWith'.
 makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
-makeGracefulRecv sock pool ss appsInProgress = do
-    r <- receiveWith sock pool checkShutdown
+makeGracefulRecv sock pool ss appsInProgress =
+    makeGracefulRecvWith sock pool ss appsInProgress retry
+
+-- | 'makeGracefulRecv' which also gives up when the 'Watchdog' decides
+-- that the connection timed out, by throwing 'T.TimeoutThread'.
+--
+-- The timeout is composed with the socket readiness in a single STM
+-- transaction, so a receiving thread is never killed from outside
+-- while it waits for the peer.
+--
+-- @since 3.5.0
+makeWatchedRecv
+    :: Socket -> BufferPool -> ServerState -> TVar Int -> ConnWatchdog -> Recv
+makeWatchedRecv sock pool ss appsInProgress wd =
+    makeGracefulRecvWith sock pool ss appsInProgress (timedOutSTM wd)
+
+data GiveUp = ShuttingDown | TimedOut
+
+makeGracefulRecvWith
+    :: Socket -> BufferPool -> ServerState -> TVar Int -> STM () -> Recv
+makeGracefulRecvWith sock pool ss appsInProgress timedOut = do
+    r <- receiveWith sock pool $
+        -- when shutting down
+        (checkShutdown $> ShuttingDown)
+        <|>
+        -- when the watchdog gave up on this connection
+        (timedOut $> TimedOut)
     case r of
-        Left () -> return ""
-        Right bs -> return bs
+        Left ShuttingDown -> pure ""
+        Left TimedOut -> E.throwIO T.TimeoutThread
+        Right bs -> pure bs
   where
     checkShutdown = do
         check =<< currentShuttingDownStateSTM ss
@@ -267,21 +345,16 @@ runSettingsSocket oldSettings socket app = do
     runSettingsConnectionMakerSecureWith
         newSettings
         listener
-        (first ((,TCP) <$>) <$> getConnMaker listener newSettings)
+        (first (\mk cc -> (,TCP) <$> mk cc) <$> getConnMaker listener newSettings)
         app
   where
     getConnMaker listener set = do
-        (conn, sa) <- getConn listener set
-        return (return conn, sa)
-
-    getConn listener set = do
         macc <- acceptOrStop listener
         (s, sa) <- maybe (E.throwIO AcceptStopped) return macc
         setSocketCloseOnExec s
         -- NoDelay causes an error for AF_UNIX.
         setSocketOption s NoDelay 1 `E.catch` throughAsync (return ())
-        conn <- socketConnection set s
-        return (conn, sa)
+        return (\cc -> socketConnection set cc s, sa)
 
 -- | The connection setup action would be expensive. A good example
 -- is initialization of TLS.
@@ -298,16 +371,20 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
   where
     getConnMaker = do
         (conn, sa) <- getConn
-        return (return conn, sa)
+        -- Already made, so there is nothing for the context to be used by.
+        return (const $ return conn, sa)
 
 -- | This modifies the connection maker so that it returns 'TCP' for 'Transport'
 -- (i.e. plain HTTP) then calls 'runSettingsConnectionMakerSecure'.
 runSettingsConnectionMaker
-    :: Settings -> IO (IO Connection, SockAddr) -> Application -> IO ()
+    :: Settings
+    -> IO (ConnContext -> IO Connection, SockAddr)
+    -> Application
+    -> IO ()
 runSettingsConnectionMaker x y =
     runSettingsConnectionMakerSecure x (toTCP <$> y)
   where
-    toTCP = first ((,TCP) <$>)
+    toTCP = first (\mk cc -> (,TCP) <$> mk cc)
 
 ----------------------------------------------------------------
 
@@ -318,7 +395,10 @@ runSettingsConnectionMaker x y =
 --
 -- @since 2.1.4
 runSettingsConnectionMakerSecure
-    :: Settings -> IO (IO (Connection, Transport), SockAddr) -> Application -> IO ()
+    :: Settings
+    -> IO (ConnContext -> IO (Connection, Transport), SockAddr)
+    -> Application
+    -> IO ()
 runSettingsConnectionMakerSecure set = runSettingsConnectionMakerSecureWith set noListener
 {-# DEPRECATED
     runSettingsConnectionMakerSecure
@@ -331,7 +411,7 @@ runSettingsConnectionMakerSecure set = runSettingsConnectionMakerSecureWith set 
 runSettingsConnectionMakerSecureWith
     :: Settings
     -> Listener
-    -> IO (IO (Connection, Transport), SockAddr)
+    -> IO (ConnContext -> IO (Connection, Transport), SockAddr)
     -> Application
     -> IO ()
 runSettingsConnectionMakerSecureWith oldSettings listener getConnMaker app = do
@@ -380,7 +460,7 @@ withII set action =
 acceptConnection
     :: Settings
     -> Listener
-    -> IO (IO (Connection, Transport), SockAddr)
+    -> IO (ConnContext -> IO (Connection, Transport), SockAddr)
     -> Application
     -> Counter
     -> InternalInfo
@@ -506,7 +586,7 @@ acceptConnection set listener getConnMaker app counter ii fdRef = do
 -- function to unmask (i.e., allow async exceptions to be thrown).
 fork
     :: Settings
-    -> IO (Connection, Transport)
+    -> (ConnContext -> IO (Connection, Transport))
     -> SockAddr
     -> Application
     -> Counter
@@ -520,7 +600,9 @@ fork set mkConn addr app counter ii = do
     -- counter.
     forkConnection counter (settingsFork set) runConnection
   where
-    runConnection unmask =
+    runConnection unmask = do
+        tid <- myThreadId
+        cc <- newConnContext set
         -- Call the user-supplied on exception code if any
         -- exceptions are thrown.
         --
@@ -529,26 +611,34 @@ fork set mkConn addr app counter ii = do
         -- async exceptions. See:
         -- https://github.com/yesodweb/wai/issues/850
         E.handle (onConnectionException set addr) $
-            -- Run the connection maker to get a new connection, and ensure
-            -- that the connection is closed. If the mkConn call throws an
-            -- exception, we will leak the connection. If the mkConn call is
-            -- vulnerable to attacks (e.g., Slowloris), we do nothing to
-            -- protect the server. It is therefore vital that mkConn is well
-            -- vetted.
-            --
-            -- We grab the connection before registering timeouts since the
-            -- timeouts will be useless during connection creation, due to the
-            -- fact that async exceptions are still masked.
-            E.bracket mkConn cleanUp (serve unmask)
+            -- 'T.TimeoutThread', whether thrown by 'connRecv' or as the
+            -- last resort, does not escape.
+            E.handle ignoreTimeout $
+                -- The watchdog is started before the connection maker
+                -- runs.  A maker which talks to the peer -- one that
+                -- performs a TLS handshake, say -- is then supervised
+                -- like the rest of the connection, rather than having to
+                -- protect itself.  A read on the way gives up by itself,
+                -- see 'makeWatchedRecv'; the throw is the last resort.
+                --
+                -- If the mkConn call throws an exception, we will leak
+                -- the connection.
+                withWatchdog (connWatchdog cc) (E.throwTo tid T.TimeoutThread) $
+                    E.bracket (mkConn cc) cleanUp (serve unmask cc)
 
     cleanUp (conn, _) =
         connClose conn `E.finally` do
             writeBuffer <- readIORef $ connWriteBuffer conn
             bufFree writeBuffer
 
-    -- We need to register a timeout handler for this thread, and
-    -- cancel that handler as soon as we exit.
-    serve unmask (conn, transport) = T.withHandleKillThread (timeoutManager ii) (return ()) $ \th -> do
+    -- An HTTP/2 connection is handed on to the http2 library, which
+    -- supervises it from there ('Warp.HTTP2.http2'), so what is watched
+    -- here is warp's own part of the connection. Writes are wrapped here
+    -- so that every protocol reports them in the same way. The time
+    -- handle is a dummy, kept for the signatures only.
+    serve unmask cc (conn0, transport) = do
+        let conn = watchSend (connWatchdog cc) conn0
+            th = T.emptyHandle
         -- We now have fully registered a connection close handler in
         -- the case of all exceptions, so it is safe to once again
         -- allow async exceptions.
@@ -560,13 +650,16 @@ fork set mkConn addr app counter ii = do
             $ \goingon ->
                 -- Actually serve this connection.  bracket with closeConn
                 -- above ensures the connection is closed.
-                when goingon $ serveConnection conn ii th addr transport set app
+                when goingon $ serveConnection conn cc ii th addr transport set app
+
+    ignoreTimeout T.TimeoutThread = return ()
 
     onOpen adr = settingsOnOpen set adr
     onClose adr _ = settingsOnClose set adr
 
 serveConnection
     :: Connection
+    -> ConnContext
     -> InternalInfo
     -> T.Handle
     -> SockAddr
@@ -574,7 +667,7 @@ serveConnection
     -> Settings
     -> Application
     -> IO ()
-serveConnection conn ii th origAddr transport settings app = do
+serveConnection conn cc ii th origAddr transport settings app = do
     -- fixme: Upgrading to HTTP/2 should be supported.
     tid <- myThreadId
     (h2, bs) <-
@@ -585,7 +678,7 @@ serveConnection conn ii th origAddr transport settings app = do
                 if "PRI " `S.isPrefixOf` bs0
                     then return (True, bs0)
                     else return (False, bs0)
-    let appsInProgress = connAppsInProgress conn
+    let appsInProgress = connAppsInProgress cc
         app' req rsp =
             E.bracket_
                 (atomically $ modifyTVar' appsInProgress $ (+ 1))
@@ -594,10 +687,13 @@ serveConnection conn ii th origAddr transport settings app = do
     if settingsHTTP2Enabled settings && h2
         then do
             labelThread tid ("Warp HTTP/2 " ++ show origAddr)
-            http2 settings ii conn transport app' origAddr th bs
+            http2 settings ii conn cc transport app' origAddr th bs
         else do
             labelThread tid ("Warp HTTP/1.1 " ++ show origAddr)
-            http1 settings ii conn transport app' origAddr th bs
+            -- HTTP/2 does not come here: its watchdog is the http2
+            -- library's, and it is the one told that applications run.
+            let app'' req rsp = runningApp (connWatchdog cc) $ app' req rsp
+            http1 settings ii conn cc transport app'' origAddr th bs
   where
     recv4 bs0 = do
         bs1 <- connRecv conn
@@ -610,6 +706,16 @@ serveConnection conn ii th origAddr transport settings app = do
             if S.length bs2 >= 4
                  then return bs2
                  else recv4 bs2
+
+-- | Reporting writes to the watchdog of the connection.
+watchSend :: ConnWatchdog -> Connection -> Connection
+watchSend wd conn =
+    conn
+        { connSendAll = sending wd . connSendAll conn
+        , connSendMany = sending wd . connSendMany conn
+        , connSendFile = \fid off len hook hdrs ->
+            sending wd $ connSendFile conn fid off len (hook >> txTick wd) hdrs
+        }
 
 -- | Set flag FileCloseOnExec flag on a socket (on Unix)
 --

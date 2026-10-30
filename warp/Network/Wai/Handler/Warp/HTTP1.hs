@@ -27,29 +27,31 @@ import Network.Wai.Handler.Warp.Request
 import Network.Wai.Handler.Warp.Response
 import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.Types
+import Network.Wai.Handler.Warp.Watchdog (rxTick)
 
 http1
     :: Settings
     -> InternalInfo
     -> Connection
+    -> ConnContext
     -> Transport
     -> Application
     -> SockAddr
     -> T.Handle
     -> ByteString
     -> IO ()
-http1 settings ii conn transport app origAddr th bs0 = do
+http1 settings ii conn cc transport app origAddr th bs0 = do
     istatus <- newIORef True
-    src <- mkSource (wrappedRecv conn istatus (settingsSlowlorisSize settings))
+    src <- mkSource (wrappedRecv conn cc istatus (settingsSlowlorisSize settings))
     leftoverSource src bs0
     addr <- getProxyProtocolAddr src
-    http1server settings ii conn transport app addr th istatus src
+    http1server settings ii conn cc transport app addr th istatus src
   where
-    wrappedRecv Connection{connRecv = recv} istatus slowlorisSize = do
+    wrappedRecv Connection{connRecv = recv} ctx istatus slowlorisSize = do
         bs <- recv
         unless (BS.null bs) $ do
             writeIORef istatus True
-            when (BS.length bs >= slowlorisSize) $ T.tickle th
+            when (BS.length bs >= slowlorisSize) $ rxTick $ connWatchdog ctx
         return bs
 
     getProxyProtocolAddr src =
@@ -106,6 +108,7 @@ http1server
     :: Settings
     -> InternalInfo
     -> Connection
+    -> ConnContext
     -> Transport
     -> Application
     -> SockAddr
@@ -113,7 +116,7 @@ http1server
     -> IORef Bool
     -> Source
     -> IO ()
-http1server settings ii conn transport app addr th istatus src =
+http1server settings ii conn cc transport app addr th istatus src =
     loop FirstRequest `catch` handler
   where
     handler e
@@ -137,7 +140,7 @@ http1server settings ii conn transport app addr th istatus src =
 
     loop firstRequest = do
         (req, mremainingRef, idxhdr, nextBodyFlush) <-
-            recvRequest firstRequest settings conn ii th addr src transport
+            recvRequest firstRequest settings conn cc ii th addr src transport
         keepAlive <-
             processRequest
                 settings
@@ -185,15 +188,14 @@ processRequest
     -> IO ByteString
     -> IO ReuseConnection
 processRequest settings ii conn app th istatus src req mremainingRef idxhdr nextBodyFlush = do
-    -- Let the application run for as long as it wants
-    T.pause th
+    -- The application may run for as long as it wants: the watchdog
+    -- knows it runs ('runningApp' in 'serveConnection').
 
     -- In the event that some scarce resource was acquired during
     -- creating the request, we need to make sure that we don't get
     -- an async exception before calling the ResponseSource.
     keepAliveRef <- newIORef $ error "keepAliveRef not filled"
     r <- try $ app req $ \res -> do
-        T.resume th
         -- FIXME consider forcing evaluation of the res here to
         -- send more meaningful error messages to the user.
         -- However, it may affect performance.
@@ -230,16 +232,13 @@ processRequest settings ii conn app th istatus src req mremainingRef idxhdr next
             case settingsMaximumBodyFlush settings of
                 Nothing -> do
                     flushEntireBody nextBodyFlush
-                    T.resume th
                     return ReuseConnection
                 Just maxToRead -> do
                     let tryKeepAlive = do
                             -- flush the rest of the request body
                             isComplete <- flushBody nextBodyFlush maxToRead
                             if isComplete
-                                then do
-                                    T.resume th
-                                    return ReuseConnection
+                                then return ReuseConnection
                                 else return CloseConnection
                     case mremainingRef of
                         Just ref -> do
