@@ -12,6 +12,7 @@ module Network.Wai.Handler.Warp.Header (
 import qualified Data.ByteString as BS
 import Data.CaseInsensitive (foldedCase)
 import Data.List as L (foldl')
+import Data.Maybe (isJust)
 import Network.HTTP.Types
 
 import Network.Wai.Handler.Warp.Types
@@ -27,6 +28,8 @@ data IndexedRequestHeader = IndexedRequestHeader
     , reqidxConnection :: Maybe HeaderValue
     , reqidxRange :: Maybe HeaderValue
     , reqidxHost :: Maybe HeaderValue
+    , reqidxHostRepeated :: Bool
+    -- ^ Whether more than one @Host@ field line was sent.
     , reqidxIfModifiedSince :: Maybe HeaderValue
     , reqidxIfUnmodifiedSince :: Maybe HeaderValue
     , reqidxIfRange :: Maybe HeaderValue
@@ -40,7 +43,12 @@ indexRequestHeader :: RequestHeaders -> IndexedRequestHeader
 indexRequestHeader = L.foldl' insert defaultIndexRequestHeader
   where
     insert ix (key, val) = case BS.length bs of
-        4 | bs == "host" -> ix{reqidxHost = Just val}
+        4
+            | bs == "host" ->
+                ix
+                    { reqidxHost = Just val
+                    , reqidxHostRepeated = isJust (reqidxHost ix)
+                    }
         5 | bs == "range" -> ix{reqidxRange = Just val}
         6 | bs == "expect" -> ix{reqidxExpect = Just val}
         7 | bs == "referer" -> ix{reqidxReferer = Just val}
@@ -51,14 +59,23 @@ indexRequestHeader = L.foldl' insert defaultIndexRequestHeader
             | bs == "user-agent" -> ix{reqidxUserAgent = Just val}
             | bs == "connection" -> ix{reqidxConnection = Just val}
         13 | bs == "if-none-match" -> ix{reqidxIfNoneMatch = Just val}
-        14 | bs == "content-length" -> ix{reqidxContentLength = Just val}
+        14
+            | bs == "content-length" ->
+                ix{reqidxContentLength = appendField (reqidxContentLength ix) val}
         17
-            | bs == "transfer-encoding" -> ix{reqidxTransferEncoding = Just val}
+            | bs == "transfer-encoding" ->
+                ix{reqidxTransferEncoding = appendField (reqidxTransferEncoding ix) val}
             | bs == "if-modified-since" -> ix{reqidxIfModifiedSince = Just val}
         19 | bs == "if-unmodified-since" -> ix{reqidxIfUnmodifiedSince = Just val}
         _ -> ix
       where
         bs = foldedCase key
+        -- RFC 9112: repeated field lines are one comma separated list, so
+        -- keep them all. Taking the last line alone would let a second
+        -- Content-Length hide the length of the first, or a second
+        -- Transfer-Encoding its chunked coding.
+        appendField Nothing val' = Just val'
+        appendField (Just prev) val' = Just $ prev <> "," <> val'
 
 -- | 'IndexedRequestHeader' with no headers set.
 defaultIndexRequestHeader :: IndexedRequestHeader
@@ -70,6 +87,7 @@ defaultIndexRequestHeader =
         , reqidxConnection = Nothing
         , reqidxRange = Nothing
         , reqidxHost = Nothing
+        , reqidxHostRepeated = False
         , reqidxIfModifiedSince = Nothing
         , reqidxIfUnmodifiedSince = Nothing
         , reqidxIfRange = Nothing

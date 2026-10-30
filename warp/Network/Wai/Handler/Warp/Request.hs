@@ -20,7 +20,7 @@ import qualified Data.ByteString.Unsafe as SU
 import qualified Data.CaseInsensitive as CI
 import qualified Data.IORef as I
 import qualified Data.Vault.Lazy as Vault
-import Data.Word8 (_cr, _lf)
+import Data.Word8 (_0, _comma, _cr, _lf, _space, _tab, isDigit)
 #ifdef MIN_VERSION_crypton_x509
 import Data.X509
 #endif
@@ -38,7 +38,6 @@ import Network.Wai.Handler.Warp.Conduit
 import Network.Wai.Handler.Warp.FileInfoCache
 import Network.Wai.Handler.Warp.Header
 import Network.Wai.Handler.Warp.Imports hiding (readInt)
-import Network.Wai.Handler.Warp.ReadInt
 import Network.Wai.Handler.Warp.RequestHeader
 import Network.Wai.Handler.Warp.Settings (
     Settings,
@@ -82,6 +81,7 @@ recvRequest firstRequest settings conn ii th addr src transport = do
     let idxhdr = indexRequestHeader hdr
         expect = reqidxExpect idxhdr
         handle100Continue = handleExpect conn httpversion expect
+    checkHost httpversion idxhdr
     (rbody, remainingRef, bodyLength) <- bodyAndSource src idxhdr
     -- body producing function which will produce '100-continue', if needed
     rbody' <- timeoutBody remainingRef th rbody handle100Continue
@@ -141,6 +141,19 @@ instance Exception NoKeepAliveRequest
 
 ----------------------------------------------------------------
 
+-- | Refusing a request whose @Host@ RFC 9112 section 3.2 refuses.
+--
+-- A proxy routes on the first @Host@ and an application reads
+-- 'requestHeaderHost', the last of them: a repeated one is a way to
+-- reach a virtual host the proxy would not have routed to.
+checkHost :: H.HttpVersion -> IndexedRequestHeader -> IO ()
+checkHost httpversion idxhdr
+    | reqidxHostRepeated idxhdr = throwIO BadHost
+    | httpversion >= H.http11, isNothing (reqidxHost idxhdr) = throwIO BadHost
+    | otherwise = return ()
+
+----------------------------------------------------------------
+
 handleExpect
     :: Connection
     -> H.HttpVersion
@@ -165,25 +178,80 @@ bodyAndSource
         , Maybe (I.IORef Int)
         , RequestBodyLength
         )
-bodyAndSource src idxhdr
-    | chunked = do
-        csrc <- mkCSource src
-        return (readCSource csrc, Nothing, ChunkedBody)
-    | otherwise = do
-        let len = toLength $ reqidxContentLength idxhdr
-            bodyLen = KnownLength $ fromIntegral len
-        isrc@(ISource _ remaining) <- mkISource src len
-        return (readISource isrc, Just remaining, bodyLen)
+bodyAndSource src idxhdr = do
+    framing <- bodyFraming idxhdr
+    case framing of
+        FramedByChunks -> do
+            csrc <- mkCSource src
+            return (readCSource csrc, Nothing, ChunkedBody)
+        FramedByLength len -> do
+            isrc@(ISource _ remaining) <- mkISource src len
+            return (readISource isrc, Just remaining, KnownLength $ fromIntegral len)
+
+-- | How the end of the request body is found (RFC 9112, section 6).
+data BodyFraming
+    = FramedByChunks
+    | FramedByLength Int
+
+-- | Deciding how the request body is framed, or refusing the request.
+--
+-- Anything other than one framing this server and every intermediary
+-- agree on is refused rather than read some way of warp's own: whoever
+-- reads it the other way sees one request where warp sees two, which is
+-- how a request is smuggled past a proxy.
+bodyFraming :: IndexedRequestHeader -> IO BodyFraming
+bodyFraming idxhdr = case reqidxTransferEncoding idxhdr of
+    Nothing -> FramedByLength <$> contentLength (reqidxContentLength idxhdr)
+    -- Transfer-Encoding wins over Content-Length, so sending both is a
+    -- way of showing each reader the framing it prefers. Take neither.
+    Just _ | isJust (reqidxContentLength idxhdr) -> throwIO AmbiguousBodyLength
+    Just te -> case reverse $ codings te of
+        -- The only coding warp implements, and the only one it can be
+        -- sure an intermediary passed on undisturbed.
+        ["chunked"] -> return FramedByChunks
+        -- Chunked frames the body, but warp decodes no coding under it.
+        "chunked" : _ -> throwIO UnsupportedTransferEncoding
+        -- Without chunked last, the length cannot be determined at all.
+        _ -> throwIO AmbiguousBodyLength
   where
-    chunked = isChunked $ reqidxTransferEncoding idxhdr
+    -- A comma separated list, each element allowed its own surrounding
+    -- whitespace. RFC 9110 has a recipient ignore empty elements, so
+    -- "chunked", " chunked" and "chunked," are each the one coding.
+    codings =
+        filter (not . S.null) . map (CI.foldCase . stripOWS) . S.split _comma
 
-toLength :: Maybe HeaderValue -> Int
-toLength Nothing = 0
-toLength (Just bs) = readInt bs
+-- | The length a Content-Length gives, or no body when there is none.
+--
+-- RFC 9112 asks for a value of nothing but digits, and for repeated
+-- Content-Lengths to be refused unless every one of them says the same
+-- thing. Warp used to read the leading digits and take 0 for the rest,
+-- so "abc", a value too large for an 'Int', and a second Content-Length
+-- hiding the first all became a request with no body at all -- and the
+-- bytes that were the body became the next request on the connection.
+contentLength :: Maybe HeaderValue -> IO Int
+contentLength Nothing = return 0
+contentLength (Just bs) = case map (readLength . stripOWS) $ S.split _comma bs of
+    Just len : lens | all (== Just len) lens -> return len
+    _ -> throwIO AmbiguousBodyLength
+  where
+    readLength v
+        | S.null v || not (S.all isDigit v) = Nothing
+        | otherwise = S.foldl' accumulate (Just 0) v
+    accumulate Nothing _ = Nothing
+    accumulate (Just n) w
+        -- A length warp cannot hold is a length warp cannot enforce.
+        | n > (maxBound - d) `div` 10 = Nothing
+        | otherwise = Just $! n * 10 + d
+      where
+        d = fromIntegral (w - _0)
 
-isChunked :: Maybe HeaderValue -> Bool
-isChunked (Just bs) = CI.foldCase bs == "chunked"
-isChunked _ = False
+-- | Optional whitespace, which RFC 9112 allows around the elements of a
+--   list and gives no meaning to.
+stripOWS :: ByteString -> ByteString
+stripOWS = fst . S.spanEnd isOWS . S.dropWhile isOWS
+
+isOWS :: Word8 -> Bool
+isOWS w = w == _space || w == _tab
 
 ----------------------------------------------------------------
 

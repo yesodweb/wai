@@ -5,7 +5,7 @@ module Network.Wai.Handler.Warp.Conduit where
 import Control.Exception (assert, throwIO)
 import qualified Data.ByteString as S
 import qualified Data.IORef as I
-import Data.Word8 (_0, _9, _A, _F, _a, _cr, _f, _lf)
+import Data.Word8 (_0, _9, _A, _F, _a, _cr, _f, _lf, _semicolon)
 
 import Network.Wai.Handler.Warp.Imports
 import Network.Wai.Handler.Warp.Types
@@ -78,20 +78,40 @@ mkCSource src = do
     ref <- I.newIORef NeedLen
     return $! CSource src ref
 
+-- | A chunk-size line is a few bytes of hex, and chunk extensions are
+--   all but unused; a trailer section is a handful of fields. Neither is
+--   a reason to hold on to everything a client cares to send.
+maxChunkLineLength :: Int
+maxChunkLineLength = 1024
+
+maxTrailerLength :: Int
+maxTrailerLength = 8192
+
 readCSource :: CSource -> IO ByteString
 readCSource (CSource src ref) = do
     mlen <- I.readIORef ref
     go mlen
   where
-    withLen 0 bs = do
-        leftoverSource src bs
-        dropCRLF
-        yield' S.empty DoneChunking
+    go NeedLen = getLen
+    go NeedLenNewline = dropCRLF >> getLen
+    go (HaveLen len) = readSource src >>= withLen len
+    go DoneChunking = return S.empty
+
+    getLen = do
+        len <- chunkSize =<< requireLine
+        if len == 0
+            then do
+                -- Everything up to the empty line which ends the trailer
+                -- section belongs to this request. Warp used to drop one
+                -- CRLF and leave the trailers in the source, where they
+                -- were read as the next request on the connection.
+                dropTrailers 0
+                yield' S.empty DoneChunking
+            else readSource src >>= withLen len
+
     withLen len bs
-        | S.null bs = do
-            -- FIXME should this throw an exception if len > 0?
-            I.writeIORef ref DoneChunking -- [WRITE_IOREF_NOTE]
-            return S.empty
+        -- The chunk promised more than the client went on to send.
+        | S.null bs = throwIO ConnectionClosedByPeer
         | otherwise =
             case S.length bs `compare` fromIntegral len of
                 EQ -> yield' bs NeedLenNewline
@@ -105,64 +125,75 @@ readCSource (CSource src ref) = do
         I.writeIORef ref mlen -- [WRITE_IOREF_NOTE]
         return bs
 
+    -- A chunk size is 1*HEXDIG, with nothing after it but chunk
+    -- extensions. Warp used to fold whatever hex digits it could find
+    -- and take 0 for the rest, so a line which is no chunk size at all
+    -- -- a request line, say -- ended the body and left the rest of it
+    -- to be read as the next request.
+    chunkSize line
+        | S.null digits = throwIO BadChunkedBody
+        | not (S.null ext), S.head ext /= _semicolon = throwIO BadChunkedBody
+        | otherwise =
+            maybe (throwIO BadChunkedBody) (return . fromIntegral) $
+                S.foldl' accumulate (Just (0 :: Int)) digits
+      where
+        (digits, ext) = S.span isHexDigit line
+        accumulate Nothing _ = Nothing
+        -- A chunk warp cannot measure is a chunk warp cannot read.
+        accumulate (Just n) w
+            | n > (maxBound - d) `div` 16 = Nothing
+            | otherwise = Just $! n * 16 + d
+          where
+            d = fromIntegral (hexToWord w)
+
+    -- The CRLF which ends chunk-data. Warp used to put anything else
+    -- back and read it as the next chunk size, so a chunk that was not
+    -- closed off ended the body early.
     dropCRLF = do
-        bs <- readSource src
-        case S.uncons bs of
+        line <- requireLine
+        unless (S.null line) $ throwIO BadChunkedBody
+
+    dropTrailers total = do
+        mline <- readLine
+        case mline of
+            -- A client which leaves out the last CRLF and closes has
+            -- nothing left to hide behind it.
             Nothing -> return ()
-            Just (w8, bs')
-                | w8 == _cr -> dropLF bs'
-                | w8 == _lf -> leftoverSource src bs'
-                | otherwise -> leftoverSource src bs
+            Just line -> unless (S.null line) $ do
+                let total' = total + S.length line
+                when (total' > maxTrailerLength) $ throwIO OverLargeHeader
+                dropTrailers total'
 
-    dropLF bs =
-        case S.uncons bs of
-            Nothing -> do
-                bs2 <- readSource' src
-                unless (S.null bs2) $ dropLF bs2
-            Just (w8, bs') ->
-                leftoverSource src $
-                    if w8 == _lf then bs' else bs
+    requireLine = readLine >>= maybe (throwIO ConnectionClosedByPeer) return
 
-    go NeedLen = getLen
-    go NeedLenNewline = dropCRLF >> getLen
-    go (HaveLen 0) = do
-        -- Drop the final CRLF
-        dropCRLF
-        I.writeIORef ref DoneChunking -- [WRITE_IOREF_NOTE]
-        return S.empty
-    go (HaveLen len) = do
-        bs <- readSource src
-        withLen len bs
-    go DoneChunking = return S.empty
-
-    -- Get the length from the source, and then pass off control to withLen
-    getLen = do
-        bs <- readSource src
-        if S.null bs
-            then do
-                I.writeIORef ref $ assert False $ HaveLen 0 -- [WRITE_IOREF_NOTE]
-                return S.empty
-            else do
-                (x, y) <-
-                    case S.break (== _lf) bs of
-                        (x, y)
-                            | S.null y -> do
-                                bs2 <- readSource' src
-                                return $
-                                    if S.null bs2
-                                        then (x, y)
-                                        else S.break (== _lf) $ bs `S.append` bs2
-                            | otherwise -> return (x, y)
-                let w =
-                        S.foldl' (\i c -> i * 16 + fromIntegral (hexToWord c)) 0 $
-                            S.takeWhile isHexDigit x
-
-                let y' = S.drop 1 y
-                y'' <-
-                    if S.null y'
-                        then readSource src
-                        else return y'
-                withLen w y''
+    -- One line of the chunked framing: up to the next LF, without it or
+    -- the CR before it, leaving the rest of what was read in the source.
+    -- 'Nothing' when the connection ends where a line was to begin.
+    -- Warp used to give up one read short of the LF, which mis-read
+    -- every size line that arrived in more than two pieces.
+    readLine = loop 0 id
+      where
+        loop total front = do
+            bs <- readSource src
+            if S.null bs
+                then
+                    if total == 0
+                        then return Nothing
+                        else throwIO ConnectionClosedByPeer
+                else case S.elemIndex _lf bs of
+                    Nothing -> do
+                        let total' = total + S.length bs
+                        when (total' > maxChunkLineLength) $ throwIO OverLargeHeader
+                        loop total' (front . (bs :))
+                    Just ix -> do
+                        leftoverSource src $ S.drop (ix + 1) bs
+                        let line = S.concat $ front [S.take ix bs]
+                        when (S.length line > maxChunkLineLength) $
+                            throwIO OverLargeHeader
+                        return $ Just $ dropCR line
+        dropCR bs = case S.unsnoc bs of
+            Just (bs', w) | w == _cr -> bs'
+            _ -> bs
 
     hexToWord w
         | w <= _9 = w - _0

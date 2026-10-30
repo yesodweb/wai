@@ -77,17 +77,23 @@ http2 settings ii conn transport app peersa th bs = do
                 , H2.confPeerSockAddr = peersa
                 , H2.confReadNTimeout = True
                 }
-    checkTLS
+    ok <- checkTLS
     setConnHTTP2 conn True
-    H2.run H2.defaultServerConfig conf $
-        http2server "Warp HTTP/2" settings ii transport peersa app
+    when ok $
+        H2.run H2.defaultServerConfig conf $
+            http2server "Warp HTTP/2" settings ii transport peersa app
   where
+    -- A GOAWAY ends the connection, so there is nothing left to serve
+    -- on it.
     checkTLS = case transport of
-        TCP -> return () -- direct
-        TLS{tlsMajorVersion = major, tlsMinorVersion = minor} ->
-            unless (major == 3 && minor >= 3) $ goaway conn H2.InadequateSecurity "Weak TLS"
+        TCP -> return True -- direct
+        TLS{tlsMajorVersion = major, tlsMinorVersion = minor}
+            | major == 3 && minor >= 3 -> return True
+            | otherwise -> do
+                goaway conn H2.InadequateSecurity "Weak TLS"
+                return False
         -- QUIC establishes TLS 1.3 itself and calls http2server through HTTP/3.
-        QUIC{} -> return ()
+        QUIC{} -> return True
 
 -- | Converting WAI application to the server type of http2 library.
 --
@@ -116,22 +122,31 @@ http2server label settings ii transport addr app h2req0 aux0 response = do
         I.writeIORef ref $ Just (h2rsp, pps, st)
         _ <- response h2rsp pps
         return ResponseReceived
-    case eResponseReceived of
-        Right ResponseReceived -> do
-            Just (h2rsp, pps, st) <- I.readIORef ref
+    msent <- I.readIORef ref
+    let logSent (h2rsp, pps, st) = do
             let msiz = fromIntegral <$> H2.responseBodySize h2rsp
             logResponse req st msiz
             mapM_ (logPushPromise req) pps
+    case eResponseReceived of
+        Right ResponseReceived -> case msent of
+            Just sent -> logSent sent
+            -- Reachable only through Network.Wai.Internal: the
+            -- application said it had answered without answering.
+            Nothing -> E.throwIO $ userError "no response from the application"
         Left e
             | isAsyncException e -> E.throwIO e
             | otherwise -> do
                 S.settingsOnException settings (Just req) e
-                let ersp = S.settingsOnExceptionResponse settings e
-                    st = responseStatus ersp
-                (h2rsp', _, _) <- fromResponse settings ii req ersp
-                let msiz = fromIntegral <$> H2.responseBodySize h2rsp'
-                _ <- response h2rsp' []
-                logResponse req st msiz
+                case msent of
+                    -- The response has gone out, so this exception
+                    -- cannot replace it, which is what istatus keeps
+                    -- HTTP/1 from doing.
+                    Just sent -> logSent sent
+                    Nothing -> do
+                        let ersp = S.settingsOnExceptionResponse settings e
+                        (h2rsp, _, _) <- fromResponse settings ii req ersp
+                        _ <- response h2rsp []
+                        logSent (h2rsp, [], responseStatus ersp)
     return ()
   where
     toWAIRequest h2req aux = toRequest ii settings addr hdr bdylen bdy th transport
@@ -169,9 +184,13 @@ wrappedRecvN th slowlorisSize readN bufsize = do
     handler = throughAsync (return "")
 
 -- connClose must not be called here since Run:fork calls it
+--
+-- The SETTINGS frame is this server's half of the connection preface,
+-- which RFC 9113 has it send before anything else, GOAWAY included.
 goaway :: Connection -> H2.ErrorCode -> ByteString -> IO ()
-goaway Connection{..} etype debugmsg = connSendAll bytestream
+goaway Connection{..} etype debugmsg = connSendAll $ preface <> bytestream
   where
     einfo = H2.encodeInfo id 0
+    preface = H2.encodeFrame einfo $ H2.SettingsFrame []
     frame = H2.GoAwayFrame 0 etype debugmsg
     bytestream = H2.encodeFrame einfo frame

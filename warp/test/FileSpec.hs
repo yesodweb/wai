@@ -130,3 +130,29 @@ spec = do
             "gives the entire body and ignores the Range header if the condition isn't met"
             [("If-Range", farPast), ("Range", "bytes=2-7")]
             regularBody
+        -- A range which asks for nothing the file holds.  The first
+        -- of these used to be a negative length, which left the
+        -- request answered with nothing at all.
+        testFileRange
+            "returns a 416 for a range which begins past the end"
+            [("Range", "bytes=100-")]
+            $ WithoutBody status416
+        testFileRange
+            "returns a 416 for a range which begins at the end"
+            [("Range", "bytes=16-")]
+            $ WithoutBody status416
+        testFileRange
+            "returns a 416 for a suffix of no bytes"
+            [("Range", "bytes=-0")]
+            $ WithoutBody status416
+        -- RFC 9110, section 14.1.2: a suffix longer than the file asks
+        -- for the whole of it, which is not a range at all and so is a
+        -- 200 rather than a 206.
+        testFileRange
+            "gives the whole file for a suffix longer than it is"
+            [("Range", "bytes=-100")]
+            regularBody
+        testFileRange
+            "gives the whole file for a suffix exactly as long as it is"
+            [("Range", "bytes=-16")]
+            regularBody

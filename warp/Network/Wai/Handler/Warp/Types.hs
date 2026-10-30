@@ -46,6 +46,26 @@ data InvalidRequest
       PayloadTooLarge
     | -- | Since 3.3.22
       RequestHeaderFieldsTooLarge
+    | -- | A transfer coding warp does not implement. Since 3.4.17
+      UnsupportedTransferEncoding
+    | -- | The length of the request body cannot be determined
+      --   reliably, so no reading of it can be trusted. Since 3.4.17
+      AmbiguousBodyLength
+    | -- | CR or NUL inside a header field line, which one reader
+      --   takes for a line terminator where another reads data.
+      --   Since 3.4.17
+      BadHeaderLine
+    | -- | A header field name which is not a token, which hides the
+      --   field from one reader but not another.
+      --   Since 3.4.17
+      BadFieldName ByteString
+    | -- | A chunked request body that does not keep to the framing
+      --   RFC 9112 gives it. Since 3.4.17
+      BadChunkedBody
+    | -- | No @Host@ in a HTTP\/1.1 request, or more than one, which
+      --   a router and this server may read differently.
+      --   Since 3.4.18
+      BadHost
     deriving (Eq)
 
 instance Show InvalidRequest where
@@ -59,6 +79,12 @@ instance Show InvalidRequest where
     show (BadProxyHeader s) = "Warp: Invalid PROXY protocol header: " ++ show s
     show RequestHeaderFieldsTooLarge = "Request header fields too large"
     show PayloadTooLarge = "Payload too large"
+    show UnsupportedTransferEncoding = "Warp: Unsupported transfer coding"
+    show AmbiguousBodyLength = "Warp: Ambiguous request body length"
+    show BadHeaderLine = "Warp: CR or NUL in a header field line"
+    show (BadFieldName n) = "Warp: Invalid header field name: " ++ show n
+    show BadChunkedBody = "Warp: Malformed chunked request body"
+    show BadHost = "Warp: Missing or repeated Host"
 
 instance E.Exception InvalidRequest
 

@@ -200,7 +200,7 @@ singlePostHello = "POST /hello HTTP/1.1\r\nHost: localhost\r\nContent-length: 5\
 singleChunkedPostHello :: [ByteString]
 singleChunkedPostHello =
     [ "POST /hello HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n"
-    , "5\r\nHello\r\n0\r\n"
+    , "5\r\nHello\r\n0\r\n\r\n"
     ]
 
 spec :: Spec
@@ -282,34 +282,29 @@ spec = do
                         respond $ responseLBS status200 [] ""
                 withApp defaultSettings app $ withMySocket $ f iheaders
 
-        it "multiline headers" $ do
+        it "refuses multiline headers" $ do
             appWithSocket $ \iheaders ms -> do
                 let input = "GET / HTTP/1.1\r\nfoo:    bar\r\n baz\r\n\tbin\r\n\r\n"
                 msWrite ms input
-                threadDelay 5000
+                rsp <- msRead ms 17
                 headers <- I.readIORef iheaders
-                headers
-                    `shouldBe` [ ("foo", "bar")
-                               , (" baz", "")
-                               , ("\tbin", "")
-                               ]
+                S8.unpack rsp `shouldContain` "400"
+                headers `shouldBe` []
         it "no space between colon and value" $ do
             appWithSocket $ \iheaders ms -> do
-                let input = "GET / HTTP/1.1\r\nfoo:bar\r\n\r\n"
+                let input = "GET / HTTP/1.1\r\nHost: foo\r\nfoo:bar\r\n\r\n"
                 msWrite ms input
                 threadDelay 5000
                 headers <- I.readIORef iheaders
-                headers `shouldBe` [("foo", "bar")]
-        it "does not recognize multiline headers" $ do
+                headers `shouldBe` [("Host", "foo"), ("foo", "bar")]
+        it "refuses multiline headers split across writes" $ do
             appWithSocket $ \iheaders ms -> do
                 msWrite ms "GET / HTTP/1.1\r\nfoo: and\r\n"
                 msWrite ms " baz as well\r\n\r\n"
-                threadDelay 5000
+                rsp <- msRead ms 17
                 headers <- I.readIORef iheaders
-                headers
-                    `shouldBe` [ ("foo", "and")
-                               , (" baz as well", "")
-                               ]
+                S8.unpack rsp `shouldContain` "400"
+                headers `shouldBe` []
 
     describe "chunked bodies" $ do
         it "works" $ do
@@ -323,9 +318,9 @@ spec = do
             withApp defaultSettings app $ withMySocket $ \ms -> do
                 let input =
                         S.concat
-                            [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: Chunked\r\n\r\n"
                             , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
-                            , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            , "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: Chunked\r\n\r\n"
                             , "b\r\nHello World\r\n0\r\n\r\n"
                             ]
                 msWrite ms input
@@ -349,7 +344,7 @@ spec = do
                 let input =
                         concat $
                             replicate 2 $
-                                ["POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"]
+                                ["POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: Chunked\r\n\r\n"]
                                     ++ replicate 50 "5\r\n12345\r\n"
                                     ++ ["0\r\n\r\n"]
                 mapM_ (msWrite ms) input
@@ -379,9 +374,9 @@ spec = do
             withApp defaultSettings app $ withMySocket $ \ms -> do
                 let input =
                         S.concat
-                            [ "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
-                            , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n"
-                            , "POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: Chunked\r\n\r\n"
+                            , "c\r\nHello World\n\r\n3\r\nBye\r\n0\r\n\r\n"
+                            , "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: Chunked\r\n\r\n"
                             , "b\r\nHello World\r\n0\r\n\r\n"
                             ]
                 mapM_ (msWrite ms . S.singleton) $ S.unpack input
@@ -417,7 +412,7 @@ spec = do
                 let bs1 = S.replicate 2048 88
                     bs2 = "This is short"
                     bs = S.append bs1 bs2
-                msWrite ms "POST / HTTP/1.1\r\n"
+                msWrite ms "POST / HTTP/1.1\r\nHost: foo\r\n"
                 msWrite ms "content-length: "
                 msWrite ms $ S8.pack $ show $ S.length bs
                 msWrite ms "\r\n\r\n"
@@ -428,6 +423,296 @@ spec = do
                 threadDelay 1000000
                 front <- I.readIORef ifront
                 S.concat (front []) `shouldBe` bs
+
+    describe "header field values" $ do
+        let exchange hdrs = do
+                ipaths <- I.newIORef id
+                let app req f = do
+                        I.atomicModifyIORef ipaths $ \front ->
+                            (front . (rawPathInfo req :), ())
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms $
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                            , hdrs
+                            , "\r\nGET /smuggled HTTP/1.1\r\nHost: foo\r\n\r\n"
+                            ]
+                    rsp <- msRead ms 17
+                    ipaths' <- I.readIORef ipaths
+                    return (S8.unpack rsp, ipaths' [])
+        it "refuses a bare CR" $ do
+            -- A recipient which ends a line at the bare CR reads a
+            -- Content-Length here, and so reads a body where warp would
+            -- read the next request.
+            (rsp, paths) <- exchange "X-Foo: a\rContent-Length: 36\r\n"
+            rsp `shouldContain` "400"
+            paths `shouldNotContain` ["/smuggled"]
+        it "refuses a NUL" $ do
+            (rsp, paths) <- exchange "X-Foo: a\NULb\r\n"
+            rsp `shouldContain` "400"
+            paths `shouldNotContain` ["/smuggled"]
+
+    describe "Content-Length framing" $ do
+        -- A Content-Length warp reads as no body at all, while whatever
+        -- is in front of it reads a body, is a request smuggled onto the
+        -- connection: the body is read here as the next request.
+        let exchange hdrs = do
+                ipaths <- I.newIORef id
+                let app req f = do
+                        I.atomicModifyIORef ipaths $ \front ->
+                            (front . (rawPathInfo req :), ())
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms $
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                            , hdrs
+                            , "\r\nGET /smuggled HTTP/1.1\r\nHost: foo\r\n\r\n"
+                            ]
+                    rsp <- msRead ms 17
+                    ipaths' <- I.readIORef ipaths
+                    return (S8.unpack rsp, ipaths' [])
+            refuses name hdrs = it name $ do
+                (rsp, paths) <- exchange hdrs
+                rsp `shouldContain` "400"
+                paths `shouldNotContain` ["/smuggled"]
+        refuses
+            "refuses a Content-Length that is not a number"
+            "Content-Length: abc\r\n"
+        refuses
+            "refuses a Content-Length that overflows"
+            "Content-Length: 9223372036854775808\r\n"
+        refuses
+            "refuses Content-Lengths that disagree"
+            "Content-Length: 0\r\nContent-Length: 36\r\n"
+        it "accepts Content-Lengths that agree" $ do
+            ifront <- I.newIORef id
+            let app req f = do
+                    bss <- consumeBody $ getRequestBodyChunk req
+                    I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
+                    f $ responseLBS status200 [] ""
+            withApp defaultSettings app $ withMySocket $ \ms -> do
+                msWrite ms $
+                    S.concat
+                        [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                        , "Content-Length: 5\r\nContent-Length: 05\r\n\r\n"
+                        , "Hello"
+                        ]
+                _ <- msRead ms 17
+                front <- I.readIORef ifront
+                front [] `shouldBe` ["Hello"]
+
+    describe "ambiguous body framing" $ do
+        -- Each of these frames the body one way for warp and another way
+        -- for anything in front of it. Whichever way warp reads them, the
+        -- smuggled request must not reach the application.
+        let exchange hdrs = do
+                ipaths <- I.newIORef id
+                let app req f = do
+                        I.atomicModifyIORef ipaths $ \front ->
+                            (front . (rawPathInfo req :), ())
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms $
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                            , hdrs
+                            , "\r\nGET /smuggled HTTP/1.1\r\nHost: foo\r\n\r\n"
+                            ]
+                    rsp <- msRead ms 17
+                    ipaths' <- I.readIORef ipaths
+                    return (S8.unpack rsp, ipaths' [])
+            frames name hdrs = it name $ do
+                (rsp, paths) <- exchange hdrs
+                rsp `shouldContain` "200"
+                paths `shouldNotContain` ["/smuggled"]
+            refuses name hdrs status = it name $ do
+                (rsp, paths) <- exchange hdrs
+                rsp `shouldContain` status
+                paths `shouldNotContain` ["/smuggled"]
+        frames
+            "reads a trailing space as part of the chunked coding"
+            "Transfer-Encoding: chunked \r\n"
+        frames
+            "reads a trailing tab as part of the chunked coding"
+            "Transfer-Encoding: chunked\t\r\n"
+        frames
+            "ignores an empty element after the chunked coding"
+            "Transfer-Encoding: chunked,\r\n"
+        frames
+            "ignores an empty element before the chunked coding"
+            "Transfer-Encoding: , chunked\r\n"
+        refuses
+            "refuses a Transfer-Encoding with no coding at all"
+            "Transfer-Encoding: ,\r\n"
+            "400"
+        refuses
+            "refuses a coding it cannot decode under chunked"
+            "Transfer-Encoding: gzip, chunked\r\n"
+            "501"
+        refuses
+            "refuses chunked that is not the final coding"
+            "Transfer-Encoding: chunked, gzip\r\n"
+            "400"
+        refuses
+            "refuses a transfer coding that is not chunked"
+            "Transfer-Encoding: identity\r\n"
+            "400"
+        refuses
+            "joins Transfer-Encoding field lines before reading them"
+            "Transfer-Encoding: chunked\r\nTransfer-Encoding: identity\r\n"
+            "400"
+        refuses
+            "refuses Content-Length together with Transfer-Encoding"
+            "Content-Length: 0\r\nTransfer-Encoding: chunked\r\n"
+            "400"
+        it "still reads an ordinary chunked body" $ do
+            ifront <- I.newIORef id
+            let app req f = do
+                    bss <- consumeBody $ getRequestBodyChunk req
+                    I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
+                    f $ responseLBS status200 [] ""
+            withApp defaultSettings app $ withMySocket $ \ms -> do
+                msWrite ms "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: chunked \r\n\r\n"
+                msWrite ms "b\r\nHello World\r\n0\r\n\r\n"
+                _ <- msRead ms 17
+                front <- I.readIORef ifront
+                front [] `shouldBe` ["Hello World"]
+
+    describe "header field names" $ do
+        -- Each of these is refused rather than repaired: a recipient
+        -- which repairs it reads a body of 36 bytes, which warp would
+        -- read as a request of its own.
+        let refuses name hdrs = it name $ do
+                ipaths <- I.newIORef id
+                let app req f = do
+                        I.atomicModifyIORef ipaths $ \front ->
+                            (front . (rawPathInfo req :), ())
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms $
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                            , hdrs
+                            , "\r\nGET /smuggled HTTP/1.1\r\nHost: foo\r\n\r\n"
+                            ]
+                    rsp <- msRead ms 17
+                    paths <- I.readIORef ipaths
+                    S8.unpack rsp `shouldContain` "400"
+                    paths [] `shouldNotContain` ["/smuggled"]
+        refuses
+            "refuses whitespace between a field name and its colon"
+            "Content-Length : 36\r\n"
+        refuses
+            "refuses a control character in a field name"
+            "Content-Length\v: 36\r\n"
+        refuses
+            "refuses a continuation line"
+            "X-Foo: bar\r\n Content-Length: 36\r\n"
+        refuses
+            "refuses an empty field name"
+            ": 36\r\n"
+
+    describe "Host" $ do
+        -- A proxy routes on the first Host and the application reads the
+        -- last, so a request they can read differently is refused rather
+        -- than served to whichever host warp happens to pick.
+        let send req = do
+                ihosts <- I.newIORef id
+                let app r f = do
+                        I.atomicModifyIORef ihosts $ \front ->
+                            (front . (requestHeaderHost r :), ())
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms req
+                    rsp <- msRead ms 17
+                    hosts <- I.readIORef ihosts
+                    return (S8.unpack rsp, hosts [])
+        it "refuses a HTTP/1.1 request without one" $ do
+            (rsp, hosts) <- send "GET /nohost HTTP/1.1\r\n\r\n"
+            rsp `shouldContain` "400"
+            hosts `shouldBe` []
+        it "refuses more than one" $ do
+            (rsp, hosts) <- send "GET /dup HTTP/1.1\r\nHost: a\r\nHost: b\r\n\r\n"
+            rsp `shouldContain` "400"
+            hosts `shouldBe` []
+        it "serves a HTTP/1.0 request without one" $ do
+            (rsp, hosts) <- send "GET /nohost HTTP/1.0\r\n\r\n"
+            rsp `shouldContain` "200"
+            hosts `shouldBe` [Nothing]
+
+    describe "malformed chunked bodies" $ do
+        -- The body is what the client says it is up to the empty line
+        -- which ends the trailer section. Each of these used to end the
+        -- body early, leaving the rest of it to be read as the next
+        -- request on the connection.
+        let withChunked body = do
+                ipaths <- I.newIORef id
+                let app req f = do
+                        I.atomicModifyIORef ipaths $ \front ->
+                            (front . (rawPathInfo req :), ())
+                        _ <- consumeBody $ getRequestBodyChunk req
+                        f $ responseLBS status200 [] ""
+                withApp defaultSettings app $ withMySocket $ \ms -> do
+                    msWrite ms $
+                        S.concat
+                            [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                            , "Transfer-Encoding: chunked\r\n\r\n"
+                            , body
+                            ]
+                    rsp <- msRead ms 17
+                    ipaths' <- I.readIORef ipaths
+                    return (S8.unpack rsp, ipaths' [])
+            smuggled = "GET /smuggled HTTP/1.1\r\nHost: foo\r\n\r\n"
+            refuses name body = it name $ do
+                (rsp, paths) <- withChunked body
+                rsp `shouldContain` "400"
+                paths `shouldNotContain` ["/smuggled"]
+        refuses "refuses a chunk size that is not a number" smuggled
+        refuses
+            "refuses a chunk that is not closed off by CRLF"
+            (S.concat ["5\r\nHello", smuggled])
+        refuses "refuses a chunk size that overflows" "ffffffffffffffffff\r\n"
+        it "refuses a chunk cut short by the end of input" $ do
+            -- A chunk promising a hundred bytes with ten sent and nothing
+            -- more. The body ended there and the application was handed a
+            -- short one as though it were whole: yesodweb/wai#1129.
+            ref <- I.newIORef Nothing
+            let onExc _ = I.writeIORef ref . Just
+                app req f = do
+                    _ <- consumeBody $ getRequestBodyChunk req
+                    f $ responseLBS status200 [] ""
+            withApp (setOnException onExc defaultSettings) app $ withMySocket $ \ms -> do
+                msWrite ms $
+                    S.concat
+                        [ "POST / HTTP/1.1\r\nHost: foo\r\n"
+                        , "Transfer-Encoding: chunked\r\n\r\n"
+                        , "64\r\n"
+                        , S8.pack (replicate 10 'A')
+                        ]
+                msClose ms
+                threadDelay 100000
+                res <- I.readIORef ref
+                show res `shouldBe` show (Just ConnectionClosedByPeer)
+        it "reads the trailer section to its end" $ do
+            (rsp, paths) <- withChunked $ S.concat ["0\r\nX-Trailer: y\r\n", smuggled]
+            rsp `shouldContain` "200"
+            paths `shouldBe` ["/"]
+        it "reads a chunk size split over several reads" $ do
+            ifront <- I.newIORef id
+            let app req f = do
+                    bss <- consumeBody $ getRequestBodyChunk req
+                    I.atomicModifyIORef ifront $ \front -> (front . (S.concat bss :), ())
+                    f $ responseLBS status200 [] ""
+            withApp defaultSettings app $ withMySocket $ \ms -> do
+                msWrite ms "POST / HTTP/1.1\r\nHost: foo\r\nTransfer-Encoding: chunked\r\n\r\n"
+                forM_ ["1", "2", "\r\n", S.replicate 0x12 65, "\r\n0\r\n\r\n"] $
+                    \piece -> threadDelay 50000 >> msWrite ms piece
+                _ <- msRead ms 17
+                front <- I.readIORef ifront
+                front [] `shouldBe` [S.replicate 0x12 65]
+
     describe "raw body" $ do
         it "works" $ do
             let app _req f = do
@@ -441,7 +726,7 @@ spec = do
                         loop
                 doubleBS = S.concatMap $ \w -> S.pack [w, w]
             withApp defaultSettings app $ withMySocket $ \ms -> do
-                msWrite ms "POST / HTTP/1.1\r\n\r\n12345"
+                msWrite ms "POST / HTTP/1.1\r\nHost: foo\r\n\r\n12345"
                 timeout 100000 (msRead ms 10) `shouldReturn` Just "1122334455"
                 msWrite ms "67890"
                 timeout 100000 (msRead ms 10) `shouldReturn` Just "6677889900"
@@ -474,7 +759,7 @@ spec = do
                             loop
                 loop
         withApp defaultSettings app $ withMySocket $ \ms -> do
-            msWrite ms "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n"
+            msWrite ms "POST / HTTP/1.1\r\nHost: foo\r\ntransfer-encoding: chunked\r\n\r\n"
             threadDelay 10000
             msWrite ms "5\r\nhello\r\n0\r\n\r\n"
             atomically $ do
