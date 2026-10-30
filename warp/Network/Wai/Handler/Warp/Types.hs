@@ -63,7 +63,7 @@ data InvalidRequest
       BadChunkedBody
     | -- | No @Host@ in a HTTP\/1.1 request, or more than one, which
       --   a router and this server may read differently.
-      --   Since 3.4.18
+      --   Since 3.4.19
       BadHost
     deriving (Eq)
 
