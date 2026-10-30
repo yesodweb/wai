@@ -59,7 +59,9 @@ module Network.Wai.Handler.WarpTLS (
 ) where
 
 import Control.Applicative ((<|>))
-#if MIN_VERSION_warp(3,4,13)
+#if MIN_VERSION_warp(3,5,0)
+import Control.Concurrent.STM (STM, retry)
+#elif MIN_VERSION_warp(3,4,13)
 import Control.Concurrent.STM (STM, TVar, check, newTVarIO, readTVar, registerDelay, retry)
 #else
 import Control.Concurrent.STM (STM, retry)
@@ -368,13 +370,21 @@ getter
 #endif
     -> Socket
     -> params
+#if MIN_VERSION_warp(3,5,0)
+    -> IO (ConnContext -> IO (Connection, Transport), SockAddr)
+#else
     -> IO (IO (Connection, Transport), SockAddr)
+#endif
 #if MIN_VERSION_warp(3,4,18)
 getter tlsset set listener _sock params = do
     macc <- acceptOrStop listener
     (s, sa) <- maybe (throwIO AcceptStopped) return macc
     setSocketCloseOnExec s
+#if MIN_VERSION_warp(3,5,0)
+    return (\cc -> mkConn tlsset set cc s params, sa)
+#else
     return (mkConn tlsset set s params, sa)
+#endif
 #else
 getter tlsset set@Settings{settingsAccept = accept'} sock params = do
     (s, sa) <- accept' sock
@@ -386,22 +396,36 @@ mkConn
     :: TLS.TLSParams params
     => TLSSettings
     -> Settings
+#if MIN_VERSION_warp(3,5,0)
+    -> ConnContext
+#endif
     -> Socket
     -> params
     -> IO (Connection, Transport)
+#if MIN_VERSION_warp(3,5,0)
+-- Warp starts this connection's watchdog before it calls this, so the
+-- handshake is supervised like the rest of the connection, and the first
+-- read gives up by itself once the watchdog decides it timed out.
+mkConn tlsset set cc s params = do
+    ebs <- recvFirstBS $ timedOutSTM $ connWatchdog cc
+    case ebs of
+      Left () -> throwIO TimeoutThread
+      Right bs -> switch bs
+#else
 mkConn tlsset set s params = do
     let tm = settingsTimeout set * 1000000
     -- The first read is given up on when the deadline passes, rather than
     -- interrupted by 'timeout': an asynchronous exception does not reach a
     -- thread blocked in a socket call on Windows.
     expired <- registerDelay tm
-    ebs <- recvFirstBS expired
+    ebs <- recvFirstBS (check =<< readTVar expired)
     case ebs of
       Left () -> throwIO IncompleteHeaders
       Right bs -> switch bs
+#endif
   where
-    recvFirstBS expired =
-        (recvWith s 4096 (check =<< readTVar expired) `E.catch` resetIsEOF)
+    recvFirstBS giveUp =
+        (recvWith s 4096 giveUp `E.catch` resetIsEOF)
             `onException` unsafeClose s
     -- What streaming-commons' safeRecv did for us: a connection reset is
     -- the end of the connection, not an error to report.
@@ -410,8 +434,13 @@ mkConn tlsset set s params = do
         | otherwise = E.throwIO (e :: E.IOException)
     switch firstBS
         | S.null firstBS = unsafeClose s >> throwIO ClientClosedConnectionPrematurely
+#if MIN_VERSION_warp(3,5,0)
+        | S.head firstBS == 0x16 = httpOverTls tlsset set cc s firstBS params
+        | otherwise = plainHTTP tlsset set cc s firstBS
+#else
         | S.head firstBS == 0x16 = httpOverTls tlsset set s firstBS params
         | otherwise = plainHTTP tlsset set s firstBS
+#endif
 
 ----------------------------------------------------------------
 
@@ -430,16 +459,28 @@ httpOverTls
     :: TLS.TLSParams params
     => TLSSettings
     -> Settings
+#if MIN_VERSION_warp(3,5,0)
+    -> ConnContext
+#endif
     -> Socket
     -> S.ByteString
     -> params
     -> IO (Connection, Transport)
+#if MIN_VERSION_warp(3,5,0)
+httpOverTls TLSSettings{..} set cc s bs0 params =
+#else
 httpOverTls TLSSettings{..} set s bs0 params =
+#endif
     makeConn `onException` unsafeClose s
   where
     makeConn = do
         pool <- newBufferPool 2048 16384
-#if MIN_VERSION_warp(3,4,13)
+#if MIN_VERSION_warp(3,5,0)
+        let appsInProgress = connAppsInProgress cc
+            wd = connWatchdog cc
+        (ss, _) <- makeServerState set
+        let recv = makeWatchedRecv s pool ss appsInProgress wd
+#elif MIN_VERSION_warp(3,4,13)
         appsInProgress <- newTVarIO 0
         (ss, _) <- makeServerState set
         let recv = makeGracefulRecv s pool ss appsInProgress
@@ -450,6 +491,13 @@ httpOverTls TLSSettings{..} set s bs0 params =
         let recvN = wrappedRecvN rawRecvN
         ctx <- TLS.contextNew (backend recvN) params
         TLS.contextHookSetLogging ctx tlsLogging
+#if MIN_VERSION_warp(3,5,0)
+        -- No timeout here: warp's watchdog is already watching this
+        -- connection, and a read that has to give up does so by itself.
+        TLS.handshake ctx
+        mysa <- getSocketName s
+        attachConnWith byeTimeout mysa ctx
+#else
         let tm = settingsTimeout set * 1000000
         mconn <- timeout tm $ do
             TLS.handshake ctx
@@ -462,6 +510,7 @@ httpOverTls TLSSettings{..} set s bs0 params =
         case mconn of
           Nothing -> throwIO IncompleteHeaders
           Just conn -> return conn
+#endif
     wrappedRecvN recvN n = handle (throughAsync (return "")) $ recvN n
     -- A peer which does not read is why a timed-out connection is
     -- closed, so close_notify is given a quarter of the timeout, at most
@@ -503,7 +552,11 @@ httpOverTls TLSSettings{..} set s bs0 params =
 attachConn
     :: SockAddr
     -> TLS.Context
-#if MIN_VERSION_warp(3,4,13)
+#if MIN_VERSION_warp(3,5,0)
+    -- Warp keeps what it needs for a connection beside the 'Connection',
+    -- so there is nothing of warp's to hand in here any more.
+    -> IO (Connection, Transport)
+#elif MIN_VERSION_warp(3,4,13)
     -> TVar Int -> IO (Connection, Transport)
 #else
     -> IO (Connection, Transport)
@@ -515,7 +568,10 @@ attachConnWith
     :: Int
     -> SockAddr
     -> TLS.Context
-#if MIN_VERSION_warp(3,4,13)
+#if MIN_VERSION_warp(3,5,0)
+    -> IO (Connection, Transport)
+attachConnWith byeTimeout mysa ctx = do
+#elif MIN_VERSION_warp(3,4,13)
     -> TVar Int -> IO (Connection, Transport)
 attachConnWith byeTimeout mysa ctx appsInProgress = do
 #else
@@ -541,7 +597,7 @@ attachConnWith byeTimeout mysa ctx = do
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
-#if MIN_VERSION_warp(3,4,13)
+#if MIN_VERSION_warp(3,4,13) && !MIN_VERSION_warp(3,5,0)
             , connAppsInProgress = appsInProgress
 #endif
             }
@@ -623,10 +679,23 @@ tryIO = try
 ----------------------------------------------------------------
 
 plainHTTP
-    :: TLSSettings -> Settings -> Socket -> S.ByteString -> IO (Connection, Transport)
+    :: TLSSettings
+    -> Settings
+#if MIN_VERSION_warp(3,5,0)
+    -> ConnContext
+#endif
+    -> Socket
+    -> S.ByteString
+    -> IO (Connection, Transport)
+#if MIN_VERSION_warp(3,5,0)
+plainHTTP TLSSettings{..} set cc s bs0 = case onInsecure of
+    AllowInsecure -> do
+        conn' <- socketConnection set cc s
+#else
 plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
     AllowInsecure -> do
         conn' <- socketConnection set s
+#endif
         cachedRef <- I.newIORef bs0
         let conn'' =
                 conn'
