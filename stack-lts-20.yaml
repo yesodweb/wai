@@ -37,8 +37,11 @@ extra-deps:
   - fast-logger-3.2.5
   - hashable-1.4.7.0
   - hpke-0.0.0
-  - http-semantics-0.4.0
-  - http2-5.4.10
+  - http-semantics-0.4.2
+  # TEMPORARY: http2 with confTimeout (kazu-yamamoto/http2#213), until it
+  # is released. Revert to a Hackage version before merging.
+  - git: https://github.com/kazu-yamamoto/http2
+    commit: 607ada0db5597f76596b0a84b3a66c3ea2237f46
   - memory-0.18.0
   - multipart-0.2.1
   - mwc-random-0.15.2.0

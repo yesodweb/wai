@@ -36,9 +36,12 @@ extra-deps:
   - ech-config-0.0.1
   - fast-logger-3.2.8
   - hpke-0.2.1
-  - http2-5.4.10
+  # TEMPORARY: http2 with confTimeout (kazu-yamamoto/http2#213), until it
+  # is released. Revert to a Hackage version before merging.
+  - git: https://github.com/kazu-yamamoto/http2
+    commit: 607ada0db5597f76596b0a84b3a66c3ea2237f46
   - http3-0.1.9
-  - http-semantics-0.4.0
+  - http-semantics-0.4.2
   - mlkem-0.2.2.0
   - network-3.2.10.0
   - quic-0.3.18

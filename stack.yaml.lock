@@ -82,19 +82,23 @@ packages:
   original:
     hackage: hpke-0.2.1
 - completed:
-    hackage: http-semantics-0.4.0@sha256:da8a98d542b2032cc12590847179577b0208a52bb3b9aa9a07c08d27d2a1714c,1513
+    hackage: http-semantics-0.4.2@sha256:9938dfae087bbb52bf79939997284c583855f4155367604612a8979caa8e41a9,1535
     pantry-tree:
-      sha256: d0e08875907c0fbff71813747fd93ce7bfd4e3d4a6b979df5c137430a9130f1d
-      size: 1188
+      sha256: 65c0114900282645724b31cfedd8565a8bc5b674e79aa7e7f2d43a17951d8c40
+      size: 1189
   original:
-    hackage: http-semantics-0.4.0
+    hackage: http-semantics-0.4.2
 - completed:
-    hackage: http2-5.4.10@sha256:723b0f41d7414ee4ca18d758a5494fb91267e56fca4a4a53489e77adcb077ce0,10669
+    commit: 607ada0db5597f76596b0a84b3a66c3ea2237f46
+    git: https://github.com/kazu-yamamoto/http2
+    name: http2
     pantry-tree:
-      sha256: 38083710ba751bd229a191dbb5ef2b7b23b306655f0e9b3452769c338d20176a
-      size: 44944
+      sha256: fc4a2945b04b9395586c6ec548ddfbf94179dfe49ab413d7424fd1f96cf8aaf0
+      size: 52519
+    version: 5.4.11
   original:
-    hackage: http2-5.4.10
+    commit: 607ada0db5597f76596b0a84b3a66c3ea2237f46
+    git: https://github.com/kazu-yamamoto/http2
 - completed:
     hackage: http3-0.1.9@sha256:3b6ebc31286d9c1c67438df8278f56a9716e9729f5441890f4a756234aca5fc8,5971
     pantry-tree:
@@ -110,12 +114,12 @@ packages:
   original:
     hackage: mlkem-0.2.2.0
 - completed:
-    hackage: network-3.2.9.0@sha256:48a0c4f91e460f892c629b76c9410336a978e9b58aa87c678aee587b4ca37698,5305
+    hackage: network-3.2.10.0@sha256:fa025c091a4821da78c3a603df383227cbc6840b30d425ccc15011def93d52aa,5501
     pantry-tree:
-      sha256: b88e26eb8d6a77c8bfe9cc4eb5576dbae6f9eaaddfcb23823e4910e6da9058a3
-      size: 4039
+      sha256: a7fe158d31bd1304bbaafdc2283fbb5bae406027581f7d1004bc3766118ab632
+      size: 4322
   original:
-    hackage: network-3.2.9.0
+    hackage: network-3.2.10.0
 - completed:
     hackage: quic-0.3.18@sha256:6863c08dd7945f69df3cdc839ffa7c2c4b0c8e44e68ebbdcff95dced385319a5,7222
     pantry-tree:
