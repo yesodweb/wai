@@ -143,33 +143,42 @@ spec = describe "mkDebounce" $ do
 
             waitUntil 1 $ readIORef ref `shouldReturn` 2
 
-        it "works for multiple events" $ do
-            (ref, debounced, _baton, _returnFromWait) <- getDebounce' True trailingDelayEdge
+        it "works for multiple events" $ retriggerTrailingDelay 3
 
-            start <- getMonotonicTime
-
-            debounced
-            readIORef ref `shouldReturn` 0
-            -- Asserts at end check that this timing gets added to the cooldown time
-            threadDelay 500_000
-
-            readIORef ref `shouldReturn` 0
-            before2nd <- getMonotonicTime
-            debounced
-            readIORef ref `shouldReturn` 0
-            threadDelay 500_000
-
-            readIORef ref `shouldReturn` 0
-            threadDelay 250_000
-
-            readIORef ref `shouldReturn` 0
-
-            waitUntil 1 $ readIORef ref `shouldReturn` 1
-            end <- getMonotonicTime
+-- | Trigger twice, half a cooldown apart, and check that the action fires
+-- once, a full cooldown after the second trigger. Only lower bounds on time
+-- are asserted; a retrigger which comes too late is retried.
+retriggerTrailingDelay :: Int -> IO ()
+retriggerTrailingDelay attempts = do
+    firedRef <- newIORef []
+    baton <- newMVar ()
+    debounced <-
+        DI.mkDebounceInternal
+            baton
+            threadDelay
+            defaultDebounceSettings
+                { debounceFreq = 1_000_000
+                , debounceAction = getMonotonicTime >>= \t -> modifyIORef firedRef (t :)
+                , debounceEdge = trailingDelayEdge
+                }
+    start <- getMonotonicTime
+    debounced
+    threadDelay 500_000
+    before2nd <- getMonotonicTime
+    debounced
+    after2nd <- getMonotonicTime
+    if after2nd - start > 0.9
+        then
+            if attempts > 1
+                then retriggerTrailingDelay (attempts - 1)
+                else assertBool "The retrigger kept coming after the cooldown" False
+        else do
+            waitUntil 3 $ length <$> readIORef firedRef `shouldReturn` 1
+            [fired] <- readIORef firedRef
             assertBool "Took less than 1 sec after retrigger" $
-                end - before2nd > 1
+                fired - before2nd >= 1
             assertBool "Took less than 1.5 sec total" $
-                end - start > 1.5
+                fired - start >= 1.5
 
 -- | Make a controllable delay function
 getWaitAction :: IO (p -> IO (), IO ())
