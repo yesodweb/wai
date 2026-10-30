@@ -2,58 +2,23 @@
 
 ## 3.5.0
 
-* The accept loop and the graceful shutdown's receive are given up on
-  rather than interrupted.  `Listener` accepts through network's
-  `withReadable`, and the receive is one `receiveWith`, so neither
-  depends on `closeFdWith` waking a blocked thread, and both work on
-  Windows, where an asynchronous exception does not reach a socket call.
-  The CPP fallbacks for Windows and for network < 3.2.2 are gone.
-* Which errno `accept` may be retried on, and which error means the
-  socket was closed, come from network's `isTransientAcceptError` and
-  `isClosedSocketError` rather than from lists here.
+Breaking change: `runSettings` and friends rethrow when `accept()` fails for
+a reason the listening socket will keep giving, where they used to hand the
+caller the `()` a graceful shutdown returns.  `sendFile` and `readSendFile`
+take a `WriteBuffer`, and `runSettingsConnectionMakerSecure` is deprecated in
+favour of `runSettingsConnectionMakerSecureWith`.
 
-
-* Kill the connections being served when the accept loop ends.
-  [#1128](https://github.com/yesodweb/wai/pull/1128)
-
-* The accept loop is stopped by being told, not by having its socket closed
-  under it. `settingsInstallShutdownHandler` is handed an action which stops
-  the server -- except on Windows, and when built against `network` older
-  than 3.2.2, where warp cannot wait on a socket and the socket is still
-  closed directly. Warp closes the listening socket once the loop has ended and
-  before it waits for the connections, so the port is free for a successor.
-  A caller that closes the listening socket itself still ends the loop, as
-  before. `Network.Wai.Handler.Warp.Internal` gains `Listener`, `noListener`,
-  `makeListener` and `runSettingsConnectionMakerSecureWith`, and
-  `runSettingsConnectionMakerSecure` is deprecated in favour of the last of
-  these.
+* Give up on the accept and the receive rather than interrupt them.
+  [#1143](https://github.com/yesodweb/wai/pull/1143)
+* Event poll for accept loop.
   [#1123](https://github.com/yesodweb/wai/pull/1123)
-
-* Make HTTP/2 transport matching total, avoiding partial TLS record selectors
-  under GHC 9.14 `-Werror`. QUIC is not selected by HTTP/2 ALPN dispatch;
-  existing TCP dispatch and TLS version checks are preserved.
-
-* Breaking change: `runSettings` and friends now rethrow when `accept()` fails
-  for a reason the listening socket will keep giving, such as `ENFILE` or
-  `ENOMEM`. Previously the accept loop ended and the caller was handed a `()`,
-  which is what a graceful shutdown returns, so a server that could no longer
-  accept was indistinguishable from one that had been asked to stop. POSIX
-  only: on Windows `network` reports a socket error without an errno, so warp
-  cannot tell one `accept()` failure from another and behaviour there is
-  unchanged.
+* warp: let the thread manager own the connections.
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
+* warp: tell the caller when the accept loop loses its listener.
   [#1106](https://github.com/yesodweb/wai/pull/1106)
-* The accept loop now retries, rather than stopping, on the errors `accept()`
-  reports for a single queued connection: `ENETDOWN`, `EPROTO`, `ENOPROTOOPT`,
-  `EHOSTDOWN`, `ENONET`, `EHOSTUNREACH` and `ENETUNREACH`. `accept(2)` asks for
-  these to be treated like `EAGAIN`, which is how `ECONNABORTED` was already
-  handled. One unreachable client no longer stops the server. POSIX only: on
-  Windows `network` reports a socket error without an errno for warp to match
-  on, so behaviour there is unchanged.
-  [#1106](https://github.com/yesodweb/wai/pull/1106)
-* `WriteBuffer` now carries a cached `ForeignPtr` of its buffer, so flushing a
-  response no longer allocates a fresh wrapper. `sendFile` and `readSendFile`
-  now take the `WriteBuffer` instead of a `Buffer` and a `BufSize`, which
-  changes the API of `Network.Wai.Handler.Warp.Internal`.
+* warp: make HTTP/2 transport checks total for GHC 9.14.
+  [#1121](https://github.com/yesodweb/wai/pull/1121)
+* warp: cache a ForeignPtr in WriteBuffer, drop per-flush allocation.
   [#1095](https://github.com/yesodweb/wai/pull/1095)
 
 ## 3.4.19
@@ -79,30 +44,23 @@
   [#1156](https://github.com/yesodweb/wai/issues/1156)
 * `InvalidRequest` gains `BadHost`.
   [#1152](https://github.com/yesodweb/wai/issues/1152)
-* Header field names are validated by a lookup table rather than by a chain
-  of range tests.
+* Validate field names with a lookup table.
   [#1157](https://github.com/yesodweb/wai/issues/1157)
 
 ## 3.4.18
 
-* The accept loop is stopped by being told, through the new
-  `settingsInstallShutdownHandler`, rather than by having the listening
-  socket closed under it, and the graceful shutdown's receive is one
-  `receiveWith`.  Nothing is closed and no thread is interrupted to make
-  either of them return: a close ends a thread blocked on a descriptor
-  only because the event manager says so, which GHC is removing, and an
-  asynchronous exception does not reach a thread blocked in a socket call
-  on Windows -- where, before this, a server could not be stopped at all.
-  [#1136](https://github.com/yesodweb/wai/issues/1136)
-* The threads serving connections are owned by a thread manager, so a
-  killed server no longer leaves them running, and a connection which has
-  been accepted but not yet scheduled is counted by `gracefulShutdown`
-  rather than being invisible to it.
-  [#1126](https://github.com/yesodweb/wai/issues/1126)
-  [#1132](https://github.com/yesodweb/wai/issues/1132)
-* `Internal` exports `Listener (..)`, `noListener`, `makeListener`,
-  `AcceptStopped (..)` and `runSettingsConnectionMakerSecureWith`.
-* Requires network 3.2.10, recv 0.1.3 and time-manager 0.5.
+`Internal` gains `Listener (..)`, `noListener`, `makeListener`,
+`AcceptStopped (..)` and `runSettingsConnectionMakerSecureWith`.  Requires
+network 3.2.10, recv 0.1.3 and time-manager 0.5.
+
+* Event poll for accept loop.
+  [#1123](https://github.com/yesodweb/wai/pull/1123)
+* Give up on the accept and the receive rather than interrupt them.
+  [#1143](https://github.com/yesodweb/wai/pull/1143)
+* recv: a receive the caller can give up on.
+  [#1142](https://github.com/yesodweb/wai/pull/1142)
+* warp: let the thread manager own the connections.
+  [#1128](https://github.com/yesodweb/wai/pull/1128)
 
 ## 3.4.17
 
@@ -120,12 +78,9 @@
 * Security: the chunked body parser keeps to RFC 9112: chunk sizes, the CRLF
   after a chunk, size lines split over several reads, and the trailer section.
   [#1150](https://github.com/yesodweb/wai/issues/1150)
-* A chunked body cut short by the end of input is now an error rather than a
-  body the application is handed as though it were whole.
-  [#1129](https://github.com/yesodweb/wai/issues/1129).
-* A last chunk must now be followed by the CRLF which ends the trailer
-  section, unless the connection ends there.
-  [#1150](https://github.com/yesodweb/wai/issues/1150)
+* warp: a chunked request body cut off mid-chunk reaches the application as
+  complete.
+  [#1129](https://github.com/yesodweb/wai/issues/1129)
 * `InvalidRequest` gains `UnsupportedTransferEncoding`, `AmbiguousBodyLength`,
   `BadFieldName`, `BadHeaderLine` and `BadChunkedBody`, one for each of the
   five above.
