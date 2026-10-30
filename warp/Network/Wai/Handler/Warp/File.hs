@@ -128,7 +128,7 @@ ifrange reqidx hs mtime method size = do
             -- strongly. Without an ETag, the Range is ignored: "If the
             -- validator does not match, then the server MUST ignore the
             -- Range header field."
-            Nothing -> case lookup H.hETag hs of
+            Nothing -> case lookup Header.hETag hs of
                 Just etag -> strongMatch validator etag
                 Nothing -> False
     return $
