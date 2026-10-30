@@ -91,7 +91,10 @@ class WatchdogFor a where
     --   The watchdog collapses a burst of updates into one call, so this
     --   is asked about where the connection ended up, not about every
     --   step on the way.
-    decide :: Maybe (ContextFor a) -> ContextFor a -> IO Action
+    --
+    --   It runs in the transaction which reads the context, so a 'TVar'
+    --   the context holds is seen as it was at that same moment.
+    decide :: Maybe (ContextFor a) -> ContextFor a -> STM Action
 
 -- | What the watchdog does with the timeout it is running.
 data Action
@@ -223,10 +226,14 @@ withWatchdog wd lastResort action = do
 
 watchdog :: WatchdogFor a => Watchdog a -> IO () -> TVar Bool -> IO ()
 watchdog wd lastResort done = do
-    Recorded n ctx <- readTVarIO $ wdRecorded wd
-    act <- decide Nothing ctx
+    (n, ctx, act) <- look Nothing
     step n ctx act Nothing Nothing
   where
+    look old = atomically $ do
+        Recorded n cur <- readTVar $ wdRecorded wd
+        act <- decide old cur
+        return (n, cur, act)
+
     step seen ctx act budget deadline = case act of
         Abort -> handOver wd
         _ -> do
@@ -246,8 +253,7 @@ watchdog wd lastResort done = do
                 case quiet of
                     Stop -> return ()
                     _ -> do
-                        Recorded n' cur <- readTVarIO $ wdRecorded wd
-                        act <- decide (Just prev) cur
+                        (n', cur, act) <- look $ Just prev
                         step n' cur act budget deadline
             Expired -> do
                 atomically $ writeTVar (wdTimedOut wd) True
