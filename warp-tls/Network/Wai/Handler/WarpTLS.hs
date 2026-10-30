@@ -90,6 +90,7 @@ import Network.Socket (
 #if MIN_VERSION_network(3,1,1)
     gracefulClose,
 #endif
+    unsafeClose,
     withSocketsDo,
  )
 import Network.Socket.BufferPool
@@ -226,7 +227,7 @@ runTLS tset set app =
     withSocketsDo $
         bracket
             (bindPortTCP (getPort set) (getHost set))
-            close
+            unsafeClose
             ( \sock -> do
                 setSocketCloseOnExec sock
                 runTLSSocket tset set sock app
@@ -395,14 +396,14 @@ mkConn tlsset set s params = do
   where
     recvFirstBS expired =
         (recvWith s 4096 (check =<< readTVar expired) `E.catch` resetIsEOF)
-            `onException` close s
+            `onException` unsafeClose s
     -- What streaming-commons' safeRecv did for us: a connection reset is
     -- the end of the connection, not an error to report.
     resetIsEOF e
         | ioeGetErrorType e == ResourceVanished = return $ Right ""
         | otherwise = E.throwIO (e :: E.IOException)
     switch firstBS
-        | S.null firstBS = close s >> throwIO ClientClosedConnectionPrematurely
+        | S.null firstBS = unsafeClose s >> throwIO ClientClosedConnectionPrematurely
         | S.head firstBS == 0x16 = httpOverTls tlsset set s firstBS params
         | otherwise = plainHTTP tlsset set s firstBS
 
@@ -428,7 +429,7 @@ httpOverTls
     -> params
     -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} set s bs0 params =
-    makeConn `onException` close s
+    makeConn `onException` unsafeClose s
   where
     makeConn = do
         pool <- newBufferPool 2048 16384
@@ -613,7 +614,7 @@ plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
             \\r\nConnection: Upgrade\
             \\r\nContent-Type: text/plain\r\n\r\n"
         mapM_ (sendAll s) $ L.toChunks lbs
-        close s
+        unsafeClose s
         throwIO InsecureConnectionDenied
 
 ----------------------------------------------------------------
