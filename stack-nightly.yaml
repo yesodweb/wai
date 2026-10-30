@@ -23,8 +23,12 @@ nix:
     - fcgi
     - zlib
 extra-deps:
+  - http-semantics-0.4.2
   - network-3.2.12.0
-  - http2-5.4.10
+  # TEMPORARY: http2 with confTimeout (kazu-yamamoto/http2#213), until it
+  # is released. Revert to a Hackage version before merging.
+  - git: https://github.com/kazu-yamamoto/http2
+    commit: 0b5130714c004572ea68049953ef6fdfee88d47b
   - http3-0.1.9
   - quic-0.3.18
   - crypton-2.1.10
