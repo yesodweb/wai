@@ -224,6 +224,15 @@ data Settings = Settings
     -- Default: 'Nothing' (warp creates its own internal state)
     --
     -- @since 3.4.13
+    , settingsUnsafeClose :: Bool
+    -- ^ Whether to close connections with network's 'unsafeClose' and
+    -- 'unsafeGracefulClose', which skip the IO manager.  Use this only if
+    -- no thread uses a connection's socket after warp closes it, which
+    -- 'responseRaw' applications cannot always promise.
+    --
+    -- Default: 'False'.
+    --
+    -- @since 3.4.21
     }
 
 -- | Specify usage of the PROXY protocol.
@@ -352,6 +361,7 @@ defaultSettings =
         , settingsMaxBuilderResponseBufferSize = 1049000000
         , settingsConnectionCounter = Nothing
         , settingsServerState = Nothing
+        , settingsUnsafeClose = False
         }
 
 -- | Create 'defaultSettings' with a connection counter.
