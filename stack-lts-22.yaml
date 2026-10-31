@@ -30,8 +30,11 @@ extra-deps:
   - crypton-x509-validation-1.6.13
   - ech-config-0.0.1
   - hpke-0.0.0
-  - http-semantics-0.4.0
-  - http2-5.4.10
+  - http-semantics-0.4.2
+  # TEMPORARY: http2 with confTimeout (kazu-yamamoto/http2#213), until it
+  # is released. Revert to a Hackage version before merging.
+  - git: https://github.com/kazu-yamamoto/http2
+    commit: 607ada0db5597f76596b0a84b3a66c3ea2237f46
   - network-3.2.10.0
   - network-control-0.1.7
   - random-1.3.1
