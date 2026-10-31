@@ -33,14 +33,22 @@ testFileRange
     -> RequestHeaders
     -> RspFileInfo
     -> Spec
-testFileRange desc reqhs ans = it desc $ do
+testFileRange desc = testFileRangeWith desc []
+
+testFileRangeWith
+    :: String
+    -> ResponseHeaders
+    -> RequestHeaders
+    -> RspFileInfo
+    -> Spec
+testFileRangeWith desc rsphs reqhs ans = it desc $ do
     finfo <- getInfo "attic/hex"
     let f = (:) ("Last-Modified", fileInfoDate finfo)
         hs = getHeaders ans
         ans' = changeHeaders f ans
     conditionalRequest
         finfo
-        []
+        rsphs
         methodGet
         (indexResponseHeader hs)
         (indexRequestHeader reqhs)
@@ -155,4 +163,23 @@ spec = do
         testFileRange
             "gives the whole file for a suffix exactly as long as it is"
             [("Range", "bytes=-16")]
+            regularBody
+        testFileRangeWith
+            "gives a range if If-Range is the ETag of the response"
+            [("ETag", "\"abc\"")]
+            [("If-Range", "\"abc\""), ("Range", "bytes=2-7")]
+            $ changeHeaders (++ [("ETag", "\"abc\"")]) (make206Body 2 6)
+        testFileRangeWith
+            "gives the entire body if If-Range is another ETag"
+            [("ETag", "\"abc\"")]
+            [("If-Range", "\"xyz\""), ("Range", "bytes=2-7")]
+            $ changeHeaders (++ [("ETag", "\"abc\"")]) regularBody
+        testFileRangeWith
+            "gives the entire body if If-Range is a weak ETag"
+            [("ETag", "W/\"abc\"")]
+            [("If-Range", "W/\"abc\""), ("Range", "bytes=2-7")]
+            $ changeHeaders (++ [("ETag", "W/\"abc\"")]) regularBody
+        testFileRange
+            "gives the entire body if If-Range is an ETag and the response has none"
+            [("If-Range", "\"abc\""), ("Range", "bytes=2-7")]
             regularBody
