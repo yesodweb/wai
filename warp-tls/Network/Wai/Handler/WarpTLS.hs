@@ -93,6 +93,9 @@ import Network.Socket (
     unsafeClose,
     withSocketsDo,
  )
+#if MIN_VERSION_warp(3,4,21)
+import Network.Socket (unsafeGracefulClose)
+#endif
 import Network.Socket.BufferPool
 import Network.Socket.ByteString (recvWith, sendAll)
 import qualified Network.TLS as TLS
@@ -457,12 +460,17 @@ httpOverTls TLSSettings{..} set s bs0 params =
           Nothing -> throwIO IncompleteHeaders
           Just conn -> return conn
     wrappedRecvN recvN n = handle (throughAsync (return "")) $ recvN n
+    gracefulCloser
+#if MIN_VERSION_warp(3,4,21)
+        | settingsUnsafeClose set = unsafeGracefulClose
+#endif
+        | otherwise = gracefulClose
     backend recvN =
         TLS.Backend
             { TLS.backendFlush = return ()
 #if MIN_VERSION_network(3,1,1)
             , TLS.backendClose =
-                gracefulClose s 5000 `E.catch` throughAsync (return ())
+                gracefulCloser s 5000 `E.catch` throughAsync (return ())
 #else
             , TLS.backendClose = close s
 #endif
