@@ -60,7 +60,7 @@ module Network.Wai.Handler.WarpTLS (
 
 import Control.Applicative ((<|>))
 #if MIN_VERSION_warp(3,5,0)
-import Control.Concurrent.STM (STM, retry)
+import Control.Concurrent.STM (readTVarIO)
 #elif MIN_VERSION_warp(3,4,13)
 import Control.Concurrent.STM (STM, TVar, check, newTVarIO, readTVar, registerDelay, retry)
 #else
@@ -110,7 +110,9 @@ import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal
 import Network.Wai.Handler.WarpTLS.Internal
 import System.IO.Error (ioeGetErrorType, isEOFError)
+#if !MIN_VERSION_warp(3,5,0)
 import System.Timeout (timeout)
+#endif
 
 ----------------------------------------------------------------
 
@@ -480,6 +482,7 @@ httpOverTls TLSSettings{..} set s bs0 params =
             wd = connWatchdog cc
         (ss, _) <- makeServerState set
         let recv = makeWatchedRecv s pool ss appsInProgress wd
+            send = sendAllGivingUp s
 #elif MIN_VERSION_warp(3,4,13)
         appsInProgress <- newTVarIO 0
         (ss, _) <- makeServerState set
@@ -487,9 +490,12 @@ httpOverTls TLSSettings{..} set s bs0 params =
 #else
         let recv = receive s pool
 #endif
+#if !MIN_VERSION_warp(3,5,0)
+        let send = sendAll' s
+#endif
         rawRecvN <- makeRecvN bs0 recv
         let recvN = wrappedRecvN rawRecvN
-        ctx <- TLS.contextNew (backend recvN) params
+        ctx <- TLS.contextNew (backend send recvN) params
         TLS.contextHookSetLogging ctx tlsLogging
 #if MIN_VERSION_warp(3,5,0)
         -- No timeout here: warp's watchdog is already watching this
@@ -523,7 +529,7 @@ httpOverTls TLSSettings{..} set s bs0 params =
         | settingsUnsafeClose set = unsafeGracefulClose
 #endif
         | otherwise = gracefulClose
-    backend recvN =
+    backend send recvN =
         TLS.Backend
             { TLS.backendFlush = return ()
 #if MIN_VERSION_network(3,1,1)
@@ -532,12 +538,23 @@ httpOverTls TLSSettings{..} set s bs0 params =
 #else
             , TLS.backendClose = close s
 #endif
-            , TLS.backendSend = sendAll' s
+            , TLS.backendSend = send
             , TLS.backendRecv = recvN
             }
+#if MIN_VERSION_warp(3,5,0)
+    -- Giving up on what warp says through 'connSendGiveUp', as its own
+    -- sends do, rather than waiting for the last resort, which does not
+    -- reach a send on Windows.
+    sendAllGivingUp sock bs = do
+        giveUp <- readTVarIO $ connSendGiveUp cc
+        vanished (sendAllWith sock bs giveUp)
+            >>= either (\_ -> throwIO TimeoutThread) return
+#else
     -- A plain send is a foreign call no asynchronous exception
     -- reaches on Windows; this one waits in STM, so the timeout can.
-    sendAll' sock bs =
+    sendAll' sock bs = vanished $ void (sendAllWith sock bs (retry :: STM ()))
+#endif
+    vanished =
         E.handleJust
             ( \e ->
                 if ioeGetErrorType e == ResourceVanished
@@ -545,7 +562,6 @@ httpOverTls TLSSettings{..} set s bs0 params =
                     else Nothing
             )
             throwIO
-            $ void (sendAllWith sock bs (retry :: STM ()))
 
 -- | Get "Connection" and "Transport" for a TLS connection that is already did the handshake.
 -- @since 3.4.7
@@ -570,7 +586,7 @@ attachConnWith
     -> TLS.Context
 #if MIN_VERSION_warp(3,5,0)
     -> IO (Connection, Transport)
-attachConnWith byeTimeout mysa ctx = do
+attachConnWith _ mysa ctx = do
 #elif MIN_VERSION_warp(3,4,13)
     -> TVar Int -> IO (Connection, Transport)
 attachConnWith byeTimeout mysa ctx appsInProgress = do
@@ -638,7 +654,12 @@ attachConnWith byeTimeout mysa ctx = do
                 headers
 
         close' =
+#if MIN_VERSION_warp(3,5,0)
+            -- Warp bounds what 'connClose' sends from 3.5.0 on.
+            void (tryIO sendBye)
+#else
             void (tryIO $ timeout byeTimeout sendBye)
+#endif
                 `finally` TLS.contextClose ctx
 
         sendBye =
