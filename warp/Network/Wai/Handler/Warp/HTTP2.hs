@@ -9,6 +9,7 @@ module Network.Wai.Handler.Warp.HTTP2 (
     http2server,
 ) where
 
+import Control.Concurrent.STM (atomically, writeTVar)
 import qualified Control.Exception as E
 import Data.IORef (readIORef)
 import qualified Data.IORef as I
@@ -67,11 +68,17 @@ http2 settings ii conn cc transport app peersa _th bs = do
     -- http2 supervises what follows. Time managers are not used.
     let recvN = wrappedRecvN rawRecvN
         sendBS = connSendAll conn
+        -- The http2 library says what to give up on through
+        -- 'connSendGiveUp', which the sends of the connection read.
+        sendBSWith giveUp frame = do
+            atomically $ writeTVar (connSendGiveUp cc) giveUp
+            (Right () <$ sendBS frame) `E.catch` \T.TimeoutThread -> return (Left ())
         conf =
             H2.defaultConfig
                 { H2.confWriteBuffer = bufBuffer writeBuffer
                 , H2.confBufferSize = bufSize writeBuffer
                 , H2.confSendAll = sendBS
+                , H2.confSendAllWith = Just sendBSWith
                 , H2.confReadN = recvN
                 , H2.confPositionReadMaker = pReadMaker ii
                 , H2.confMySockAddr = connMySockAddr conn

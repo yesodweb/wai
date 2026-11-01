@@ -10,9 +10,6 @@
 module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
-#if WINDOWS
-import Control.Concurrent (forkIO)
-#endif
 import Control.Concurrent.STM (
     STM,
     TVar,
@@ -21,13 +18,10 @@ import Control.Concurrent.STM (
     modifyTVar',
     newTVarIO,
     readTVar,
+    readTVarIO,
+    registerDelay,
     writeTVar,
     retry,
-#if WINDOWS
-    newEmptyTMVarIO,
-    putTMVar,
-    takeTMVar,
-#endif
  )
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
@@ -79,6 +73,7 @@ import Network.Wai.Handler.Warp.Settings
 import Network.Wai.Handler.Warp.ShuttingDown (writeShuttingDown)
 import Network.Wai.Handler.Warp.Types
 import Network.Wai.Handler.Warp.Watchdog
+import System.Watchdog (gracePeriod)
 
 -- | Creating 'Connection' for plain HTTP based on a given socket.
 --
@@ -97,8 +92,8 @@ socketConnection set cc s = do
     return
         Connection
             { connSendMany = Sock.sendMany s
-            , connSendAll = sendall wd
-            , connSendFile = sendfile wd writeBufferRef
+            , connSendAll = sendall
+            , connSendFile = sendfile writeBufferRef
 #if MIN_VERSION_network(3,1,1)
             , connClose = do
                 h2 <- readIORef isH2
@@ -130,19 +125,22 @@ socketConnection set cc s = do
             | ioeGetErrorType e == InvalidArgument = return ""
             | otherwise = E.throwIO e
 
-    sendfile wd writeBufferRef fid offset len hook headers = do
+    sendfile writeBufferRef fid offset len hook headers = do
         writeBuffer <- readIORef writeBufferRef
         sendFile
             s
             writeBuffer
-            (sendall wd)
+            sendall
             fid
             offset
             len
             hook
             headers
 
-    sendall wd bs =
+    -- A send gives up on 'connSendGiveUp' rather than waiting for the
+    -- last resort, which does not reach a send on Windows.
+    sendall bs = do
+        giveUp <- readTVarIO $ connSendGiveUp cc
         E.handleJust
             ( \e ->
                 if ioeGetErrorType e == ResourceVanished
@@ -150,30 +148,8 @@ socketConnection set cc s = do
                     else Nothing
             )
             E.throwIO
-            $ send' wd bs
-
-#if WINDOWS
-    -- As with the read: a send that blocks on WINDOWS blocks in a foreign
-    -- call, where neither the watchdog's 'TVar' nor an asynchronous
-    -- exception can reach this thread, so a peer that stops reading is a
-    -- connection that cannot be given up on.  The send is done on a thread
-    -- of its own and this one waits for it alongside the watchdog.
-    --
-    -- The send left behind is left to the socket being closed, which is what
-    -- ends this connection anyway.
-    send' wd bs = do
-        var <- newEmptyTMVarIO
-        void $ forkIO $ do
-            r <- E.try $ Sock.sendAll s bs
-            atomically $ putTMVar var (r :: Either E.SomeException ())
-        done <- atomically $
-            (timedOutSTM wd $> Nothing) <|> (Just <$> takeTMVar var)
-        case done of
-            Nothing -> E.throwIO T.TimeoutThread
-            Just r -> either E.throwIO return r
-#else
-    send' _wd bs = Sock.sendAll s bs
-#endif
+            (Sock.sendAllWith s bs giveUp)
+            >>= either (\_ -> E.throwIO T.TimeoutThread) return
 
 
 -- | The state warp keeps for one connection.  It is made before the
@@ -186,10 +162,12 @@ newConnContext :: Settings -> IO ConnContext
 newConnContext set = do
     wd <- newConnWatchdog $ settingsTimeout set * 1000000
     appsInProgress <- newTVarIO 0
+    sendGiveUp <- newTVarIO $ timedOutSTM wd
     return
         ConnContext
             { connWatchdog = wd
             , connAppsInProgress = appsInProgress
+            , connSendGiveUp = sendGiveUp
             }
 
 -- | Create a 'Recv' which stops receiving when the server is shutting down
@@ -630,10 +608,14 @@ fork set mkConn addr app counter ii = do
                 -- If the mkConn call throws an exception, we will leak
                 -- the connection.
                 withWatchdog (connWatchdog cc) (E.throwTo tid T.TimeoutThread) $
-                    E.bracket (mkConn cc) cleanUp (serve unmask cc)
+                    E.bracket (mkConn cc) (cleanUp cc) (serve unmask cc)
 
-    cleanUp (conn, _) =
-        connClose conn `E.finally` do
+    -- What is said while closing, close_notify say, waits no longer than
+    -- the watchdog gives a timed-out connection to finish by itself.
+    cleanUp cc (conn, _) = do
+        late <- registerDelay $ gracePeriod $ settingsTimeout set * 1000000
+        atomically $ writeTVar (connSendGiveUp cc) $ readTVar late >>= check
+        (connClose conn `E.catch` \T.TimeoutThread -> return ()) `E.finally` do
             writeBuffer <- readIORef $ connWriteBuffer conn
             bufFree writeBuffer
 
