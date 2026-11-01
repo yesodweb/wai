@@ -11,7 +11,8 @@ import qualified Data.ByteString as S
 import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
-import Control.Monad (void)
+import Control.Monad (forever, void)
+import Data.Word (Word8)
 import Network.HTTP.Types
 import qualified Network.HTTP2.Client as C
 import Network.Socket
@@ -100,7 +101,35 @@ spec = describe "watchdog" $ do
                 st `shouldBe` status200
                 body `shouldBe` "first second"
 
+        it "closes a connection whose peer does not read" $ do
+            -- The client opens the windows wide, asks, and never reads, so
+            -- the server's writes stop in the socket, not on a window.
+            closed <- newEmptyMVar
+            let settings' = setOnClose (\_ -> void $ tryPutMVar closed ()) settings
+                endless write flush = forever $ write (byteString chunk) >> flush
+                chunk = S.replicate 65536 88
+                app _ respond = respond $ responseStream status200 [] endless
+            withApp10 settings' app $ \port -> withSock port $ \s -> do
+                sendAll s "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+                sendAll s $ frame 4 0 0 $ S.pack [0, 4, 0x7f, 0xff, 0xff, 0xff]
+                sendAll s $ frame 8 0 0 $ S.pack [0x7f, 0xff, 0, 0]
+                sendAll s $ frame 1 5 1 getHeaderBlock
+                mc <- timeout 6000000 $ takeMVar closed
+                mc `shouldBe` Just ()
+
 ----------------------------------------------------------------
+
+-- | A frame of this type, flags and stream with this payload.
+frame :: Word8 -> Word8 -> Word8 -> ByteString -> ByteString
+frame typ flags sid payload =
+    S.pack [0, fromIntegral (len `div` 256), fromIntegral (len `mod` 256), typ, flags, 0, 0, 0, sid]
+        <> payload
+  where
+    len = S.length payload
+
+-- | GET / for 127.0.0.1, from the static table and one literal.
+getHeaderBlock :: ByteString
+getHeaderBlock = S.pack [0x82, 0x86, 0x84, 0x01, 0x09] <> "127.0.0.1"
 
 okApp :: Application
 okApp _ respond = respond $ responseLBS status200 [] "ok"

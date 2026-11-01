@@ -9,9 +9,7 @@ module Network.Wai.Handler.Warp.HTTP2 (
     http2server,
 ) where
 
-#if MIN_VERSION_http2(5,4,13)
-import Control.Concurrent.STM (check)
-#endif
+import Control.Concurrent.STM (atomically, check, writeTVar)
 import qualified Control.Exception as E
 import Data.IORef (readIORef)
 import qualified Data.IORef as I
@@ -70,11 +68,17 @@ http2 settings ii conn cc transport app peersa _th bs = do
     -- http2 supervises what follows. Time managers are not used.
     let recvN = wrappedRecvN rawRecvN
         sendBS = connSendAll conn
+        -- The http2 library says what to give up on through
+        -- 'connSendGiveUp', which the sends of the connection read.
+        sendBSWith giveUp frame = do
+            atomically $ writeTVar (connSendGiveUp cc) giveUp
+            (Right () <$ sendBS frame) `E.catch` \T.TimeoutThread -> return (Left ())
         conf =
             H2.defaultConfig
                 { H2.confWriteBuffer = bufBuffer writeBuffer
                 , H2.confBufferSize = bufSize writeBuffer
                 , H2.confSendAll = sendBS
+                , H2.confSendAllWith = Just sendBSWith
                 , H2.confReadN = recvN
                 , H2.confPositionReadMaker = pReadMaker ii
                 , H2.confMySockAddr = connMySockAddr conn
@@ -112,13 +116,9 @@ http2 settings ii conn cc transport app peersa _th bs = do
 -- | Once the server is shutting down, the client is told so with GOAWAY
 -- and the streams it has opened are served before the connection ends.
 runH2 :: S.Settings -> H2.Config -> H2.Server -> IO ()
-#if MIN_VERSION_http2(5,4,13)
 runH2 settings = case S.settingsServerState settings of
     Just ss -> H2.runWith (check =<< S.currentShuttingDownStateSTM ss) H2.defaultServerConfig
     Nothing -> H2.run H2.defaultServerConfig
-#else
-runH2 _ = H2.run H2.defaultServerConfig
-#endif
 
 -- | Converting WAI application to the server type of http2 library.
 --
