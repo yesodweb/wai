@@ -3,7 +3,7 @@
 
 module Network.Wai.Handler.Warp.Types where
 
-import Control.Concurrent.STM (TVar)
+import Control.Concurrent.STM (STM, TVar)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.IORef (IORef, writeIORef, newIORef, readIORef)
@@ -182,6 +182,15 @@ data ConnContext = ConnContext
     -- ^ Amount of apps currently in progress on this connection.
     --
     -- /HTTP2 can handle more than one request concurrently/
+    , connSendGiveUp :: TVar (STM ())
+    -- ^ What a send of this connection gives up on: warp's watchdog to
+    -- begin with, the http2 library's once an HTTP\/2 connection is handed
+    -- to it, and a short deadline while the connection closes. A
+    -- connection maker which sends with network's @sendAllWith@ on this,
+    -- throwing 'T.TimeoutThread' when it gives up, is never left blocked
+    -- in a send.
+    --
+    -- @since 3.5.0
     }
 
 -- This function isn't used nor exported...

@@ -109,7 +109,7 @@ library
         http-date,
         http-types >=0.12 && <1,
         http-semantics >=0.4 && <0.5,
-        http2 >=5.4 && <5.5,
+        http2 >=5.4.13 && <5.5,
         iproute >=1.3.1,
         recv >=0.1.3 && <0.2.0,
         simple-sendfile >=0.2.7 && <0.3,
@@ -133,7 +133,7 @@ library
             network-bytestring >=0.1.3 && <0.1.4
 
     else
-        build-depends: network >=3.2.10
+        build-depends: network >=3.2.12
 
     if flag(warp-debug)
         cpp-options: -DWARP_DEBUG
@@ -259,7 +259,7 @@ test-suite spec
         http-date,
         http-types >=0.12,
         http-semantics >=0.4 && <0.5,
-        http2 >=5.4 && <5.5,
+        http2 >=5.4.13 && <5.5,
         iproute >=1.3.1,
         network,
         process,
