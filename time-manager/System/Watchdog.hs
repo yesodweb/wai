@@ -56,6 +56,7 @@ module System.Watchdog (
 
     -- * Supervision
     withWatchdog,
+    gracePeriod,
 ) where
 
 import Control.Applicative ((<|>))
@@ -275,10 +276,9 @@ watchdog wd lastResort done = do
             TimedOut -> (budget, Just now)
             Abort -> (budget, deadline)
 
-    -- A quarter of what is being waited out, capped at one second, and
-    -- one second when nothing is.  In microseconds.
+    -- In microseconds; one second when nothing is waited out.
     interval :: Maybe Word64 -> Int
-    interval = maybe 1000000 (fromIntegral . max 1 . min 1000000 . (`div` 4))
+    interval = maybe 1000000 (gracePeriod . fromIntegral . min 4000000)
 
     -- How long there is left until the deadline, in microseconds.
     remaining :: Maybe Word64 -> IO (Maybe Int)
@@ -306,6 +306,15 @@ watchdog wd lastResort done = do
         changed seen = do
             Recorded n _ <- readTVar $ wdRecorded wd
             check $ n /= seen
+
+-- | How long a connection which has timed out is given to finish by
+--   itself before the last resort, for a timeout in microseconds: a
+--   quarter of it, capped at one second, and one second for none.  What
+--   a connection still has to say then, GOAWAY say, waits no longer.
+gracePeriod :: Int -> Int
+gracePeriod us
+    | us <= 0 = 1000000
+    | otherwise = max 1 $ min 1000000 $ us `div` 4
 
 -- | Monotonic time in nanoseconds.
 getNow :: IO Word64
