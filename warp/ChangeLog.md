@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.4.20
+
+* Building with GHC 9.0 again.
+  [#1161](https://github.com/yesodweb/wai/issues/1161)
+
 ## 3.4.19
 
 * Security: `Host` is validated.  A HTTP/1.1 request without one, and any
