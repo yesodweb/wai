@@ -241,15 +241,16 @@ watchdog wd lastResort done = do
             loop seen ctx budget' deadline'
 
     loop seen prev budget deadline = do
-        ev <- waitFor seen =<< remaining deadline
+        ev <- waitFor (Just seen) =<< remaining deadline
         case ev of
             Stop -> return ()
             Changed -> do
                 -- However busy the connection is, look at it once per
                 -- interval at most: recording costs a write to a 'TVar'
                 -- and nothing else, and what the connection has settled
-                -- on is what 'decide' is asked about.
-                quiet <- waitFor seen $ Just $ interval budget
+                -- on is what 'decide' is asked about.  The changes are not
+                -- waited for here, or the first of them would end the wait.
+                quiet <- waitFor Nothing $ Just $ interval budget
                 case quiet of
                     Stop -> return ()
                     _ -> do
@@ -258,8 +259,9 @@ watchdog wd lastResort done = do
             Expired -> do
                 atomically $ writeTVar (wdTimedOut wd) True
                 -- The same interval is how long the connection is given
-                -- to finish by itself before it is given up on.
-                quiet <- waitFor seen $ Just $ interval budget
+                -- to finish by itself before it is given up on, whatever it
+                -- does meanwhile.
+                quiet <- waitFor Nothing $ Just $ interval budget
                 case quiet of
                     Stop -> return ()
                     _ -> lastResort
@@ -289,18 +291,19 @@ watchdog wd lastResort done = do
 
     -- If the connection moved and the timer expired at the same time, it
     -- moved: a connection which turns out to be alive is not given up on.
-    waitFor :: Int -> Maybe Int -> IO Event
-    waitFor seen mt =
+    -- Changes since the count given, if one is.
+    waitFor :: Maybe Int -> Maybe Int -> IO Event
+    waitFor mseen mt =
         withTimer mt $ \expired ->
             atomically $
                 (readTVar done >>= check >> return Stop)
                     -- Handed on: this watchdog is finished with the
                     -- connection, whatever it was about to decide.
                     <|> (readTVar (wdHandedOver wd) >>= check >> return Stop)
-                    <|> (changed >> return Changed)
+                    <|> (maybe retry changed mseen >> return Changed)
                     <|> (expired >> return Expired)
       where
-        changed = do
+        changed seen = do
             Recorded n _ <- readTVar $ wdRecorded wd
             check $ n /= seen
 
