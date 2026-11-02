@@ -486,7 +486,9 @@ fork set mkConn addr app counter ii =
     -- scheduled, so counting there leaves a window in which the connection
     -- is accepted and not counted, and 'gracefulShutdown' waits on this
     -- counter.
-    forkConnection counter (settingsFork set) runConnection
+    -- Eta-expanded so that GHC 9.0, which lacks deep subsumption, accepts
+    -- 'runConnection' at the rank-2 type.
+    forkConnection counter (settingsFork set) (\unmask -> runConnection unmask)
   where
     runConnection unmask =
         -- Call the user-supplied on exception code if any
