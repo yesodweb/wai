@@ -21,6 +21,11 @@ favour of `runSettingsConnectionMakerSecureWith`.
 * warp: cache a ForeignPtr in WriteBuffer, drop per-flush allocation.
   [#1095](https://github.com/yesodweb/wai/pull/1095)
 
+## 3.4.20
+
+* Building with GHC 9.0 again.
+  [#1161](https://github.com/yesodweb/wai/issues/1161)
+
 ## 3.4.19
 
 * Security: `Host` is validated.  A HTTP/1.1 request without one, and any
