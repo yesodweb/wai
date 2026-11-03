@@ -11,10 +11,8 @@ module Network.Wai.Handler.Warp.Run where
 
 import Control.Arrow (first)
 import Control.Concurrent.STM (
-#if defined(mingw32_HOST_OS)
     STM,
     retry,
-#endif
     TVar,
     atomically,
     check,
@@ -146,14 +144,10 @@ socketConnection set s = do
             $ killableSendAll s bs
 
 -- | 'Sock.sendAll' which the timeout can kill.  On Windows a plain send is
--- a foreign call no asynchronous exception reaches, so the send waits in
--- STM there instead, and is cancelled if the waiting thread is killed.
+-- a foreign call no asynchronous exception reaches; this one waits in STM,
+-- and is cancelled if the waiting thread is killed.
 killableSendAll :: Socket -> ByteString -> IO ()
-#if defined(mingw32_HOST_OS)
 killableSendAll s bs = void $ Sock.sendAllWith s bs (retry :: STM ())
-#else
-killableSendAll = Sock.sendAll
-#endif
 
 -- | Create a 'Recv' which stops receiving when the server is shutting down
 -- and no 'Application' is still using this 'Socket'.
