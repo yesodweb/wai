@@ -572,7 +572,7 @@ setMaxBuilderResponseBufferSize maxRspBufSize settings = settings{settingsMaxBui
 --   'unsafeGracefulClose'.  See 'settingsUnsafeClose' for when it is safe.
 --   Default: 'False'.
 --
--- @since 3.5.0
+-- @since 3.4.21
 setUnsafeClose :: Bool -> Settings -> Settings
 setUnsafeClose x y = y{settingsUnsafeClose = x}
 
@@ -661,7 +661,7 @@ getServerState = settingsServerState
 -- | Whether connections are closed with network's 'unsafeClose' and
 --   'unsafeGracefulClose'.
 --
--- @since 3.5.0
+-- @since 3.4.21
 getUnsafeClose :: Settings -> Bool
 getUnsafeClose = settingsUnsafeClose
 
