@@ -96,6 +96,10 @@ jobs:
         id: checkout-code
         uses: actions/checkout@v6
 
+      - name: Install gold, which GHC 9.2 and 9.4 link with [UBUNTU]
+        if: matrix.os == 'ubuntu-latest'
+        run: command -v ld.gold || (sudo apt-get update && sudo apt-get install -y binutils-gold)
+
       - name: Cache GHCup [UNIX]
         if: matrix.os != 'windows-latest'
         uses: actions/cache@v6
