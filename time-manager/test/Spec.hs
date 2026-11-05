@@ -280,6 +280,19 @@ main = hspec $ do
                 Timeout.timeout 1_000_000 (takeMVar fired)
                     `shouldReturn` Just ()
 
+        it "tickle renews a timeout without editing GHC's timer queue" $ do
+            m <- initialize 1_000_000
+            fired <- newEmptyMVar
+            withHandle m (putMVar fired ()) $ \h -> do
+                threadDelay 500_000
+                -- The timer manager is not to be used: only the deadline
+                -- moves, and the callback queued at the start finds that out.
+                tickle h{handleTimerManager = error "tickle used the manager"}
+                Timeout.timeout 750_000 (takeMVar fired)
+                    `shouldReturn` Nothing
+                Timeout.timeout 1_000_000 (takeMVar fired)
+                    `shouldReturn` Just ()
+
         it "resume also works as tickle" $
             testResume resume
 
