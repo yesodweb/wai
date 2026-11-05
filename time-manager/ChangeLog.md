@@ -8,6 +8,7 @@
   to edit the one `IORef` that holds the queue of every timeout, so threads
   of many connections, each renewing seldom, queued up behind one another
   on it.
+  [#1165](https://github.com/yesodweb/wai/pull/1165)
 
 ## 0.5.2
 
