@@ -80,6 +80,7 @@ module Network.Wai.Handler.Warp (
     setMaxTotalHeaderLength,
     setAltSvc,
     setMaxBuilderResponseBufferSize,
+    setUnsafeClose,
 
     -- ** Getters
     getPort,
@@ -93,6 +94,7 @@ module Network.Wai.Handler.Warp (
     getGracefulCloseTimeout2,
     getOpenConnectionCounter,
     getServerState,
+    getUnsafeClose,
 
     -- ** Internal server state
     --
@@ -566,6 +568,14 @@ setAltSvc altsvc settings = settings{settingsAltSvc = Just altsvc}
 setMaxBuilderResponseBufferSize :: Int -> Settings -> Settings
 setMaxBuilderResponseBufferSize maxRspBufSize settings = settings{settingsMaxBuilderResponseBufferSize = maxRspBufSize}
 
+-- | Close connections with network's 'unsafeClose' and
+--   'unsafeGracefulClose'.  See 'settingsUnsafeClose' for when it is safe.
+--   Default: 'False'.
+--
+-- @since 3.4.21
+setUnsafeClose :: Bool -> Settings -> Settings
+setUnsafeClose x y = y{settingsUnsafeClose = x}
+
 -- | Explicitly pause the slowloris timeout.
 --
 -- This is useful for cases where you partially consume a request body. For
@@ -647,6 +657,13 @@ getOpenConnectionCounter = settingsConnectionCounter
 -- @since 3.4.12
 getServerState :: Settings -> Maybe ServerState
 getServerState = settingsServerState
+
+-- | Whether connections are closed with network's 'unsafeClose' and
+--   'unsafeGracefulClose'.
+--
+-- @since 3.4.21
+getUnsafeClose :: Settings -> Bool
+getUnsafeClose = settingsUnsafeClose
 
 #ifdef MIN_VERSION_crypton_x509
 -- | Getting information of client certificate.

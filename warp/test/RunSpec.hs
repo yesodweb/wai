@@ -775,6 +775,21 @@ spec = do
             res <- sendGET $ "http://127.0.0.1:" ++ show port
             responseBody res `shouldBe` "HelloHelloHelloHello"
 
+    describe "setUnsafeClose" $ do
+        let app _ f = f $ responseLBS status200 [("content-length", "6")] "unsafe"
+            readAll s = do
+                bs <- safeRecv s 4096
+                if S.null bs then return [] else (bs :) <$> readAll s
+            closes tm =
+                withApp (setGracefulCloseTimeout1 tm $ setUnsafeClose True defaultSettings) app $
+                    withMySocket $ \ms -> do
+                        msWrite ms "GET / HTTP/1.1\r\nHost: localhost\r\nconnection: close\r\n\r\n"
+                        bs <- S.concat <$> readAll (msSocket ms)
+                        S.takeWhile (/= 13) bs `shouldBe` "HTTP/1.1 200 OK"
+                        snd (S.breakSubstring "\r\n\r\n" bs) `shouldBe` "\r\n\r\nunsafe"
+        it "closes with unsafeClose" $ closes 0
+        it "closes with unsafeGracefulClose" $ closes 1000
+
     describe "head requests" $ do
         let fp = "test/head-response"
         let app req f =

@@ -37,12 +37,13 @@ import Network.Socket (
     getSocketName,
     isClosedSocketError,
     isTransientAcceptError,
+    unsafeClose,
     withReadable,
     setSocketOption,
     withSocketsDo,
  )
 #if MIN_VERSION_network(3,1,1)
-import Network.Socket (gracefulClose)
+import Network.Socket (gracefulClose, unsafeGracefulClose)
 #endif
 import Network.Socket.BufferPool
 import qualified Network.Socket.ByteString as Sock
@@ -92,9 +93,12 @@ socketConnection set s = do
                         if h2
                             then settingsGracefulCloseTimeout2 set
                             else settingsGracefulCloseTimeout1 set
+                    (closer, gracefulCloser)
+                        | settingsUnsafeClose set = (unsafeClose, unsafeGracefulClose)
+                        | otherwise = (close, gracefulClose)
                 if tm <= 0
-                    then close s
-                    else gracefulClose s tm `E.catch` throughAsync (return ())
+                    then closer s
+                    else gracefulCloser s tm `E.catch` throughAsync (return ())
 #else
             , connClose = close s
 #endif
@@ -230,7 +234,7 @@ makeListener set socket = do
             { acceptOrStop = closedAsStopped $ do
                 r <- withReadable socket (told stopping) $ settingsAccept set socket
                 return $ either (const Nothing) Just r
-            , closeListener = close socket
+            , closeListener = unsafeClose socket
             }
   where
     told stopping = check =<< readTVar stopping

@@ -60,7 +60,9 @@ module Network.Wai.Handler.WarpTLS (
 
 import Control.Applicative ((<|>))
 #if MIN_VERSION_warp(3,4,13)
-import Control.Concurrent.STM (TVar, check, newTVarIO, readTVar, registerDelay)
+import Control.Concurrent.STM (STM, TVar, check, newTVarIO, readTVar, registerDelay, retry)
+#else
+import Control.Concurrent.STM (STM, retry)
 #endif
 import Control.Exception (
     Exception,
@@ -85,15 +87,20 @@ import GHC.IO.Exception (IOErrorType (..))
 import Network.Socket (
     SockAddr,
     Socket,
-    close,
     getSocketName,
 #if MIN_VERSION_network(3,1,1)
     gracefulClose,
+#else
+    close,
 #endif
+    unsafeClose,
     withSocketsDo,
  )
+#if MIN_VERSION_warp(3,4,21)
+import Network.Socket (unsafeGracefulClose)
+#endif
 import Network.Socket.BufferPool
-import Network.Socket.ByteString (recvWith, sendAll)
+import Network.Socket.ByteString (recvWith, sendAll, sendAllWith)
 import qualified Network.TLS as TLS
 import qualified Network.TLS.SessionManager as SM
 import Network.Wai (Application)
@@ -226,7 +233,7 @@ runTLS tset set app =
     withSocketsDo $
         bracket
             (bindPortTCP (getPort set) (getHost set))
-            close
+            unsafeClose
             ( \sock -> do
                 setSocketCloseOnExec sock
                 runTLSSocket tset set sock app
@@ -395,14 +402,14 @@ mkConn tlsset set s params = do
   where
     recvFirstBS expired =
         (recvWith s 4096 (check =<< readTVar expired) `E.catch` resetIsEOF)
-            `onException` close s
+            `onException` unsafeClose s
     -- What streaming-commons' safeRecv did for us: a connection reset is
     -- the end of the connection, not an error to report.
     resetIsEOF e
         | ioeGetErrorType e == ResourceVanished = return $ Right ""
         | otherwise = E.throwIO (e :: E.IOException)
     switch firstBS
-        | S.null firstBS = close s >> throwIO ClientClosedConnectionPrematurely
+        | S.null firstBS = unsafeClose s >> throwIO ClientClosedConnectionPrematurely
         | S.head firstBS == 0x16 = httpOverTls tlsset set s firstBS params
         | otherwise = plainHTTP tlsset set s firstBS
 
@@ -428,7 +435,7 @@ httpOverTls
     -> params
     -> IO (Connection, Transport)
 httpOverTls TLSSettings{..} set s bs0 params =
-    makeConn `onException` close s
+    makeConn `onException` unsafeClose s
   where
     makeConn = do
         pool <- newBufferPool 2048 16384
@@ -448,26 +455,39 @@ httpOverTls TLSSettings{..} set s bs0 params =
             TLS.handshake ctx
             mysa <- getSocketName s
 #if MIN_VERSION_warp(3,4,13)
-            attachConn mysa ctx appsInProgress
+            attachConnWith byeTimeout mysa ctx appsInProgress
 #else
-            attachConn mysa ctx
+            attachConnWith byeTimeout mysa ctx
 #endif
         case mconn of
           Nothing -> throwIO IncompleteHeaders
           Just conn -> return conn
     wrappedRecvN recvN n = handle (throughAsync (return "")) $ recvN n
+    -- A peer which does not read is why a timed-out connection is
+    -- closed, so close_notify is given a quarter of the timeout, at most
+    -- a second, rather than waiting for that peer for ever.
+    byeTimeout
+        | settingsTimeout set <= 0 = 1000000
+        | otherwise = max 1 $ min 1000000 $ settingsTimeout set * 250000
+    gracefulCloser
+#if MIN_VERSION_warp(3,4,21)
+        | settingsUnsafeClose set = unsafeGracefulClose
+#endif
+        | otherwise = gracefulClose
     backend recvN =
         TLS.Backend
             { TLS.backendFlush = return ()
 #if MIN_VERSION_network(3,1,1)
             , TLS.backendClose =
-                gracefulClose s 5000 `E.catch` throughAsync (return ())
+                gracefulCloser s 5000 `E.catch` throughAsync (return ())
 #else
             , TLS.backendClose = close s
 #endif
             , TLS.backendSend = sendAll' s
             , TLS.backendRecv = recvN
             }
+    -- A plain send is a foreign call no asynchronous exception
+    -- reaches on Windows; this one waits in STM, so the timeout can.
     sendAll' sock bs =
         E.handleJust
             ( \e ->
@@ -476,7 +496,7 @@ httpOverTls TLSSettings{..} set s bs0 params =
                     else Nothing
             )
             throwIO
-            $ sendAll sock bs
+            $ void (sendAllWith sock bs (retry :: STM ()))
 
 -- | Get "Connection" and "Transport" for a TLS connection that is already did the handshake.
 -- @since 3.4.7
@@ -485,10 +505,22 @@ attachConn
     -> TLS.Context
 #if MIN_VERSION_warp(3,4,13)
     -> TVar Int -> IO (Connection, Transport)
-attachConn mysa ctx appsInProgress = do
 #else
     -> IO (Connection, Transport)
-attachConn mysa ctx = do
+#endif
+attachConn = attachConnWith 1000000
+
+-- | 'attachConn' giving close_notify the microseconds given.
+attachConnWith
+    :: Int
+    -> SockAddr
+    -> TLS.Context
+#if MIN_VERSION_warp(3,4,13)
+    -> TVar Int -> IO (Connection, Transport)
+attachConnWith byeTimeout mysa ctx appsInProgress = do
+#else
+    -> IO (Connection, Transport)
+attachConnWith byeTimeout mysa ctx = do
 #endif
     h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
     isH2 <- I.newIORef h2
@@ -500,7 +532,7 @@ attachConn mysa ctx = do
   where
     conn writeBufferRef isH2 =
         Connection
-            { connSendMany = TLS.sendData ctx . L.fromChunks
+            { connSendMany = afterCloseNotify . TLS.sendData ctx . L.fromChunks
             , connSendAll = sendall
             , connSendFile = sendfile
             , connClose = close'
@@ -514,7 +546,13 @@ attachConn mysa ctx = do
 #endif
             }
       where
-        sendall = TLS.sendData ctx . L.fromChunks . return
+        sendall = afterCloseNotify . TLS.sendData ctx . L.fromChunks . return
+        -- tls answers the peer's close_notify with its own, so a send after
+        -- it has nowhere to go: dropped, as the GOAWAY which ends an HTTP/2
+        -- connection the peer has closed.
+        afterCloseNotify = handle $ \e -> case E.fromException e of
+            Just (TLS.PostHandshake TLS.Error_EOF) -> return ()
+            _ -> throwIO (e :: SomeException)
         recv = handle onEOF $ TLS.recvData ctx
           where
             onEOF e
@@ -544,7 +582,7 @@ attachConn mysa ctx = do
                 headers
 
         close' =
-            void (tryIO sendBye)
+            void (tryIO $ timeout byeTimeout sendBye)
                 `finally` TLS.contextClose ctx
 
         sendBye =
@@ -613,7 +651,7 @@ plainHTTP TLSSettings{..} set s bs0 = case onInsecure of
             \\r\nConnection: Upgrade\
             \\r\nContent-Type: text/plain\r\n\r\n"
         mapM_ (sendAll s) $ L.toChunks lbs
-        close s
+        unsafeClose s
         throwIO InsecureConnectionDenied
 
 ----------------------------------------------------------------
