@@ -8,6 +8,8 @@ caller the `()` a graceful shutdown returns.  `sendFile` and `readSendFile`
 take a `WriteBuffer`, and `runSettingsConnectionMakerSecure` is deprecated in
 favour of `runSettingsConnectionMakerSecureWith`.
 
+* warp: evaluate an entity-tag in If-Range.
+  [#1138](https://github.com/yesodweb/wai/pull/1138)
 * Give up on the accept and the receive rather than interrupt them.
   [#1143](https://github.com/yesodweb/wai/pull/1143)
 * Event poll for accept loop.
