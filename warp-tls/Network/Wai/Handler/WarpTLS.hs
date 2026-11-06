@@ -60,7 +60,9 @@ module Network.Wai.Handler.WarpTLS (
 
 import Control.Applicative ((<|>))
 #if MIN_VERSION_warp(3,4,13)
-import Control.Concurrent.STM (TVar, check, newTVarIO, readTVar, registerDelay)
+import Control.Concurrent.STM (STM, TVar, check, newTVarIO, readTVar, registerDelay, retry)
+#else
+import Control.Concurrent.STM (STM, retry)
 #endif
 import Control.Exception (
     Exception,
@@ -97,7 +99,7 @@ import Network.Socket (
 import Network.Socket (unsafeGracefulClose)
 #endif
 import Network.Socket.BufferPool
-import Network.Socket.ByteString (recvWith, sendAll)
+import Network.Socket.ByteString (recvWith, sendAll, sendAllWith)
 import qualified Network.TLS as TLS
 import qualified Network.TLS.SessionManager as SM
 import Network.Wai (Application)
@@ -452,14 +454,20 @@ httpOverTls TLSSettings{..} set s bs0 params =
             TLS.handshake ctx
             mysa <- getSocketName s
 #if MIN_VERSION_warp(3,4,13)
-            attachConn mysa ctx appsInProgress
+            attachConnWith byeTimeout mysa ctx appsInProgress
 #else
-            attachConn mysa ctx
+            attachConnWith byeTimeout mysa ctx
 #endif
         case mconn of
           Nothing -> throwIO IncompleteHeaders
           Just conn -> return conn
     wrappedRecvN recvN n = handle (throughAsync (return "")) $ recvN n
+    -- A peer which does not read is why a timed-out connection is
+    -- closed, so close_notify is given a quarter of the timeout, at most
+    -- a second, rather than waiting for that peer for ever.
+    byeTimeout
+        | settingsTimeout set <= 0 = 1000000
+        | otherwise = max 1 $ min 1000000 $ settingsTimeout set * 250000
     gracefulCloser
 #if MIN_VERSION_warp(3,4,21)
         | settingsUnsafeClose set = unsafeGracefulClose
@@ -477,6 +485,8 @@ httpOverTls TLSSettings{..} set s bs0 params =
             , TLS.backendSend = sendAll' s
             , TLS.backendRecv = recvN
             }
+    -- A plain send is a foreign call no asynchronous exception
+    -- reaches on Windows; this one waits in STM, so the timeout can.
     sendAll' sock bs =
         E.handleJust
             ( \e ->
@@ -485,7 +495,7 @@ httpOverTls TLSSettings{..} set s bs0 params =
                     else Nothing
             )
             throwIO
-            $ sendAll sock bs
+            $ void (sendAllWith sock bs (retry :: STM ()))
 
 -- | Get "Connection" and "Transport" for a TLS connection that is already did the handshake.
 -- @since 3.4.7
@@ -494,10 +504,22 @@ attachConn
     -> TLS.Context
 #if MIN_VERSION_warp(3,4,13)
     -> TVar Int -> IO (Connection, Transport)
-attachConn mysa ctx appsInProgress = do
 #else
     -> IO (Connection, Transport)
-attachConn mysa ctx = do
+#endif
+attachConn = attachConnWith 1000000
+
+-- | 'attachConn' giving close_notify the microseconds given.
+attachConnWith
+    :: Int
+    -> SockAddr
+    -> TLS.Context
+#if MIN_VERSION_warp(3,4,13)
+    -> TVar Int -> IO (Connection, Transport)
+attachConnWith byeTimeout mysa ctx appsInProgress = do
+#else
+    -> IO (Connection, Transport)
+attachConnWith byeTimeout mysa ctx = do
 #endif
     h2 <- (== Just "h2") <$> TLS.getNegotiatedProtocol ctx
     isH2 <- I.newIORef h2
@@ -553,7 +575,7 @@ attachConn mysa ctx = do
                 headers
 
         close' =
-            void (tryIO sendBye)
+            void (tryIO $ timeout byeTimeout sendBye)
                 `finally` TLS.contextClose ctx
 
         sendBye =
