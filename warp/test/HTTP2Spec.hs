@@ -2,6 +2,7 @@
 
 module HTTP2Spec (spec) where
 
+import Control.Concurrent (threadDelay)
 import Control.Exception (bracket, throwIO)
 import Data.ByteString (ByteString)
 import Data.IORef
@@ -19,7 +20,16 @@ import Network.Wai.Handler.Warp (
 import Test.Hspec
 
 spec :: Spec
-spec = describe "http2server" $
+spec = describe "http2server" $ do
+    it "reports nothing for a connection the client closes" $ do
+        excs <- newIORef []
+        let settings = setOnException (\_ e -> modifyIORef' excs (show e :)) defaultSettings
+        withApplicationSettings settings (pure hello) $ \port -> do
+            get port `shouldReturn` (Just ok200, "hello")
+            -- The connection ends once the client has closed it.
+            threadDelay 100000
+            -- http2's ConnectionIsClosed used to be reported here.
+            readIORef excs `shouldReturn` []
     it "keeps the response of an application which throws after it" $ do
         excs <- newIORef (0 :: Int)
         logged <- newIORef []
@@ -32,6 +42,9 @@ spec = describe "http2server" $
             -- The second response used to go out and be logged, so the
             -- log said 500 where the client had been answered 200.
             readIORef logged `shouldReturn` [ok200]
+
+hello :: Application
+hello _ respond = respond $ responseLBS status200 [] "hello"
 
 -- | Answers, then throws.  The response has gone out by then, so
 --   nothing can replace it.
