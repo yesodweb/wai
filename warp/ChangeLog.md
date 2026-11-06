@@ -1,5 +1,20 @@
 # ChangeLog for warp
 
+## 3.4.21
+
+Requires network 3.2.12.
+
+* `setUnsafeClose` closes connections with network's `unsafeClose` and
+  `unsafeGracefulClose`.  Off by default, since a `responseRaw`
+  application may leave threads on the socket.
+* The listening socket is closed with `unsafeClose` once the accept loop
+  has ended.
+* Sends use network's `sendAllWith` on every platform, so the timeout
+  reaches a send on Windows too.
+* An HTTP/2 connection which ends normally is no longer reported to
+  `settingsOnException` as http2's `ConnectionIsClosed`; the default
+  printed it for every such connection.
+
 ## 3.4.20
 
 * Building with GHC 9.0 again.
