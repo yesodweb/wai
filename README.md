@@ -5,6 +5,8 @@ An interface between Haskell web frameworks and web servers.
 A Haskell web application targets WAI and then can be deployed to any backend with a WAI adaptor.
 The premier WAI backend is the Warp web server.
 
+<img src="warp/docs/images/warp.svg" alt="Warp logo" width="200">
+
 WAI also adds modularity and code-sharing through middleware and WAI applications.
 Code can be written that works with any web framework targeting WAI.
 
