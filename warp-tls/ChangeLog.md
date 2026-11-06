@@ -1,5 +1,20 @@
 # ChangeLog
 
+## 3.4.17
+
+Requires network 3.2.12.
+
+* The listening socket, and a connection socket no TLS context or
+  connection thread uses yet, are closed with `unsafeClose`.
+* With warp 3.4.21's `setUnsafeClose`, a TLS connection is closed with
+  `unsafeGracefulClose`.
+* Sends use network's `sendAllWith`, so warp's timeout reaches a send on
+  Windows too, and close_notify is given a quarter of the timeout, at
+  most a second.
+* A send after the peer's close_notify is dropped.  The GOAWAY which ends
+  an HTTP/2 connection the client has closed used to reach
+  `settingsOnException` as `PostHandshake Error_EOF`.
+
 ## 3.4.16
 
 `tlsEarlyDataSize` defaults to 0, so 0-RTT is off unless a server asks for
