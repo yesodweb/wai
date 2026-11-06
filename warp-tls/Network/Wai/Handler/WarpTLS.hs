@@ -87,10 +87,11 @@ import GHC.IO.Exception (IOErrorType (..))
 import Network.Socket (
     SockAddr,
     Socket,
-    close,
     getSocketName,
 #if MIN_VERSION_network(3,1,1)
     gracefulClose,
+#else
+    close,
 #endif
     unsafeClose,
     withSocketsDo,
