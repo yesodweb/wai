@@ -532,7 +532,7 @@ attachConnWith byeTimeout mysa ctx = do
   where
     conn writeBufferRef isH2 =
         Connection
-            { connSendMany = TLS.sendData ctx . L.fromChunks
+            { connSendMany = afterCloseNotify . TLS.sendData ctx . L.fromChunks
             , connSendAll = sendall
             , connSendFile = sendfile
             , connClose = close'
@@ -546,7 +546,13 @@ attachConnWith byeTimeout mysa ctx = do
 #endif
             }
       where
-        sendall = TLS.sendData ctx . L.fromChunks . return
+        sendall = afterCloseNotify . TLS.sendData ctx . L.fromChunks . return
+        -- tls answers the peer's close_notify with its own, so a send after
+        -- it has nowhere to go: dropped, as the GOAWAY which ends an HTTP/2
+        -- connection the peer has closed.
+        afterCloseNotify = handle $ \e -> case E.fromException e of
+            Just (TLS.PostHandshake TLS.Error_EOF) -> return ()
+            _ -> throwIO (e :: SomeException)
         recv = handle onEOF $ TLS.recvData ctx
           where
             onEOF e
