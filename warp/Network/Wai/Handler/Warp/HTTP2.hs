@@ -14,6 +14,7 @@ import qualified Data.ByteString as BS
 import Data.IORef (readIORef)
 import qualified Data.IORef as I
 import GHC.Conc.Sync (labelThread, myThreadId)
+import qualified Network.HTTP2.Client as H2C
 import qualified Network.HTTP2.Frame as H2
 import qualified Network.HTTP2.Server as H2
 import Network.Socket (SockAddr)
@@ -77,9 +78,15 @@ http2 settings ii conn transport app peersa th bs = do
     ok <- checkTLS
     setConnHTTP2 conn True
     when ok $
-        H2.run H2.defaultServerConfig conf $
-            http2server "Warp HTTP/2" settings ii transport peersa app
+        endedNormally $
+            H2.run H2.defaultServerConfig conf $
+                http2server "Warp HTTP/2" settings ii transport peersa app
   where
+    -- http2 ends a connection which has run its course with
+    -- 'ConnectionIsClosed', which is no exception to report.
+    endedNormally = E.handle $ \e -> case e of
+        H2C.ConnectionIsClosed -> return ()
+        _ -> E.throwIO e
     -- A GOAWAY ends the connection, so there is nothing left to serve
     -- on it.
     checkTLS = case transport of
