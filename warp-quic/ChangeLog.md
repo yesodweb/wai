@@ -9,6 +9,12 @@
   the way warp does, so it needs the same Windows work warp has had, and that
   is not written yet.
   [#1123](https://github.com/yesodweb/wai/pull/1123)
+* Stopping lets each HTTP/3 connection finish first: it is sent GOAWAY and
+  answers the requests it has taken, and the server stops once they are done
+  or `settingsGracefulShutdownTimeout` has passed.  It used to close every
+  connection at once, cutting the requests in progress.  Requires `http3`
+  0.1.10 or later; built against an earlier one, the connections are closed
+  at once as before.
 
 ## 0.0.4
 

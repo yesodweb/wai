@@ -22,6 +22,7 @@ library
         http3 <0.2,
         network,
         quic >=0.2 && <0.4,
+        stm,
         tls >=0.8 && < 3,
         wai,
         warp >=3.4.4
