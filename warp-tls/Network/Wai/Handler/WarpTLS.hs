@@ -59,11 +59,7 @@ module Network.Wai.Handler.WarpTLS (
 ) where
 
 import Control.Applicative ((<|>))
-#if MIN_VERSION_warp(3,4,13)
-import Control.Concurrent.STM (STM, TVar, check, newTVarIO, readTVar, registerDelay, retry)
-#else
-import Control.Concurrent.STM (STM, retry)
-#endif
+import Control.Concurrent.STM
 import Control.Exception (
     Exception,
     IOException,
@@ -88,10 +84,11 @@ import Network.Socket (
     SockAddr,
     Socket,
     getSocketName,
+#if !MIN_VERSION_network(3,1,1) || !MIN_VERSION_warp(3,4,18)
+    close,
+#endif
 #if MIN_VERSION_network(3,1,1)
     gracefulClose,
-#else
-    close,
 #endif
     unsafeClose,
     withSocketsDo,
