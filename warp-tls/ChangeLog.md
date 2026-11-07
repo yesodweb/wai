@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.4.18
+
+* warp-tls: build with warp before 3.4.18 again
+  [#1167](https://github.com/yesodweb/wai/pull/1167)
+
 ## 3.4.17
 
 Requires network 3.2.12.
