@@ -18,6 +18,11 @@ build-type:         Simple
 extra-source-files: ChangeLog.md
                     README.md
 
+source-repository head
+    type:     git
+    location: https://github.com/yesodweb/wai.git
+    subdir:   time-manager
+
 library
     exposed-modules:
         System.TimeManager
