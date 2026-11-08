@@ -41,6 +41,25 @@
   cleanup.
   [#1128](https://github.com/yesodweb/wai/pull/1128)
 
+## 0.4.2 [BACKPORTED FIX]
+
+* A timeout now fires on Windows under the old I/O manager, which is
+  still the default there. The timer was `GHC.Event.Windows`, WinIO's
+  own, so nothing ran the action unless the program used WinIO: warp
+  timed no connection out, and neither did anything else on top.
+  [#1139](https://github.com/yesodweb/wai/issues/1139)
+* `tickle` extends a timeout by microseconds on Windows as it does
+  everywhere else. It floored the value to a whole second before, which
+  meant a timeout under a second was never extended at all.
+
+## 0.4.1 [BACKPORTED FIX]
+
+* BUGFIX:
+  * Fixed a time comparison where a `TimeoutAction` that should be rescheduled
+    wasn't. The monotonic time uses nanoseconds and the difference was compared
+    to the timeout value without converting to microseconds, so it had a high chance
+    of running the `TimeoutAction`, even though it should have been rescheduled.
+
 ## 0.4.0
 
 * CHANGES IN BEHAVIOUR:
