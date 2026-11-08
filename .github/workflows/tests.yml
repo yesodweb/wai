@@ -307,16 +307,6 @@ jobs:
       - name: Build
         id: build-code
         run: |
-          # DEBUG (delete this if statement)
-          if [[ "${{ matrix.os }}" == 'windows-latest' ]]; then
-            which ghc || echo "which ghc failed"
-            ls -la '${{ env.GHCUP_PATH }}' || echo "list ghcup failed"
-            ls -la '${{ env.GHCUP_PATH }}\bin' || echo "list ghcup/bin failed"
-            ls -la '${{ env.GHCUP_PATH }}\ghc' || echo "list ghcup\ghc failed"
-            ls -la "${{ env.GHCUP_PATH }}\ghc\${{ env.GHC_VERSION }}.*" || echo "list ghcup\ghc\VERSION failed"
-            echo
-          fi
-
           EXTRA=""
           if [[ ${{ matrix.os }} == "windows-latest" ]]; then
             EXTRA="--flag=entropy:donotgetentropy"
