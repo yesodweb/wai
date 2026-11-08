@@ -9,19 +9,11 @@ module Main where
 import Test.Hspec
 
 #if defined(mingw32_HOST_OS)
--- -- Uncomment when reenabling the tests for Windows
--- import qualified GHC.Event.Windows as EV
+import qualified System.TimeManager.Windows as EV
 #else
 import qualified GHC.Event as EV
 #endif
 
-#if defined(mingw32_HOST_OS)
-main :: IO ()
-main = hspec $ do
-    describe "TimeManager" $ do
-        it "tests don't work on windows" $
-            pendingWith "requires more testing on a Windows machine"
-#else
 import Control.Concurrent (threadDelay)
 import Control.Monad (forM_, void)
 import Data.IORef as I (
@@ -222,4 +214,3 @@ oldResume h | isEmptyHandle h = return ()
 oldResume Handle{..} = do
     key <- EV.registerTimeout handleTimerManager handleTimeout handleAction
     I.writeIORef handleState $ Active key
-#endif
