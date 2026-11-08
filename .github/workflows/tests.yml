@@ -6,7 +6,9 @@ on:
       - "master"
       - "ci"
   pull_request:
-    branches: ["master"]
+    branches:
+      - "master"
+      - "time-manager-v0.4-backport"
 
 jobs:
   stack:
