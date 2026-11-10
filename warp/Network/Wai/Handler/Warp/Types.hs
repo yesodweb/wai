@@ -191,6 +191,13 @@ data ConnContext = ConnContext
     -- in a send.
     --
     -- @since 3.5.0
+    , connRecvGiveUp :: TVar (STM ())
+    -- ^ What a receive of this connection gives up on, ending as at end of
+    -- input: nothing to begin with, the http2 library's once an HTTP\/2
+    -- connection is handed to it. 'Network.Wai.Handler.Warp.Internal.makeWatchedRecv'
+    -- reads it.
+    --
+    -- @since 3.5.0
     }
 
 -- This function isn't used nor exported...

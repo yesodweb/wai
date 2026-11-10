@@ -4,7 +4,15 @@
 module WatchdogSpec (spec) where
 
 import Control.Concurrent (threadDelay)
+import Control.Concurrent.Async (wait, withAsync)
 import Control.Concurrent.MVar
+import Control.Concurrent.STM (
+    atomically,
+    check,
+    newTVarIO,
+    readTVar,
+    writeTVar,
+ )
 import qualified Control.Exception as E
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
@@ -16,9 +24,16 @@ import Data.Word (Word8)
 import Network.HTTP.Types
 import qualified Network.HTTP2.Client as C
 import Network.Socket
+import Network.Socket.BufferPool (newBufferPool)
 import Network.Socket.ByteString (recv, sendAll)
 import Network.Wai
 import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp.Internal (
+    ConnContext (..),
+    makeServerState,
+    makeWatchedRecv,
+    newConnContext,
+ )
 import System.TimeManager (TimeoutThread (..))
 import System.Timeout (timeout)
 import Test.Hspec
@@ -116,6 +131,21 @@ spec = describe "watchdog" $ do
                 sendAll s $ frame 1 5 1 getHeaderBlock
                 mc <- timeout 6000000 $ takeMVar closed
                 mc `shouldBe` Just ()
+
+    describe "makeWatchedRecv" $
+        it "ends as at end of input once connRecvGiveUp fires" $
+            E.bracket openFreePort (close . snd) $ \(port, lsock) ->
+                withSock port $ \_ -> E.bracket (fst <$> accept lsock) close $ \s -> do
+                    cc <- newConnContext settings
+                    pool <- newBufferPool 2048 16384
+                    (ss, _) <- makeServerState settings
+                    stop <- newTVarIO False
+                    atomically $ writeTVar (connRecvGiveUp cc) $ readTVar stop >>= check
+                    -- The peer is silent, so only the give-up ends the read.
+                    withAsync (makeWatchedRecv s pool ss cc) $ \r -> do
+                        threadDelay 100000
+                        atomically $ writeTVar stop True
+                        timeout 1000000 (wait r) `shouldReturn` Just ""
 
 ----------------------------------------------------------------
 

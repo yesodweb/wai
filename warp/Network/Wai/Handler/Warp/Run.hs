@@ -86,8 +86,6 @@ socketConnection set cc s = do
     writeBufferRef <- newIORef writeBuffer
     isH2 <- newIORef False -- HTTP/1.x
     mysa <- getSocketName s
-    let appsInProgress = connAppsInProgress cc
-        wd = connWatchdog cc
     return
         Connection
             { connSendMany = Sock.sendMany s
@@ -109,15 +107,15 @@ socketConnection set cc s = do
 #else
             , connClose = close s
 #endif
-            , connRecv = receive' bufferPool ss appsInProgress wd
+            , connRecv = receive' bufferPool ss
             , connRecvBuf = \_ _ -> return True -- obsoleted
             , connWriteBuffer = writeBufferRef
             , connHTTP2 = isH2
             , connMySockAddr = mysa
             }
   where
-    receive' bufferPool ss appsInProgress wd =
-        E.handle handler $ makeWatchedRecv s bufferPool ss appsInProgress wd
+    receive' bufferPool ss =
+        E.handle handler $ makeWatchedRecv s bufferPool ss cc
       where
         handler :: E.IOException -> IO ByteString
         handler e
@@ -161,11 +159,13 @@ newConnContext set = do
     wd <- newConnWatchdog $ settingsTimeout set * 1000000
     appsInProgress <- newTVarIO 0
     sendGiveUp <- newTVarIO $ timedOutSTM wd
+    recvGiveUp <- newTVarIO retry
     return
         ConnContext
             { connWatchdog = wd
             , connAppsInProgress = appsInProgress
             , connSendGiveUp = sendGiveUp
+            , connRecvGiveUp = recvGiveUp
             }
 
 -- | Create a 'Recv' which stops receiving when the server is shutting down
@@ -175,29 +175,36 @@ newConnContext set = do
 -- read and the shutdown are waited for at once, inside 'receiveWith'.
 makeGracefulRecv :: Socket -> BufferPool -> ServerState -> TVar Int -> Recv
 makeGracefulRecv sock pool ss appsInProgress =
-    makeGracefulRecvWith sock pool ss appsInProgress retry
+    makeGracefulRecvWith sock pool ss appsInProgress retry retry
 
 -- | 'makeGracefulRecv' which also gives up when the 'Watchdog' decides
--- that the connection timed out, by throwing 'T.TimeoutThread'.
+-- that the connection timed out, by throwing 'T.TimeoutThread', and ends
+-- as at end of input when 'connRecvGiveUp' fires.
 --
 -- The timeout is composed with the socket readiness in a single STM
 -- transaction, so a receiving thread is never killed from outside
 -- while it waits for the peer.
 --
 -- @since 3.5.0
-makeWatchedRecv
-    :: Socket -> BufferPool -> ServerState -> TVar Int -> ConnWatchdog -> Recv
-makeWatchedRecv sock pool ss appsInProgress wd =
-    makeGracefulRecvWith sock pool ss appsInProgress (timedOutSTM wd)
+makeWatchedRecv :: Socket -> BufferPool -> ServerState -> ConnContext -> Recv
+makeWatchedRecv sock pool ss cc = do
+    giveUp <- readTVarIO $ connRecvGiveUp cc
+    makeGracefulRecvWith
+        sock
+        pool
+        ss
+        (connAppsInProgress cc)
+        (timedOutSTM $ connWatchdog cc)
+        giveUp
 
 data GiveUp = ShuttingDown | TimedOut
 
 makeGracefulRecvWith
-    :: Socket -> BufferPool -> ServerState -> TVar Int -> STM () -> Recv
-makeGracefulRecvWith sock pool ss appsInProgress timedOut = do
+    :: Socket -> BufferPool -> ServerState -> TVar Int -> STM () -> STM () -> Recv
+makeGracefulRecvWith sock pool ss appsInProgress timedOut giveUp = do
     r <- receiveWith sock pool $
-        -- when shutting down
-        (checkShutdown $> ShuttingDown)
+        -- when shutting down or told to give up
+        ((checkShutdown <|> giveUp) $> ShuttingDown)
         <|>
         -- when the watchdog gave up on this connection
         (timedOut $> TimedOut)
