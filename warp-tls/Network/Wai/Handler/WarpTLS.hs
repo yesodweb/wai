@@ -474,10 +474,8 @@ httpOverTls TLSSettings{..} set s bs0 params =
     makeConn = do
         pool <- newBufferPool 2048 16384
 #if MIN_VERSION_warp(3,5,0)
-        let appsInProgress = connAppsInProgress cc
-            wd = connWatchdog cc
         (ss, _) <- makeServerState set
-        let recv = makeWatchedRecv s pool ss appsInProgress wd
+        let recv = makeWatchedRecv s pool ss cc
 #elif MIN_VERSION_warp(3,4,13)
         appsInProgress <- newTVarIO 0
         (ss, _) <- makeServerState set
