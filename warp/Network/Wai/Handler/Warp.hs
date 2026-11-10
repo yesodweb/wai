@@ -272,8 +272,8 @@ setOnClose x y = y{settingsOnClose = x}
 setTimeout :: Int -> Settings -> Settings
 setTimeout x y = y{settingsTimeout = x}
 
--- | Use an existing timeout manager instead of spawning a new one. If used,
--- 'settingsTimeout' is ignored.
+-- | Deprecated since version 3.5.0: only 'settingsTimeout' is used for
+-- time-outs. A manager given here is only passed on in 'InternalInfo'.
 --
 -- @since 2.1.0
 setManager :: Manager -> Settings -> Settings

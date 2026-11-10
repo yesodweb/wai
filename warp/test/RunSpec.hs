@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module RunSpec (main, spec, withApp, MySocket, msWrite, msRead, withMySocket) where
+module RunSpec (main, spec, withApp, withAppWithin, MySocket, msWrite, msRead, withMySocket) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
@@ -136,7 +136,13 @@ getPort = do
             return port
 
 withApp :: Settings -> Application -> (Int -> IO a) -> IO a
-withApp settings app f = do
+withApp = withAppWithin $ 3 * 1000 * 1000
+
+-- | 'withApp' with a budget of its own.  The watchdog tests wait out a
+--   timeout by design and then wait again for the connection to close,
+--   which leaves little of the three seconds the others get.
+withAppWithin :: Int -> Settings -> Application -> (Int -> IO a) -> IO a
+withAppWithin budget settings app f = do
     port <- RunSpec.getPort
     baton <- newEmptyMVar
     let settings' =
@@ -151,7 +157,7 @@ withApp settings app f = do
         ( const $ do
             takeMVar baton
             -- use timeout to make sure we don't take too long
-            mres <- timeout (3 * 1000 * 1000) (f port)
+            mres <- timeout budget (f port)
             case mres of
                 Nothing -> error "Timeout triggered, too slow!"
                 Just a -> pure a
