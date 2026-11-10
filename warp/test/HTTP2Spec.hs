@@ -1,9 +1,21 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module HTTP2Spec (spec) where
 
-import Control.Concurrent (threadDelay)
-import Control.Exception (bracket, throwIO)
+import Control.Concurrent (
+    forkIO,
+    newEmptyMVar,
+    putMVar,
+    readMVar,
+    takeMVar,
+    threadDelay,
+ )
+import Control.Concurrent.Async (wait, withAsync)
+import Control.Exception (SomeException, bracket, throwIO, try)
+import Control.Monad (join)
 import Data.ByteString (ByteString)
 import Data.IORef
 import Network.HTTP.Types (Status, ok200, status200)
@@ -13,10 +25,15 @@ import Network.Wai
 import Network.Wai.Handler.Warp (
     Port,
     defaultSettings,
+    openFreePort,
+    runSettingsSocket,
+    setGracefulShutdownTimeout,
+    setInstallShutdownHandler,
     setLogger,
     setOnException,
     withApplicationSettings,
  )
+import System.Timeout (timeout)
 import Test.Hspec
 
 spec :: Spec
@@ -42,6 +59,40 @@ spec = describe "http2server" $ do
             -- The second response used to go out and be logged, so the
             -- log said 500 where the client had been answered 200.
             readIORef logged `shouldReturn` [ok200]
+#if MIN_VERSION_http2(5,4,13)
+    it "refuses new streams once stopping and finishes the open ones" $ do
+        started <- newEmptyMVar
+        release <- newEmptyMVar
+        stopSlot <- newEmptyMVar
+        stopped <- newEmptyMVar
+        let settings =
+                setInstallShutdownHandler (putMVar stopSlot) $
+                    setGracefulShutdownTimeout (Just 5) $
+                        setOnException (\_ _ -> pure ()) defaultSettings
+            slow req respond
+                | rawPathInfo req == "/slow" = do
+                    putMVar started ()
+                    takeMVar release
+                    respond $ responseLBS status200 [] "slow"
+                | otherwise = hello req respond
+        bracket openFreePort (close . snd) $ \(port, sock) -> do
+            _ <- forkIO $ runSettingsSocket settings sock slow >> putMVar stopped ()
+            (r1, r2) <- withH2 port $ \sendRequest ->
+                withAsync (sendRequest (C.requestNoBody "GET" "/slow" []) body) $ \a -> do
+                    takeMVar started
+                    -- Stop the server, as a signal handler would.
+                    join $ readMVar stopSlot
+                    -- GOAWAY, its PING and the second GOAWAY.
+                    threadDelay 500_000
+                    r2 <- try $ sendRequest (C.requestNoBody "GET" "/" []) body
+                    putMVar release ()
+                    r1 <- wait a
+                    return (r1, r2 :: Either SomeException (Maybe Status, ByteString))
+            r1 `shouldBe` (Just ok200, "slow")
+            -- It used to be served: a busy connection went on taking streams.
+            either (const True) (const False) r2 `shouldBe` True
+            timeout 5_000_000 (takeMVar stopped) `shouldReturn` Just ()
+#endif
 
 hello :: Application
 hello _ respond = respond $ responseLBS status200 [] "hello"
@@ -61,6 +112,23 @@ get port = withTCP "127.0.0.1" port $ \sock ->
             sendRequest (C.requestNoBody "GET" "/" []) $ \rsp -> do
                 body <- C.getResponseBodyChunk rsp
                 return (C.responseStatus rsp, body)
+  where
+    cliconf = C.defaultClientConfig{C.authority = "127.0.0.1"}
+
+-- | The status and the first chunk of the body of a response.
+body :: C.Response -> IO (Maybe Status, ByteString)
+body rsp = do
+    b <- C.getResponseBodyChunk rsp
+    return (C.responseStatus rsp, b)
+
+-- | Run an h2c client on one connection.
+withH2
+    :: Port
+    -> ((forall r. C.Request -> (C.Response -> IO r) -> IO r) -> IO a)
+    -> IO a
+withH2 port client = withTCP "127.0.0.1" port $ \sock ->
+    bracket (C.allocSimpleConfig sock 4096) C.freeSimpleConfig $ \conf ->
+        C.run cliconf conf $ \sendRequest _aux -> client sendRequest
   where
     cliconf = C.defaultClientConfig{C.authority = "127.0.0.1"}
 
