@@ -9,6 +9,9 @@ module Network.Wai.Handler.Warp.HTTP2 (
     http2server,
 ) where
 
+#if MIN_VERSION_http2(5,4,13)
+import Control.Concurrent.STM (check)
+#endif
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.IORef (readIORef)
@@ -82,7 +85,7 @@ http2 settings ii conn transport app peersa th bs = do
     setConnHTTP2 conn True
     when ok $
         endedNormally $
-            H2.run H2.defaultServerConfig conf $
+            runH2 settings conf $
                 http2server "Warp HTTP/2" settings ii transport peersa app
   where
     -- http2 ends a connection which has run its course with
@@ -101,6 +104,17 @@ http2 settings ii conn transport app peersa th bs = do
                 return False
         -- QUIC establishes TLS 1.3 itself and calls http2server through HTTP/3.
         QUIC{} -> return True
+
+-- | Once the server is shutting down, the client is told so with GOAWAY
+-- and the streams it has opened are served before the connection ends.
+runH2 :: S.Settings -> H2.Config -> H2.Server -> IO ()
+#if MIN_VERSION_http2(5,4,13)
+runH2 settings = case S.settingsServerState settings of
+    Just ss -> H2.runWith (check =<< S.currentShuttingDownStateSTM ss) H2.defaultServerConfig
+    Nothing -> H2.run H2.defaultServerConfig
+#else
+runH2 _ = H2.run H2.defaultServerConfig
+#endif
 
 -- | Converting WAI application to the server type of http2 library.
 --
