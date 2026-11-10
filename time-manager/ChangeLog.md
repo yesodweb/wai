@@ -1,5 +1,20 @@
 # ChangeLog for time-manager
 
+## 0.5.3
+
+* New `System.Watchdog`: one timeout supervisor per connection. The
+  connection records what it is doing in a context, and the watchdog
+  decides from that alone whether it has been doing it for too long. A
+  timeout is reported through a `TVar`, to be composed with what the
+  connection waits for in STM, rather than thrown.
+
+  What the context holds and what counts as too long are the caller's:
+  a layer gives a type to `WatchdogFor`, where `ContextFor` says what it
+  records and `decide` says what the watchdog should do when that record
+  changes. A connection is watched by one layer at a time and is passed
+  to the next with `handOver`.
+  [#1122](https://github.com/yesodweb/wai/pull/1122)
+
 ## 0.5.2
 
 * A timeout now fires on Windows under the old I/O manager, which is
