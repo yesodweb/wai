@@ -78,13 +78,13 @@ spec = describe "http2server" $ do
         bracket openFreePort (close . snd) $ \(port, sock) -> do
             _ <- forkIO $ runSettingsSocket settings sock slow >> putMVar stopped ()
             (r1, r2) <- withH2 port $ \sendRequest ->
-                withAsync (sendRequest (C.requestNoBody "GET" "/slow" []) body) $ \a -> do
+                withAsync (sendRequest (C.requestNoBody "GET" "/slow" []) firstChunk) $ \a -> do
                     takeMVar started
                     -- Stop the server, as a signal handler would.
                     join $ readMVar stopSlot
                     -- GOAWAY, its PING and the second GOAWAY.
                     threadDelay 500_000
-                    r2 <- try $ sendRequest (C.requestNoBody "GET" "/" []) body
+                    r2 <- try $ sendRequest (C.requestNoBody "GET" "/" []) firstChunk
                     putMVar release ()
                     r1 <- wait a
                     return (r1, r2 :: Either SomeException (Maybe Status, ByteString))
@@ -109,15 +109,13 @@ get :: Port -> IO (Maybe Status, ByteString)
 get port = withTCP "127.0.0.1" port $ \sock ->
     bracket (C.allocSimpleConfig sock 4096) C.freeSimpleConfig $ \conf ->
         C.run cliconf conf $ \sendRequest _aux ->
-            sendRequest (C.requestNoBody "GET" "/" []) $ \rsp -> do
-                body <- C.getResponseBodyChunk rsp
-                return (C.responseStatus rsp, body)
+            sendRequest (C.requestNoBody "GET" "/" []) firstChunk
   where
     cliconf = C.defaultClientConfig{C.authority = "127.0.0.1"}
 
 -- | The status and the first chunk of the body of a response.
-body :: C.Response -> IO (Maybe Status, ByteString)
-body rsp = do
+firstChunk :: C.Response -> IO (Maybe Status, ByteString)
+firstChunk rsp = do
     b <- C.getResponseBodyChunk rsp
     return (C.responseStatus rsp, b)
 
