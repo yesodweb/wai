@@ -73,6 +73,11 @@ http2 settings ii conn cc transport app peersa _th bs = do
         sendBSWith giveUp frame = do
             atomically $ writeTVar (connSendGiveUp cc) giveUp
             (Right () <$ sendBS frame) `E.catch` \T.TimeoutThread -> return (Left ())
+        -- And what a read gives up on through 'connRecvGiveUp', so that
+        -- the receiver is stopped without being interrupted.
+        recvNWith giveUp n = do
+            atomically $ writeTVar (connRecvGiveUp cc) giveUp
+            recvN n
         conf =
             H2.defaultConfig
                 { H2.confWriteBuffer = bufBuffer writeBuffer
@@ -80,6 +85,7 @@ http2 settings ii conn cc transport app peersa _th bs = do
                 , H2.confSendAll = sendBS
                 , H2.confSendAllWith = Just sendBSWith
                 , H2.confReadN = recvN
+                , H2.confReadNWith = Just recvNWith
                 , H2.confPositionReadMaker = pReadMaker ii
                 , H2.confMySockAddr = connMySockAddr conn
                 , H2.confPeerSockAddr = peersa
