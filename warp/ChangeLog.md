@@ -8,6 +8,8 @@ caller the `()` a graceful shutdown returns.  `sendFile` and `readSendFile`
 take a `WriteBuffer`, and `runSettingsConnectionMakerSecure` is deprecated in
 favour of `runSettingsConnectionMakerSecureWith`.
 
+* warp: send GOAWAY on HTTP/2 connections when stopping.
+  [#1169](https://github.com/yesodweb/wai/pull/1169)
 * Give up on the accept and the receive rather than interrupt them.
   [#1143](https://github.com/yesodweb/wai/pull/1143)
 * Event poll for accept loop.
