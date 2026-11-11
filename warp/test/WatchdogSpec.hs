@@ -1,0 +1,230 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
+module WatchdogSpec (spec) where
+
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.Async (wait, withAsync)
+import Control.Concurrent.MVar
+import Control.Concurrent.STM (
+    atomically,
+    check,
+    newTVarIO,
+    readTVar,
+    writeTVar,
+ )
+import qualified Control.Exception as E
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as S
+import Data.ByteString.Builder (byteString)
+import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Lazy as L
+import Control.Monad (forever, void)
+import Data.Word (Word8)
+import Network.HTTP.Types
+import qualified Network.HTTP2.Client as C
+import Network.Socket
+import Network.Socket.BufferPool (newBufferPool)
+import Network.Socket.ByteString (recv, sendAll)
+import Network.Wai
+import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp.Internal (
+    ConnContext (..),
+    makeServerState,
+    makeWatchedRecv,
+    newConnContext,
+ )
+import System.TimeManager (TimeoutThread (..))
+import System.Timeout (timeout)
+import Test.Hspec
+
+import RunSpec (withAppWithin)
+
+-- All tests run with a timeout of one second.
+settings :: Settings
+settings = setTimeout 1 defaultSettings
+
+-- | These tests wait that timeout out and then wait for what follows, so
+--   they need more room than the three seconds 'RunSpec.withApp' gives.
+withApp10 :: Settings -> Application -> (Int -> IO a) -> IO a
+withApp10 = withAppWithin $ 10 * 1000 * 1000
+
+spec :: Spec
+spec = describe "watchdog" $ do
+    describe "HTTP/1.1" $ do
+        it "closes an idle connection" $
+            withApp10 settings okApp $ \port -> withSock port $ \s -> do
+                mbs <- timeout 2500000 $ recvAll s
+                mbs `shouldBe` Just ""
+
+        it "does not limit a slow application" $
+            withApp10 settings (slowApp 1500000) $ \port -> withSock port $ \s -> do
+                sendAll s "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
+                bs <- recvUntil s "slow"
+                bs `shouldSatisfy` S.isPrefixOf "HTTP/1.1 200"
+
+        it "does not limit a streaming application between chunks" $
+            withApp10 settings (streamApp 1500000) $ \port -> withSock port $ \s -> do
+                sendAll s "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
+                bs <- recvUntil s "second"
+                bs `shouldSatisfy` S.isInfixOf "first"
+
+        it "times out a stalled request body" $ do
+            result <- newEmptyMVar
+            let app req respond = do
+                    r <- E.try $ consume $ getRequestBodyChunk req
+                    putMVar result $ either (Just . show) (const Nothing) r
+                    either E.throwIO (const $ respond $ responseLBS status200 [] "") $
+                        (r :: Either E.SomeException ByteString)
+            withApp10 settings app $ \port -> withSock port $ \s -> do
+                sendAll s "POST / HTTP/1.1\r\nHost: localhost\r\ncontent-length: 100\r\n\r\n"
+                sendAll s "0123456789"
+                r <- takeMVar result
+                r `shouldBe` Just (show TimeoutThread)
+                mbs <- timeout 1000000 $ recvAll s
+                mbs `shouldBe` Just ""
+
+        it "closes a connection whose peer does not read" $ do
+            closed <- newEmptyMVar
+            let settings' = setOnClose (\_ -> void $ tryPutMVar closed ()) settings
+                big = L.replicate (64 * 1024 * 1024) 88
+                app _ respond = respond $ responseLBS status200 [] big
+            withApp10 settings' app $ \port -> withSock port $ \s -> do
+                sendAll s "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
+                mc <- timeout 2500000 $ takeMVar closed
+                mc `shouldBe` Just ()
+
+    describe "HTTP/2" $ do
+        it "closes an idle connection" $
+            -- Supervised by the http2 library, which warp hands the
+            -- connection and its timeout to.
+            withApp10 settings okApp $ \port -> withSock port $ \s -> do
+                sendAll s "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+                sendAll s emptySettingsFrame
+                mbs <- timeout 2500000 $ recvAll s
+                fmap S.null mbs `shouldBe` Just False
+
+        it "does not limit a slow application" $
+            withApp10 settings (slowApp 1500000) $ \port -> do
+                (st, body) <- h2get port
+                st `shouldBe` status200
+                body `shouldBe` "slow"
+
+        it "does not limit a streaming application between chunks" $
+            withApp10 settings (streamApp 1500000) $ \port -> do
+                (st, body) <- h2get port
+                st `shouldBe` status200
+                body `shouldBe` "first second"
+
+        it "closes a connection whose peer does not read" $ do
+            -- The client opens the windows wide, asks, and never reads, so
+            -- the server's writes stop in the socket, not on a window.
+            closed <- newEmptyMVar
+            let settings' = setOnClose (\_ -> void $ tryPutMVar closed ()) settings
+                endless write flush = forever $ write (byteString chunk) >> flush
+                chunk = S.replicate 65536 88
+                app _ respond = respond $ responseStream status200 [] endless
+            withApp10 settings' app $ \port -> withSock port $ \s -> do
+                sendAll s "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+                sendAll s $ frame 4 0 0 $ S.pack [0, 4, 0x7f, 0xff, 0xff, 0xff]
+                sendAll s $ frame 8 0 0 $ S.pack [0x7f, 0xff, 0, 0]
+                sendAll s $ frame 1 5 1 getHeaderBlock
+                mc <- timeout 6000000 $ takeMVar closed
+                mc `shouldBe` Just ()
+
+    describe "makeWatchedRecv" $
+        it "ends as at end of input once connRecvGiveUp fires" $
+            E.bracket openFreePort (close . snd) $ \(port, lsock) ->
+                withSock port $ \_ -> E.bracket (fst <$> accept lsock) close $ \s -> do
+                    cc <- newConnContext settings
+                    pool <- newBufferPool 2048 16384
+                    (ss, _) <- makeServerState settings
+                    stop <- newTVarIO False
+                    atomically $ writeTVar (connRecvGiveUp cc) $ readTVar stop >>= check
+                    -- The peer is silent, so only the give-up ends the read.
+                    withAsync (makeWatchedRecv s pool ss cc) $ \r -> do
+                        threadDelay 100000
+                        atomically $ writeTVar stop True
+                        timeout 1000000 (wait r) `shouldReturn` Just ""
+
+----------------------------------------------------------------
+
+-- | A frame of this type, flags and stream with this payload.
+frame :: Word8 -> Word8 -> Word8 -> ByteString -> ByteString
+frame typ flags sid payload =
+    S.pack [0, fromIntegral (len `div` 256), fromIntegral (len `mod` 256), typ, flags, 0, 0, 0, sid]
+        <> payload
+  where
+    len = S.length payload
+
+-- | GET / for 127.0.0.1, from the static table and one literal.
+getHeaderBlock :: ByteString
+getHeaderBlock = S.pack [0x82, 0x86, 0x84, 0x01, 0x09] <> "127.0.0.1"
+
+okApp :: Application
+okApp _ respond = respond $ responseLBS status200 [] "ok"
+
+slowApp :: Int -> Application
+slowApp us _ respond = do
+    threadDelay us
+    respond $ responseLBS status200 [] "slow"
+
+streamApp :: Int -> Application
+streamApp us _ respond = respond $ responseStream status200 [] $ \write flush -> do
+    write (byteString "first ") >> flush
+    threadDelay us
+    write (byteString "second") >> flush
+
+consume :: IO ByteString -> IO ByteString
+consume rbody = S.concat <$> loop
+  where
+    loop = do
+        bs <- rbody
+        if S.null bs then return [] else (bs :) <$> loop
+
+----------------------------------------------------------------
+
+withSock :: Int -> (Socket -> IO a) -> IO a
+withSock port body = do
+    let hints = defaultHints{addrSocketType = Stream}
+    addr : _ <- getAddrInfo (Just hints) (Just "127.0.0.1") (Just $ show port)
+    E.bracket (openSocket addr) close $ \s -> do
+        connect s $ addrAddress addr
+        body s
+
+-- | Receiving until EOF. Returning what came before the EOF, if
+--   anything, with an empty 'ByteString' meaning nothing.
+recvAll :: Socket -> IO ByteString
+recvAll s = S.concat <$> loop
+  where
+    -- A peer which resets rather than closes is an EOF for our purposes.
+    -- Only an 'E.IOException': the callers wrap this in 'timeout', which
+    -- ends it by throwing, and catching that would turn "the server never
+    -- closed the connection" into a pass.
+    loop = do
+        bs <- recv s 4096 `E.catch` \(_ :: E.IOException) -> return ""
+        if S.null bs then return [] else (bs :) <$> loop
+
+recvUntil :: Socket -> ByteString -> IO ByteString
+recvUntil s needle = loop ""
+  where
+    loop acc
+        | needle `S.isInfixOf` acc = return acc
+        | otherwise = do
+            bs <- recv s 4096
+            if S.null bs then return acc else loop (acc <> bs)
+
+-- | A SETTINGS frame with no parameters.
+emptySettingsFrame :: ByteString
+emptySettingsFrame = S.pack [0, 0, 0, 4, 0, 0, 0, 0, 0]
+
+h2get :: Int -> IO (Status, ByteString)
+h2get port = withSock port $ \s ->
+    E.bracket (C.allocSimpleConfig s 4096) C.freeSimpleConfig $ \conf ->
+        C.run cliconf conf $ \sendRequest _aux -> do
+            let req = C.requestNoBody methodGet "/" []
+            sendRequest req $ \rsp -> do
+                body <- consume $ C.getResponseBodyChunk rsp
+                return (maybe status500 id $ C.responseStatus rsp, body)
+  where
+    cliconf = C.defaultClientConfig{C.authority = S8.unpack "127.0.0.1"}
