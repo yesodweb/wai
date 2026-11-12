@@ -180,7 +180,10 @@ forkManagedTimeout (ThreadManager timmgr var) label io =
     void $ forkIO $ do
         labelMe label
         E.bracket (setup var) (clear var) $ \(_n, wtid, ref) ->
-            E.handle ignore $ T.withHandle timmgr (lockAndKill wtid ref ex) io
+            -- Forked: the timeout action runs on the system timer manager's
+            -- thread, and 'throwTo' blocks until the target can take it.
+            E.handle ignore $
+                T.withHandle timmgr (void $ forkIO $ lockAndKill wtid ref ex) io
   where
     ex = KilledByThreadManager Nothing
 
