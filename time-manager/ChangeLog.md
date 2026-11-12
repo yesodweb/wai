@@ -1,5 +1,16 @@
 # ChangeLog for time-manager
 
+## 0.5.3
+
+* `TimeoutThread` no longer escapes `withHandleKillThread`.  A kill
+  decided on just as the body ended used to land in the caller after
+  `withHandleKillThread` had returned.
+  [#1171](https://github.com/yesodweb/wai/pull/1171)
+* Killing a managed thread on timeout no longer blocks the system timer
+  manager, which held up every timer in the process while the thread
+  could not take the exception.
+  [#1171](https://github.com/yesodweb/wai/pull/1171)
+
 ## 0.5.2
 
 * A timeout now fires on Windows under the old I/O manager, which is
