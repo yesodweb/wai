@@ -49,9 +49,17 @@ module System.TimeManager (
     TimeoutThread (..),
 ) where
 
-import Control.Concurrent (forkIO, mkWeakThreadId, myThreadId, newMVar)
+import Control.Concurrent (
+    forkIO,
+    mkWeakThreadId,
+    myThreadId,
+    newEmptyMVar,
+    newMVar,
+    putMVar,
+    readMVar,
+ )
 import qualified Control.Exception as E
-import Control.Monad (void, when)
+import Control.Monad (unless, void, when)
 import Data.Bits (shiftR)
 import qualified Data.IORef as I
 import Data.Word (Word64)
@@ -127,11 +135,35 @@ withHandle mgr onTimeout action
 
 -- | Registering a timeout action of killing this thread and
 --   unregister its handle when the body action is killed or finished.
+--
+--   'TimeoutThread' never escapes: a kill decided on as the body ends is
+--   waited for and caught here, rather than landing after this returns.
 withHandleKillThread :: Manager -> TimeoutAction -> (Handle -> IO ()) -> IO ()
 withHandleKillThread mgr onTimeout action
     | isNoManager mgr = action emptyHandle
-    | otherwise =
-        E.handle ignore $ E.bracket (registerKillThread mgr onTimeout) cancel action
+    | otherwise = do
+        wtid <- myThreadId >>= mkWeakThreadId
+        -- Whoever sets this first decides: the timer, to kill, or this
+        -- thread, to leave without being killed.
+        claimed <- I.newIORef False
+        delivered <- newEmptyMVar
+        let claim = I.atomicModifyIORef' claimed $ \b -> (True, not b)
+            kill = do
+                won <- claim
+                when won $
+                    (deRefWeak wtid >>= mapM_ (`E.throwTo` TimeoutThread))
+                        `E.finally` putMVar delivered ()
+            -- Forked: 'throwTo' blocks while this thread is masked, and the
+            -- action runs on the system timer manager's thread.
+            onTimeout' = onTimeout `E.finally` void (forkIO kill)
+            leave h = do
+                cancel h
+                won <- claim
+                -- Lost: the kill is on its way.  It is taken here, where it
+                -- is caught.  'readMVar' is interruptible, so it arrives even
+                -- though this runs masked.
+                unless won $ readMVar delivered `E.catch` ignore
+        E.handle ignore $ E.bracket (register mgr onTimeout') leave action
   where
     ignore TimeoutThread = pure ()
 
