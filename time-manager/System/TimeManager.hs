@@ -486,6 +486,11 @@ instance Show TimeoutThread where
 --   'TimeoutThread' is thrown to the thread which called this
 --   function on timeout. Catch 'TimeoutThread' if you don't
 --   want to leak the asynchronous exception to GHC RTS.
+--
+--   'cancel' does not stop a kill already decided on: one decided on just
+--   before 'cancel' can still arrive after it.  Use 'withHandleKillThread',
+--   which waits for such a kill and catches it, unless the code after
+--   'cancel' can take 'TimeoutThread'.
 registerKillThread :: Manager -> TimeoutAction -> IO Handle
 registerKillThread m onTimeout = do
     wtid <- myThreadId >>= mkWeakThreadId
