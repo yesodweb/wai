@@ -299,11 +299,13 @@ main = hspec $ do
     withTest withF mRef m f = do
         ref <- maybe freshRef pure mRef
         withF m (I.writeIORef ref True) . f $ refShouldBe ref
-    -- run with a 20ms timeout and kill
+    -- run with a 100ms timeout and kill
     runIt f = do
         m <- mkTestManager
         void $ f =<< registerKillThread m (pure ())
-    timeoutAmount = 20_000
+    -- Long enough that a short wait does not overrun it on a loaded CI
+    -- runner, or with Windows' timer resolution of about 15ms.
+    timeoutAmount = 100_000
     mkTestManager = initialize timeoutAmount
     -- Waiting a lot less than the timeout takes
     waitShort = threadDelay $ timeoutAmount `div` 5
