@@ -147,18 +147,19 @@ withHandleKillThread mgr onTimeout action
         -- thread, to leave without being killed.
         claimed <- I.newIORef False
         delivered <- newEmptyMVar
-        let claim = I.atomicModifyIORef' claimed $ \b -> (True, not b)
-            kill = do
-                won <- claim
-                when won $
-                    (deRefWeak wtid >>= mapM_ (`E.throwTo` TimeoutThread))
-                        `E.finally` putMVar delivered ()
+        let tryClaim = I.atomicModifyIORef' claimed $ \b -> (True, not b)
+            kill =
+                (deRefWeak wtid >>= mapM_ (`E.throwTo` TimeoutThread))
+                    `E.finally` putMVar delivered ()
+            -- Neither the action nor the kill once the body has left.
             -- Forked: 'throwTo' blocks while this thread is masked, and the
             -- action runs on the system timer manager's thread.
-            onTimeout' = onTimeout `E.finally` void (forkIO kill)
+            onTimeout' = do
+                won <- tryClaim
+                when won $ onTimeout `E.finally` void (forkIO kill)
             leave h = do
                 cancel h
-                won <- claim
+                won <- tryClaim
                 -- Lost: the kill is on its way.  It is taken here, where it
                 -- is caught.  'readMVar' is interruptible, so it arrives even
                 -- though this runs masked.
