@@ -27,7 +27,7 @@ import Control.Concurrent (
 import Control.Concurrent.STM (atomically)
 import Control.Exception (AssertionFailed (..), finally, throwIO)
 import qualified Control.Exception as E
-import Control.Monad (forM_, unless, void)
+import Control.Monad (forM_, unless, void, when)
 import Data.IORef as I (
     IORef,
     atomicModifyIORef',
@@ -225,6 +225,22 @@ main = hspec $ do
                     Left TimeoutThread -> I.atomicModifyIORef' escaped $ \n -> (n + 1, ())
                     Right () -> pure ()
             I.readIORef escaped `shouldReturn` 0
+
+        -- Likewise, the timeout action must not run once
+        -- 'withHandleKillThread' has returned.
+        it "withHandleKillThread: no timeout action after it returns" $ do
+            m <- initialize 2_000
+            late <- I.newIORef (0 :: Int)
+            forM_ [1 .. 1_000 :: Int] $ \i -> do
+                returned <- I.newIORef False
+                let onTimeout = do
+                        r <- I.readIORef returned
+                        when r $ I.atomicModifyIORef' late $ \n -> (n + 1, ())
+                withHandleKillThread m onTimeout $ \_ ->
+                    threadDelay $ 1_900 + i `mod` 200
+                I.writeIORef returned True
+                threadDelay 1_000
+            I.readIORef late `shouldReturn` 0
 
         it "cancel/pause works as expected" $ do
             m <- mkTestManager
