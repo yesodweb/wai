@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 3.4.19
+
+* warp-tls: build with tls 2.6
+  [#1174](https://github.com/yesodweb/wai/pull/1174)
+
 ## 3.4.18
 
 * warp-tls: build with warp before 3.4.18 again
