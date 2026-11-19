@@ -1,5 +1,15 @@
 # ChangeLog for time-manager
 
+## Unreleased
+
+* `tickle` (and so `resume`) renews a timeout without editing GHC's timer
+  queue. It only moves the deadline, and the registered timer checks it when
+  it fires and reregisters itself for the remaining time. Every renewal used
+  to edit the one `IORef` that holds the queue of every timeout, so threads
+  of many connections, each renewing seldom, queued up behind one another
+  on it.
+  [#1165](https://github.com/yesodweb/wai/pull/1165)
+
 ## 0.5.2
 
 * A timeout now fires on Windows under the old I/O manager, which is
