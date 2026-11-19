@@ -22,10 +22,12 @@ import Control.Concurrent (
     takeMVar,
     threadDelay,
     tryPutMVar,
+    yield,
  )
 import Control.Concurrent.STM (atomically)
 import Control.Exception (AssertionFailed (..), finally, throwIO)
-import Control.Monad (forM_, void)
+import qualified Control.Exception as E
+import Control.Monad (forM_, unless, void, when)
 import Data.IORef as I (
     IORef,
     atomicModifyIORef',
@@ -136,6 +138,26 @@ main = hspec $ do
             waitUntilAllGone tm
             ref `refShouldBe` True
 
+        -- A thread timed out while it cannot take the kill must not hold up
+        -- the system timer manager, which every 'threadDelay' waits on.
+        it "does not stop the timers on a masked thread timing out" $ do
+            tm <- newThreadManager
+            m <- initialize 10_000
+            release <- newEmptyMVar
+            forkManagedTimeout tm m "masked" $ \_ ->
+                E.uninterruptibleMask_ $ takeMVar release
+            -- Released without the timer manager, which may be stuck.
+            t0 <- getMonotonicTimeNSec
+            _ <- forkIO $ do
+                let spin = do
+                        now <- getMonotonicTimeNSec
+                        unless (now - t0 >= 1_000_000_000) $ yield >> spin
+                spin
+                putMVar release ()
+            threadDelay 100_000
+            t1 <- getMonotonicTimeNSec
+            (t1 - t0) `shouldSatisfy` (< 500_000_000)
+
     describe "TimeManager" $ do
         it "defaultManager == no manager" $
             defaultManager `shouldSatisfy` isNoManager
@@ -187,6 +209,38 @@ main = hspec $ do
         it "withHandleKillThread: doesn't register timeout" $
             withHandleKillTest Nothing defaultManager $ \check _ -> do
                 waitShort >> check False
+
+        -- The body ends just as the timeout expires, so that the kill is
+        -- decided on while the body is leaving.  It must not land after
+        -- 'withHandleKillThread' has returned.
+        it "withHandleKillThread: TimeoutThread does not escape" $ do
+            m <- initialize 2_000
+            escaped <- I.newIORef (0 :: Int)
+            forM_ [1 .. 1_000 :: Int] $ \i -> do
+                r <- E.try $ do
+                    withHandleKillThread m (pure ()) $ \_ ->
+                        threadDelay $ 1_900 + i `mod` 200
+                    threadDelay 1_000
+                case r of
+                    Left TimeoutThread -> I.atomicModifyIORef' escaped $ \n -> (n + 1, ())
+                    Right () -> pure ()
+            I.readIORef escaped `shouldReturn` 0
+
+        -- Likewise, the timeout action must not run once
+        -- 'withHandleKillThread' has returned.
+        it "withHandleKillThread: no timeout action after it returns" $ do
+            m <- initialize 2_000
+            late <- I.newIORef (0 :: Int)
+            forM_ [1 .. 1_000 :: Int] $ \i -> do
+                returned <- I.newIORef False
+                let onTimeout = do
+                        r <- I.readIORef returned
+                        when r $ I.atomicModifyIORef' late $ \n -> (n + 1, ())
+                withHandleKillThread m onTimeout $ \_ ->
+                    threadDelay $ 1_900 + i `mod` 200
+                I.writeIORef returned True
+                threadDelay 1_000
+            I.readIORef late `shouldReturn` 0
 
         it "cancel/pause works as expected" $ do
             m <- mkTestManager
