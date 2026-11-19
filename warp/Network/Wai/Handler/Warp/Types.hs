@@ -3,7 +3,7 @@
 
 module Network.Wai.Handler.Warp.Types where
 
-import Control.Concurrent.STM (TVar)
+import Control.Concurrent.STM (STM, TVar)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.IORef (IORef, writeIORef, newIORef, readIORef)
@@ -20,6 +20,7 @@ import qualified Network.Wai.Handler.Warp.Date as D
 import qualified Network.Wai.Handler.Warp.FdCache as F
 import qualified Network.Wai.Handler.Warp.FileInfoCache as I
 import Network.Wai.Handler.Warp.Imports
+import Network.Wai.Handler.Warp.Watchdog (ConnWatchdog)
 
 ----------------------------------------------------------------
 
@@ -160,12 +161,43 @@ data Connection = Connection
     , connHTTP2 :: IORef Bool
     -- ^ Is this connection HTTP/2?
     , connMySockAddr :: SockAddr
+    }
+
+-- | What warp keeps about a connection, beside the 'Connection' itself.
+--
+-- Warp makes this before it runs the connection maker and hands it to it.
+-- A maker which talks to the peer -- one that performs a TLS handshake,
+-- say -- is therefore supervised like the rest of the connection, rather
+-- than having to protect itself. It also leaves 'Connection' as the
+-- interface a maker provides and nothing besides.
+--
+-- @since 3.5.0
+data ConnContext = ConnContext
+    { connWatchdog :: ConnWatchdog
+    -- ^ The timeout supervisor of this connection, created with
+    -- 'Network.Wai.Handler.Warp.Internal.newConnContext'. 'connRecv'
+    -- should throw 'T.TimeoutThread' once it times out; see
+    -- 'Network.Wai.Handler.Warp.Internal.makeWatchedRecv'.
     , connAppsInProgress :: TVar Int
     -- ^ Amount of apps currently in progress on this connection.
     --
     -- /HTTP2 can handle more than one request concurrently/
+    , connSendGiveUp :: TVar (STM ())
+    -- ^ What a send of this connection gives up on: warp's watchdog to
+    -- begin with, the http2 library's once an HTTP\/2 connection is handed
+    -- to it, and a short deadline while the connection closes. A
+    -- connection maker which sends with network's @sendAllWith@ on this,
+    -- throwing 'T.TimeoutThread' when it gives up, is never left blocked
+    -- in a send.
     --
-    -- @since 3.4.13
+    -- @since 3.5.0
+    , connRecvGiveUp :: TVar (STM ())
+    -- ^ What a receive of this connection gives up on, ending as at end of
+    -- input: nothing to begin with, the http2 library's once an HTTP\/2
+    -- connection is handed to it. 'Network.Wai.Handler.Warp.Internal.makeWatchedRecv'
+    -- reads it.
+    --
+    -- @since 3.5.0
     }
 
 -- This function isn't used nor exported...

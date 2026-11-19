@@ -83,7 +83,9 @@ data Settings = Settings
     , settingsTimeout :: Int
     -- ^ Timeout value in seconds. Default value: 30
     , settingsManager :: Maybe Manager
-    -- ^ Use an existing timeout manager instead of spawning a new one. If used, 'settingsTimeout' is ignored. Default is 'Nothing'
+    -- ^ Deprecated since version 3.5.0: only 'settingsTimeout' is used
+    -- for time-outs. A manager given here is only passed on in
+    -- 'InternalInfo'. Default is 'Nothing'
     , settingsFdCacheDuration :: Int
     -- ^ Cache duration time of file descriptors in seconds. 0 means that the cache mechanism is not used. Default value: 0
     , settingsFileInfoCacheDuration :: Int

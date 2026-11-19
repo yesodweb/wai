@@ -1,5 +1,24 @@
 # ChangeLog for time-manager
 
+## 0.5.3
+
+* New `System.Watchdog`, an alternative to `System.TimeManager`: one
+  timeout supervisor per task, a network connection or anything else
+  that runs for a while. The task records what it is doing in a context,
+  and the watchdog decides from that alone whether it has been doing it
+  for too long. A timeout is reported through a `TVar`, to be composed
+  with what the task waits for in STM, rather than thrown.
+
+  What the context holds and what counts as too long are the user's: a
+  type given to `WatchdogFor`, where `ContextFor` says what is recorded
+  and `decide` says what the watchdog should do when that record
+  changes. Warp, for example, gives an HTTP/1.1 connection a timeout for
+  each phase it is in. A task is watched by one owner at a time and is
+  passed to the next with `handOver`. Based on the watchdog proposed by
+  @goertzenator.
+  [#1116](https://github.com/yesodweb/wai/pull/1116)
+  [#1122](https://github.com/yesodweb/wai/pull/1122)
+
 ## 0.5.2
 
 * A timeout now fires on Windows under the old I/O manager, which is
