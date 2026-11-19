@@ -319,7 +319,7 @@ runTLSSocket' tlsset@TLSSettings{..} set credentials mgr sock app = do
             , TLS.serverShared = shared
             , TLS.serverSupported = supported
 #if MIN_VERSION_tls(1,5,0)
-            , TLS.serverEarlyDataSize = tlsEarlyDataSize
+            , TLS.serverEarlyDataSize = fromIntegral tlsEarlyDataSize
 #endif
             }
     -- Adding alpn to user's tlsServerHooks.
