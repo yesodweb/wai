@@ -11,6 +11,7 @@ import Control.Exception
 import Control.Monad
 import qualified Data.Streaming.Network as N
 import Network.HTTP.Types hiding (Header)
+import qualified Network.HTTP2.Client as H2C
 import Network.Socket (close)
 import Network.Wai hiding (Response, responseStatus)
 import Network.Wai.Handler.Warp
@@ -47,7 +48,18 @@ testApp _ f =
     f $ responseLBS ok200 [] "foo"
 
 spec :: Spec
-spec = describe "responds even if there is an exception" $ do
+spec = do
+  describe "defaultShouldDisplayException" $ do
+    it "hides an HTTP/2 connection that is closed or timed out" $ do
+        defaultShouldDisplayException (toException H2C.ConnectionIsClosed)
+            `shouldBe` False
+        defaultShouldDisplayException (toException H2C.ConnectionIsTimeout)
+            `shouldBe` False
+    it "displays other HTTP/2 errors" $
+        defaultShouldDisplayException
+            (toException $ H2C.BadThingHappen $ toException $ userError "x")
+            `shouldBe` True
+  describe "responds even if there is an exception" $ do
     {- Disabling these tests. We can consider forcing evaluation in Warp.
     it "statusError" $ do
         sc <- responseStatus <$> sendGET "http://127.0.0.1:2345/statusError"
