@@ -6,7 +6,7 @@ on:
       - "master"
       - "ci"
   pull_request:
-    branches: ["master"]
+    branches: ["master", "v3.4"]
 
 jobs:
   stack:
