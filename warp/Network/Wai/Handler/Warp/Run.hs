@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -156,7 +157,7 @@ socketConnection set cc s = do
 -- @since 3.5.0
 newConnContext :: Settings -> IO ConnContext
 newConnContext set = do
-    wd <- newConnWatchdog $ settingsTimeout set * 1000000
+    wd <- newConnWatchdog $ settingsTimeout set * 1_000_000
     appsInProgress <- newTVarIO 0
     sendGiveUp <- newTVarIO $ timedOutSTM wd
     recvGiveUp <- newTVarIO retry
@@ -362,7 +363,8 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
         return (const $ return conn, sa)
 
 -- | This modifies the connection maker so that it returns 'TCP' for 'Transport'
--- (i.e. plain HTTP) then calls 'runSettingsConnectionMakerSecure'.
+-- (i.e. plain HTTP) then calls 'runSettingsConnectionMakerSecure'.  A
+-- connection maker which throws closes what it accepted itself.
 runSettingsConnectionMaker
     :: Settings
     -> IO (ConnContext -> IO Connection, SockAddr)
@@ -380,6 +382,10 @@ runSettingsConnectionMaker x y =
 -- The connection maker can return a connection of either plain HTTP
 -- or HTTP over TLS.
 --
+-- The connection maker runs on the connection's own thread, under its
+-- watchdog.  A maker which throws closes what it accepted itself: warp
+-- has no connection to close then.
+--
 -- @since 2.1.4
 runSettingsConnectionMakerSecure
     :: Settings
@@ -394,7 +400,8 @@ runSettingsConnectionMakerSecure set = runSettingsConnectionMakerSecureWith set 
 
 -- | 'runSettingsConnectionMakerSecure' for a caller that has the listening
 --   socket, and so can say how the accept loop waits on it and what becomes
---   of it when the loop stops.
+--   of it when the loop stops.  A connection maker which throws closes what
+--   it accepted itself, as there.
 runSettingsConnectionMakerSecureWith
     :: Settings
     -> Listener
@@ -420,9 +427,9 @@ withII set action =
                     let ii = InternalInfo tm dc fdc fic
                     action ii
   where
-    !fdCacheDurationInMicroseconds = settingsFdCacheDuration set * 1000000
-    !fdFileInfoDurationInMicroseconds = settingsFileInfoCacheDuration set * 1000000
-    !timeoutInMicroseconds = settingsTimeout set * 1000000
+    !fdCacheDurationInMicroseconds = settingsFdCacheDuration set * 1_000_000
+    !fdFileInfoDurationInMicroseconds = settingsFileInfoCacheDuration set * 1_000_000
+    !timeoutInMicroseconds = settingsTimeout set * 1_000_000
     withTimeoutManager f = case settingsManager set of
         Just tm -> f tm
         Nothing ->
@@ -611,8 +618,8 @@ fork set mkConn addr app counter ii = do
                 -- protect itself.  A read on the way gives up by itself,
                 -- see 'makeWatchedRecv'; the throw is the last resort.
                 --
-                -- If the mkConn call throws an exception, we will leak
-                -- the connection.
+                -- A maker which throws closes what it accepted itself:
+                -- there is no connection here to close.
                 withWatchdog (connWatchdog cc) (E.throwTo tid T.TimeoutThread) $
                     E.bracket (mkConn cc) (cleanUp cc) (serve unmask cc)
 
@@ -627,8 +634,8 @@ fork set mkConn addr app counter ii = do
 
     -- A quarter of the timeout, at most a second, and a second for none.
     closeTimeout
-        | settingsTimeout set <= 0 = 1000000
-        | otherwise = min 1000000 $ settingsTimeout set * 250000
+        | settingsTimeout set <= 0 = 1_000_000
+        | otherwise = min 1_000_000 $ settingsTimeout set * 250_000
 
     -- An HTTP/2 connection is handed on to the http2 library, which
     -- supervises it from there ('Warp.HTTP2.http2'), so what is watched
@@ -743,7 +750,7 @@ gracefulShutdown set counter = do
         (Just seconds) ->
             void (timeout (seconds * microsPerSecond) (waitForZero counter))
   where
-    microsPerSecond = 1000000
+    microsPerSecond = 1_000_000
     setShuttingDown =
         case settingsServerState set of
             Nothing -> pure ()

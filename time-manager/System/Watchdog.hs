@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -26,7 +27,7 @@
 -- > instance WatchdogFor Worker where
 -- >     data ContextFor Worker = Idle | Reading
 -- >     decide _ Idle = return unlimited
--- >     decide _ Reading = return $ setTimeout 5000000
+-- >     decide _ Reading = return $ setTimeout 5_000_000
 -- >
 -- > worker :: TQueue Job -> IO ()
 -- > worker q = do
@@ -51,8 +52,8 @@
 -- connection to the http2 library, say -- the watchdog is handed over
 -- with 'handOver' (or by a 'decide' which answers 'abort'): it stops
 -- deciding anything about the task, and the new owner supervises what
--- follows with a watchdog of its own. A task is never watched by two
--- watchdogs at once.
+-- follows with a watchdog of its own. A task should never be watched
+-- by two watchdogs at once.
 --
 -- The watchdog looks at the task at most once per a quarter of the
 -- timeout it is waiting out (capped at one second), so a timeout may fire
@@ -199,7 +200,7 @@ updateSTM f wd = modifyTVar' (wdRecorded wd) $ \(Recorded n ctx) ->
 ----------------------------------------------------------------
 
 -- | Succeeding once the watchdog has decided that the task timed
---   out. Retrying otherwise, and for good once the task has been
+--   out. Retrying otherwise, and will retry forever once the task has been
 --   handed over.
 timedOutSTM :: Watchdog a -> STM ()
 timedOutSTM wd = decided wd >>= check
@@ -305,7 +306,7 @@ watchdog wd lastResort done = do
     -- A quarter of what is being waited out, capped at one second, and
     -- one second when nothing is.  In microseconds.
     interval :: Maybe Word64 -> Int
-    interval = maybe 1000000 (fromIntegral . max 1 . min 1000000 . (`div` 4))
+    interval = maybe 1_000_000 (fromIntegral . max 1 . min 1_000_000 . (`div` 4))
 
     -- How long there is left until the deadline, in microseconds.
     remaining :: Maybe Word64 -> IO (Maybe Int)

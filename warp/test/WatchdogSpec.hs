@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -54,17 +55,17 @@ spec = describe "watchdog" $ do
     describe "HTTP/1.1" $ do
         it "closes an idle connection" $
             withApp10 settings okApp $ \port -> withSock port $ \s -> do
-                mbs <- timeout 2500000 $ recvAll s
+                mbs <- timeout 2_500_000 $ recvAll s
                 mbs `shouldBe` Just ""
 
         it "does not limit a slow application" $
-            withApp10 settings (slowApp 1500000) $ \port -> withSock port $ \s -> do
+            withApp10 settings (slowApp 1_500_000) $ \port -> withSock port $ \s -> do
                 sendAll s "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
                 bs <- recvUntil s "slow"
                 bs `shouldSatisfy` S.isPrefixOf "HTTP/1.1 200"
 
         it "does not limit a streaming application between chunks" $
-            withApp10 settings (streamApp 1500000) $ \port -> withSock port $ \s -> do
+            withApp10 settings (streamApp 1_500_000) $ \port -> withSock port $ \s -> do
                 sendAll s "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
                 bs <- recvUntil s "second"
                 bs `shouldSatisfy` S.isInfixOf "first"
@@ -78,10 +79,10 @@ spec = describe "watchdog" $ do
                         (r :: Either E.SomeException ByteString)
             withApp10 settings app $ \port -> withSock port $ \s -> do
                 sendAll s "POST / HTTP/1.1\r\nHost: localhost\r\ncontent-length: 100\r\n\r\n"
-                sendAll s "0123456789"
+                sendAll s "123_456_789"
                 r <- takeMVar result
                 r `shouldBe` Just (show TimeoutThread)
-                mbs <- timeout 1000000 $ recvAll s
+                mbs <- timeout 1_000_000 $ recvAll s
                 mbs `shouldBe` Just ""
 
         it "closes a connection whose peer does not read" $ do
@@ -93,7 +94,7 @@ spec = describe "watchdog" $ do
                 sendAll s "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
                 -- Every completed write is progress, and Windows takes much
                 -- more before a send blocks, so the stall is seen later there.
-                mc <- timeout 6000000 $ takeMVar closed
+                mc <- timeout 6_000_000 $ takeMVar closed
                 mc `shouldBe` Just ()
 
     describe "HTTP/2" $ do
@@ -103,17 +104,17 @@ spec = describe "watchdog" $ do
             withApp10 settings okApp $ \port -> withSock port $ \s -> do
                 sendAll s "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
                 sendAll s emptySettingsFrame
-                mbs <- timeout 2500000 $ recvAll s
+                mbs <- timeout 2_500_000 $ recvAll s
                 fmap S.null mbs `shouldBe` Just False
 
         it "does not limit a slow application" $
-            withApp10 settings (slowApp 1500000) $ \port -> do
+            withApp10 settings (slowApp 1_500_000) $ \port -> do
                 (st, body) <- h2get port
                 st `shouldBe` status200
                 body `shouldBe` "slow"
 
         it "does not limit a streaming application between chunks" $
-            withApp10 settings (streamApp 1500000) $ \port -> do
+            withApp10 settings (streamApp 1_500_000) $ \port -> do
                 (st, body) <- h2get port
                 st `shouldBe` status200
                 body `shouldBe` "first second"
@@ -131,7 +132,7 @@ spec = describe "watchdog" $ do
                 sendAll s $ frame 4 0 0 $ S.pack [0, 4, 0x7f, 0xff, 0xff, 0xff]
                 sendAll s $ frame 8 0 0 $ S.pack [0x7f, 0xff, 0, 0]
                 sendAll s $ frame 1 5 1 getHeaderBlock
-                mc <- timeout 6000000 $ takeMVar closed
+                mc <- timeout 6_000_000 $ takeMVar closed
                 mc `shouldBe` Just ()
 
     describe "makeWatchedRecv" $
@@ -145,9 +146,9 @@ spec = describe "watchdog" $ do
                     atomically $ writeTVar (connRecvGiveUp cc) $ readTVar stop >>= check
                     -- The peer is silent, so only the give-up ends the read.
                     withAsync (makeWatchedRecv s pool ss cc) $ \r -> do
-                        threadDelay 100000
+                        threadDelay 100_000
                         atomically $ writeTVar stop True
-                        timeout 1000000 (wait r) `shouldReturn` Just ""
+                        timeout 1_000_000 (wait r) `shouldReturn` Just ""
 
 ----------------------------------------------------------------
 

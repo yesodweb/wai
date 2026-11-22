@@ -106,7 +106,7 @@ data Activity = Activity
     -- ^ A write is in progress.
     , actWaiting :: Bool
     -- ^ A read on behalf of an application is in progress.
-    , actApps :: Bool
+    , actRunningApp :: Bool
     -- ^ An application is running.
     }
 
@@ -123,7 +123,7 @@ rule :: Activity -> Rule
 rule a
     | actSending a = Writing $ actTx a
     | actWaiting a = ReadingForApp $ actRx a
-    | actApps a = RunningApp
+    | actRunningApp a = RunningApp
     | otherwise = Idling $ actRx a
 
 instance WatchdogFor Http1 where
@@ -137,12 +137,13 @@ instance WatchdogFor Http1 where
         -- and what it is not doing is already on the clock.
         Nothing -> action
         Just old
-            | rule (h1Activity old) == r' -> ignore
+            | ruleFor old == newRule -> ignore
             | otherwise -> action
       where
-        r' = rule $ h1Activity new
+        ruleFor = rule . h1Activity
+        newRule = ruleFor new
         action
-            | RunningApp <- r' = unlimited
+            | RunningApp <- newRule = unlimited
             | otherwise = setTimeout $ h1Timeout new
 
 modifyActivity :: ConnWatchdog -> (Activity -> Activity) -> IO ()
@@ -177,4 +178,4 @@ waitingForPeer = during $ \b a -> a{actWaiting = b}
 
 -- | Running an application.
 runningApp :: ConnWatchdog -> IO a -> IO a
-runningApp = during $ \b a -> a{actApps = b}
+runningApp = during $ \b a -> a{actRunningApp = b}

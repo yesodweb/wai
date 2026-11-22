@@ -72,7 +72,7 @@ http2 settings ii conn cc transport app peersa _th bs = do
         -- 'connSendGiveUp', which the sends of the connection read.
         sendBSWith giveUp frame = do
             atomically $ writeTVar (connSendGiveUp cc) giveUp
-            (Right () <$ sendBS frame) `E.catch` \T.TimeoutThread -> return (Left ())
+            (Right <$> sendBS frame) `E.catch` \T.TimeoutThread -> return (Left ())
         -- And what a read gives up on through 'connRecvGiveUp', so that
         -- the receiver is stopped without being interrupted.
         recvNWith giveUp n = do
