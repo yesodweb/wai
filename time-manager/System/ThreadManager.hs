@@ -352,7 +352,10 @@ forkManagedTimeoutFinally mgr timmgr label io final =
     E.bracketOnError (reserveManaged mgr) (release mgr) $ \rsv ->
         void $ forkIO $
             managed mgr rsv label final $ \(_n, ManagedThread wtid ref) ->
-                T.withHandle timmgr (lockAndKill wtid ref ex) io
+                -- Forked: the timeout action runs on the system timer
+                -- manager's thread, and 'throwTo' blocks until the target
+                -- can take it.
+                T.withHandle timmgr (void $ forkIO $ lockAndKill wtid ref ex) io
   where
     ex = KilledByThreadManager Nothing
 
