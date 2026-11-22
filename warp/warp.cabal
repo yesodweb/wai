@@ -414,6 +414,7 @@ benchmark response
         hashable,
         http-date,
         http-types,
+        http2,
         network,
         recv,
         stm,

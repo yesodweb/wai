@@ -20,6 +20,7 @@ import GHC.Exts (fork#)
 import GHC.IO (IO (IO), unsafeUnmask)
 import GHC.IO.Exception (IOErrorType (..))
 import qualified Network.HTTP.Types as H
+import qualified Network.HTTP2.Client as H2C
 import Network.Socket (SockAddr, Socket, accept)
 import Network.Wai
 import System.IO (stderr)
@@ -402,6 +403,11 @@ defaultShouldDisplayException se
     , et == ResourceVanished || et == InvalidArgument =
         False
     | isAsyncException se = False
+    -- An HTTP/2 peer which goes away or falls silent.
+    | Just (e :: H2C.HTTP2Error) <- fromException se = case e of
+        H2C.ConnectionIsClosed -> False
+        H2C.ConnectionIsTimeout -> False
+        _ -> True
     | otherwise = True
 
 -- | Printing an exception to standard error
