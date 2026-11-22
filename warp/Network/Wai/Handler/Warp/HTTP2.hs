@@ -91,12 +91,13 @@ http2 settings ii conn transport app peersa th bs = do
     -- on it.
     checkTLS = case transport of
         TCP -> return True -- direct
-        tls
-            | tls12orLater tls -> return True
+        TLS{tlsMajorVersion = major, tlsMinorVersion = minor}
+            | major == 3 && minor >= 3 -> return True
             | otherwise -> do
                 goaway conn H2.InadequateSecurity "Weak TLS"
                 return False
-    tls12orLater tls = tlsMajorVersion tls == 3 && tlsMinorVersion tls >= 3
+        -- QUIC establishes TLS 1.3 itself and calls http2server through HTTP/3.
+        QUIC{} -> return True
 
 -- | Converting WAI application to the server type of http2 library.
 --
