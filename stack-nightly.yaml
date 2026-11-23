@@ -3,7 +3,6 @@ packages:
   - ./auto-update
   - ./mime-types
   - ./recv
-  - ./time-manager
   - ./wai
   - ./wai-app-static
   - ./wai-conduit
@@ -22,7 +21,13 @@ nix:
   packages:
     - fcgi
     - zlib
-extra-deps: []
+extra-deps:
+  - time-manager-0.5.2
+  - network-3.2.12.0
+  - http2-5.4.10
+  - http3-0.1.9
+  - quic-0.3.18
+  - crypton-2.1.10
 allow-newer: true
 allow-newer-deps:
   - http2
