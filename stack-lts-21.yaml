@@ -3,7 +3,6 @@ packages:
   - ./auto-update
   - ./mime-types
   - ./recv
-  - ./time-manager
   - ./wai
   - ./wai-app-static
   - ./wai-conduit
@@ -38,7 +37,8 @@ extra-deps:
   - http2-5.4.0
   - http3-0.1.2
   - mwc-random-0.15.2.0
-  - network-3.2.11.0
+  - network-3.2.15.0
+  - time-manager-0.5.2
   - network-control-0.1.7
   - os-string-2.0.8
   - quic-0.2.21
