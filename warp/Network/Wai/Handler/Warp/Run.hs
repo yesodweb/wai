@@ -364,7 +364,7 @@ runSettingsConnection set getConn app = runSettingsConnectionMaker set getConnMa
 
 -- | This modifies the connection maker so that it returns 'TCP' for 'Transport'
 -- (i.e. plain HTTP) then calls 'runSettingsConnectionMakerSecure'.  A
--- connection maker which throws closes what it accepted itself.
+-- connection maker which throws must close what it accepted itself.
 runSettingsConnectionMaker
     :: Settings
     -> IO (ConnContext -> IO Connection, SockAddr)
@@ -383,8 +383,8 @@ runSettingsConnectionMaker x y =
 -- or HTTP over TLS.
 --
 -- The connection maker runs on the connection's own thread, under its
--- watchdog.  A maker which throws closes what it accepted itself: warp
--- has no connection to close then.
+-- watchdog.  A connection maker which throws must close what it accepted
+-- itself, since warp has no connection to close then.
 --
 -- @since 2.1.4
 runSettingsConnectionMakerSecure
@@ -400,8 +400,8 @@ runSettingsConnectionMakerSecure set = runSettingsConnectionMakerSecureWith set 
 
 -- | 'runSettingsConnectionMakerSecure' for a caller that has the listening
 --   socket, and so can say how the accept loop waits on it and what becomes
---   of it when the loop stops.  A connection maker which throws closes what
---   it accepted itself, as there.
+--   of it when the loop stops.  A connection maker which throws must close
+--   what it accepted itself, as with 'runSettingsConnectionMakerSecure'.
 runSettingsConnectionMakerSecureWith
     :: Settings
     -> Listener
@@ -618,8 +618,8 @@ fork set mkConn addr app counter ii = do
                 -- protect itself.  A read on the way gives up by itself,
                 -- see 'makeWatchedRecv'; the throw is the last resort.
                 --
-                -- A maker which throws closes what it accepted itself:
-                -- there is no connection here to close.
+                -- A connection maker which throws must close what it
+                -- accepted itself: there is no connection here to close.
                 withWatchdog (connWatchdog cc) (E.throwTo tid T.TimeoutThread) $
                     E.bracket (mkConn cc) (cleanUp cc) (serve unmask cc)
 

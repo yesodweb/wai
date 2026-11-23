@@ -79,7 +79,7 @@ spec = describe "watchdog" $ do
                         (r :: Either E.SomeException ByteString)
             withApp10 settings app $ \port -> withSock port $ \s -> do
                 sendAll s "POST / HTTP/1.1\r\nHost: localhost\r\ncontent-length: 100\r\n\r\n"
-                sendAll s "123_456_789"
+                sendAll s "0123456789"
                 r <- takeMVar result
                 r `shouldBe` Just (show TimeoutThread)
                 mbs <- timeout 1_000_000 $ recvAll s
