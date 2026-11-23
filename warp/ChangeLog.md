@@ -1,5 +1,10 @@
 # ChangeLog for warp
 
+## 3.4.22
+
+* warp: backport total HTTP/2 transport checks to v3.4
+  [#1177](https://github.com/yesodweb/wai/pull/1177)
+
 ## 3.4.21
 
 Requires network 3.2.12.
