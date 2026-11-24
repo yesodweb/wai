@@ -4,6 +4,7 @@
 
 * Reviewed usage of modifying `IORef`s and default to strict `atomicModifyIORef'`
   unless decided (and documented) why it is not necessary.
+* Deprecate `Jsonp` because it is unsafe [#1180](https://github.com/yesodweb/wai/pull/1180).
 
 ## 3.1.18
 
