@@ -1,6 +1,6 @@
 # Changelog for wai-extra
 
-## Unreleased
+## 3.2.0
 
 * Reviewed usage of modifying `IORef`s and default to strict `atomicModifyIORef'`
   unless decided (and documented) why it is not necessary.
