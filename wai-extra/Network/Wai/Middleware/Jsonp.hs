@@ -37,6 +37,10 @@ import Network.Wai.Internal
 -- \"application/json\" response, then convert that into a JSONP response,
 -- having a content type of \"text\/javascript\" and calling the specified
 -- callback function.
+--
+-- Note that JSONP is a flawed system vulnerable to arbitrary JavaScript code
+-- injection. Use Cross-Origin Resource Sharing (CORS) or Content Security
+-- Policy (CSP) instead.
 jsonp :: Middleware
 jsonp app env sendResponse = do
     let accept = fromMaybe B8.empty $ lookup hAccept $ requestHeaders env
@@ -90,6 +94,7 @@ jsonp app env sendResponse = do
             sendChunk $ byteStringCopy cb `mappend` char7 '('
             _ <- body sendChunk flush
             sendChunk $ char7 ')'
+{-# DEPRECATED jsonp "This middleware is unsafe and it will be removed in a future release. Use CORS or CSP instead." #-}
 
 changeVal
     :: Eq a
